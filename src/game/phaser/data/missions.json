@@ -1,0 +1,61 @@
+{
+  "$schema": "./schema/missions.schema.json",
+  "missions": [
+    {
+      "id": "tutorial",
+      "kind": "mission",
+      "name": "Spud Prime",
+      "description": "A quiet outpost. Learn the controls, clear some drones.",
+      "difficulty": 1,
+      "texture": "/textures/planets/tutorial.jpg",
+      "orbitRadius": 6,
+      "orbitSpeed": 0.12,
+      "startAngle": 0.0,
+      "scale": 1.0,
+      "requires": [],
+      "musicTrack": "/audio/music/combat-tutorial.ogg"
+    },
+    {
+      "id": "combat-1",
+      "kind": "mission",
+      "name": "Yamsteroid Belt",
+      "description": "Asteroid field crawling with Weavers and Divers. Three waves, one mini-boss.",
+      "difficulty": 2,
+      "texture": "/textures/planets/combat-1.jpg",
+      "orbitRadius": 10,
+      "orbitSpeed": 0.08,
+      "startAngle": 1.2,
+      "scale": 1.1,
+      "requires": ["tutorial"],
+      "musicTrack": "/audio/music/combat-1.ogg"
+    },
+    {
+      "id": "boss-1",
+      "kind": "mission",
+      "name": "Dreadfruit",
+      "description": "A planet-sized tuber with too many gun turrets. Bring everything.",
+      "difficulty": 3,
+      "texture": "/textures/planets/boss-1.jpg",
+      "orbitRadius": 14,
+      "orbitSpeed": 0.05,
+      "startAngle": 2.7,
+      "scale": 1.4,
+      "requires": ["combat-1"],
+      "musicTrack": "/audio/music/boss-1.ogg"
+    },
+    {
+      "id": "shop",
+      "kind": "shop",
+      "name": "Tater Market",
+      "description": "Refuel, rearm, upgrade. Credits welcome.",
+      "difficulty": 1,
+      "texture": "/textures/planets/shop.jpg",
+      "orbitRadius": 8,
+      "orbitSpeed": 0.10,
+      "startAngle": 3.9,
+      "scale": 0.85,
+      "requires": [],
+      "musicTrack": null
+    }
+  ]
+}

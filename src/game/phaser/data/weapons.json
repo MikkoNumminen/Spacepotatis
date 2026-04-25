@@ -1,0 +1,38 @@
+{
+  "$schema": "./schema/weapons.schema.json",
+  "weapons": [
+    {
+      "id": "rapid-fire",
+      "name": "Pulse Cannon",
+      "description": "High rate of fire, low damage per shot. Great against swarms.",
+      "damage": 6,
+      "fireRateMs": 120,
+      "bulletSpeed": 720,
+      "projectileCount": 1,
+      "spreadDegrees": 0,
+      "cost": 0
+    },
+    {
+      "id": "spread-shot",
+      "name": "Scatter Beam",
+      "description": "Three bullets in a cone. Trades range for coverage.",
+      "damage": 5,
+      "fireRateMs": 220,
+      "bulletSpeed": 640,
+      "projectileCount": 3,
+      "spreadDegrees": 22,
+      "cost": 450
+    },
+    {
+      "id": "heavy-cannon",
+      "name": "Plasma Lance",
+      "description": "Slow-firing, heavy shots that punch through light armor.",
+      "damage": 22,
+      "fireRateMs": 480,
+      "bulletSpeed": 560,
+      "projectileCount": 1,
+      "spreadDegrees": 0,
+      "cost": 900
+    }
+  ]
+}
