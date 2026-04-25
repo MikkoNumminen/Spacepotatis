@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    height: 100%;
+    background-color: theme("colors.space-bg");
+    color: theme("colors.hud-green");
+  }
+
+  body {
+    font-family: theme("fontFamily.mono");
+    overscroll-behavior: none;
+  }
+
+  /* Game canvas takes full viewport; keep browser chrome from adding gutters. */
+  canvas {
+    display: block;
+  }
+}
