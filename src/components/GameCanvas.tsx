@@ -128,7 +128,11 @@ export default function GameCanvas() {
 
       {mode === "galaxy" && (
         <div className="pointer-events-none absolute inset-0">
-          <HudFrame hovered={hovered} lastSummary={lastSummary} />
+          <HudFrame
+            hovered={hovered}
+            lastSummary={lastSummary}
+            onBackToMenu={() => router.push("/")}
+          />
           <MissionSelect
             mission={selected}
             onClose={() => setSelected(null)}
@@ -146,27 +150,62 @@ export default function GameCanvas() {
   );
 }
 
+function StatsPanel({ credits, cleared }: { credits: number; cleared: number }) {
+  return (
+    <div className="flex flex-col gap-1.5 font-mono text-xs">
+      <StatRow label="credits" value={`¢ ${credits}`} valueClass="text-hud-amber" />
+      <StatRow label="cleared" value={String(cleared)} valueClass="text-hud-green" />
+    </div>
+  );
+}
+
+function StatRow({
+  label,
+  value,
+  valueClass
+}: {
+  label: string;
+  value: string;
+  valueClass: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-3">
+      <span className="w-20 text-[10px] uppercase tracking-[0.2em] text-hud-green/70">
+        {label}
+      </span>
+      <span className={valueClass}>{value}</span>
+    </div>
+  );
+}
+
 function HudFrame({
   hovered,
-  lastSummary
+  lastSummary,
+  onBackToMenu
 }: {
   hovered: MissionDefinition | null;
   lastSummary: CombatSummary | null;
+  onBackToMenu: () => void;
 }) {
   const credits = useGameState((s) => s.credits);
   const cleared = useGameState((s) => s.completedMissions.length);
 
   return (
     <>
-      <div className="absolute left-6 top-6 font-display text-xs tracking-[0.4em] text-hud-green/70">
-        GALAXY · OVERWORLD
+      <div className="absolute left-1/2 top-6 -translate-x-1/2 font-display text-xl tracking-widest text-hud-green/90 drop-shadow-[0_0_8px_rgba(94,255,167,0.25)]">
+        SPACEPOTATIS
       </div>
-      <div className="absolute left-1/2 top-6 -translate-x-1/2 font-mono text-xs">
-        <span className="text-hud-amber">¢ {credits}</span>
-        <span className="ml-4 text-hud-green/70">missions cleared {cleared}</span>
+      <div className="absolute left-6 top-6 flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={onBackToMenu}
+          className="pointer-events-auto self-start rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
+        >
+          ← Menu
+        </button>
+        <StatsPanel credits={credits} cleared={cleared} />
       </div>
-      <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-3 font-mono text-[11px] text-space-border">
-        <span>drag to orbit · scroll to zoom</span>
+      <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-3 font-mono text-[11px]">
         <MuteToggle />
         <SignInButton compact />
       </div>
@@ -179,8 +218,8 @@ function HudFrame({
           <span className="ml-3 text-hud-green/70">score {lastSummary.score}</span>
         </div>
       )}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center">
-        {hovered ? (
+      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-center">
+        {hovered && (
           <div className="rounded border border-space-border bg-space-panel/80 px-4 py-2 backdrop-blur-sm">
             <div className="font-display tracking-widest text-hud-green">{hovered.name}</div>
             <div className="text-[11px] text-hud-amber">
@@ -189,9 +228,10 @@ function HudFrame({
                 : `difficulty ${"★".repeat(hovered.difficulty)}`}
             </div>
           </div>
-        ) : (
-          <div className="text-[11px] text-space-border">hover a planet · click to select</div>
         )}
+        <div className="font-mono text-[11px] text-hud-green/60">
+          drag to orbit · scroll to zoom · hover a planet · click to select
+        </div>
       </div>
     </>
   );
