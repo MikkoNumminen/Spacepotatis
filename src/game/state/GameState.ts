@@ -98,6 +98,23 @@ export function selectWeapon(id: WeaponId): boolean {
   return true;
 }
 
+// Mid-mission weapon pickup: unlock the weapon (no cost) and equip it. Persists
+// past the current run so the player keeps the upgrade in subsequent missions.
+export function grantWeapon(id: WeaponId): void {
+  const alreadyUnlocked = state.ship.unlockedWeapons.includes(id);
+  if (alreadyUnlocked && state.ship.primaryWeapon === id) return;
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      unlockedWeapons: alreadyUnlocked
+        ? state.ship.unlockedWeapons
+        : [...state.ship.unlockedWeapons, id],
+      primaryWeapon: id
+    }
+  });
+}
+
 export function buyWeapon(id: WeaponId): boolean {
   if (isWeaponUnlocked(state.ship, id)) return false;
   const weapon = getWeapon(id);

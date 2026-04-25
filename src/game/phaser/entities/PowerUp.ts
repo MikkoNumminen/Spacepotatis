@@ -1,6 +1,15 @@
 import * as Phaser from "phaser";
+import { PERKS, type PerkId } from "../data/perks";
 
-export type PowerUpKind = "shield" | "credit" | "weapon";
+export type PermanentPowerUpKind = "shield" | "credit" | "weapon";
+
+export type PowerUpKind = PermanentPowerUpKind | { perk: PerkId };
+
+const PERMANENT_KINDS: ReadonlySet<string> = new Set(["shield", "credit", "weapon"]);
+
+export function isPerkKind(kind: PowerUpKind): kind is { perk: PerkId } {
+  return typeof kind === "object" && "perk" in kind;
+}
 
 export class PowerUp extends Phaser.Physics.Arcade.Sprite {
   kind: PowerUpKind = "credit";
@@ -12,7 +21,11 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
   spawn(kind: PowerUpKind, x: number, y: number): void {
     this.kind = kind;
     this.enableBody(true, x, y, true, true);
-    this.setTexture(`powerup-${kind}`);
+    if (isPerkKind(kind)) {
+      this.setTexture(PERKS[kind.perk].textureKey);
+    } else if (PERMANENT_KINDS.has(kind)) {
+      this.setTexture(`powerup-${kind}`);
+    }
     this.setVelocity(0, 120);
   }
 

@@ -6,10 +6,10 @@
       "waves": [
         {
           "id": "tutorial-1",
-          "durationMs": 18000,
+          "durationMs": 24000,
           "spawns": [
-            { "enemy": "basic", "count": 5, "delayMs": 500,  "intervalMs": 1200, "formation": "line",   "xPercent": 0.3 },
-            { "enemy": "basic", "count": 5, "delayMs": 4000, "intervalMs": 1200, "formation": "line",   "xPercent": 0.7 }
+            { "enemy": "basic", "count": 4, "delayMs": 1500, "intervalMs": 1800, "formation": "line",   "xPercent": 0.3 },
+            { "enemy": "basic", "count": 4, "delayMs": 7000, "intervalMs": 1800, "formation": "line",   "xPercent": 0.7 }
           ]
         }
       ]
@@ -19,10 +19,10 @@
       "waves": [
         {
           "id": "combat-1-wave-1",
-          "durationMs": 20000,
+          "durationMs": 22000,
           "spawns": [
-            { "enemy": "basic",   "count": 8, "delayMs": 0,    "intervalMs": 700, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "zigzag",  "count": 3, "delayMs": 6000, "intervalMs": 900, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "basic",   "count": 8, "delayMs": 800,  "intervalMs": 1000, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "zigzag",  "count": 3, "delayMs": 8000, "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {

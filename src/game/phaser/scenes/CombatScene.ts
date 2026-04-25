@@ -8,12 +8,22 @@ import { Player } from "../entities/Player";
 import * as GameState from "@/game/state/GameState";
 import { PAUSE_SCENE_KEY } from "./PauseScene";
 import { sfx } from "@/game/audio/sfx";
-import { PowerUpPool, type PowerUp, type PowerUpKind } from "../entities/PowerUp";
+import {
+  PowerUpPool,
+  isPerkKind,
+  type PowerUp,
+  type PowerUpKind,
+  type PermanentPowerUpKind
+} from "../entities/PowerUp";
+import { PERKS, randomPerkId, type PerkId } from "../data/perks";
 import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
 
 const DROP_CHANCE = 0.18;
+// Of any drop, 25% is a mission perk (rare). Remaining 75% splits across
+// the permanent powerups with the existing weights.
+const PERK_DROP_SHARE = 0.25;
 
 export class CombatScene extends Phaser.Scene {
   private bootData!: BootData;
@@ -34,6 +44,11 @@ export class CombatScene extends Phaser.Scene {
   private creditsText!: Phaser.GameObjects.Text;
   private shieldBar!: Phaser.GameObjects.Graphics;
   private armorBar!: Phaser.GameObjects.Graphics;
+  private perkChipsLayer!: Phaser.GameObjects.Container;
+
+  // Mission-only perk state. Reset on every CombatScene boot.
+  private empCharges = 0;
+  private activePerks: Set<PerkId> = new Set();
 
   constructor() {
     super(SCENE_KEYS.Combat);
@@ -43,6 +58,8 @@ export class CombatScene extends Phaser.Scene {
     this.bootData = data;
     this.allWavesDone = false;
     this.finished = false;
+    this.empCharges = 0;
+    this.activePerks = new Set();
   }
 
   create(): void {
@@ -101,6 +118,7 @@ export class CombatScene extends Phaser.Scene {
 
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-ESC", () => this.togglePause());
+    this.input.keyboard?.on("keydown-CTRL", () => this.useActivePerk());
 
     this.buildHud();
 
@@ -142,6 +160,7 @@ export class CombatScene extends Phaser.Scene {
     });
     this.shieldBar = this.add.graphics();
     this.armorBar = this.add.graphics();
+    this.perkChipsLayer = this.add.container(VIRTUAL_WIDTH - 188, 48);
   }
 
   private updateHud(): void {
@@ -183,8 +202,7 @@ export class CombatScene extends Phaser.Scene {
     sfx.explosion();
 
     if (Math.random() < DROP_CHANCE) {
-      const roll = Math.random();
-      const kind: PowerUpKind = roll < 0.5 ? "credit" : roll < 0.8 ? "shield" : "weapon";
+      const kind: PowerUpKind = this.rollDrop();
       this.powerUps.spawn(kind, enemy.x, enemy.y);
     }
 
@@ -207,19 +225,140 @@ export class CombatScene extends Phaser.Scene {
 
   private applyPowerUp(power: PowerUp): void {
     sfx.pickup();
+    if (isPerkKind(power.kind)) {
+      this.applyPerk(power.kind.perk, power.x, power.y);
+      return;
+    }
     switch (power.kind) {
       case "shield":
         this.player.shield = Math.min(
           this.player.maxShield,
           this.player.shield + this.player.maxShield * 0.5
         );
+        this.flashPickup("+ SHIELD", 0x4fd1ff, power.x, power.y);
         break;
       case "credit":
         this.score.addCredits(25);
+        this.flashPickup("+ ¢25", 0xffcc33, power.x, power.y);
         break;
-      case "weapon":
-        this.player.setWeapon(this.nextWeapon());
+      case "weapon": {
+        const next = this.nextWeapon();
+        this.player.setWeapon(next);
+        GameState.grantWeapon(next);
+        this.flashPickup(`+ ${next.toUpperCase()}`, 0x5effa7, power.x, power.y);
         break;
+      }
+    }
+  }
+
+  private applyPerk(perkId: PerkId, x: number, y: number): void {
+    const def = PERKS[perkId];
+    switch (perkId) {
+      case "overdrive":
+        this.player.hasOverdrive = true;
+        break;
+      case "hardened":
+        this.player.hasHardened = true;
+        break;
+      case "emp":
+        this.empCharges += 1;
+        break;
+    }
+    this.activePerks.add(perkId);
+    this.flashPickup(`+ ${def.name.toUpperCase()}`, def.tint, x, y);
+    this.refreshPerkChips();
+  }
+
+  private rollDrop(): PowerUpKind {
+    if (Math.random() < PERK_DROP_SHARE) {
+      return { perk: randomPerkId() };
+    }
+    const roll = Math.random();
+    const kind: PermanentPowerUpKind = roll < 0.5 ? "credit" : roll < 0.8 ? "shield" : "weapon";
+    return kind;
+  }
+
+  private useActivePerk(): void {
+    if (this.empCharges <= 0) return;
+    this.empCharges -= 1;
+    this.detonateEmp();
+    if (this.empCharges <= 0) this.activePerks.delete("emp");
+    this.refreshPerkChips();
+  }
+
+  private detonateEmp(): void {
+    // Clear every active enemy bullet on screen.
+    this.enemyBullets.children.iterate((child) => {
+      const b = child as Phaser.Physics.Arcade.Sprite;
+      if (b.active) b.disableBody(true, true);
+      return true;
+    });
+    // Visual flash centred on the player.
+    const flash = this.add.graphics();
+    flash.fillStyle(PERKS.emp.tint, 0.45);
+    flash.fillCircle(this.player.x, this.player.y, 24);
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: flash,
+      scale: 28,
+      alpha: 0,
+      duration: 480,
+      ease: "cubic.out",
+      onComplete: () => flash.destroy()
+    });
+    this.cameras.main.flash(120, 255, 200, 240, false);
+    sfx.explosion();
+  }
+
+  private flashPickup(text: string, color: number, x: number, y: number): void {
+    const label = this.add.text(x, y - 12, text, {
+      fontFamily: "monospace",
+      fontSize: "13px",
+      color: `#${color.toString(16).padStart(6, "0")}`
+    });
+    label.setOrigin(0.5, 1);
+    this.tweens.add({
+      targets: label,
+      y: y - 56,
+      alpha: 0,
+      duration: 900,
+      ease: "cubic.out",
+      onComplete: () => label.destroy()
+    });
+  }
+
+  private refreshPerkChips(): void {
+    if (!this.perkChipsLayer) return;
+    this.perkChipsLayer.removeAll(true);
+    const chipHeight = 22;
+    let y = 0;
+    for (const perkId of this.activePerks) {
+      const def = PERKS[perkId];
+      const chip = this.add.container(0, y);
+      const bg = this.add.graphics();
+      bg.fillStyle(0x05060f, 0.85);
+      bg.fillRoundedRect(0, 0, 168, chipHeight, 4);
+      bg.lineStyle(1, def.tint, 0.9);
+      bg.strokeRoundedRect(0, 0, 168, chipHeight, 4);
+      const icon = this.add.image(14, chipHeight / 2, def.textureKey).setScale(0.7);
+      const name = this.add.text(30, 4, def.name, {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: `#${def.tint.toString(16).padStart(6, "0")}`
+      });
+      const hintText =
+        def.type === "active"
+          ? `CTRL × ${perkId === "emp" ? this.empCharges : 1}`
+          : "PASSIVE";
+      const hint = this.add.text(166, 4, hintText, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#a3b1c2"
+      });
+      hint.setOrigin(1, 0);
+      chip.add([bg, icon, name, hint]);
+      this.perkChipsLayer.add(chip);
+      y += chipHeight + 4;
     }
   }
 

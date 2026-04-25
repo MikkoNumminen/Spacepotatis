@@ -20,8 +20,8 @@ export default function MissionSelect({ mission, onClose, onLaunch }: Props) {
     if (!mission || !panelRef.current) return;
     gsap.fromTo(
       panelRef.current,
-      { x: 32, opacity: 0 },
-      { x: 0, opacity: 1, duration: 0.28, ease: "power3.out" }
+      { y: -12, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.24, ease: "power3.out" }
     );
   }, [mission?.id]);
 
@@ -33,7 +33,7 @@ export default function MissionSelect({ mission, onClose, onLaunch }: Props) {
   return (
     <div
       ref={panelRef}
-      className="pointer-events-auto absolute right-6 top-1/2 w-80 -translate-y-1/2 rounded border border-space-border bg-space-panel/90 p-5 backdrop-blur-md"
+      className="pointer-events-auto absolute left-6 top-32 w-80 rounded border border-space-border bg-space-panel/90 p-5 backdrop-blur-md"
     >
       <button
         type="button"
