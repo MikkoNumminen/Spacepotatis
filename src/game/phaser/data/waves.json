@@ -1,0 +1,69 @@
+{
+  "$schema": "./schema/waves.schema.json",
+  "missions": [
+    {
+      "missionId": "tutorial",
+      "waves": [
+        {
+          "id": "tutorial-1",
+          "durationMs": 18000,
+          "spawns": [
+            { "enemy": "basic", "count": 5, "delayMs": 500,  "intervalMs": 1200, "formation": "line",   "xPercent": 0.3 },
+            { "enemy": "basic", "count": 5, "delayMs": 4000, "intervalMs": 1200, "formation": "line",   "xPercent": 0.7 }
+          ]
+        }
+      ]
+    },
+    {
+      "missionId": "combat-1",
+      "waves": [
+        {
+          "id": "combat-1-wave-1",
+          "durationMs": 20000,
+          "spawns": [
+            { "enemy": "basic",   "count": 8, "delayMs": 0,    "intervalMs": 700, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "zigzag",  "count": 3, "delayMs": 6000, "intervalMs": 900, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        },
+        {
+          "id": "combat-1-wave-2",
+          "durationMs": 22000,
+          "spawns": [
+            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 800,  "formation": "column",  "xPercent": 0.2 },
+            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 800,  "formation": "column",  "xPercent": 0.8 },
+            { "enemy": "kamikaze",  "count": 4, "delayMs": 9000,  "intervalMs": 1200, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        },
+        {
+          "id": "combat-1-wave-3",
+          "durationMs": 24000,
+          "spawns": [
+            { "enemy": "basic",    "count": 10, "delayMs": 0,     "intervalMs": 550,  "formation": "line",    "xPercent": 0.5 },
+            { "enemy": "zigzag",   "count": 4,  "delayMs": 6000,  "intervalMs": 1000, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "kamikaze", "count": 6,  "delayMs": 12000, "intervalMs": 900,  "formation": "scatter", "xPercent": 0.5 }
+          ]
+        }
+      ]
+    },
+    {
+      "missionId": "boss-1",
+      "waves": [
+        {
+          "id": "boss-1-intro",
+          "durationMs": 12000,
+          "spawns": [
+            { "enemy": "basic",  "count": 6, "delayMs": 1000, "intervalMs": 800,  "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "zigzag", "count": 2, "delayMs": 6000, "intervalMs": 1200, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        },
+        {
+          "id": "boss-1-fight",
+          "durationMs": 90000,
+          "spawns": [
+            { "enemy": "boss-1", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
+          ]
+        }
+      ]
+    }
+  ]
+}
