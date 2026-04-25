@@ -71,7 +71,7 @@ export async function submitScore(summary: CombatSummary): Promise<void> {
   }
 }
 
-function isShipConfig(value: unknown): value is StateSnapshot["ship"] {
+export function isShipConfig(value: unknown): value is StateSnapshot["ship"] {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (

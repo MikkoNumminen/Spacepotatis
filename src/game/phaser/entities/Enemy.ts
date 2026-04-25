@@ -1,17 +1,9 @@
 import * as Phaser from "phaser";
-import enemiesData from "@/game/phaser/data/enemies.json";
 import type { EnemyDefinition, EnemyId } from "@/types/game";
 import { BulletPool } from "./Bullet";
+import { getEnemy } from "../data/enemies";
 
-const ENEMIES: ReadonlyMap<EnemyId, EnemyDefinition> = new Map(
-  (enemiesData.enemies as readonly EnemyDefinition[]).map((e) => [e.id, e])
-);
-
-export function getEnemy(id: EnemyId): EnemyDefinition {
-  const def = ENEMIES.get(id);
-  if (!def) throw new Error(`Unknown enemy: ${id}`);
-  return def;
-}
+export { getEnemy };
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   definition: EnemyDefinition = getEnemy("basic");

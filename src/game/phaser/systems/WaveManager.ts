@@ -1,17 +1,11 @@
 import * as Phaser from "phaser";
-import wavesData from "@/game/phaser/data/waves.json";
-import type { MissionId, MissionWaves, WaveDefinition, WaveSpawn } from "@/types/game";
+import type { MissionId, WaveDefinition, WaveSpawn } from "@/types/game";
 import type { BulletPool } from "../entities/Bullet";
 import type { EnemyPool } from "../entities/Enemy";
 import { VIRTUAL_WIDTH } from "../config";
+import { getWavesForMission } from "../data/waves";
 
-const WAVES: ReadonlyMap<MissionId, MissionWaves> = new Map(
-  (wavesData.missions as readonly MissionWaves[]).map((m) => [m.missionId, m])
-);
-
-export function getWavesForMission(missionId: MissionId): readonly WaveDefinition[] {
-  return WAVES.get(missionId)?.waves ?? [];
-}
+export { getWavesForMission };
 
 export class WaveManager {
   private readonly scene: Phaser.Scene;
