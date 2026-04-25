@@ -24,12 +24,6 @@ export default function Home() {
           PLAY
         </Link>
         <Link
-          href="/shop"
-          className="rounded border border-space-border px-8 py-2 text-sm text-hud-amber hover:bg-space-panel"
-        >
-          Shop
-        </Link>
-        <Link
           href="/leaderboard"
           className="rounded border border-space-border px-8 py-2 text-sm text-hud-green/80 hover:bg-space-panel"
         >
@@ -40,9 +34,6 @@ export default function Home() {
         </div>
       </nav>
 
-      <footer className="pt-16 text-xs text-space-border">
-        built for Vercel Hobby · Next.js 15 · Phaser 3 · Three.js
-      </footer>
     </main>
   );
 }

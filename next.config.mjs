@@ -16,6 +16,7 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  devIndicators: false,
   experimental: {
     optimizePackageImports: ["three", "gsap"]
   }
