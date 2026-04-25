@@ -4,6 +4,7 @@ import type { MissionDefinition } from "@/types/game";
 import { Planet } from "./Planet";
 import { Starfield } from "./Starfield";
 import { CameraController } from "./CameraController";
+import { Sun } from "./Sun";
 
 export interface GalaxyOptions {
   onPlanetHover?: (mission: MissionDefinition | null) => void;
@@ -20,6 +21,7 @@ export class GalaxyScene {
   private readonly scene: THREE.Scene;
   private readonly cameraCtl: CameraController;
   private readonly starfield: Starfield;
+  private readonly sun: Sun;
   private readonly planets: Planet[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointerNdc = new THREE.Vector2(10, 10); // off-screen at boot
@@ -56,16 +58,16 @@ export class GalaxyScene {
     this.starfield = new Starfield();
     this.scene.add(this.starfield.object);
 
-    const ambient = new THREE.AmbientLight(0x6677aa, 0.55);
-    const keyLight = new THREE.DirectionalLight(0xffe3b3, 1.1);
-    keyLight.position.set(12, 8, 6);
-    const rimLight = new THREE.DirectionalLight(0x4fd1ff, 0.35);
-    rimLight.position.set(-10, -2, -8);
-    this.scene.add(ambient, keyLight, rimLight);
+    this.sun = new Sun();
+    this.scene.add(this.sun.object);
 
-    const textureLoader = new THREE.TextureLoader();
+    const ambient = new THREE.AmbientLight(0x1a2440, 0.07);
+    const rimLight = new THREE.DirectionalLight(0x3a5b8c, 0.10);
+    rimLight.position.set(-10, -2, -8);
+    this.scene.add(ambient, rimLight);
+
     for (const def of MISSIONS) {
-      const planet = new Planet(def, textureLoader);
+      const planet = new Planet(def);
       this.planets.push(planet);
       this.pickables.push(planet.getMesh());
       this.scene.add(planet.object);
@@ -99,12 +101,14 @@ export class GalaxyScene {
     window.removeEventListener("resize", this.onResize);
     this.cameraCtl.dispose();
     this.starfield.dispose();
+    this.sun.dispose();
     for (const planet of this.planets) planet.dispose();
     this.renderer.dispose();
   }
 
   private update(dt: number): void {
     this.starfield.update(dt);
+    this.sun.update(dt);
     for (const planet of this.planets) planet.update(dt);
     this.cameraCtl.update(dt);
     this.updateHover();

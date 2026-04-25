@@ -9,8 +9,8 @@ interface Options {
 
 const DEFAULTS: Options = {
   minRadius: 8,
-  maxRadius: 45,
-  initialRadius: 22,
+  maxRadius: 60,
+  initialRadius: 32,
   initialPolar: Math.PI / 3
 };
 

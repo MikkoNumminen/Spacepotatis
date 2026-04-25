@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { MissionDefinition, MissionId } from "@/types/game";
+import { generatePlanetSurface } from "./planetTexture";
 
 const BASE_RADIUS = 0.9;
 
@@ -11,49 +12,221 @@ const DIFFICULTY_COLOR: Record<1 | 2 | 3, number> = {
 
 const SHOP_COLOR = 0x4fd1ff;
 
+const LABEL_FONT = "600 56px ui-monospace, 'JetBrains Mono', Menlo, monospace";
+const LABEL_HEIGHT_PX = 128;
+const LABEL_PAD_PX = 56;
+
+const RING_TEX_W = 1024;
+const RING_TEX_H = 4;
+
+function createRingTexture(seed: number): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = RING_TEX_W;
+  canvas.height = RING_TEX_H;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const img = ctx.createImageData(RING_TEX_W, RING_TEX_H);
+    const data = img.data;
+    let s = seed >>> 0;
+    const rnd = () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+
+    const bands: { center: number; width: number; weight: number }[] = [];
+    for (let i = 0; i < 28; i++) {
+      bands.push({
+        center: rnd(),
+        width: 0.012 + rnd() * 0.05,
+        weight: 0.4 + rnd() * 0.6
+      });
+    }
+    const gaps: { center: number; width: number }[] = [];
+    for (let i = 0; i < 5; i++) {
+      gaps.push({
+        center: 0.12 + rnd() * 0.78,
+        width: 0.01 + rnd() * 0.025
+      });
+    }
+    const noiseSeed: number[] = [];
+    for (let i = 0; i < RING_TEX_W; i++) noiseSeed.push(rnd());
+
+    for (let u = 0; u < RING_TEX_W; u++) {
+      const t = u / (RING_TEX_W - 1);
+      let density = 0.35;
+      for (const band of bands) {
+        const d = Math.abs(t - band.center);
+        if (d < band.width) {
+          density += (1 - d / band.width) * band.weight * 0.55;
+        }
+      }
+      for (const gap of gaps) {
+        const dg = Math.abs(t - gap.center);
+        if (dg < gap.width) {
+          density *= dg / gap.width;
+        }
+      }
+      const n0 = noiseSeed[u] ?? 0.5;
+      const nm1 = noiseSeed[Math.max(0, u - 1)] ?? n0;
+      const np1 = noiseSeed[Math.min(RING_TEX_W - 1, u + 1)] ?? n0;
+      const grain = (n0 * 0.5 + nm1 * 0.25 + np1 * 0.25 - 0.5) * 0.18;
+      density += grain;
+
+      const edgeFade =
+        t < 0.06 ? smoothstep(0, 0.06, t) : t > 0.94 ? smoothstep(1, 0.94, t) : 1;
+      density = Math.max(0, Math.min(1, density)) * edgeFade;
+
+      const tone = 175 + density * 60;
+      const r = Math.round(tone);
+      const g = Math.round(tone - 8 - density * 8);
+      const b = Math.round(tone - 22 - density * 18);
+      const alpha = Math.round(density * 230);
+      for (let v = 0; v < RING_TEX_H; v++) {
+        const idx = (v * RING_TEX_W + u) * 4;
+        data[idx] = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = alpha;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.minFilter = THREE.LinearMipMapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function remapRingUVs(
+  geometry: THREE.RingGeometry,
+  innerRadius: number,
+  outerRadius: number
+): void {
+  const pos = geometry.attributes.position;
+  const uv = geometry.attributes.uv;
+  if (!pos || !uv) return;
+  const span = outerRadius - innerRadius;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.sqrt(x * x + y * y);
+    const u = (r - innerRadius) / span;
+    const v = (Math.atan2(y, x) / (Math.PI * 2)) + 0.5;
+    uv.setXY(i, u, v);
+  }
+  uv.needsUpdate = true;
+}
+
+function hashStringToInt(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function createLabelTexture(text: string): { texture: THREE.CanvasTexture; aspect: number } {
+  const measure = document.createElement("canvas").getContext("2d");
+  let width = 480;
+  if (measure) {
+    measure.font = LABEL_FONT;
+    width = measure.measureText(text).width;
+  }
+  const canvasW = Math.max(256, Math.ceil(width + LABEL_PAD_PX * 2));
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasW;
+  canvas.height = LABEL_HEIGHT_PX;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.font = LABEL_FONT;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = "#dceaff";
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return { texture, aspect: canvasW / LABEL_HEIGHT_PX };
+}
+
 export class Planet {
   readonly object: THREE.Group;
   private readonly mesh: THREE.Mesh;
   private readonly outline: THREE.Mesh;
+  private readonly label: THREE.Sprite;
   private readonly material: THREE.MeshStandardMaterial;
   private readonly outlineMaterial: THREE.MeshBasicMaterial;
+  private readonly labelMaterial: THREE.SpriteMaterial;
+  private readonly labelTexture: THREE.CanvasTexture;
+  private readonly surfaceMap: THREE.CanvasTexture;
+  private readonly bumpMap: THREE.CanvasTexture;
   private readonly geometry: THREE.SphereGeometry;
   private readonly outlineGeometry: THREE.SphereGeometry;
+  private readonly ring: THREE.Mesh | null;
+  private readonly ringGeometry: THREE.RingGeometry | null;
+  private readonly ringMaterial: THREE.MeshBasicMaterial | null;
+  private readonly ringTexture: THREE.CanvasTexture | null;
   private readonly definition: MissionDefinition;
+  private readonly orbitU: THREE.Vector3;
+  private readonly orbitV: THREE.Vector3;
   private angle: number;
   private hovered = false;
 
-  constructor(definition: MissionDefinition, textureLoader: THREE.TextureLoader) {
+  constructor(definition: MissionDefinition) {
     this.definition = definition;
     this.angle = definition.startAngle;
 
+    const orbitSeed = hashStringToInt(definition.id);
+    const incRand = ((orbitSeed % 1009) / 1009) - 0.5;
+    const nodeRand = ((orbitSeed >>> 10) % 1013) / 1013;
+    const inclination = definition.orbitTilt ?? incRand * 0.45;
+    const nodeAngle = definition.orbitNode ?? nodeRand * Math.PI * 2;
+    const cosN = Math.cos(nodeAngle);
+    const sinN = Math.sin(nodeAngle);
+    this.orbitU = new THREE.Vector3(cosN, 0, sinN);
+    const vInitial = new THREE.Vector3(-sinN, 0, cosN);
+    const tilt = new THREE.Quaternion().setFromAxisAngle(this.orbitU, inclination);
+    this.orbitV = vInitial.applyQuaternion(tilt);
+
     const radius = BASE_RADIUS * definition.scale;
-    this.geometry = new THREE.SphereGeometry(radius, 48, 32);
+    this.geometry = new THREE.SphereGeometry(radius, 64, 48);
 
     const baseColor =
       definition.kind === "shop" ? SHOP_COLOR : DIFFICULTY_COLOR[definition.difficulty];
 
-    this.material = new THREE.MeshStandardMaterial({
-      color: baseColor,
-      roughness: 0.85,
-      metalness: 0.05,
-      emissive: baseColor,
-      emissiveIntensity: 0.12
-    });
+    const surface = generatePlanetSurface(definition.id satisfies MissionId, baseColor);
+    this.surfaceMap = surface.map;
+    this.bumpMap = surface.bumpMap;
 
-    textureLoader.load(
-      definition.texture,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        this.material.map = tex;
-        this.material.emissiveIntensity = 0.04;
-        this.material.needsUpdate = true;
-      },
-      undefined,
-      () => {
-        // Texture missing in /public/textures/planets — keep the flat color fallback.
-      }
-    );
+    this.material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: this.surfaceMap,
+      bumpMap: this.bumpMap,
+      bumpScale: 0.04,
+      roughness: 0.95,
+      metalness: 0.0,
+      emissive: 0x000000
+    });
 
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.userData.missionId = definition.id;
@@ -68,9 +241,47 @@ export class Planet {
     });
     this.outline = new THREE.Mesh(this.outlineGeometry, this.outlineMaterial);
 
+    if (definition.ring) {
+      const inner = radius * definition.ring.innerRadius;
+      const outer = radius * definition.ring.outerRadius;
+      this.ringGeometry = new THREE.RingGeometry(inner, outer, 192, 1);
+      remapRingUVs(this.ringGeometry, inner, outer);
+      this.ringTexture = createRingTexture(hashStringToInt(definition.id));
+      this.ringMaterial = new THREE.MeshBasicMaterial({
+        map: this.ringTexture,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      this.ring = new THREE.Mesh(this.ringGeometry, this.ringMaterial);
+      this.ring.rotation.x = Math.PI / 2 + definition.ring.tilt;
+      this.ring.renderOrder = 2;
+    } else {
+      this.ringGeometry = null;
+      this.ringTexture = null;
+      this.ringMaterial = null;
+      this.ring = null;
+    }
+
+    const { texture: labelTex, aspect: labelAspect } = createLabelTexture(definition.name);
+    this.labelTexture = labelTex;
+    this.labelMaterial = new THREE.SpriteMaterial({
+      map: this.labelTexture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false
+    });
+    this.label = new THREE.Sprite(this.labelMaterial);
+    const labelHeight = Math.max(0.55, radius * 0.6);
+    this.label.scale.set(labelHeight * labelAspect, labelHeight, 1);
+    this.label.position.set(0, -(radius + 0.55), 0);
+    this.label.renderOrder = 10;
+
     this.object = new THREE.Group();
     this.object.add(this.outline);
     this.object.add(this.mesh);
+    if (this.ring) this.object.add(this.ring);
+    this.object.add(this.label);
     this.positionOnOrbit();
   }
 
@@ -104,14 +315,23 @@ export class Planet {
     this.outlineGeometry.dispose();
     this.material.dispose();
     this.outlineMaterial.dispose();
-    this.material.map?.dispose();
+    this.labelMaterial.dispose();
+    this.labelTexture.dispose();
+    this.surfaceMap.dispose();
+    this.bumpMap.dispose();
+    this.ringGeometry?.dispose();
+    this.ringMaterial?.dispose();
+    this.ringTexture?.dispose();
   }
 
   private positionOnOrbit(): void {
+    const r = this.definition.orbitRadius;
+    const c = Math.cos(this.angle);
+    const s = Math.sin(this.angle);
     this.object.position.set(
-      Math.cos(this.angle) * this.definition.orbitRadius,
-      Math.sin(this.angle * 0.5) * 0.6,
-      Math.sin(this.angle) * this.definition.orbitRadius
+      (this.orbitU.x * c + this.orbitV.x * s) * r,
+      (this.orbitU.y * c + this.orbitV.y * s) * r,
+      (this.orbitU.z * c + this.orbitV.z * s) * r
     );
   }
 }

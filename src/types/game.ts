@@ -75,6 +75,12 @@ export type MissionId =
 
 export type PlanetKind = "mission" | "shop";
 
+export interface PlanetRing {
+  readonly innerRadius: number;       // multiplier of planet radius
+  readonly outerRadius: number;       // multiplier of planet radius
+  readonly tilt: number;              // radians off horizontal
+}
+
 export interface MissionDefinition {
   readonly id: MissionId;
   readonly kind: PlanetKind;
@@ -85,9 +91,12 @@ export interface MissionDefinition {
   readonly orbitRadius: number;       // AU-ish, for overworld layout
   readonly orbitSpeed: number;        // radians / second
   readonly startAngle: number;        // radians
+  readonly orbitTilt?: number;        // radians, inclination off the reference plane
+  readonly orbitNode?: number;        // radians, longitude of ascending node
   readonly scale: number;             // planet size multiplier
   readonly requires: readonly MissionId[]; // missions that must be completed to unlock this one
   readonly musicTrack: string | null; // path under /public/audio/music/
+  readonly ring?: PlanetRing;
 }
 
 // ---------------------------------------------------------------------------
