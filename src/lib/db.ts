@@ -1,0 +1,68 @@
+import { Kysely, PostgresDialect, type Generated } from "kysely";
+import { Pool } from "pg";
+
+/**
+ * Kysely database interface — the canonical TypeScript shape of our schema.
+ * Keep in lockstep with db/migrations/*.sql. When adding a migration, update
+ * this type in the same commit.
+ *
+ * `Generated<T>` marks columns that are `NOT NULL DEFAULT ...` in SQL — they
+ * are required on SELECT but optional on INSERT.
+ */
+export interface Database {
+  players: PlayersTable;
+  save_games: SaveGamesTable;
+  leaderboard: LeaderboardTable;
+}
+
+export interface PlayersTable {
+  id: Generated<string>;
+  email: string;
+  name: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface SaveGamesTable {
+  id: Generated<string>;
+  player_id: string;
+  slot: Generated<number>;
+  credits: Generated<number>;
+  current_planet: string | null;
+  ship_config: Generated<Record<string, unknown>>;
+  completed_missions: Generated<string[]>;
+  unlocked_planets: Generated<string[]>;
+  played_time_seconds: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
+export interface LeaderboardTable {
+  id: Generated<string>;
+  player_id: string;
+  mission_id: string;
+  score: number;
+  time_seconds: number | null;
+  created_at: Generated<Date>;
+}
+
+let _db: Kysely<Database> | null = null;
+
+export function getDb(): Kysely<Database> {
+  if (_db) return _db;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  _db = new Kysely<Database>({
+    dialect: new PostgresDialect({
+      pool: new Pool({
+        connectionString,
+        max: 5,
+        idleTimeoutMillis: 10_000
+      })
+    })
+  });
+
+  return _db;
+}
