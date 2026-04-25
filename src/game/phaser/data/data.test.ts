@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import enemiesJson from "./enemies.json";
 import weaponsJson from "./weapons.json";
 import missionsJson from "./missions.json";
-import wavesJson from "./waves.json";
 import { getAllEnemies, getEnemy } from "./enemies";
 import { getAllWeapons, getWeapon } from "./weapons";
 import { getAllMissionWaves, getWavesForMission } from "./waves";
