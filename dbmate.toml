@@ -1,0 +1,10 @@
+# dbmate configuration — see https://github.com/amacneil/dbmate
+# DATABASE_URL is read from .env.local / the environment.
+
+[default]
+migrations_dir = "db/migrations"
+schema_file    = "db/schema.sql"
+# dbmate needs a direct (unpooled) connection for DDL.
+# Set DATABASE_URL_UNPOOLED in .env.local; we wire it up via the `db:*` scripts.
+wait           = true
+wait_timeout   = "60s"
