@@ -155,6 +155,7 @@ DATABASE_URL="<neon-direct-url>" npm run db:migrate
 - Before committing: `npm run typecheck && npm run lint`.
 - Do not commit `.env.local`, `.vercel/`, `out/`, `.next/`, or `db/schema.sql` (dbmate auto-generates it).
 - Keep PRs scoped — one feature per PR. Prefer bundled-but-focused over split-into-five.
+- **Do not add `Co-Authored-By: Claude ...` (or any other AI-attribution) trailers to commits.** They clutter the GitHub commits view with a Claude icon next to the author. Just commit as the user.
 
 ## 9. Hard rules
 
