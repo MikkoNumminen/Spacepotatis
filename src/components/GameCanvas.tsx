@@ -10,6 +10,23 @@ import SignInButton from "@/components/SignInButton";
 import MuteToggle from "@/components/MuteToggle";
 import { useGameState } from "@/game/state/useGameState";
 import { loadSave, saveNow, submitScore } from "@/game/state/sync";
+import missionsData from "@/game/phaser/data/missions.json";
+
+const MISSIONS = missionsData.missions as readonly MissionDefinition[];
+
+function pickNextMission(
+  unlocked: readonly string[],
+  completed: readonly string[]
+): MissionDefinition | null {
+  const playable = MISSIONS.filter(
+    (m) => m.kind === "mission" && unlocked.includes(m.id)
+  );
+  return (
+    playable.find((m) => !completed.includes(m.id)) ??
+    playable[playable.length - 1] ??
+    null
+  );
+}
 
 type Mode = "galaxy" | "combat";
 
@@ -25,6 +42,18 @@ export default function GameCanvas() {
   const [selected, setSelected] = useState<MissionDefinition | null>(null);
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
+  const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
+  const completedMissions = useGameState((s) => s.completedMissions);
+
+  // On entering the galaxy view, surface the next playable mission so the
+  // launch panel is visible immediately. User can dismiss with × — it stays
+  // closed until the next galaxy entry.
+  useEffect(() => {
+    if (mode !== "galaxy") return;
+    const next = pickNextMission(unlockedPlanets, completedMissions);
+    if (next) setSelected(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Hydrate from cloud save once on sign-in. No-op when unauthenticated.
   useEffect(() => {

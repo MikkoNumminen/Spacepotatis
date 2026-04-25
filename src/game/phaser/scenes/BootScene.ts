@@ -35,7 +35,72 @@ export class BootScene extends Phaser.Scene {
     this.drawCoin("powerup-credit", 0xffcc33, 20);
     this.drawGear("powerup-weapon", 0x5effa7, 24);
 
+    this.drawBolt("perk-overdrive", 0xffaa33, 28);
+    this.drawHexShield("perk-hardened", 0x66aaff, 28);
+    this.drawPulse("perk-emp", 0xff66cc, 28);
+
     this.drawSpark("particle-spark", 6);
+  }
+
+  private drawBolt(key: string, color: number, size: number): void {
+    const g = this.add.graphics();
+    g.fillStyle(0x05060f, 1);
+    g.fillCircle(size / 2, size / 2, size / 2);
+    g.lineStyle(2, color, 1);
+    g.strokeCircle(size / 2, size / 2, size / 2 - 1);
+    g.fillStyle(color, 1);
+    g.beginPath();
+    g.moveTo(size * 0.55, size * 0.18);
+    g.lineTo(size * 0.32, size * 0.55);
+    g.lineTo(size * 0.5, size * 0.55);
+    g.lineTo(size * 0.42, size * 0.82);
+    g.lineTo(size * 0.7, size * 0.42);
+    g.lineTo(size * 0.5, size * 0.42);
+    g.lineTo(size * 0.6, size * 0.18);
+    g.closePath();
+    g.fillPath();
+    g.generateTexture(key, size, size);
+    g.destroy();
+  }
+
+  private drawHexShield(key: string, color: number, size: number): void {
+    const g = this.add.graphics();
+    g.fillStyle(0x05060f, 1);
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = size / 2 - 1;
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i - Math.PI / 2;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      if (i === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.closePath();
+    g.fillPath();
+    g.lineStyle(2, color, 1);
+    g.strokePath();
+    g.fillStyle(color, 1);
+    g.fillCircle(cx, cy, size * 0.18);
+    g.generateTexture(key, size, size);
+    g.destroy();
+  }
+
+  private drawPulse(key: string, color: number, size: number): void {
+    const g = this.add.graphics();
+    g.fillStyle(0x05060f, 1);
+    g.fillCircle(size / 2, size / 2, size / 2);
+    g.lineStyle(2, color, 1);
+    g.strokeCircle(size / 2, size / 2, size / 2 - 1);
+    g.lineStyle(1.5, color, 0.85);
+    g.strokeCircle(size / 2, size / 2, size * 0.32);
+    g.lineStyle(1.5, color, 0.55);
+    g.strokeCircle(size / 2, size / 2, size * 0.2);
+    g.fillStyle(color, 1);
+    g.fillCircle(size / 2, size / 2, size * 0.08);
+    g.generateTexture(key, size, size);
+    g.destroy();
   }
 
   private drawSpark(key: string, size: number): void {

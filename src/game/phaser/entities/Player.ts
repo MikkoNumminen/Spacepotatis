@@ -23,6 +23,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   armor: number;
   private lastDamageAt = 0;
 
+  // Mission-only perk state — reset every CombatScene boot.
+  hasOverdrive = false;
+  hasHardened = false;
+
   constructor(scene: Phaser.Scene, x: number, y: number, pool: BulletPool, ship: ShipConfig) {
     super(scene, x, y, PLAYER_TEXTURE);
     scene.add.existing(this);
@@ -52,6 +56,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount: number): void {
     this.lastDamageAt = this.scene.time.now;
+
+    if (this.hasHardened) amount *= 0.7;
 
     if (this.shield > 0) {
       const absorbed = Math.min(this.shield, amount);
@@ -88,8 +94,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.setVelocity(vx * SPEED, vy * SPEED);
 
-    if (this.weapons.tryFire(this.weaponId, this.x, this.y - 18, time, true)) {
-      sfx.laser();
+    if (this.controls.firePrimary()) {
+      const fireRateMul = this.hasOverdrive ? 0.66 : 1;
+      if (this.weapons.tryFire(this.weaponId, this.x, this.y - 18, time, true, fireRateMul)) {
+        sfx.laser();
+      }
     }
 
     if (time - this.lastDamageAt > SHIELD_REGEN_DELAY_MS && this.shield < this.maxShield) {

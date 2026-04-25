@@ -16,10 +16,11 @@ export class WeaponSystem {
     originX: number,
     originY: number,
     now: number,
-    friendly: boolean
+    friendly: boolean,
+    fireRateMul = 1
   ): boolean {
     const def = getWeapon(weaponId);
-    if (now - this.lastFireMs < def.fireRateMs) return false;
+    if (now - this.lastFireMs < def.fireRateMs * fireRateMul) return false;
     this.lastFireMs = now;
 
     const speed = def.bulletSpeed;
