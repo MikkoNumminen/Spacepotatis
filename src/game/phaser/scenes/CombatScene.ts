@@ -53,6 +53,7 @@ export class CombatScene extends Phaser.Scene {
   private creditsText!: Phaser.GameObjects.Text;
   private shieldBar!: Phaser.GameObjects.Graphics;
   private armorBar!: Phaser.GameObjects.Graphics;
+  private energyBar!: Phaser.GameObjects.Graphics;
   private perkChipsLayer!: Phaser.GameObjects.Container;
 
   // Mission-only perk state. Reset on every CombatScene boot.
@@ -169,7 +170,8 @@ export class CombatScene extends Phaser.Scene {
     });
     this.shieldBar = this.add.graphics();
     this.armorBar = this.add.graphics();
-    this.perkChipsLayer = this.add.container(VIRTUAL_WIDTH - 188, 48);
+    this.energyBar = this.add.graphics();
+    this.perkChipsLayer = this.add.container(VIRTUAL_WIDTH - 188, 62);
   }
 
   private updateHud(): void {
@@ -200,6 +202,19 @@ export class CombatScene extends Phaser.Scene {
       barX,
       barY + 14,
       (this.player.armor / this.player.maxArmor) * barW,
+      barH
+    );
+
+    // Reactor energy bar — sits below shield/armor in matching style. Amber
+    // so it visually pairs with the credits readout (both are resources).
+    this.energyBar.clear();
+    this.energyBar.fillStyle(0x1f2340, 1);
+    this.energyBar.fillRect(barX, barY + 28, barW, barH);
+    this.energyBar.fillStyle(0xffcc33, 1);
+    this.energyBar.fillRect(
+      barX,
+      barY + 28,
+      (this.player.energy / this.player.maxEnergy) * barW,
       barH
     );
   }
@@ -253,8 +268,11 @@ export class CombatScene extends Phaser.Scene {
       case "weapon": {
         const upgrade = this.nextWeaponUpgrade();
         if (upgrade) {
-          this.player.setWeapon(upgrade.id);
+          // grantWeapon equips into the canonical slot for the weapon kind
+          // (front for the existing pickup ladder). Mirror it onto the live
+          // Player so the change takes effect without rebuilding the entity.
           GameState.grantWeapon(upgrade.id);
+          this.player.setSlotWeapon("front", upgrade.id);
           this.flashPickup(`+ ${upgrade.name.toUpperCase()}`, hexToInt(upgrade.tint), power.x, power.y, "potato");
         } else {
           // Already maxed on weapons — convert pickup to credits so the player
