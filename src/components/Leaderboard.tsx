@@ -1,62 +1,28 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import type { MissionId } from "@/types/game";
+import { getCachedLeaderboard } from "@/lib/leaderboard";
 
-interface Entry {
-  playerName: string;
-  score: number;
-  timeSeconds: number | null;
-  createdAt: string;
-}
-
-interface LeaderboardResponse {
-  missionId: MissionId;
-  entries: Entry[];
-}
-
-export default function Leaderboard({
+// Server Component. Reads via the `unstable_cache`-wrapped helper so a fresh
+// page render hits Neon at most once per revalidate window per (mission,
+// limit) pair, and not at all when the cached entry is still warm. The
+// previous client-side fetch hit /api/leaderboard on every mount because
+// `next.revalidate` on browser fetch is a no-op.
+export default async function Leaderboard({
   missionId,
   limit = 10
 }: {
   missionId: MissionId;
   limit?: number;
 }) {
-  const [entries, setEntries] = useState<Entry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/leaderboard?mission=${encodeURIComponent(missionId)}&limit=${limit}`,
-          { next: { revalidate: 60 } }
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as LeaderboardResponse;
-        if (!cancelled) setEntries(data.entries);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "unknown");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [missionId, limit]);
-
-  if (error) {
+  let entries;
+  try {
+    entries = await getCachedLeaderboard(missionId, limit);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown";
     return (
       <div className="rounded border border-space-border p-3 text-xs text-hud-red">
-        Leaderboard unavailable ({error})
+        Leaderboard unavailable ({message})
       </div>
     );
-  }
-
-  if (!entries) {
-    return <div className="text-xs text-space-border">Loading leaderboard…</div>;
   }
 
   if (entries.length === 0) {
