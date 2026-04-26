@@ -31,74 +31,120 @@ export class BootScene extends Phaser.Scene {
     this.drawTriangleDown("enemy-kamikaze", 0xffa040, 36, 44);
     this.drawBoss("boss-1", 0xff4d6d, 140, 100);
 
-    this.drawRing("powerup-shield", 0x4fd1ff, 24);
-    this.drawCoin("powerup-credit", 0xffcc33, 20);
-    this.drawGear("powerup-weapon", 0x5effa7, 24);
+    this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
+    this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
+    this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
 
-    this.drawBolt("perk-overdrive", 0xffaa33, 28);
-    this.drawHexShield("perk-hardened", 0x66aaff, 28);
-    this.drawPulse("perk-emp", 0xff66cc, 28);
+    this.drawMissionPerk("perk-overdrive", 0xffaa33, "bolt");
+    this.drawMissionPerk("perk-hardened", 0x66aaff, "hex");
+    this.drawMissionPerk("perk-emp", 0xff66cc, "pulse");
 
     this.drawSpark("particle-spark", 6);
   }
 
-  private drawBolt(key: string, color: number, size: number): void {
+  private drawPotatoPowerUp(
+    key: string,
+    iconColor: number,
+    icon: "ring" | "coin" | "gear"
+  ): void {
+    const size = 36;
     const g = this.add.graphics();
-    g.fillStyle(0x05060f, 1);
+    // Bright gold "potato seal" frame — signals permanent ship upgrade.
+    g.fillStyle(0x05060f, 0.85);
     g.fillCircle(size / 2, size / 2, size / 2);
-    g.lineStyle(2, color, 1);
+    g.lineStyle(3, 0xffd66b, 1);
     g.strokeCircle(size / 2, size / 2, size / 2 - 1);
-    g.fillStyle(color, 1);
-    g.beginPath();
-    g.moveTo(size * 0.55, size * 0.18);
-    g.lineTo(size * 0.32, size * 0.55);
-    g.lineTo(size * 0.5, size * 0.55);
-    g.lineTo(size * 0.42, size * 0.82);
-    g.lineTo(size * 0.7, size * 0.42);
-    g.lineTo(size * 0.5, size * 0.42);
-    g.lineTo(size * 0.6, size * 0.18);
-    g.closePath();
-    g.fillPath();
+    g.lineStyle(1, 0xffd66b, 0.4);
+    g.strokeCircle(size / 2, size / 2, size / 2 - 4);
+    // Tiny "P" tab at bottom-right to mark permanent.
+    g.fillStyle(0xffd66b, 1);
+    g.fillTriangle(size - 6, size - 6, size + 2, size - 2, size - 2, size + 2);
+    // Inner icon.
+    const cx = size / 2;
+    const cy = size / 2 - 1;
+    if (icon === "ring") {
+      g.lineStyle(3, iconColor, 1);
+      g.strokeCircle(cx, cy, 7);
+    } else if (icon === "coin") {
+      g.fillStyle(iconColor, 1);
+      g.fillCircle(cx, cy, 7);
+      g.lineStyle(1.5, 0x05060f, 0.6);
+      g.strokeCircle(cx, cy, 7);
+    } else {
+      g.fillStyle(iconColor, 1);
+      g.fillCircle(cx, cy, 7.5);
+      g.fillStyle(0x05060f, 1);
+      g.fillCircle(cx, cy, 3);
+    }
     g.generateTexture(key, size, size);
     g.destroy();
   }
 
-  private drawHexShield(key: string, color: number, size: number): void {
+  private drawMissionPerk(
+    key: string,
+    iconColor: number,
+    icon: "bolt" | "hex" | "pulse"
+  ): void {
+    const size = 36;
     const g = this.add.graphics();
-    g.fillStyle(0x05060f, 1);
+    // Magenta star-like frame — signals temporary mission-only perk.
+    g.fillStyle(0x05060f, 0.85);
+    g.fillCircle(size / 2, size / 2, size / 2);
     const cx = size / 2;
     const cy = size / 2;
-    const r = size / 2 - 1;
+    // 8-point spiked frame instead of plain circle.
+    g.lineStyle(2, 0xff66cc, 1);
     g.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const a = (Math.PI / 3) * i - Math.PI / 2;
+    const outerR = size / 2 - 1;
+    const innerR = size / 2 - 4;
+    for (let i = 0; i < 16; i++) {
+      const r = i % 2 === 0 ? outerR : innerR;
+      const a = (Math.PI / 8) * i - Math.PI / 2;
       const x = cx + Math.cos(a) * r;
       const y = cy + Math.sin(a) * r;
       if (i === 0) g.moveTo(x, y);
       else g.lineTo(x, y);
     }
     g.closePath();
-    g.fillPath();
-    g.lineStyle(2, color, 1);
     g.strokePath();
-    g.fillStyle(color, 1);
-    g.fillCircle(cx, cy, size * 0.18);
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private drawPulse(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    g.fillStyle(0x05060f, 1);
-    g.fillCircle(size / 2, size / 2, size / 2);
-    g.lineStyle(2, color, 1);
-    g.strokeCircle(size / 2, size / 2, size / 2 - 1);
-    g.lineStyle(1.5, color, 0.85);
-    g.strokeCircle(size / 2, size / 2, size * 0.32);
-    g.lineStyle(1.5, color, 0.55);
-    g.strokeCircle(size / 2, size / 2, size * 0.2);
-    g.fillStyle(color, 1);
-    g.fillCircle(size / 2, size / 2, size * 0.08);
+    // Tiny "M" tab at bottom-right to mark mission-only.
+    g.fillStyle(0xff66cc, 1);
+    g.fillCircle(size - 4, size - 4, 3.5);
+    // Inner icon.
+    const ix = cx;
+    const iy = cy;
+    if (icon === "bolt") {
+      g.fillStyle(iconColor, 1);
+      g.beginPath();
+      g.moveTo(ix + 2, iy - 8);
+      g.lineTo(ix - 5, iy + 1);
+      g.lineTo(ix - 1, iy + 1);
+      g.lineTo(ix - 4, iy + 8);
+      g.lineTo(ix + 5, iy - 1);
+      g.lineTo(ix + 1, iy - 1);
+      g.lineTo(ix + 4, iy - 8);
+      g.closePath();
+      g.fillPath();
+    } else if (icon === "hex") {
+      g.fillStyle(iconColor, 1);
+      g.beginPath();
+      const hr = 7;
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        const x = ix + Math.cos(a) * hr;
+        const y = iy + Math.sin(a) * hr;
+        if (i === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.closePath();
+      g.fillPath();
+    } else {
+      g.lineStyle(1.5, iconColor, 1);
+      g.strokeCircle(ix, iy, 7);
+      g.strokeCircle(ix, iy, 4);
+      g.fillStyle(iconColor, 1);
+      g.fillCircle(ix, iy, 1.5);
+    }
     g.generateTexture(key, size, size);
     g.destroy();
   }
@@ -189,31 +235,4 @@ export class BootScene extends Phaser.Scene {
     g.destroy();
   }
 
-  private drawRing(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    g.lineStyle(4, color, 1);
-    g.strokeCircle(size / 2, size / 2, size / 2 - 2);
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private drawCoin(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    g.fillStyle(color, 1);
-    g.fillCircle(size / 2, size / 2, size / 2);
-    g.lineStyle(2, 0xffffff, 0.8);
-    g.strokeCircle(size / 2, size / 2, size / 2 - 1);
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private drawGear(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    g.fillStyle(color, 1);
-    g.fillCircle(size / 2, size / 2, size / 2);
-    g.fillStyle(0x05060f, 1);
-    g.fillCircle(size / 2, size / 2, size / 4);
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
 }

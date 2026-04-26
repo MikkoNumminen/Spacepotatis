@@ -135,7 +135,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   private maybeFireBossShot(time: number, phase: 1 | 2 | 3): void {
     if (!this.enemyPool) return;
-    const interval = phase === 1 ? 820 : phase === 2 ? 480 : 280;
+    // Tutorial-tier boss: slowed phase intervals + reduced bullet damage so
+    // newcomers can learn the encounter. Tighter values fit a later, harder boss.
+    const interval = phase === 1 ? 1400 : phase === 2 ? 900 : 600;
     if (time - this.lastShotAt < interval) return;
     this.lastShotAt = time;
 
@@ -143,13 +145,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const oy = this.y + 40;
 
     if (phase === 1) {
-      this.enemyPool.spawn(ox, oy, 0, 340, 10, false);
+      this.enemyPool.spawn(ox, oy, 0, 320, 6, false);
       return;
     }
 
     if (phase === 2) {
       for (const dx of [-0.35, 0, 0.35] as const) {
-        this.enemyPool.spawn(ox, oy, dx * 320, 320, 10, false);
+        this.enemyPool.spawn(ox, oy, dx * 300, 300, 6, false);
       }
       return;
     }
@@ -160,11 +162,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       const dx = target.x - ox;
       const dy = Math.max(target.y - oy, 1);
       const len = Math.hypot(dx, dy);
-      const speed = 380;
-      this.enemyPool.spawn(ox, oy, (dx / len) * speed, (dy / len) * speed, 12, false);
+      const speed = 340;
+      this.enemyPool.spawn(ox, oy, (dx / len) * speed, (dy / len) * speed, 8, false);
     }
     for (const dx of [-0.6, -0.2, 0.2, 0.6] as const) {
-      this.enemyPool.spawn(ox, oy, dx * 320, 340, 10, false);
+      this.enemyPool.spawn(ox, oy, dx * 300, 320, 6, false);
     }
   }
 }

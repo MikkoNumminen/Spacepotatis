@@ -6,10 +6,10 @@
       "waves": [
         {
           "id": "tutorial-1",
-          "durationMs": 24000,
+          "durationMs": 30000,
           "spawns": [
-            { "enemy": "basic", "count": 4, "delayMs": 1500, "intervalMs": 1800, "formation": "line",   "xPercent": 0.3 },
-            { "enemy": "basic", "count": 4, "delayMs": 7000, "intervalMs": 1800, "formation": "line",   "xPercent": 0.7 }
+            { "enemy": "basic", "count": 4, "delayMs": 2000,  "intervalMs": 2400, "formation": "line",   "xPercent": 0.3 },
+            { "enemy": "basic", "count": 4, "delayMs": 9000,  "intervalMs": 2400, "formation": "line",   "xPercent": 0.7 }
           ]
         }
       ]
@@ -19,28 +19,28 @@
       "waves": [
         {
           "id": "combat-1-wave-1",
-          "durationMs": 22000,
+          "durationMs": 28000,
           "spawns": [
-            { "enemy": "basic",   "count": 8, "delayMs": 800,  "intervalMs": 1000, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "zigzag",  "count": 3, "delayMs": 8000, "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "basic",   "count": 8, "delayMs": 1200, "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "zigzag",  "count": 3, "delayMs": 11000, "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "combat-1-wave-2",
-          "durationMs": 22000,
+          "durationMs": 28000,
           "spawns": [
-            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 800,  "formation": "column",  "xPercent": 0.2 },
-            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 800,  "formation": "column",  "xPercent": 0.8 },
-            { "enemy": "kamikaze",  "count": 4, "delayMs": 9000,  "intervalMs": 1200, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 1300, "formation": "column",  "xPercent": 0.2 },
+            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 1300, "formation": "column",  "xPercent": 0.8 },
+            { "enemy": "kamikaze",  "count": 4, "delayMs": 12000, "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "combat-1-wave-3",
-          "durationMs": 24000,
+          "durationMs": 32000,
           "spawns": [
-            { "enemy": "basic",    "count": 10, "delayMs": 0,     "intervalMs": 550,  "formation": "line",    "xPercent": 0.5 },
-            { "enemy": "zigzag",   "count": 4,  "delayMs": 6000,  "intervalMs": 1000, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "kamikaze", "count": 6,  "delayMs": 12000, "intervalMs": 900,  "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "basic",    "count": 10, "delayMs": 0,     "intervalMs": 900,  "formation": "line",    "xPercent": 0.5 },
+            { "enemy": "zigzag",   "count": 4,  "delayMs": 8000,  "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "kamikaze", "count": 6,  "delayMs": 16000, "intervalMs": 1300, "formation": "scatter", "xPercent": 0.5 }
           ]
         }
       ]
@@ -50,15 +50,15 @@
       "waves": [
         {
           "id": "boss-1-intro",
-          "durationMs": 12000,
+          "durationMs": 16000,
           "spawns": [
-            { "enemy": "basic",  "count": 6, "delayMs": 1000, "intervalMs": 800,  "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "zigzag", "count": 2, "delayMs": 6000, "intervalMs": 1200, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "basic",  "count": 6, "delayMs": 1500, "intervalMs": 1300, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "zigzag", "count": 2, "delayMs": 8500, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "boss-1-fight",
-          "durationMs": 90000,
+          "durationMs": 110000,
           "spawns": [
             { "enemy": "boss-1", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
           ]
