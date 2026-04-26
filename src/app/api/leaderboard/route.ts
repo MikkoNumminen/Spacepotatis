@@ -6,10 +6,9 @@ import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
 import { upsertPlayerId } from "@/lib/players";
 import type { MissionId } from "@/types/game";
 
-// Auth needed on POST (score submission), so this can't move to the Edge
-// runtime today — auth() reads from the NextAuth session cookie which the
-// `pg`-backed handler sees in Node.
-export const runtime = "nodejs";
+// Edge runtime — getDb() is now Neon serverless (Edge-compatible) and the
+// NextAuth `auth()` call is JWT-cookie based, so no Node primitives needed.
+export const runtime = "edge";
 
 interface ScorePayload {
   missionId?: unknown;

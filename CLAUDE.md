@@ -19,7 +19,7 @@ Two gameplay modes linked together:
 - **Phaser 3** — 2D combat scenes. Loaded client-side only.
 - **Three.js** — 3D galaxy overworld. Loaded client-side only.
 - **GSAP** — transitions between galaxy and combat (camera zooms, fade-outs).
-- **Kysely + `pg`** — type-safe SQL query builder. **No ORM. No Prisma.**
+- **Kysely + `@neondatabase/serverless`** — type-safe SQL query builder over Neon's WebSocket Pool driver. Edge-compatible. **No ORM. No Prisma.**
 - **dbmate** — plain SQL migration files. Config: [dbmate.toml](dbmate.toml). Migrations: [db/migrations/](db/migrations/).
 - **PostgreSQL (Neon serverless)** — player saves, leaderboards.
 - **NextAuth v5 / Auth.js** — Google OAuth only (save games are per-account).
@@ -90,7 +90,7 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 
 ### Database / SQL
 
-- All queries go through Kysely. No raw `pg.query(...)` calls except inside [src/lib/db.ts](src/lib/db.ts).
+- All queries go through Kysely. No raw SQL outside [src/lib/db.ts](src/lib/db.ts).
 - The single `Database` interface in [src/lib/db.ts](src/lib/db.ts) is the canonical schema. Update it when you add a migration.
 - Migrations are **forward-only**. Every change is a new SQL file under [db/migrations/](db/migrations/).
 - **Tables are namespaced under the `spacepotatis` Postgres schema** because the Vercel/Neon database is shared with other services. Always create tables as `spacepotatis.<name>`, reference them in Kysely as `"spacepotatis.<name>"`, and never write to `public.*`. dbmate's tracker table lives in `public.spacepotatis_schema_migrations` (configured in [dbmate.toml](dbmate.toml)).

@@ -18,11 +18,11 @@
     "db:status": "dbmate status"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "gsap": "^3.12.5",
     "kysely": "^0.27.5",
     "next": "^15.1.0",
     "next-auth": "5.0.0-beta.25",
-    "pg": "^8.13.1",
     "phaser": "^3.87.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -30,7 +30,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
-    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.170.0",

@@ -125,11 +125,11 @@ All routes live under [src/app/api/](src/app/api/). Keep the list short — ever
 | ------------------------------ | ------ | ------- | ----- | ------------------------------------------ |
 | `/api/auth/[...nextauth]`      | GET/POST | Node  | —     | NextAuth v5 handler (Google OAuth).        |
 | `/api/save`                    | GET    | Node    | req'd | Load the signed-in player's save game.     |
-| `/api/save`                    | POST   | Node    | req'd | Upsert the signed-in player's save game.   |
-| `/api/leaderboard?mission=X`   | GET    | Node    | —     | Top N scores for a mission. ISR, revalidate 60s. |
-| `/api/leaderboard`             | POST   | Node    | req'd | Submit a score.                            |
+| `/api/save`                    | POST   | Edge    | req'd | Upsert the signed-in player's save game.   |
+| `/api/leaderboard?mission=X`   | GET    | Edge    | —     | Top N scores for a mission. Cached via `unstable_cache`, 60s revalidate. |
+| `/api/leaderboard`             | POST   | Edge    | req'd | Submit a score; `revalidateTag('leaderboard')`. |
 
-All routes are Node-runtime — the `pg` Pool isn't Edge-compatible yet. If the Neon serverless driver becomes viable, migrate save/leaderboard reads to Edge first (writes remain Node for simplicity).
+`/api/save` and `/api/leaderboard` run on the Edge runtime via `@neondatabase/serverless` (WebSocket-backed `Pool` that's API-compatible with `pg.Pool`). NextAuth's `auth()` is JWT-cookie based and works in Edge. `/api/auth/[...nextauth]` stays on Node because Google OAuth's callback handshake isn't Edge-safe.
 
 ### Request / response shapes
 
