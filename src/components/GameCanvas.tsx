@@ -199,10 +199,9 @@ export default function GameCanvas() {
                 <button
                   type="button"
                   onClick={() => setLoadoutOpen(false)}
-                  aria-label="Close"
-                  className="absolute -right-2 -top-2 z-10 rounded-full border border-space-border bg-space-panel px-2 py-0.5 text-sm text-hud-green hover:text-hud-amber"
+                  className="absolute right-full top-0 mr-3 rounded border border-hud-amber/40 px-3 py-1 text-sm text-hud-amber hover:bg-hud-amber/10"
                 >
-                  ×
+                  Back
                 </button>
                 <LoadoutMenu mode="equip" />
               </div>
@@ -370,10 +369,9 @@ function WarpPicker({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
-          className="absolute -right-2 -top-2 z-10 rounded-full border border-space-border bg-space-panel px-2 py-0.5 text-sm text-hud-green hover:text-hud-amber"
+          className="absolute right-full top-0 mr-3 rounded border border-hud-amber/40 px-3 py-1 text-sm text-hud-amber hover:bg-hud-amber/10"
         >
-          ×
+          Back
         </button>
         <div className="font-display text-lg tracking-widest text-hud-green">WARP DRIVE</div>
         <p className="mt-1 text-[11px] text-hud-amber">Select a destination system.</p>
