@@ -80,7 +80,7 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded border border-hud-green/40 bg-space-bg/95 p-6 shadow-[0_0_40px_rgba(94,255,167,0.15)]"
+        className="w-full max-w-md rounded border border-hud-green/40 bg-space-bg/95 p-8 shadow-[0_0_40px_rgba(94,255,167,0.15)]"
       >
         <h2 id="handle-prompt-title" className="font-display text-lg tracking-widest text-hud-green">
           PICK A HANDLE
