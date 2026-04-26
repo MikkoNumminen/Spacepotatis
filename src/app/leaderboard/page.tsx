@@ -3,7 +3,10 @@ import missionsData from "@/game/phaser/data/missions.json";
 import type { MissionDefinition } from "@/types/game";
 import Leaderboard from "@/components/Leaderboard";
 
-export const dynamic = "force-static";
+// ISR: re-render at most every 60s. Each render goes through the cached
+// leaderboard fn so worst case is one Neon roundtrip per mission tile per
+// minute, and zero when the cache is warm.
+export const revalidate = 60;
 
 const COMBAT_MISSIONS = (missionsData.missions as readonly MissionDefinition[]).filter(
   (m) => m.kind === "mission"

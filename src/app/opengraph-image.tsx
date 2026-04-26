@@ -1,5 +1,10 @@
 import { ImageResponse } from "next/og";
 
+// Bake the OG card at build time. The image is fully deterministic — no
+// per-request data — so we want exactly one ImageResponse render in CI
+// instead of one per scraper hit (Slack, Twitter, Discord, Google preview,
+// link-unfurlers, etc.) burning serverless function invocations forever.
+export const dynamic = "force-static";
 export const alt = "Spacepotatis — a vertical scrolling space shooter starring a potato";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

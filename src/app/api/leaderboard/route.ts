@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
 import { upsertPlayerId } from "@/lib/players";
+import type { MissionId } from "@/types/game";
 
+// Auth needed on POST (score submission), so this can't move to the Edge
+// runtime today — auth() reads from the NextAuth session cookie which the
+// `pg`-backed handler sees in Node.
 export const runtime = "nodejs";
-export const revalidate = 60;
 
 interface ScorePayload {
   missionId?: unknown;
@@ -14,39 +19,20 @@ interface ScorePayload {
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const missionId = url.searchParams.get("mission");
-  if (!missionId) {
+  const missionIdParam = url.searchParams.get("mission");
+  if (!missionIdParam) {
     return NextResponse.json({ error: "mission_required" }, { status: 400 });
   }
   const parsedLimit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
   const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 20, 1), 50);
 
   try {
-    const db = getDb();
-    const rows = await db
-      .selectFrom("spacepotatis.leaderboard as lb")
-      .innerJoin("spacepotatis.players as p", "p.id", "lb.player_id")
-      .select([
-        "p.name as player_name",
-        "p.email as player_email",
-        "lb.score",
-        "lb.time_seconds",
-        "lb.created_at"
-      ])
-      .where("lb.mission_id", "=", missionId)
-      .orderBy("lb.score", "desc")
-      .orderBy("lb.created_at", "desc")
-      .limit(limit)
-      .execute();
-
-    const entries = rows.map((r) => ({
-      playerName: r.player_name ?? r.player_email.split("@")[0] ?? "pilot",
-      score: r.score,
-      timeSeconds: r.time_seconds,
-      createdAt: r.created_at.toISOString()
-    }));
-
-    return NextResponse.json({ missionId, entries });
+    // Cast: MissionId is a string-literal union; the route accepts any string
+    // here because the leaderboard table itself is the source of truth for
+    // which mission ids exist (legacy ids from older deploys still resolve).
+    const missionId = missionIdParam as MissionId;
+    const entries = await getCachedLeaderboard(missionId, limit);
+    return NextResponse.json({ missionId: missionIdParam, entries });
   } catch (err) {
     console.error("GET /api/leaderboard failed:", err);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
@@ -91,6 +77,9 @@ export async function POST(request: Request): Promise<Response> {
         time_seconds: timeSeconds
       })
       .execute();
+
+    // Flush the read cache so the new score is visible on the next GET.
+    revalidateTag(LEADERBOARD_CACHE_TAG);
 
     return new NextResponse(null, { status: 201 });
   } catch (err) {
