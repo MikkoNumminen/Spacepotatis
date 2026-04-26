@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import HandlePrompt from "./HandlePrompt";
+import { ROUTES } from "@/lib/routes";
 import { useHandle } from "@/lib/useHandle";
 
 // Auth-aware Play button on the landing page. The page itself is force-static,
@@ -40,7 +41,7 @@ export default function PlayButton() {
       return;
     }
     let cancelled = false;
-    fetch("/api/save", { cache: "no-store" })
+    fetch(ROUTES.api.save, { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return false;
         const body = (await res.json()) as unknown;
@@ -72,7 +73,7 @@ export default function PlayButton() {
       setShowPrompt(true);
       return;
     }
-    router.push("/play");
+    router.push(ROUTES.page.play);
   }
 
   // If the click came in before the handle fetch resolved, finish what the
@@ -83,14 +84,14 @@ export default function PlayButton() {
     if (handle === null) {
       setShowPrompt(true);
     } else {
-      router.push("/play");
+      router.push(ROUTES.page.play);
     }
   }, [pendingClick, handleLoading, handle, router]);
 
   function handlePromptSubmit() {
     refetchHandle();
     setShowPrompt(false);
-    router.push("/play");
+    router.push(ROUTES.page.play);
   }
 
   const label = status === "authenticated" && hasSave === true ? "CONTINUE" : "PLAY";
@@ -99,7 +100,7 @@ export default function PlayButton() {
   return (
     <div className="flex flex-col items-center gap-2">
       <a
-        href="/play"
+        href={ROUTES.page.play}
         onClick={handleClick}
         className="rounded border border-hud-green/60 px-8 py-3 font-display tracking-widest hover:bg-hud-green/10"
       >

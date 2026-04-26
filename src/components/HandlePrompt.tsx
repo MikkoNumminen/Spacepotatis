@@ -6,6 +6,7 @@ import {
   HANDLE_MIN_LENGTH,
   validateHandle
 } from "@/lib/handle";
+import { ROUTES } from "@/lib/routes";
 
 // Modal that asks the player to pick a leaderboard handle. Used by
 // PlayButton on first PLAY/CONTINUE and any time the account doesn't have a
@@ -47,7 +48,7 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/handle", {
+      const res = await fetch(ROUTES.api.handle, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ handle: result.handle })

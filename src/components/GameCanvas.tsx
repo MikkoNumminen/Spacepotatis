@@ -14,6 +14,7 @@ import { setSolarSystem } from "@/game/state/GameState";
 import { loadSave, saveNow, submitScore } from "@/game/state/sync";
 import { getAllMissions } from "@/game/data/missions";
 import { getAllSolarSystems, getSolarSystem } from "@/game/data/solarSystems";
+import { ROUTES } from "@/lib/routes";
 
 const MISSIONS = getAllMissions();
 
@@ -144,7 +145,7 @@ export default function GameCanvas() {
     async (mission: MissionDefinition) => {
       if (mission.kind === "shop") {
         // Client-side nav preserves in-memory GameState (credits etc.).
-        router.push("/shop");
+        router.push(ROUTES.page.shop);
         return;
       }
       setSelected(null);
@@ -182,7 +183,7 @@ export default function GameCanvas() {
           <HudFrame
             hovered={hovered}
             lastSummary={lastSummary}
-            onBackToMenu={() => router.push("/")}
+            onBackToMenu={() => router.push(ROUTES.page.home)}
             onOpenLoadout={() => setLoadoutOpen(true)}
             onOpenWarp={() => setWarpOpen(true)}
             warpAvailable={unlockedSolarSystems.length > 1}

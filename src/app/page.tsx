@@ -2,6 +2,7 @@ import Link from "next/link";
 import LandingBackground from "@/components/LandingBackground";
 import PlayButton from "@/components/PlayButton";
 import SignInButton from "@/components/SignInButton";
+import { ROUTES } from "@/lib/routes";
 
 // Landing page. Static by design — the Three.js backdrop, sign-in button and
 // play button are all client islands that hydrate after delivery.
@@ -24,7 +25,7 @@ export default function Home() {
         <nav className="flex flex-col items-center gap-3 rounded-2xl bg-black/35 px-6 py-5 backdrop-blur-sm">
           <PlayButton />
           <Link
-            href="/leaderboard"
+            href={ROUTES.page.leaderboard}
             className="rounded border border-space-border px-8 py-2 text-sm text-hud-green/80 hover:bg-space-panel"
           >
             Leaderboard

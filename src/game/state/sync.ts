@@ -6,6 +6,7 @@
 
 import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
 import type { CombatSummary } from "@/game/phaser/config";
+import { ROUTES } from "@/lib/routes";
 
 interface RemoteSave {
   slot: number;
@@ -20,7 +21,7 @@ interface RemoteSave {
 
 export async function loadSave(): Promise<boolean> {
   try {
-    const res = await fetch("/api/save", { cache: "no-store" });
+    const res = await fetch(ROUTES.api.save, { cache: "no-store" });
     if (res.status === 401) return false;
     if (!res.ok) return false;
     const body = (await res.json()) as RemoteSave | null;
@@ -44,7 +45,7 @@ export async function loadSave(): Promise<boolean> {
 export async function saveNow(): Promise<void> {
   const snap = toSnapshot();
   try {
-    await fetch("/api/save", {
+    await fetch(ROUTES.api.save, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(snap)
@@ -57,7 +58,7 @@ export async function saveNow(): Promise<void> {
 export async function submitScore(summary: CombatSummary): Promise<void> {
   if (!summary.victory) return;
   try {
-    await fetch("/api/leaderboard", {
+    await fetch(ROUTES.api.leaderboard, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
