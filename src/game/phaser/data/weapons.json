@@ -10,7 +10,8 @@
       "bulletSpeed": 720,
       "projectileCount": 1,
       "spreadDegrees": 0,
-      "cost": 0
+      "cost": 0,
+      "tint": "#4fd1ff"
     },
     {
       "id": "spread-shot",
@@ -21,7 +22,8 @@
       "bulletSpeed": 640,
       "projectileCount": 3,
       "spreadDegrees": 22,
-      "cost": 450
+      "cost": 450,
+      "tint": "#ff66cc"
     },
     {
       "id": "heavy-cannon",
@@ -32,7 +34,8 @@
       "bulletSpeed": 560,
       "projectileCount": 1,
       "spreadDegrees": 0,
-      "cost": 900
+      "cost": 900,
+      "tint": "#ff8844"
     }
   ]
 }

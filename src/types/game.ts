@@ -17,6 +17,7 @@ export interface WeaponDefinition {
   readonly projectileCount: number;
   readonly spreadDegrees: number;
   readonly cost: number;
+  readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +98,7 @@ export interface MissionDefinition {
   readonly requires: readonly MissionId[]; // missions that must be completed to unlock this one
   readonly musicTrack: string | null; // path under /public/audio/music/
   readonly ring?: PlanetRing;
+  readonly perksAllowed?: boolean;    // if true, mission-only perks may drop here. Default: false.
 }
 
 // ---------------------------------------------------------------------------

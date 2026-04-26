@@ -5,31 +5,31 @@
       "id": "basic",
       "name": "Drone",
       "hp": 12,
-      "speed": 100,
+      "speed": 85,
       "behavior": "straight",
       "scoreValue": 50,
       "creditValue": 5,
       "spriteKey": "enemy-basic",
-      "fireRateMs": 3000,
+      "fireRateMs": 3600,
       "collisionDamage": 10
     },
     {
       "id": "zigzag",
       "name": "Weaver",
       "hp": 20,
-      "speed": 150,
+      "speed": 125,
       "behavior": "zigzag",
       "scoreValue": 120,
       "creditValue": 12,
       "spriteKey": "enemy-zigzag",
-      "fireRateMs": 2200,
+      "fireRateMs": 2700,
       "collisionDamage": 15
     },
     {
       "id": "kamikaze",
       "name": "Diver",
-      "hp": 8,
-      "speed": 320,
+      "hp": 12,
+      "speed": 230,
       "behavior": "homing",
       "scoreValue": 80,
       "creditValue": 8,
@@ -40,14 +40,14 @@
     {
       "id": "boss-1",
       "name": "Dreadfruit",
-      "hp": 1800,
-      "speed": 60,
+      "hp": 800,
+      "speed": 50,
       "behavior": "boss",
       "scoreValue": 5000,
       "creditValue": 500,
       "spriteKey": "boss-1",
-      "fireRateMs": 900,
-      "collisionDamage": 60
+      "fireRateMs": 1300,
+      "collisionDamage": 30
     }
   ]
 }
