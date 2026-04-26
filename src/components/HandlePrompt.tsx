@@ -80,12 +80,15 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md rounded border border-hud-green/40 bg-space-bg/95 p-8 shadow-[0_0_40px_rgba(94,255,167,0.15)]"
+        className="w-full max-w-lg rounded border border-hud-green/40 bg-space-bg/95 p-8 shadow-[0_0_40px_rgba(94,255,167,0.15)]"
       >
-        <h2 id="handle-prompt-title" className="font-display text-lg tracking-widest text-hud-green">
+        <h2
+          id="handle-prompt-title"
+          className="whitespace-nowrap font-display text-lg tracking-widest text-hud-green"
+        >
           PICK A HANDLE
         </h2>
-        <p className="mt-2 text-xs text-hud-amber/80">
+        <p className="mt-2 text-xs text-hud-amber/90">
           Shown on the leaderboard. Your Google account stays private.
         </p>
 
@@ -102,22 +105,22 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
           autoComplete="off"
           spellCheck={false}
           placeholder="potato_pilot"
-          className="mt-4 w-full rounded border border-space-border bg-black/40 px-3 py-2 font-mono text-sm text-hud-green outline-none focus:border-hud-green/70"
+          className="mt-4 w-full rounded border border-hud-green/30 bg-black/40 px-3 py-2 font-mono text-sm text-hud-green outline-none focus:border-hud-green/70"
         />
 
-        <p className="mt-2 text-[11px] text-space-border">
+        <p className="mt-2 text-[11px] text-hud-amber/70">
           {HANDLE_MIN_LENGTH}-{HANDLE_MAX_LENGTH} chars · letters, numbers, _ or -
         </p>
 
         {error && <p className="mt-3 text-xs text-hud-red">{error}</p>}
 
-        <div className="mt-5 flex items-center justify-between gap-2">
+        <div className="mt-6 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onCancel}
-            className="text-xs text-space-border hover:text-hud-amber"
+            className="rounded border border-hud-amber/50 px-4 py-2 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10"
           >
-            Cancel
+            CANCEL
           </button>
           <button
             type="submit"
