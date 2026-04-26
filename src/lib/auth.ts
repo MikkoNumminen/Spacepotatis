@@ -9,7 +9,13 @@ import Google from "next-auth/providers/google";
  * API routes — saves a round trip on every auth check).
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [Google],
+  trustHost: true,
+  providers: [
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET
+    })
+  ],
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, profile }) {
