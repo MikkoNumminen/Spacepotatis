@@ -39,7 +39,7 @@ export default function MissionSelect({ mission, onClose, onLaunch }: Props) {
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-3 top-2 text-space-border hover:text-hud-green"
+        className="absolute right-3 top-2 text-hud-amber/70 hover:text-hud-red"
       >
         ×
       </button>

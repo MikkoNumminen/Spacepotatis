@@ -17,7 +17,10 @@ export default function LeaderboardPage() {
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 px-6 py-10">
       <header className="flex items-center justify-between">
         <h1 className="font-display text-3xl tracking-widest">LEADERBOARD</h1>
-        <Link href="/" className="text-sm text-hud-amber hover:underline">
+        <Link
+          href="/"
+          className="rounded border border-hud-amber/40 px-3 py-1 text-sm text-hud-amber hover:bg-hud-amber/10"
+        >
           ← Home
         </Link>
       </header>

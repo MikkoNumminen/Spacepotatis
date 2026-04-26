@@ -15,9 +15,9 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
       <button
         type="button"
         onClick={() => void signOut()}
-        className={`${
-          compact ? "text-[11px]" : "text-xs"
-        } text-hud-green/80 hover:text-hud-red`}
+        className={`rounded border border-hud-amber/40 ${
+          compact ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
+        } text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red`}
         title="Sign out"
       >
         {label} · sign out
