@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
@@ -9,11 +10,37 @@ import { useSession } from "next-auth/react";
 //
 // Statuses:
 //   "loading"         → neutral "PLAY" while NextAuth resolves the cookie.
-//   "authenticated"   → "CONTINUE" — implies their save will load on /play.
+//   "authenticated"   → fetches /api/save once; "CONTINUE" if a save exists,
+//                        "PLAY" for fresh accounts that have never played.
 //   "unauthenticated" → "PLAY" plus a small warning that progress won't persist.
 export default function PlayButton() {
   const { status } = useSession();
-  const label = status === "authenticated" ? "CONTINUE" : "PLAY";
+  const [hasSave, setHasSave] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setHasSave(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/save", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return false;
+        const body = (await res.json()) as unknown;
+        return body !== null;
+      })
+      .then((exists) => {
+        if (!cancelled) setHasSave(exists);
+      })
+      .catch(() => {
+        if (!cancelled) setHasSave(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  const label = status === "authenticated" && hasSave === true ? "CONTINUE" : "PLAY";
   const showGuestWarning = status === "unauthenticated";
 
   return (
