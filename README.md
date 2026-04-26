@@ -1,5 +1,7 @@
 # Spacepotatis
 
+[![CI](https://github.com/MikkoNumminen/Spacepotatis/actions/workflows/ci.yml/badge.svg)](https://github.com/MikkoNumminen/Spacepotatis/actions/workflows/ci.yml)
+
 A Tyrian 2000–inspired **vertical scrolling space shooter** with a **3D galaxy overworld**.
 
 - **Galaxy view** (Three.js): a 3D solar system where each planet is a mission, shop, or hub.
@@ -23,7 +25,7 @@ A Tyrian 2000–inspired **vertical scrolling space shooter** with a **3D galaxy
 # 1. Install deps
 npm install
 
-# 2. Configure env
+# 2. Configure env (optional for local gameplay — only needed for sign-in / cloud saves / leaderboard)
 cp .env.example .env.local
 # Fill in DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET
 
@@ -34,6 +36,20 @@ npm run db:migrate
 npm run dev
 # Open http://localhost:3000
 ```
+
+Local gameplay does not require a database — save/load and the leaderboard degrade gracefully when auth + DB are absent.
+
+## Quality gates
+
+The same checks that CI enforces on every push and PR:
+
+```bash
+npm run typecheck   # tsc --noEmit (strict mode)
+npm run lint        # next lint
+npm test            # vitest run — unit tests for game data, state, score, weapon math
+```
+
+`npm run test:watch` for TDD; `npm run coverage` for a v8 coverage report.
 
 ## Where to look
 
