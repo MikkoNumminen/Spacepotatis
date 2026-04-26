@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useHandle } from "@/lib/useHandle";
 
 // We never want to surface the Google profile name or email anywhere
 // the player could mistake it for their public identity. The button always
@@ -10,30 +10,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 // hasn't picked one yet.
 export default function SignInButton({ compact = false }: { compact?: boolean }) {
   const { status } = useSession();
-  const [handle, setHandle] = useState<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    if (status !== "authenticated") {
-      setHandle(undefined);
-      return;
-    }
-    let cancelled = false;
-    fetch("/api/handle", { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return null;
-        const body = (await res.json()) as { handle: string | null };
-        return body.handle;
-      })
-      .then((h) => {
-        if (!cancelled) setHandle(h);
-      })
-      .catch(() => {
-        if (!cancelled) setHandle(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
+  const { handle } = useHandle();
 
   if (status === "loading") {
     return <span className="text-[11px] text-space-border">…</span>;

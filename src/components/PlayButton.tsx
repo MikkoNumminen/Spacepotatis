@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import HandlePrompt from "./HandlePrompt";
+import { useHandle } from "@/lib/useHandle";
 
 // Auth-aware Play button on the landing page. The page itself is force-static,
 // so this is a small client island that hydrates with the session state and
@@ -22,11 +23,8 @@ import HandlePrompt from "./HandlePrompt";
 export default function PlayButton() {
   const router = useRouter();
   const { status } = useSession();
+  const { handle, status: handleStatus, refetch: refetchHandle } = useHandle();
   const [hasSave, setHasSave] = useState<boolean | null>(null);
-  // undefined = not fetched yet (still loading), null = no handle on record,
-  // string = picked handle. Distinguishing "loading" from "missing" matters
-  // because we don't want to flash the prompt before we know.
-  const [handle, setHandle] = useState<string | null | undefined>(undefined);
   const [showPrompt, setShowPrompt] = useState(false);
   // Set when the user clicks PLAY while the handle fetch is still pending —
   // we intercept the click and decide what to do (open modal vs. navigate)
@@ -34,10 +32,11 @@ export default function PlayButton() {
   // resolves used to navigate straight to /play and skip the prompt.
   const [pendingClick, setPendingClick] = useState(false);
 
+  const handleLoading = handleStatus === "idle" || handleStatus === "loading";
+
   useEffect(() => {
     if (status !== "authenticated") {
       setHasSave(null);
-      setHandle(undefined);
       return;
     }
     let cancelled = false;
@@ -53,18 +52,6 @@ export default function PlayButton() {
       .catch(() => {
         if (!cancelled) setHasSave(false);
       });
-    fetch("/api/handle", { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return null;
-        const body = (await res.json()) as { handle: string | null };
-        return body.handle;
-      })
-      .then((h) => {
-        if (!cancelled) setHandle(h);
-      })
-      .catch(() => {
-        if (!cancelled) setHandle(null);
-      });
     return () => {
       cancelled = true;
     };
@@ -77,7 +64,7 @@ export default function PlayButton() {
     // we can decide whether to navigate or prompt; defer everything until the
     // fetch resolves rather than racing the user.
     e.preventDefault();
-    if (handle === undefined) {
+    if (handleLoading) {
       setPendingClick(true);
       return;
     }
@@ -91,17 +78,17 @@ export default function PlayButton() {
   // If the click came in before the handle fetch resolved, finish what the
   // user started as soon as we know which path to take.
   useEffect(() => {
-    if (!pendingClick || handle === undefined) return;
+    if (!pendingClick || handleLoading) return;
     setPendingClick(false);
     if (handle === null) {
       setShowPrompt(true);
     } else {
       router.push("/play");
     }
-  }, [pendingClick, handle, router]);
+  }, [pendingClick, handleLoading, handle, router]);
 
-  function handlePromptSubmit(picked: string) {
-    setHandle(picked);
+  function handlePromptSubmit() {
+    refetchHandle();
     setShowPrompt(false);
     router.push("/play");
   }
