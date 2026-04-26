@@ -72,7 +72,22 @@ export type MissionId =
   | "tutorial"
   | "combat-1"
   | "boss-1"
-  | "shop";
+  | "shop"
+  | "pirate-beacon"
+  | "ember-run"
+  | "burnt-spud"
+  | "tubernovae-outpost";
+
+export type SolarSystemId = "tutorial" | "tubernovae";
+
+export interface SolarSystemDefinition {
+  readonly id: SolarSystemId;
+  readonly name: string;
+  readonly description: string;
+  readonly sunColor: string;          // "#RRGGBB" — drives the central star tint
+  readonly sunSize: number;           // multiplier on the base sun radius
+  readonly ambientHue: string;        // "#RRGGBB" — informational; ambient palette hint
+}
 
 export type PlanetKind = "mission" | "shop";
 
@@ -89,6 +104,7 @@ export interface MissionDefinition {
   readonly description: string;
   readonly difficulty: 1 | 2 | 3;
   readonly texture: string;           // path under /public/textures/planets/
+  readonly solarSystemId: SolarSystemId; // which solar system this planet belongs to
   readonly orbitRadius: number;       // AU-ish, for overworld layout
   readonly orbitSpeed: number;        // radians / second
   readonly startAngle: number;        // radians
