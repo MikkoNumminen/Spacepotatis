@@ -77,7 +77,12 @@ export class CombatScene extends Phaser.Scene {
 
     this.drawBackground();
 
-    this.playerBullets = new BulletPool(this, 200);
+    // Friendly bullets (Spud Missile etc.) home toward the closest active
+    // enemy; the closure resolves `this.enemies` lazily so construction order
+    // here doesn't matter.
+    this.playerBullets = new BulletPool(this, 200, {
+      findTarget: (x, y) => this.findClosestEnemyTo(x, y)
+    });
     this.enemyBullets = new BulletPool(this, 160);
     this.enemies = new EnemyPool(this);
     this.powerUps = new PowerUpPool(this);
@@ -467,5 +472,26 @@ export class CombatScene extends Phaser.Scene {
     this.time.delayedCall(500, () => {
       this.scene.start(SCENE_KEYS.Result, this.bootData);
     });
+  }
+
+  // Squared-distance scan over the active enemy group. Used by friendly
+  // homing bullets — keeping it here (not on EnemyPool) because target
+  // selection might evolve to factor in HP, threat, or screen position.
+  private findClosestEnemyTo(x: number, y: number): { x: number; y: number } | null {
+    let best: { x: number; y: number } | null = null;
+    let bestDistSq = Infinity;
+    this.enemies.children.iterate((child) => {
+      const e = child as Phaser.Physics.Arcade.Sprite;
+      if (!e.active) return true;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const d = dx * dx + dy * dy;
+      if (d < bestDistSq) {
+        bestDistSq = d;
+        best = { x: e.x, y: e.y };
+      }
+      return true;
+    });
+    return best;
   }
 }

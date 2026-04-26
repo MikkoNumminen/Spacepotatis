@@ -46,7 +46,7 @@
     {
       "id": "spud-missile",
       "name": "Spud Missile",
-      "description": "Slow-firing heavy ordnance with massive payload. Homing pending engine support — currently flies straight.",
+      "description": "Slow-firing heavy ordnance with massive payload. Homes in on the nearest enemy.",
       "damage": 35,
       "fireRateMs": 900,
       "bulletSpeed": 420,
@@ -55,7 +55,9 @@
       "cost": 1100,
       "tint": "#ff5566",
       "slot": "front",
-      "energyCost": 22
+      "energyCost": 22,
+      "homing": true,
+      "turnRateRadPerSec": 3.5
     },
     {
       "id": "tater-net",
