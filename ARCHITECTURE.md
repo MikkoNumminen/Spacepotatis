@@ -27,13 +27,14 @@ High-level architecture, data flow, scene lifecycle, and API inventory. Keep thi
 └──────────────────┼──────────────────────┼─────────────────────────┘
                    │ fetch                │ fetch
                    ▼                      ▼
-          ┌────────────────┐     ┌────────────────┐
-          │  /api/save     │     │ /api/leader-   │
-          │  /api/auth/*   │     │   board        │
-          │  (Node)        │     │  (Node, ISR)   │
-          └──────┬─────────┘     └────────┬───────┘
+          ┌────────────────┐     ┌─────────────────┐
+          │  /api/save     │     │ /api/leaderboard│
+          │  (Edge)        │     │ (Edge, cached)  │
+          │  /api/auth/*   │     │                 │
+          │  (Node, OAuth) │     │                 │
+          └──────┬─────────┘     └────────┬────────┘
                  │                        │
-                 └───────── Kysely ───────┘
+                 └─── Kysely ── @neondatabase/serverless (WS Pool)
                             │
                             ▼
                  ┌──────────────────┐
@@ -98,10 +99,10 @@ remount GalaxyScene
 
 **No Redux. No Zustand. No Context gymnastics.** A single module-level object called `GameState` holds the in-memory truth during a session.
 
-- [src/game/state/GameState.ts](src/game/state/GameState.ts) — `credits`, `completedMissions`, `unlockedPlanets`, `playedTimeSeconds`, `ship` (`ShipConfig`), `saveSlot`. Mutations go through named functions (`addCredits`, `completeMission`, `grantWeapon`, `buyShieldUpgrade`, …) that produce immutable new snapshots and notify subscribers.
-- [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — `primaryWeapon`, `unlockedWeapons`, `shieldLevel`, `armorLevel`, plus pure helpers for shield/armor max and upgrade pricing.
+- [src/game/state/GameState.ts](src/game/state/GameState.ts) — `credits`, `completedMissions`, `unlockedPlanets`, `playedTimeSeconds`, `ship` (`ShipConfig`), `saveSlot`, `currentSolarSystemId`, `unlockedSolarSystems`. Mutations go through named functions (`addCredits`, `completeMission`, `equipWeapon`, `grantWeapon`, `sellWeapon`, `buyShieldUpgrade`, `buyReactorCapacityUpgrade`, `buyReactorRechargeUpgrade`, `setSolarSystem`, …) that produce immutable new snapshots and notify subscribers. The `SYSTEM_UNLOCK_GATES` map (also in this file) drives mission-completion → solar-system-unlock side effects.
+- [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — Tyrian-style modular loadout: `slots: { front, rear, sidekickLeft, sidekickRight }` (each is `WeaponId | null`), `unlockedWeapons` (the inventory), `shieldLevel`, `armorLevel`, `reactor: { capacityLevel, rechargeLevel }`, plus pure helpers for shield/armor/reactor max and upgrade pricing. The runtime energy value is NOT here — it's mutable per-mission state on `Player` and resets every CombatScene boot.
 - [src/game/state/useGameState.ts](src/game/state/useGameState.ts) — `useSyncExternalStore` hook for React selectors.
-- [src/game/state/sync.ts](src/game/state/sync.ts) — `loadSave`, `saveNow`, `submitScore`. Best-effort fetches; failures and missing auth degrade silently so anonymous play keeps working.
+- [src/game/state/sync.ts](src/game/state/sync.ts) — `loadSave`, `saveNow`, `submitScore`. Best-effort fetches; failures and missing auth degrade silently so anonymous play keeps working. `loadSave` migrates legacy snapshots (pre-multi-slot, with `ship.primaryWeapon`) into the current shape.
 
 Mid-mission perks (overdrive, hardened, EMP) live on the `Player` instance / `CombatScene` and are explicitly **not** in `GameState` — they reset on every combat boot.
 
@@ -117,6 +118,22 @@ Mid-mission perks (overdrive, hardened, EMP) live on the `Player` instance / `Co
 - **Manual save** is a no-op if the user is not signed in (the game stays playable anonymously).
 - **Load** happens once after sign-in becomes `authenticated` inside `GameCanvas`: `GET /api/save` → `hydrate(snapshot)`.
 
+### Ship loadout (slot system)
+
+Player ships have four hardpoints: `front`, `rear`, `sidekickLeft`, `sidekickRight`. A weapon definition declares its `slot` *kind* (`front | rear | sidekick`); equipping checks the kind matches the position. Each slot owns its own `WeaponSystem` cooldown — different weapons in left/right sidekicks fire on independent rate limits.
+
+Bullet direction is per-slot (`weaponMath.slotVectors`): front fires up, rear fires down, each sidekick rotates its straight pattern ±45° outward. Bullet spawn position is also per-slot (`Player.SPAWN_OFFSET`) so projectiles emerge from the right point on the sprite.
+
+Pickups still auto-equip the next weapon in the upgrade ladder via `CombatScene.nextWeaponUpgrade` and `GameState.grantWeapon`. Manual swaps go through `LoadoutMenu` (galaxy HUD modal + Market shop section), which calls `GameState.equipWeapon(slot, id)`.
+
+### Reactor energy
+
+Every weapon has an `energyCost` (per FIRE event, not per bullet). Player runtime tracks `energy` (mutable, not in `ShipConfig`), drained on each successful fire and recharged at `getReactorRecharge(ship)` per second. Cap and recharge scale with `reactor.capacityLevel` and `reactor.rechargeLevel`, both upgradable in the shop. Below 25% energy the HUD bar pulses; at 0 the fire request is silently rejected.
+
+### Multi-solar-system overworld
+
+`solarSystems.json` lists each system (id, name, description, sun color/size, ambient hue). Every `MissionDefinition` carries a `solarSystemId`. `GalaxyScene` reads the current system from `GameState.currentSolarSystemId`, filters planets to that system, and tints `Sun.ts` from the system metadata. Players warp between unlocked systems via the `WarpPicker` modal in `GameCanvas`. Unlock gating lives in `GameState.SYSTEM_UNLOCK_GATES` — completing the gating mission pushes the target system into `unlockedSolarSystems`.
+
 ## 4. API route inventory
 
 All routes live under [src/app/api/](src/app/api/). Keep the list short — every added route burns Vercel CPU budget.
@@ -124,7 +141,7 @@ All routes live under [src/app/api/](src/app/api/). Keep the list short — ever
 | Route                          | Method | Runtime | Auth  | Purpose                                    |
 | ------------------------------ | ------ | ------- | ----- | ------------------------------------------ |
 | `/api/auth/[...nextauth]`      | GET/POST | Node  | —     | NextAuth v5 handler (Google OAuth).        |
-| `/api/save`                    | GET    | Node    | req'd | Load the signed-in player's save game.     |
+| `/api/save`                    | GET    | Edge    | req'd | Load the signed-in player's save game.     |
 | `/api/save`                    | POST   | Edge    | req'd | Upsert the signed-in player's save game.   |
 | `/api/leaderboard?mission=X`   | GET    | Edge    | —     | Top N scores for a mission. Cached via `unstable_cache`, 60s revalidate. |
 | `/api/leaderboard`             | POST   | Edge    | req'd | Submit a score; `revalidateTag('leaderboard')`. |

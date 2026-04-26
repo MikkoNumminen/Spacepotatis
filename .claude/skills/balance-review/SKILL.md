@@ -19,7 +19,7 @@ Invoke when the user runs `/balance-review`, asks "what did my JSON tweak do to 
 Field names come from the actual schemas — don't invent new ones.
 
 - **Weapon DPS** (per `weapons.json` entry): `damage * projectileCount * (1000 / fireRateMs)`.
-- **Energy per DPS** (efficiency): `energyCost / DPS` when `energyCost` is present on the weapon. If absent on either side, treat as `0` and omit the column. Lower is more efficient. (Reactor energy is planned but not yet shipped.)
+- **Energy per DPS** (efficiency): `energyCost / DPS`. `energyCost` is required on every weapon today — it represents reactor energy drained per FIRE event (not per bullet). Lower energy-per-DPS is more efficient. Reactor capacity at base is 100 with 25/sec recharge, so a sustainable fire rate is roughly `25 / energyCost` shots/sec.
 - **Time-to-kill (TTK, seconds)** for an `enemies.json` enemy by a given weapon: `enemy.hp / weaponDPS`. Compute for every (weapon, enemy) pair where either side changed.
 - **Wave intensity**: per `waves.json` wave, `sum(spawn.count * enemies[spawn.enemy].collisionDamage)`. Use the AFTER `enemies.json` for the AFTER value, BEFORE for BEFORE — collision-damage tweaks propagate.
 - **Mission credit-per-second** (economy proxy): per missionId in `waves.json`, `sum(enemies[spawn.enemy].creditValue * spawn.count) / max(sum(spawn.delayMs)/1000, 1)`. Rough — `delayMs` is the spawn-start offset, not duration; treat as a relative indicator only.
@@ -27,7 +27,7 @@ Field names come from the actual schemas — don't invent new ones.
 - **Perk drop rate**: `randomPerkId()` in `perks.ts` is uniform 1/N over `PERK_IDS`. Adding/removing a perk shifts every rate by `1/N_before - 1/N_after`.
 
 # Files this skill reads
-- `src/game/phaser/data/weapons.json` — fields: `id, name, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost, tint` (+ optional future `energyCost`).
+- `src/game/phaser/data/weapons.json` — fields: `id, name, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost, tint, slot, energyCost`. Optional: `homing`, `turnRateRadPerSec`.
 - `src/game/phaser/data/enemies.json` — fields: `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`.
 - `src/game/phaser/data/waves.json` — `missions[].waves[].spawns[]` with `enemy, count, delayMs, intervalMs, formation, xPercent` and wave-level `id, durationMs`.
 - `src/game/phaser/data/missions.json` — `id, kind, name, difficulty, requires, ...` (galaxy/visual fields ignored unless changed).
@@ -41,8 +41,9 @@ One markdown table per affected category. Columns: `file | id/key | field | befo
 ### weapons.json
 | id           | metric        | before | after | Δ%   | note                          |
 |--------------|---------------|--------|-------|------|-------------------------------|
-| heavy-cannon | DPS           | 45.83  | 36.67 | -20% | Plasma Lance hits 20% softer  |
-| heavy-cannon | TTK vs basic  | 0.26s  | 0.33s | +27% | drone takes ~1 extra shot     |
+| heavy-cannon | DPS           | 87.5   | 70.0  | -20% | Plasma Triad hits 20% softer  |
+| heavy-cannon | TTK vs basic  | 0.14s  | 0.17s | +27% | drone takes ~1 extra shot     |
+| heavy-cannon | energy/DPS    | 0.21   | 0.26  | +24% | less efficient per reactor unit |
 ```
 
 Repeat for `### enemies.json`, `### waves.json` (intensity + credit/sec), `### missions.json`, `### perks.ts`.
