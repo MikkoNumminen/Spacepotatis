@@ -1,16 +1,46 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
+// We never want to surface the Google profile name or email anywhere
+// the player could mistake it for their public identity. The button always
+// shows the handle (if set) or a neutral "Pilot" placeholder while the
+// /api/handle GET is in flight, with a "set handle" hint when the account
+// hasn't picked one yet.
 export default function SignInButton({ compact = false }: { compact?: boolean }) {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
+  const [handle, setHandle] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setHandle(undefined);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/handle", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const body = (await res.json()) as { handle: string | null };
+        return body.handle;
+      })
+      .then((h) => {
+        if (!cancelled) setHandle(h);
+      })
+      .catch(() => {
+        if (!cancelled) setHandle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   if (status === "loading") {
     return <span className="text-[11px] text-space-border">…</span>;
   }
 
-  if (session?.user) {
-    const label = session.user.name ?? session.user.email ?? "pilot";
+  if (status === "authenticated") {
+    const label = handle ?? "Pilot";
     return (
       <button
         type="button"
