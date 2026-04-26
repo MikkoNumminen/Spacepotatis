@@ -5,9 +5,9 @@ import * as Phaser from "phaser";
 export interface Controls {
   moveX(): number; // -1 | 0 | 1
   moveY(): number;
-  firePrimary(): boolean;    // Space — main cannons (held to fire)
-  fireSecondary(): boolean;  // Alt — reserved for future ability
-  fireTertiary(): boolean;   // Ctrl — reserved for future ability
+  firePrimary(): boolean;    // Space — front slot (held to fire)
+  fireSecondary(): boolean;  // Alt — both sidekick pods (held to fire)
+  fireTertiary(): boolean;   // Ctrl — rear slot (held to fire)
 }
 
 export function createKeyboardControls(scene: Phaser.Scene): Controls {

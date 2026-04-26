@@ -129,8 +129,9 @@ Local gameplay does NOT require a database. Save/load and leaderboard features d
 ### Controls (current)
 
 - WASD / arrow keys — move the ship.
-- Space — fire main cannons (held to fire; throttled by the equipped weapon's fireRateMs).
-- Alt, Ctrl — reserved for future secondary/tertiary abilities (the Controls interface exposes them already).
+- Space — fire the **front** slot (held to fire; throttled by the equipped weapon's fireRateMs).
+- Alt — fire both **sidekick** pods (left + right together; each cools down independently).
+- Ctrl — fire the **rear** slot.
 - P or ESC — pause. During pause: P to resume, ESC to abandon the mission (counts as a loss).
 - Galaxy view — drag to orbit the camera, scroll wheel to zoom, click a planet to open its mission panel.
 

@@ -20,9 +20,15 @@ const SPEED = 360;
 const SHIELD_REGEN_PER_SEC = 6;
 const SHIELD_REGEN_DELAY_MS = 2000;
 
-// Slots that have firing wired up today. The rear + sidekick slots equip via
-// the loadout UI but do not actually shoot yet — see TODO in tryFireSlot().
-const ACTIVE_FIRE_SLOTS: readonly SlotName[] = ["front"];
+// Per-slot bullet spawn offset relative to the player sprite center. Front
+// emerges from the nose, rear from the tail, sidekicks from the shoulder
+// pods. slotVectors() in weaponMath then handles the firing direction per slot.
+const SPAWN_OFFSET: Record<SlotName, { readonly x: number; readonly y: number }> = {
+  front: { x: 0, y: -18 },
+  rear: { x: 0, y: 18 },
+  sidekickLeft: { x: -16, y: 0 },
+  sidekickRight: { x: 16, y: 0 }
+};
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private controls: Controls;
@@ -134,14 +140,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       );
     }
 
+    const fireRateMul = this.hasOverdrive ? 0.66 : 1;
     if (this.controls.firePrimary()) {
-      const fireRateMul = this.hasOverdrive ? 0.66 : 1;
-      // TODO: wire dedicated fire keys for rear + sidekick slots. For MVP only
-      // the front slot fires on Space; the loadout UI lets the player equip
-      // the other slots, but they are inert until those keybinds land.
-      for (const slot of ACTIVE_FIRE_SLOTS) {
-        this.tryFireSlot(slot, time, fireRateMul);
-      }
+      this.tryFireSlot("front", time, fireRateMul);
+    }
+    if (this.controls.fireSecondary()) {
+      // Twin sidekick pods fire together. Each pod has its own WeaponSystem
+      // cooldown, so different weapons in left/right slots fire independently.
+      this.tryFireSlot("sidekickLeft", time, fireRateMul);
+      this.tryFireSlot("sidekickRight", time, fireRateMul);
+    }
+    if (this.controls.fireTertiary()) {
+      this.tryFireSlot("rear", time, fireRateMul);
     }
 
     if (time - this.lastDamageAt > SHIELD_REGEN_DELAY_MS && this.shield < this.maxShield) {
@@ -155,7 +165,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const def = getWeapon(weaponId);
     if (this.energy < def.energyCost) return;
 
-    const fired = this.weaponsBySlot[slot].tryFire(weaponId, this.x, this.y - 18, now, true, fireRateMul);
+    const offset = SPAWN_OFFSET[slot];
+    const fired = this.weaponsBySlot[slot].tryFire(
+      weaponId,
+      this.x + offset.x,
+      this.y + offset.y,
+      now,
+      true,
+      fireRateMul
+    );
     if (fired) {
       this.energy = Math.max(0, this.energy - def.energyCost);
       sfx.laser();
