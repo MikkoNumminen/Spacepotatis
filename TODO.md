@@ -69,7 +69,7 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 - On sign-in, `loadSave()` hydrates GameState. On mission win, `saveNow()` + `submitScore()` fire best-effort.
 - Unauthenticated play still works — all network calls degrade silently.
 
-**Operational note:** API routes run on Node runtime (pg Pool isn't Edge-compatible). Build is still static everywhere else.
+**Operational note:** `/api/save` and `/api/leaderboard` now run on the Edge runtime via `@neondatabase/serverless` (WebSocket Pool). `/api/auth/[...nextauth]` stays on Node for the Google OAuth handshake. Build is still static everywhere else.
 
 ---
 
@@ -79,6 +79,38 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 - Screen shake on player damage, tween-animated result screen, GSAP slide-in on MissionSelect panel.
 - Particle burst on enemy kill (boss explosion is beefier), circle flash removed in favour of proper Phaser ParticleEmitter.
 - [Controls](src/game/phaser/systems/Controls.ts) abstraction — Player reads through an interface so gamepad/touch can be added without touching Player.
+
+---
+
+## Phase 8 — Modular ship loadout + reactor energy (DONE)
+
+- 4 weapon slots: front, rear, sidekickLeft, sidekickRight ([ShipConfig.ts](src/game/state/ShipConfig.ts)). Per-slot bullet direction in [weaponMath.ts](src/game/phaser/systems/weaponMath.ts) (front up, rear down, sidekicks ±45° outward); per-slot spawn offset in [Player.ts](src/game/phaser/entities/Player.ts).
+- All four slots fire on dedicated keys: Space → front, Alt → both sidekick pods, Ctrl → rear. Each slot has its own `WeaponSystem` cooldown.
+- Reactor with capacity + recharge upgrade tracks. Each weapon has an `energyCost`; firing drains, recharge fills back over time, refused fires are silent. Reactor bar in the combat HUD pulses below 25% energy.
+- Save migration: legacy snapshots with `ship.primaryWeapon` migrate transparently into `slots.front` on load.
+- LoadoutMenu component (galaxy HUD modal + Market shop section) with slot grid + inventory + sell-back.
+- 6 new weapons spanning all slot kinds: Spud Missile (homing), Tater Net, Tail Gunner, Side Spitter, Plasma Whip, Hailstorm.
+- Bullet homing wired up: optional `homing: true` + `turnRateRadPerSec` on weapon defs; `Bullet` steers via `steerVelocity()` in weaponMath; CombatScene exposes a `findClosestEnemy` callback to the friendly `BulletPool`.
+
+---
+
+## Phase 9 — Multi-solar-system overworld (DONE)
+
+- `solarSystems.json` data file + `SolarSystemId` union type. Two systems shipped: `tutorial` (Sol Spudensis) and `tubernovae` (Tubernovae Cluster, 4 missions).
+- `currentSolarSystemId` + `unlockedSolarSystems` on `GameState`. `setSolarSystem()` mutator + `SYSTEM_UNLOCK_GATES` map (boss-1 → tubernovae).
+- `GalaxyScene` filters planets by active system; `Sun.ts` tints from per-system metadata (color + size scale).
+- Warp picker UI in `GameCanvas` HUD lists unlocked systems and re-mounts the scene on switch.
+- Per-mission base-color overrides in `Planet.ts` + per-mission procedural surface presets in `planetTexture.ts` so the 4 Tubernovae planets read as visually distinct from tutorial.
+
+---
+
+## Phase 10 — Vercel resource discipline (DONE)
+
+- Leaderboard reads cached via `unstable_cache` (60s TTL, `revalidateTag` on POST). `Leaderboard` component converted to async server component — no more client-side fetch on every page mount.
+- OG card + Apple touch-icon `force-static` so they bake at build time instead of running per scraper hit.
+- `vercel.json` `ignoreCommand` skips preview builds for doc / `.github/` / `.claude/` only changes; matching `paths-ignore` on the GitHub Actions workflow.
+- `/api/save` + `/api/leaderboard` migrated to Edge runtime via `@neondatabase/serverless`.
+- New `CLAUDE.md` §12 — mandatory pre-PR checklist for Vercel resource impact (default-static, cache every DB query, no middleware/cron without sign-off, 500 KB cap on `public/` assets, etc.).
 
 ---
 
@@ -97,7 +129,7 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 - Story, dialogue, or cutscenes.
 - Procedural mission / level generation.
 - Achievements system.
-- More than 4 planets (3 missions + 1 shop).
+- ~~More than 4 planets (3 missions + 1 shop)~~ — **superseded by Phase 9**: 2 solar systems and 8 planets total now. Hand-authored content cap is now per-system, not project-wide.
 - Mobile / touch controls.
 - Mod support, user-generated content.
 - In-app purchases.
