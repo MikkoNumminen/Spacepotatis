@@ -168,7 +168,23 @@ DATABASE_URL="<neon-direct-url>" npm run db:migrate
 - **No `any` types.** Full stop.
 - **MVP scope is capped.** See [TODO.md](TODO.md) "Out of scope for MVP".
 
-## 10. When in doubt
+## 10. Prefer skills for content tasks
+
+Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded into every session. **Use them instead of re-exploring the codebase** — that's the entire reason they exist (token cost reduction).
+
+| If the user asks for…                          | Invoke              |
+| ---------------------------------------------- | ------------------- |
+| A new combat mission or shop planet            | `/new-mission`      |
+| A new enemy type                               | `/new-enemy`        |
+| A new primary weapon                           | `/new-weapon`       |
+| A new mission perk (passive or active)         | `/new-perk`         |
+| A new solar system in the overworld            | `/new-solar-system` |
+| "What did this JSON tweak do to balance?"      | `/balance-review`   |
+| "Is the content safe to commit?" / pre-PR      | `/content-audit`    |
+
+If the request maps to a skill, **invoke it before grepping or reading files** — the skill body already contains the file paths, field names, and invariants you'd otherwise have to derive. If the request *almost* maps to a skill but has an extra constraint, still invoke the skill and adapt; do not fall back to the long path.
+
+## 11. When in doubt
 
 1. Skim [ARCHITECTURE.md](ARCHITECTURE.md) for data flow and scene lifecycle.
 2. Check [TODO.md](TODO.md) to see if the task is already planned and which model is recommended.
