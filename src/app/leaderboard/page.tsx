@@ -15,7 +15,7 @@ const COMBAT_MISSIONS = (missionsData.missions as readonly MissionDefinition[]).
 export default function LeaderboardPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 px-6 py-10">
-      <header className="flex items-center gap-6">
+      <header className="flex flex-col items-start gap-3">
         <Link
           href="/"
           className="rounded border border-hud-amber/40 px-3 py-1 text-sm text-hud-amber hover:bg-hud-amber/10"
