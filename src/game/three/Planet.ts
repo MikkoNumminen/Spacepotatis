@@ -12,6 +12,17 @@ const DIFFICULTY_COLOR: Record<1 | 2 | 3, number> = {
 
 const SHOP_COLOR = 0x4fd1ff;
 
+// Per-mission base color overrides. Without these, planets are colored only
+// by difficulty (red/amber/green) which makes a difficulty-2 jungle moon
+// look identical to a difficulty-2 lava world. Each entry here is the base
+// HSL hue the procedural surface generator builds its palette around.
+const MISSION_COLOR_OVERRIDE: Partial<Record<MissionId, number>> = {
+  "pirate-beacon": 0x3a8e6a,      // jungle-moon green-teal
+  "ember-run": 0xff6b3a,          // bright lava-orange
+  "burnt-spud": 0x4a2020,         // charred volcanic crust
+  "tubernovae-outpost": 0x8aa8c8  // banded blue-grey ice giant
+};
+
 const LABEL_FONT = "600 56px ui-monospace, 'JetBrains Mono', Menlo, monospace";
 const LABEL_HEIGHT_PX = 128;
 const LABEL_PAD_PX = 56;
@@ -212,7 +223,8 @@ export class Planet {
     this.geometry = new THREE.SphereGeometry(radius, 64, 48);
 
     const baseColor =
-      definition.kind === "shop" ? SHOP_COLOR : DIFFICULTY_COLOR[definition.difficulty];
+      MISSION_COLOR_OVERRIDE[definition.id] ??
+      (definition.kind === "shop" ? SHOP_COLOR : DIFFICULTY_COLOR[definition.difficulty]);
 
     const surface = generatePlanetSurface(definition.id satisfies MissionId, baseColor);
     this.surfaceMap = surface.map;

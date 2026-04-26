@@ -68,7 +68,7 @@ function styleFor(id: MissionId): SurfaceStyle {
         craterSizeRange: [4, 9]
       };
     case "shop":
-    case "tubernovae-outpost":
+      // Tutorial Market — cool banded ice giant.
       return {
         noiseScale: 2.4,
         octaves: 4,
@@ -79,38 +79,57 @@ function styleFor(id: MissionId): SurfaceStyle {
         craters: 0,
         craterSizeRange: [0, 0]
       };
+    case "tubernovae-outpost":
+      // Tubernovae Outpost — heavily-banded blue-grey gas giant with a
+      // tighter, stormier band pattern than the tutorial shop.
+      return {
+        noiseScale: 2.0,
+        octaves: 4,
+        bandStrength: 0.55,
+        featureColor: [220, 230, 245],
+        featureThreshold: 0.7,
+        featureMix: 0.65,
+        craters: 0,
+        craterSizeRange: [0, 0]
+      };
     case "pirate-beacon":
+      // Jungle moon — dense vegetation patches at high altitude, heavy
+      // crater pockmarking from past pirate raids.
       return {
         noiseScale: 2.8,
         octaves: 5,
         bandStrength: 0,
-        featureColor: [180, 60, 60],
-        featureThreshold: 0.6,
-        featureMix: 0.6,
-        craters: 18,
-        craterSizeRange: [3, 10]
+        featureColor: [40, 120, 70],
+        featureThreshold: 0.55,
+        featureMix: 0.55,
+        craters: 26,
+        craterSizeRange: [3, 11]
       };
     case "ember-run":
+      // Active lava world — bright molten ridges erupting through cooled
+      // black crust, faint convective banding.
       return {
         noiseScale: 3.0,
         octaves: 5,
         bandStrength: 0.2,
-        featureColor: [255, 120, 50],
+        featureColor: [255, 200, 80],
         featureThreshold: 0.55,
-        featureMix: 0.7,
+        featureMix: 0.85,
         craters: 14,
         craterSizeRange: [3, 12]
       };
     case "burnt-spud":
+      // Volcanic ruin — deep red veins of cooling magma cracking through
+      // a dark charcoal surface. Heavy cratering from the boss fight.
       return {
         noiseScale: 2.2,
         octaves: 5,
         bandStrength: 0,
-        featureColor: [120, 30, 30],
-        featureThreshold: 0.66,
-        featureMix: 0.85,
-        craters: 30,
-        craterSizeRange: [4, 13]
+        featureColor: [255, 80, 30],
+        featureThreshold: 0.62,
+        featureMix: 0.9,
+        craters: 34,
+        craterSizeRange: [4, 14]
       };
   }
 }
