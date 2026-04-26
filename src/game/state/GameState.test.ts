@@ -25,7 +25,7 @@ import {
   subscribe,
   toSnapshot
 } from "./GameState";
-import { MAX_AUGMENTS_PER_WEAPON } from "@/game/phaser/data/augments";
+import { MAX_AUGMENTS_PER_WEAPON } from "@/game/data/augments";
 
 beforeEach(() => {
   resetForTests();

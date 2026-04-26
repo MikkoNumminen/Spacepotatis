@@ -1,7 +1,7 @@
 import type { WeaponId } from "@/types/game";
 import type { SlotName } from "@/game/state/ShipConfig";
 import type { BulletPool } from "../entities/Bullet";
-import { getWeapon } from "../data/weapons";
+import { getWeapon } from "../../data/weapons";
 import { canFire, slotVectors } from "./weaponMath";
 
 // Per-fire modifier bag. Resolved upstream (Player) by combining the weapon's

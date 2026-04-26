@@ -1,5 +1,5 @@
-import missionsData from "@/game/phaser/data/missions.json";
-import { getAllSolarSystems } from "@/game/phaser/data/solarSystems";
+import missionsData from "@/game/data/missions.json";
+import { getAllSolarSystems } from "@/game/data/solarSystems";
 import type {
   AugmentId,
   MissionDefinition,
@@ -28,12 +28,12 @@ import {
   type WeaponLevels,
   type WeaponSlots
 } from "./ShipConfig";
-import { getWeapon } from "../phaser/data/weapons";
+import { getWeapon } from "../data/weapons";
 import {
   AUGMENT_IDS,
   MAX_AUGMENTS_PER_WEAPON,
   getAugment
-} from "../phaser/data/augments";
+} from "../data/augments";
 
 // Sell-back rate. Half the purchase cost — generous enough to encourage
 // experimentation, cheap enough that you cannot farm credits by buy/sell churn.

@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { PERKS, type PerkId } from "../data/perks";
+import { PERKS, type PerkId } from "../../data/perks";
 
 export type PermanentPowerUpKind = "shield" | "credit" | "weapon";
 

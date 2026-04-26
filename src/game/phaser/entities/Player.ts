@@ -14,8 +14,8 @@ import {
   type ShipConfig,
   type SlotName
 } from "@/game/state/ShipConfig";
-import { getWeapon } from "../data/weapons";
-import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../data/augments";
+import { getWeapon } from "../../data/weapons";
+import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../../data/augments";
 import { sfx } from "@/game/audio/sfx";
 
 export const PLAYER_TEXTURE = "player-ship";

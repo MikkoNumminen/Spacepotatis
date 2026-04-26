@@ -18,11 +18,11 @@ import {
   weaponUpgradeCost,
   type SlotName
 } from "@/game/state/ShipConfig";
-import { getAllWeapons, getWeapon } from "@/game/phaser/data/weapons";
+import { getAllWeapons, getWeapon } from "@/game/data/weapons";
 import {
   MAX_AUGMENTS_PER_WEAPON,
   getAugment
-} from "@/game/phaser/data/augments";
+} from "@/game/data/augments";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponStats } from "@/components/WeaponStats";
 import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";

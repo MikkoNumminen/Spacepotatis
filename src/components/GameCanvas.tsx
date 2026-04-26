@@ -12,8 +12,8 @@ import MuteToggle from "@/components/MuteToggle";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
 import { loadSave, saveNow, submitScore } from "@/game/state/sync";
-import missionsData from "@/game/phaser/data/missions.json";
-import { getAllSolarSystems, getSolarSystem } from "@/game/phaser/data/solarSystems";
+import missionsData from "@/game/data/missions.json";
+import { getAllSolarSystems, getSolarSystem } from "@/game/data/solarSystems";
 
 const MISSIONS = missionsData.missions as readonly MissionDefinition[];
 

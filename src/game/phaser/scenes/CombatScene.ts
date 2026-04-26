@@ -15,12 +15,12 @@ import {
   type PowerUpKind,
   type PermanentPowerUpKind
 } from "../entities/PowerUp";
-import { PERKS, randomPerkId, type PerkId } from "../data/perks";
+import { PERKS, randomPerkId, type PerkId } from "../../data/perks";
 import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
-import { getWeapon } from "../data/weapons";
-import missionsData from "../data/missions.json";
+import { getWeapon } from "../../data/weapons";
+import missionsData from "../../data/missions.json";
 import type { MissionDefinition } from "@/types/game";
 
 const MISSIONS = missionsData.missions as readonly MissionDefinition[];

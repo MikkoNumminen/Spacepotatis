@@ -4,7 +4,7 @@ All game balance data lives here as JSON, deliberately separated from code.
 
 Editing these files changes damage numbers, wave patterns, enemy HP, mission difficulty, and planet layout without touching any TypeScript.
 
-| File                                   | Shape (see [src/types/game.ts](../../../types/game.ts)) |
+| File                                   | Shape (see [src/types/game.ts](../../types/game.ts)) |
 | -------------------------------------- | ----------------------------------------------------- |
 | [weapons.json](weapons.json)           | `{ weapons: WeaponDefinition[] }`                     |
 | [enemies.json](enemies.json)           | `{ enemies: EnemyDefinition[] }`                      |

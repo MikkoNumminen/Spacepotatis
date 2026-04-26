@@ -21,7 +21,7 @@ export interface ReactorConfig {
 export type WeaponLevels = Readonly<Partial<Record<WeaponId, number>>>;
 
 // Per-weapon installed augments. Each weapon can hold up to
-// MAX_AUGMENTS_PER_WEAPON (see src/game/phaser/data/augments.ts). Augments
+// MAX_AUGMENTS_PER_WEAPON (see src/game/data/augments.ts). Augments
 // are permanently bound — sellWeapon() destroys both the weapon and its
 // augment list together.
 export type WeaponAugments = Readonly<Partial<Record<WeaponId, readonly AugmentId[]>>>;
@@ -122,7 +122,7 @@ export function weaponUpgradeCost(currentLevel: number): number {
 }
 
 // Augment helpers. The actual augment definitions live in
-// src/game/phaser/data/augments.ts; these helpers just read the per-ship
+// src/game/data/augments.ts; these helpers just read the per-ship
 // installed list, which is the only ShipConfig-coupled piece.
 export function getInstalledAugments(config: ShipConfig, id: WeaponId): readonly AugmentId[] {
   return config.weaponAugments[id] ?? [];

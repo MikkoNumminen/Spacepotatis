@@ -3,7 +3,7 @@ import type { MissionId, WaveDefinition, WaveSpawn } from "@/types/game";
 import type { BulletPool } from "../entities/Bullet";
 import type { EnemyPool } from "../entities/Enemy";
 import { VIRTUAL_WIDTH } from "../config";
-import { getWavesForMission } from "../data/waves";
+import { getWavesForMission } from "../../data/waves";
 
 export { getWavesForMission };
 

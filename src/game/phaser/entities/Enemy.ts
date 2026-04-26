@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import type { EnemyDefinition, EnemyId } from "@/types/game";
 import { BulletPool } from "./Bullet";
-import { getEnemy } from "../data/enemies";
+import { getEnemy } from "../../data/enemies";
 
 export { getEnemy };
 

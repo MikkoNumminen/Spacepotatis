@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import missionsData from "@/game/phaser/data/missions.json";
-import { getSolarSystem } from "@/game/phaser/data/solarSystems";
+import missionsData from "@/game/data/missions.json";
+import { getSolarSystem } from "@/game/data/solarSystems";
 import type { MissionDefinition, SolarSystemId } from "@/types/game";
 import { Planet } from "./Planet";
 import { Starfield } from "./Starfield";

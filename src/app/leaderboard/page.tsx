@@ -1,5 +1,5 @@
 import Link from "next/link";
-import missionsData from "@/game/phaser/data/missions.json";
+import missionsData from "@/game/data/missions.json";
 import type { MissionDefinition } from "@/types/game";
 import Leaderboard from "@/components/Leaderboard";
 

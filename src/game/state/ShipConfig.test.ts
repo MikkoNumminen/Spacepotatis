@@ -24,7 +24,7 @@ import {
 import {
   NEUTRAL_AUGMENT_EFFECTS,
   foldAugmentEffects
-} from "@/game/phaser/data/augments";
+} from "@/game/data/augments";
 
 describe("DEFAULT_SHIP", () => {
   it("starts with the free starter weapon equipped to the front slot only", () => {

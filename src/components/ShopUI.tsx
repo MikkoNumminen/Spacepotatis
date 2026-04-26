@@ -21,8 +21,8 @@ import {
   reactorRechargeCost,
   shieldUpgradeCost
 } from "@/game/state/ShipConfig";
-import { getAllWeapons } from "@/game/phaser/data/weapons";
-import { getAllAugments } from "@/game/phaser/data/augments";
+import { getAllWeapons } from "@/game/data/weapons";
+import { getAllAugments } from "@/game/data/augments";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponStats } from "@/components/WeaponStats";
 
