@@ -3,10 +3,17 @@ import { describe, expect, it } from "vitest";
 import enemiesJson from "./enemies.json";
 import weaponsJson from "./weapons.json";
 import missionsJson from "./missions.json";
+import solarSystemsJson from "./solarSystems.json";
 import { getAllEnemies, getEnemy } from "./enemies";
 import { getAllWeapons, getWeapon } from "./weapons";
 import { getAllMissionWaves, getWavesForMission } from "./waves";
-import type { EnemyDefinition, MissionDefinition, WeaponDefinition } from "@/types/game";
+import { getAllSolarSystems, getSolarSystem } from "./solarSystems";
+import type {
+  EnemyDefinition,
+  MissionDefinition,
+  SolarSystemDefinition,
+  WeaponDefinition
+} from "@/types/game";
 
 const KNOWN_FORMATIONS = new Set(["line", "vee", "scatter", "column"]);
 const KNOWN_BEHAVIORS = new Set(["straight", "zigzag", "homing", "boss"]);
@@ -140,6 +147,54 @@ describe("missions.json", () => {
       }
     }
   );
+
+  it("every mission references a known solarSystemId", () => {
+    const systemIds = new Set(
+      (solarSystemsJson.systems as readonly SolarSystemDefinition[]).map((s) => s.id)
+    );
+    for (const m of missions) {
+      expect(systemIds.has(m.solarSystemId)).toBe(true);
+    }
+  });
+});
+
+describe("solarSystems.json", () => {
+  const systems = solarSystemsJson.systems as readonly SolarSystemDefinition[];
+
+  it("declares at least one solar system", () => {
+    expect(systems.length).toBeGreaterThan(0);
+  });
+
+  it("has unique system ids", () => {
+    const ids = systems.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it.each(systems.map((s) => [s.id, s] as const))(
+    "%s has a name, sun color, and positive sun size",
+    (_id, s) => {
+      expect(s.name.length).toBeGreaterThan(0);
+      expect(s.sunColor.startsWith("#")).toBe(true);
+      expect(s.ambientHue.startsWith("#")).toBe(true);
+      expect(s.sunSize).toBeGreaterThan(0);
+    }
+  );
+
+  it("getSolarSystem returns the matching definition", () => {
+    expect(getSolarSystem("tutorial").id).toBe("tutorial");
+  });
+
+  it("getAllSolarSystems matches the JSON length", () => {
+    expect(getAllSolarSystems().length).toBe(systems.length);
+  });
+
+  it("every solar system has at least one mission bound to it", () => {
+    const allMissions = missionsJson.missions as readonly MissionDefinition[];
+    const systemsWithMissions = new Set(allMissions.map((m) => m.solarSystemId));
+    for (const s of systems) {
+      expect(systemsWithMissions.has(s.id)).toBe(true);
+    }
+  });
 });
 
 describe("waves.json referential integrity", () => {
@@ -223,5 +278,10 @@ describe("getEnemy / getWeapon throw on unknown ids", () => {
     expect(() => getWeapon("not-a-weapon" as Parameters<typeof getWeapon>[0])).toThrow(
       /Unknown weapon/
     );
+  });
+  it("getSolarSystem throws", () => {
+    expect(() =>
+      getSolarSystem("not-a-system" as Parameters<typeof getSolarSystem>[0])
+    ).toThrow(/Unknown solar system/);
   });
 });

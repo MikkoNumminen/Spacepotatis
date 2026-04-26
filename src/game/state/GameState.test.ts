@@ -12,6 +12,7 @@ import {
   isPlanetUnlocked,
   resetForTests,
   selectWeapon,
+  setSolarSystem,
   spendCredits,
   subscribe,
   toSnapshot
@@ -32,6 +33,12 @@ describe("initial state", () => {
     expect(s.unlockedPlanets).not.toContain("boss-1");
     expect(s.playedTimeSeconds).toBe(0);
     expect(s.saveSlot).toBe(1);
+  });
+
+  it("starts in the tutorial system with only the tutorial system unlocked", () => {
+    const s = getState();
+    expect(s.currentSolarSystemId).toBe("tutorial");
+    expect(s.unlockedSolarSystems).toEqual(["tutorial"]);
   });
 });
 
@@ -100,6 +107,43 @@ describe("completeMission", () => {
     completeMission("tutorial");
     const dupes = getState().unlockedPlanets.filter((p) => p === "combat-1");
     expect(dupes).toHaveLength(1);
+  });
+
+  it("completing boss-1 unlocks the tubernovae solar system", () => {
+    expect(getState().unlockedSolarSystems).not.toContain("tubernovae");
+    completeMission("boss-1");
+    expect(getState().unlockedSolarSystems).toContain("tubernovae");
+  });
+
+  it("completing boss-1 a second time does not duplicate the system unlock", () => {
+    completeMission("boss-1");
+    completeMission("boss-1");
+    const occurrences = getState().unlockedSolarSystems.filter((s) => s === "tubernovae");
+    expect(occurrences).toHaveLength(1);
+  });
+});
+
+describe("setSolarSystem", () => {
+  it("refuses to switch to a system the player has not unlocked", () => {
+    expect(setSolarSystem("tubernovae")).toBe(false);
+    expect(getState().currentSolarSystemId).toBe("tutorial");
+  });
+
+  it("switches when the system is unlocked", () => {
+    completeMission("boss-1"); // unlocks tubernovae
+    expect(setSolarSystem("tubernovae")).toBe(true);
+    expect(getState().currentSolarSystemId).toBe("tubernovae");
+  });
+
+  it("is a no-op (returns true) when already on the requested system", () => {
+    let count = 0;
+    const unsub = subscribe(() => {
+      count += 1;
+    });
+    expect(setSolarSystem("tutorial")).toBe(true);
+    unsub();
+    expect(count).toBe(0);
+    expect(getState().currentSolarSystemId).toBe("tutorial");
   });
 });
 
@@ -173,6 +217,35 @@ describe("snapshot / hydrate", () => {
     expect(s.credits).toBe(999);
     expect(s.completedMissions).toEqual(["tutorial"]);
     expect(s.ship.primaryWeapon).toBe("rapid-fire");
+  });
+
+  it("hydrate defaults solar-system fields when the snapshot predates them", () => {
+    // Old snapshots have no currentSolarSystemId / unlockedSolarSystems fields.
+    // They should fall back to the tutorial system + only the tutorial unlocked.
+    hydrate({ credits: 42, completedMissions: ["tutorial", "combat-1"] });
+    const s = getState();
+    expect(s.currentSolarSystemId).toBe("tutorial");
+    expect(s.unlockedSolarSystems).toEqual(["tutorial"]);
+  });
+
+  it("hydrate clamps a saved currentSolarSystemId to one the player has unlocked", () => {
+    // Pretend a save was tampered with — currentSolarSystemId says tubernovae
+    // but unlockedSolarSystems doesn't list it. Migration should reset.
+    hydrate({
+      currentSolarSystemId: "tubernovae",
+      unlockedSolarSystems: ["tutorial"]
+    });
+    expect(getState().currentSolarSystemId).toBe("tutorial");
+  });
+
+  it("hydrate restores both solar-system fields when present", () => {
+    hydrate({
+      currentSolarSystemId: "tubernovae",
+      unlockedSolarSystems: ["tutorial", "tubernovae"]
+    });
+    const s = getState();
+    expect(s.currentSolarSystemId).toBe("tubernovae");
+    expect(s.unlockedSolarSystems).toEqual(["tutorial", "tubernovae"]);
   });
 
   it("subscribe fires on commit and unsubscribe stops it", () => {
