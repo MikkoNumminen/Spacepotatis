@@ -99,6 +99,12 @@ export default function GameCanvas() {
   }, [mode, currentSolarSystemId]);
 
   // Combat lifecycle: mount Phaser into the parent div when mode=combat.
+  // We route onComplete through a ref so a mid-combat auth flip ("loading"
+  // → "authenticated") doesn't leave Phaser holding a stale closure that
+  // skips saveNow()/submitScore(). Re-instantiating Phaser on auth changes
+  // would be wasteful (and would tear down the active game), so the ref
+  // pattern is the correct fix here.
+  const completeRef = useRef<(summary: CombatSummary) => void | Promise<void>>(() => undefined);
   useEffect(() => {
     if (mode !== "combat") return;
     const parent = combatParentRef.current;
@@ -112,7 +118,7 @@ export default function GameCanvas() {
       if (disposed || !combatParentRef.current) return;
       game = await createPhaserGame(combatParentRef.current, {
         missionId: launching.id,
-        onComplete: handleMissionComplete
+        onComplete: (summary) => completeRef.current(summary)
       });
     })();
 
@@ -160,6 +166,7 @@ export default function GameCanvas() {
     },
     [fadeOverlay, authStatus]
   );
+  completeRef.current = handleMissionComplete;
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-space-bg">
