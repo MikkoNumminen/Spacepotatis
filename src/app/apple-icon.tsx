@@ -1,5 +1,9 @@
 import { ImageResponse } from "next/og";
 
+// Static at build time — deterministic SVG, no per-request input. Apple
+// touch-icon requests would otherwise re-run the ImageResponse on every
+// hit from an iOS device adding the bookmark, etc.
+export const dynamic = "force-static";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
