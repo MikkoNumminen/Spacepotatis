@@ -3,15 +3,19 @@ import {
   addCredits,
   addPlayedTime,
   buyArmorUpgrade,
+  buyReactorCapacityUpgrade,
+  buyReactorRechargeUpgrade,
   buyShieldUpgrade,
   buyWeapon,
   completeMission,
+  equipWeapon,
   getState,
+  grantWeapon,
   hydrate,
   isMissionCompleted,
   isPlanetUnlocked,
   resetForTests,
-  selectWeapon,
+  sellWeapon,
   spendCredits,
   subscribe,
   toSnapshot
@@ -32,6 +36,16 @@ describe("initial state", () => {
     expect(s.unlockedPlanets).not.toContain("boss-1");
     expect(s.playedTimeSeconds).toBe(0);
     expect(s.saveSlot).toBe(1);
+  });
+
+  it("ship boots with rapid-fire equipped to the front slot only", () => {
+    const ship = getState().ship;
+    expect(ship.slots.front).toBe("rapid-fire");
+    expect(ship.slots.rear).toBeNull();
+    expect(ship.slots.sidekickLeft).toBeNull();
+    expect(ship.slots.sidekickRight).toBeNull();
+    expect(ship.reactor.capacityLevel).toBe(0);
+    expect(ship.reactor.rechargeLevel).toBe(0);
   });
 });
 
@@ -104,30 +118,18 @@ describe("completeMission", () => {
 });
 
 describe("ship purchases", () => {
-  it("selectWeapon refuses weapons that are not yet unlocked", () => {
-    expect(selectWeapon("heavy-cannon")).toBe(false);
-    expect(getState().ship.primaryWeapon).toBe("rapid-fire");
-  });
-
-  it("selectWeapon switches to an unlocked weapon", () => {
-    addCredits(900);
-    expect(buyWeapon("heavy-cannon")).toBe(true);
-    expect(selectWeapon("rapid-fire")).toBe(true);
-    expect(getState().ship.primaryWeapon).toBe("rapid-fire");
-  });
-
-  it("buyWeapon refuses when the player can't afford it", () => {
+  it("buyWeapon refuses when the player cannot afford it", () => {
     expect(buyWeapon("heavy-cannon")).toBe(false);
     expect(getState().ship.unlockedWeapons).toEqual(["rapid-fire"]);
   });
 
-  it("buyWeapon spends credits, unlocks, and equips on success", () => {
+  it("buyWeapon spends credits, unlocks, and leaves the front slot alone when occupied", () => {
     addCredits(450);
     expect(buyWeapon("spread-shot")).toBe(true);
     const s = getState();
     expect(s.credits).toBe(0);
     expect(s.ship.unlockedWeapons).toContain("spread-shot");
-    expect(s.ship.primaryWeapon).toBe("spread-shot");
+    expect(s.ship.slots.front).toBe("rapid-fire");
   });
 
   it("buyWeapon refuses to re-purchase a weapon already owned", () => {
@@ -154,6 +156,109 @@ describe("ship purchases", () => {
     expect(buyArmorUpgrade()).toBe(true);
     expect(getState().ship.armorLevel).toBe(1);
   });
+
+  it("buyReactorCapacityUpgrade increments level when affordable, refuses otherwise", () => {
+    expect(buyReactorCapacityUpgrade()).toBe(false);
+    addCredits(200);
+    expect(buyReactorCapacityUpgrade()).toBe(true);
+    expect(getState().ship.reactor.capacityLevel).toBe(1);
+    expect(getState().credits).toBe(0);
+  });
+
+  it("buyReactorRechargeUpgrade increments and refuses past MAX_LEVEL", () => {
+    addCredits(1_000_000);
+    for (let i = 0; i < 5; i++) buyReactorRechargeUpgrade();
+    expect(getState().ship.reactor.rechargeLevel).toBe(5);
+    expect(buyReactorRechargeUpgrade()).toBe(false);
+  });
+});
+
+describe("equipWeapon", () => {
+  it("refuses to equip a weapon the player does not own", () => {
+    expect(equipWeapon("front", "heavy-cannon")).toBe(false);
+    expect(getState().ship.slots.front).toBe("rapid-fire");
+  });
+
+  it("refuses to equip a weapon into a slot of a different kind", () => {
+    addCredits(450);
+    buyWeapon("spread-shot");
+    expect(equipWeapon("rear", "spread-shot")).toBe(false);
+    expect(getState().ship.slots.rear).toBeNull();
+  });
+
+  it("equips an owned weapon into a matching slot", () => {
+    addCredits(450);
+    buyWeapon("spread-shot");
+    expect(equipWeapon("front", "spread-shot")).toBe(true);
+    expect(getState().ship.slots.front).toBe("spread-shot");
+  });
+
+  it("equipping a different weapon into a slot replaces what was there", () => {
+    addCredits(900);
+    buyWeapon("heavy-cannon");
+    expect(equipWeapon("front", "heavy-cannon")).toBe(true);
+    expect(getState().ship.slots.front).toBe("heavy-cannon");
+    expect(equipWeapon("front", "rapid-fire")).toBe(true);
+    expect(getState().ship.slots.front).toBe("rapid-fire");
+  });
+
+  it("equipping null clears the slot", () => {
+    expect(equipWeapon("front", null)).toBe(true);
+    expect(getState().ship.slots.front).toBeNull();
+  });
+
+  it("equipping a weapon that was in another slot vacates that other slot (no duplication)", () => {
+    addCredits(450);
+    buyWeapon("spread-shot");
+    equipWeapon("front", "spread-shot");
+    expect(equipWeapon("front", "rapid-fire")).toBe(true);
+    const slots = getState().ship.slots;
+    expect(slots.front).toBe("rapid-fire");
+    expect(Object.values(slots).filter((s) => s === "spread-shot")).toHaveLength(0);
+  });
+});
+
+describe("grantWeapon (mission pickup)", () => {
+  it("unlocks a new weapon and equips it into its canonical slot (front for front weapons)", () => {
+    grantWeapon("heavy-cannon");
+    const s = getState();
+    expect(s.ship.unlockedWeapons).toContain("heavy-cannon");
+    expect(s.ship.slots.front).toBe("heavy-cannon");
+  });
+
+  it("is a no-op (no commit) when the weapon is already unlocked AND already in its canonical slot", () => {
+    grantWeapon("spread-shot");
+    let calls = 0;
+    const unsub = subscribe(() => {
+      calls += 1;
+    });
+    grantWeapon("spread-shot");
+    unsub();
+    expect(calls).toBe(0);
+  });
+});
+
+describe("sellWeapon", () => {
+  it("refuses to sell a weapon equipped in any slot", () => {
+    addCredits(450);
+    buyWeapon("spread-shot");
+    equipWeapon("front", "spread-shot");
+    expect(sellWeapon("spread-shot")).toBe(false);
+    expect(getState().ship.unlockedWeapons).toContain("spread-shot");
+  });
+
+  it("sells an owned, unequipped weapon for half its purchase price", () => {
+    addCredits(450);
+    expect(buyWeapon("spread-shot")).toBe(true);
+    expect(sellWeapon("spread-shot")).toBe(true);
+    expect(getState().ship.unlockedWeapons).not.toContain("spread-shot");
+    expect(getState().credits).toBe(225);
+  });
+
+  it("refuses to sell the starter weapon (cost 0 → no refund)", () => {
+    equipWeapon("front", null);
+    expect(sellWeapon("rapid-fire")).toBe(false);
+  });
 });
 
 describe("snapshot / hydrate", () => {
@@ -165,6 +270,8 @@ describe("snapshot / hydrate", () => {
     completeMission("combat-1");
     expect(snap.credits).toBe(123);
     expect(snap.completedMissions).toEqual(["tutorial"]);
+    expect(snap.ship.slots.front).toBe("rapid-fire");
+    expect(snap.ship.reactor).toEqual({ capacityLevel: 0, rechargeLevel: 0 });
   });
 
   it("hydrate restores from a partial snapshot using INITIAL defaults for missing fields", () => {
@@ -172,7 +279,50 @@ describe("snapshot / hydrate", () => {
     const s = getState();
     expect(s.credits).toBe(999);
     expect(s.completedMissions).toEqual(["tutorial"]);
-    expect(s.ship.primaryWeapon).toBe("rapid-fire");
+    expect(s.ship.slots.front).toBe("rapid-fire");
+  });
+
+  it("hydrate migrates a legacy snapshot (primaryWeapon, no slots, no reactor)", () => {
+    const legacy = {
+      credits: 500,
+      ship: {
+        primaryWeapon: "heavy-cannon",
+        unlockedWeapons: ["rapid-fire", "heavy-cannon"],
+        shieldLevel: 2,
+        armorLevel: 1
+      }
+    } as unknown as Parameters<typeof hydrate>[0];
+    hydrate(legacy);
+    const s = getState();
+    expect(s.credits).toBe(500);
+    expect(s.ship.unlockedWeapons).toEqual(["rapid-fire", "heavy-cannon"]);
+    expect(s.ship.slots.front).toBe("heavy-cannon");
+    expect(s.ship.slots.rear).toBeNull();
+    expect(s.ship.slots.sidekickLeft).toBeNull();
+    expect(s.ship.slots.sidekickRight).toBeNull();
+    expect(s.ship.shieldLevel).toBe(2);
+    expect(s.ship.armorLevel).toBe(1);
+    expect(s.ship.reactor).toEqual({ capacityLevel: 0, rechargeLevel: 0 });
+  });
+
+  it("hydrate accepts a new-format snapshot directly", () => {
+    const snap = {
+      credits: 10,
+      ship: {
+        slots: {
+          front: "rapid-fire",
+          rear: null,
+          sidekickLeft: null,
+          sidekickRight: null
+        },
+        unlockedWeapons: ["rapid-fire"],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 3, rechargeLevel: 2 }
+      }
+    } as unknown as Parameters<typeof hydrate>[0];
+    hydrate(snap);
+    expect(getState().ship.reactor).toEqual({ capacityLevel: 3, rechargeLevel: 2 });
   });
 
   it("subscribe fires on commit and unsubscribe stops it", () => {

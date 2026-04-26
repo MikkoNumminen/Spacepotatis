@@ -1,13 +1,23 @@
 "use client";
 
 import { useCallback } from "react";
-import { buyArmorUpgrade, buyShieldUpgrade, buyWeapon } from "@/game/state/GameState";
+import {
+  buyArmorUpgrade,
+  buyReactorCapacityUpgrade,
+  buyReactorRechargeUpgrade,
+  buyShieldUpgrade,
+  buyWeapon
+} from "@/game/state/GameState";
 import {
   MAX_LEVEL,
   armorUpgradeCost,
   getMaxArmor,
   getMaxShield,
+  getReactorCapacity,
+  getReactorRecharge,
   isWeaponUnlocked,
+  reactorCapacityCost,
+  reactorRechargeCost,
   shieldUpgradeCost
 } from "@/game/state/ShipConfig";
 import { getAllWeapons } from "@/game/phaser/data/weapons";
@@ -20,11 +30,17 @@ export default function ShopUI() {
 
   const shieldCost = shieldUpgradeCost(ship.shieldLevel);
   const armorCost = armorUpgradeCost(ship.armorLevel);
+  const reactorCapCost = reactorCapacityCost(ship.reactor.capacityLevel);
+  const reactorRechCost = reactorRechargeCost(ship.reactor.rechargeLevel);
   const shieldMaxed = ship.shieldLevel >= MAX_LEVEL;
   const armorMaxed = ship.armorLevel >= MAX_LEVEL;
+  const reactorCapMaxed = ship.reactor.capacityLevel >= MAX_LEVEL;
+  const reactorRechMaxed = ship.reactor.rechargeLevel >= MAX_LEVEL;
 
   const handleBuyShield = useCallback(() => void buyShieldUpgrade(), []);
   const handleBuyArmor = useCallback(() => void buyArmorUpgrade(), []);
+  const handleBuyReactorCap = useCallback(() => void buyReactorCapacityUpgrade(), []);
+  const handleBuyReactorRech = useCallback(() => void buyReactorRechargeUpgrade(), []);
 
   return (
     <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
@@ -50,6 +66,24 @@ export default function ShopUI() {
           onClick={handleBuyArmor}
           cta={armorMaxed ? "maxed" : "UPGRADE"}
         />
+
+        <h3 className="mt-5 mb-2 font-display text-xs tracking-widest text-hud-amber">REACTOR</h3>
+        <Row
+          label="Reactor capacity"
+          detail={`level ${ship.reactor.capacityLevel}/${MAX_LEVEL} · max ⚡ ${getReactorCapacity(ship)}`}
+          cost={reactorCapMaxed ? null : reactorCapCost}
+          disabled={reactorCapMaxed || credits < reactorCapCost}
+          onClick={handleBuyReactorCap}
+          cta={reactorCapMaxed ? "maxed" : "UPGRADE"}
+        />
+        <Row
+          label="Reactor recharge"
+          detail={`level ${ship.reactor.rechargeLevel}/${MAX_LEVEL} · ⚡/s ${getReactorRecharge(ship)}`}
+          cost={reactorRechMaxed ? null : reactorRechCost}
+          disabled={reactorRechMaxed || credits < reactorRechCost}
+          onClick={handleBuyReactorRech}
+          cta={reactorRechMaxed ? "maxed" : "UPGRADE"}
+        />
       </section>
 
       <section className="rounded border border-space-border bg-space-panel/70 p-5">
@@ -73,6 +107,9 @@ export default function ShopUI() {
                 <li key={weapon.id} className="rounded border border-space-border p-3">
                   <div className="flex items-baseline justify-between">
                     <span className="font-display tracking-wider">{weapon.name}</span>
+                    <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
+                      {weapon.slot}
+                    </span>
                   </div>
                   <WeaponStats weapon={weapon} />
                   <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>

@@ -11,7 +11,9 @@
       "projectileCount": 1,
       "spreadDegrees": 0,
       "cost": 0,
-      "tint": "#4fd1ff"
+      "tint": "#4fd1ff",
+      "slot": "front",
+      "energyCost": 4
     },
     {
       "id": "spread-shot",
@@ -23,7 +25,9 @@
       "projectileCount": 3,
       "spreadDegrees": 22,
       "cost": 450,
-      "tint": "#ff66cc"
+      "tint": "#ff66cc",
+      "slot": "front",
+      "energyCost": 8
     },
     {
       "id": "heavy-cannon",
@@ -35,7 +39,9 @@
       "projectileCount": 3,
       "spreadDegrees": 12,
       "cost": 900,
-      "tint": "#ff8844"
+      "tint": "#ff8844",
+      "slot": "front",
+      "energyCost": 18
     }
   ]
 }

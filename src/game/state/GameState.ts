@@ -2,16 +2,23 @@ import missionsData from "@/game/phaser/data/missions.json";
 import type { MissionDefinition, MissionId, WeaponDefinition, WeaponId } from "@/types/game";
 import {
   DEFAULT_SHIP,
+  EMPTY_SLOTS,
   MAX_LEVEL,
   armorUpgradeCost,
+  isWeaponEquipped,
   isWeaponUnlocked,
+  reactorCapacityCost,
+  reactorRechargeCost,
   shieldUpgradeCost,
-  type ShipConfig
+  slotKindFor,
+  type ShipConfig,
+  type SlotName,
+  type WeaponSlots
 } from "./ShipConfig";
 import { getWeapon } from "../phaser/data/weapons";
 
 // Sell-back rate. Half the purchase cost — generous enough to encourage
-// experimentation, cheap enough that you can't farm credits by buy/sell churn.
+// experimentation, cheap enough that you cannot farm credits by buy/sell churn.
 const SELL_RATE = 0.5;
 
 export function getSellPrice(weapon: WeaponDefinition): number {
@@ -99,36 +106,72 @@ export function completeMission(id: MissionId): void {
   });
 }
 
-export function selectWeapon(id: WeaponId): boolean {
+// Equip an owned weapon into a slot. The weapon slot kind must match the
+// target slot. If the weapon is already equipped elsewhere, it is moved
+// (single-instance ownership — no duplicating one weapon across two slots).
+// If another weapon is currently in the target slot it gets bumped to null
+// (still owned, just unequipped).
+export function equipWeapon(slot: SlotName, id: WeaponId | null): boolean {
+  if (id === null) {
+    if (state.ship.slots[slot] === null) return true;
+    commit({ ...state, ship: { ...state.ship, slots: { ...state.ship.slots, [slot]: null } } });
+    return true;
+  }
   if (!isWeaponUnlocked(state.ship, id)) return false;
-  if (state.ship.primaryWeapon === id) return true;
-  commit({ ...state, ship: { ...state.ship, primaryWeapon: id } });
+  const weapon = getWeapon(id);
+  if (weapon.slot !== slotKindFor(slot)) return false;
+  if (state.ship.slots[slot] === id) return true;
+
+  const nextSlots: WeaponSlots = { ...state.ship.slots };
+  // If the weapon is already in another slot, vacate that slot first so we
+  // never end up with the same weapon in two places.
+  for (const k of Object.keys(nextSlots) as SlotName[]) {
+    if (nextSlots[k] === id) nextSlots[k] = null;
+  }
+  nextSlots[slot] = id;
+
+  commit({ ...state, ship: { ...state.ship, slots: nextSlots } });
   return true;
 }
 
-// Mid-mission weapon pickup: unlock the weapon (no cost) and equip it. Persists
-// past the current run so the player keeps the upgrade in subsequent missions.
+// Mid-mission weapon pickup: unlock the weapon (no cost) and equip it into
+// the canonical slot for its kind. Sidekicks default to the left mount; the
+// player can rearrange via the loadout UI.
 export function grantWeapon(id: WeaponId): void {
+  const weapon = getWeapon(id);
   const alreadyUnlocked = state.ship.unlockedWeapons.includes(id);
-  if (alreadyUnlocked && state.ship.primaryWeapon === id) return;
+
+  const nextUnlocked = alreadyUnlocked
+    ? state.ship.unlockedWeapons
+    : [...state.ship.unlockedWeapons, id];
+
+  const target: SlotName =
+    weapon.slot === "front" ? "front" : weapon.slot === "rear" ? "rear" : "sidekickLeft";
+
+  if (alreadyUnlocked && state.ship.slots[target] === id) return;
+
+  const nextSlots: WeaponSlots = { ...state.ship.slots };
+  for (const k of Object.keys(nextSlots) as SlotName[]) {
+    if (nextSlots[k] === id) nextSlots[k] = null;
+  }
+  nextSlots[target] = id;
+
   commit({
     ...state,
     ship: {
       ...state.ship,
-      unlockedWeapons: alreadyUnlocked
-        ? state.ship.unlockedWeapons
-        : [...state.ship.unlockedWeapons, id],
-      primaryWeapon: id
+      unlockedWeapons: nextUnlocked,
+      slots: nextSlots
     }
   });
 }
 
 // Sell an owned, non-equipped weapon back for SELL_RATE × original cost.
-// Refuses to sell the equipped weapon (would leave the ship unarmed mid-flow)
-// or the starter weapon (cost 0 → no refund anyway, and it's the safety net).
+// Refuses to sell currently-equipped weapons (would silently unarm a slot)
+// or the starter weapon (cost 0 → no refund anyway, and it is the safety net).
 export function sellWeapon(id: WeaponId): boolean {
   if (!isWeaponUnlocked(state.ship, id)) return false;
-  if (state.ship.primaryWeapon === id) return false;
+  if (isWeaponEquipped(state.ship, id)) return false;
   const weapon = getWeapon(id);
   const refund = getSellPrice(weapon);
   if (refund <= 0) return false;
@@ -147,12 +190,30 @@ export function buyWeapon(id: WeaponId): boolean {
   if (isWeaponUnlocked(state.ship, id)) return false;
   const weapon = getWeapon(id);
   if (!spendCredits(weapon.cost)) return false;
+
+  // Auto-equip into the first matching slot if it is empty; otherwise leave
+  // unequipped in inventory. Keeps the post-purchase UX snappy for new
+  // players (their first buy of a slot kind just lands on the ship).
+  const target: SlotName =
+    weapon.slot === "front"
+      ? "front"
+      : weapon.slot === "rear"
+        ? "rear"
+        : state.ship.slots.sidekickLeft === null
+          ? "sidekickLeft"
+          : "sidekickRight";
+
+  const slotIsFree = state.ship.slots[target] === null;
+  const nextSlots: WeaponSlots = slotIsFree
+    ? { ...state.ship.slots, [target]: id }
+    : state.ship.slots;
+
   commit({
     ...state,
     ship: {
       ...state.ship,
       unlockedWeapons: [...state.ship.unlockedWeapons, id],
-      primaryWeapon: id
+      slots: nextSlots
     }
   });
   return true;
@@ -176,6 +237,34 @@ export function buyArmorUpgrade(): boolean {
   commit({
     ...state,
     ship: { ...state.ship, armorLevel: state.ship.armorLevel + 1 }
+  });
+  return true;
+}
+
+export function buyReactorCapacityUpgrade(): boolean {
+  if (state.ship.reactor.capacityLevel >= MAX_LEVEL) return false;
+  const cost = reactorCapacityCost(state.ship.reactor.capacityLevel);
+  if (!spendCredits(cost)) return false;
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      reactor: { ...state.ship.reactor, capacityLevel: state.ship.reactor.capacityLevel + 1 }
+    }
+  });
+  return true;
+}
+
+export function buyReactorRechargeUpgrade(): boolean {
+  if (state.ship.reactor.rechargeLevel >= MAX_LEVEL) return false;
+  const cost = reactorRechargeCost(state.ship.reactor.rechargeLevel);
+  if (!spendCredits(cost)) return false;
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      reactor: { ...state.ship.reactor, rechargeLevel: state.ship.reactor.rechargeLevel + 1 }
+    }
   });
   return true;
 }
@@ -205,20 +294,73 @@ export function toSnapshot(): StateSnapshot {
     completedMissions: [...state.completedMissions],
     unlockedPlanets: [...state.unlockedPlanets],
     playedTimeSeconds: state.playedTimeSeconds,
-    ship: { ...state.ship, unlockedWeapons: [...state.ship.unlockedWeapons] },
+    ship: {
+      slots: { ...state.ship.slots },
+      unlockedWeapons: [...state.ship.unlockedWeapons],
+      shieldLevel: state.ship.shieldLevel,
+      armorLevel: state.ship.armorLevel,
+      reactor: { ...state.ship.reactor }
+    },
     saveSlot: state.saveSlot
   };
 }
 
+// Accepts both the new snapshot shape (ship.slots + ship.reactor) AND legacy
+// snapshots that pre-date the loadout refactor (ship.primaryWeapon, no reactor
+// field). Legacy ships are migrated by parking primaryWeapon in slots.front
+// and zeroing the reactor levels.
 export function hydrate(snapshot: Partial<StateSnapshot>): void {
   commit({
     credits: snapshot.credits ?? INITIAL_STATE.credits,
     completedMissions: snapshot.completedMissions ?? [...INITIAL_STATE.completedMissions],
     unlockedPlanets: snapshot.unlockedPlanets ?? [...INITIAL_STATE.unlockedPlanets],
     playedTimeSeconds: snapshot.playedTimeSeconds ?? INITIAL_STATE.playedTimeSeconds,
-    ship: snapshot.ship ?? { ...INITIAL_STATE.ship },
+    ship: snapshot.ship ? migrateShip(snapshot.ship) : { ...INITIAL_STATE.ship },
     saveSlot: snapshot.saveSlot ?? INITIAL_STATE.saveSlot
   });
+}
+
+interface LegacyShipSnapshot {
+  primaryWeapon?: WeaponId;
+  slots?: Partial<WeaponSlots>;
+  unlockedWeapons?: readonly WeaponId[];
+  shieldLevel?: number;
+  armorLevel?: number;
+  reactor?: Partial<ShipConfig["reactor"]>;
+}
+
+function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
+  const raw = input as LegacyShipSnapshot;
+
+  const unlocked: readonly WeaponId[] =
+    raw.unlockedWeapons && raw.unlockedWeapons.length > 0
+      ? [...raw.unlockedWeapons]
+      : DEFAULT_SHIP.unlockedWeapons;
+
+  let slots: WeaponSlots;
+  if (raw.slots) {
+    slots = {
+      front: raw.slots.front ?? null,
+      rear: raw.slots.rear ?? null,
+      sidekickLeft: raw.slots.sidekickLeft ?? null,
+      sidekickRight: raw.slots.sidekickRight ?? null
+    };
+  } else if (raw.primaryWeapon) {
+    slots = { ...EMPTY_SLOTS, front: raw.primaryWeapon };
+  } else {
+    slots = { ...DEFAULT_SHIP.slots };
+  }
+
+  return {
+    slots,
+    unlockedWeapons: unlocked,
+    shieldLevel: raw.shieldLevel ?? 0,
+    armorLevel: raw.armorLevel ?? 0,
+    reactor: {
+      capacityLevel: raw.reactor?.capacityLevel ?? 0,
+      rechargeLevel: raw.reactor?.rechargeLevel ?? 0
+    }
+  };
 }
 
 export function resetForTests(): void {

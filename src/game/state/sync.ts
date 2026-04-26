@@ -71,13 +71,36 @@ export async function submitScore(summary: CombatSummary): Promise<void> {
   }
 }
 
+// Accepts either the new shape (slots + reactor) OR a legacy shape
+// (primaryWeapon, no reactor) so old saves load cleanly. The actual migration
+// to the new shape happens in GameState.hydrate via migrateShip.
 export function isShipConfig(value: unknown): value is StateSnapshot["ship"] {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
-  return (
-    typeof v.primaryWeapon === "string" &&
-    Array.isArray(v.unlockedWeapons) &&
-    typeof v.shieldLevel === "number" &&
-    typeof v.armorLevel === "number"
-  );
+  if (!Array.isArray(v.unlockedWeapons)) return false;
+  if (typeof v.shieldLevel !== "number" || typeof v.armorLevel !== "number") return false;
+
+  const hasNewShape = isWeaponSlots(v.slots);
+  const hasLegacyShape = typeof v.primaryWeapon === "string";
+  if (!hasNewShape && !hasLegacyShape) return false;
+
+  if (v.reactor !== undefined && !isReactorConfig(v.reactor)) return false;
+  return true;
+}
+
+function isWeaponSlots(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  const slotKeys = ["front", "rear", "sidekickLeft", "sidekickRight"] as const;
+  for (const k of slotKeys) {
+    const slot = v[k];
+    if (slot !== null && typeof slot !== "string") return false;
+  }
+  return true;
+}
+
+function isReactorConfig(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.capacityLevel === "number" && typeof v.rechargeLevel === "number";
 }
