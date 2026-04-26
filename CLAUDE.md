@@ -184,7 +184,20 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 
 If the request maps to a skill, **invoke it before grepping or reading files** — the skill body already contains the file paths, field names, and invariants you'd otherwise have to derive. If the request *almost* maps to a skill but has an extra constraint, still invoke the skill and adapt; do not fall back to the long path.
 
-## 11. When in doubt
+## 11. README.md is barney-style educational
+
+[README.md](README.md) is the public front door on GitHub. It must be written so a complete beginner — non-developer, non-gamer, never heard of Tyrian — can read it top-to-bottom and follow along without looking anything up.
+
+- Greet the reader. Friendly tone, "you" pronouns.
+- Define every acronym and jargon term inline the first time it appears (CI, OG image, PWA, ORM, Edge Runtime, ISR, OAuth, etc.).
+- Explain what a tool *does* before naming it ("we use Phaser, a 2D-game engine that runs in the browser, to handle the actual shooting and dodging").
+- Walk-throughs over tables when explaining a flow. Tables are fine for reference data.
+- Each terminal command should be preceded by one sentence saying what it does and why you'd run it.
+- README.md may be long. Terseness rules from §5 ("default to no comments") and §10 do NOT apply here.
+
+This rule applies ONLY to README.md. ARCHITECTURE.md, CLAUDE.md, and code comments stay developer-facing and concise.
+
+## 12. When in doubt
 
 1. Skim [ARCHITECTURE.md](ARCHITECTURE.md) for data flow and scene lifecycle.
 2. Check [TODO.md](TODO.md) to see if the task is already planned and which model is recommended.
