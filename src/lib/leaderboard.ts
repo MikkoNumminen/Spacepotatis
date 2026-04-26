@@ -22,21 +22,19 @@ async function fetchLeaderboardEntries(
   const rows = await db
     .selectFrom("spacepotatis.leaderboard as lb")
     .innerJoin("spacepotatis.players as p", "p.id", "lb.player_id")
-    .select([
-      "p.name as player_name",
-      "p.email as player_email",
-      "lb.score",
-      "lb.time_seconds",
-      "lb.created_at"
-    ])
+    .select(["p.handle as player_handle", "lb.score", "lb.time_seconds", "lb.created_at"])
     .where("lb.mission_id", "=", missionId)
     .orderBy("lb.score", "desc")
     .orderBy("lb.created_at", "desc")
     .limit(limit)
     .execute();
 
+  // Never expose email or Google profile name to other users. Players that
+  // haven't picked a handle show as a generic "Pilot" label; once they pick
+  // one, every previous score they posted reattributes automatically because
+  // we join on handle through player_id.
   return rows.map((r) => ({
-    playerName: r.player_name ?? r.player_email.split("@")[0] ?? "pilot",
+    playerName: r.player_handle ?? "Pilot",
     score: r.score,
     timeSeconds: r.time_seconds,
     createdAt: r.created_at.toISOString()

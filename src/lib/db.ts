@@ -28,6 +28,10 @@ export interface PlayersTable {
   id: Generated<string>;
   email: string;
   name: string | null;
+  // Public-facing alias the player picks the first time they play. Shown on
+  // the leaderboard. Nullable until the player picks one; uniqueness is
+  // enforced case-insensitively by a partial unique index in SQL.
+  handle: string | null;
   created_at: Generated<Date>;
 }
 
