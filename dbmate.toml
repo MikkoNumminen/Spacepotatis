@@ -2,9 +2,13 @@
 # DATABASE_URL is read from .env.local / the environment.
 
 [default]
-migrations_dir = "db/migrations"
-schema_file    = "db/schema.sql"
+migrations_dir       = "db/migrations"
+schema_file          = "db/schema.sql"
+# Custom name avoids collision with other services sharing the database.
+# Lives in `public` (not the spacepotatis schema) so dbmate can create it
+# before our migrations run.
+migrations_table_name = "spacepotatis_schema_migrations"
 # dbmate needs a direct (unpooled) connection for DDL.
 # Set DATABASE_URL_UNPOOLED in .env.local; we wire it up via the `db:*` scripts.
-wait           = true
-wait_timeout   = "60s"
+wait                 = true
+wait_timeout         = "60s"

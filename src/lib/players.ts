@@ -5,14 +5,14 @@ import { getDb } from "./db";
 export async function upsertPlayerId(email: string, name: string | null): Promise<string> {
   const db = getDb();
   const existing = await db
-    .selectFrom("players")
+    .selectFrom("spacepotatis.players")
     .select("id")
     .where("email", "=", email)
     .executeTakeFirst();
   if (existing) return existing.id;
 
   const created = await db
-    .insertInto("players")
+    .insertInto("spacepotatis.players")
     .values({ email, name })
     .returning("id")
     .executeTakeFirstOrThrow();

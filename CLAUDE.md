@@ -93,6 +93,7 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 - All queries go through Kysely. No raw `pg.query(...)` calls except inside [src/lib/db.ts](src/lib/db.ts).
 - The single `Database` interface in [src/lib/db.ts](src/lib/db.ts) is the canonical schema. Update it when you add a migration.
 - Migrations are **forward-only**. Every change is a new SQL file under [db/migrations/](db/migrations/).
+- **Tables are namespaced under the `spacepotatis` Postgres schema** because the Vercel/Neon database is shared with other services. Always create tables as `spacepotatis.<name>`, reference them in Kysely as `"spacepotatis.<name>"`, and never write to `public.*`. dbmate's tracker table lives in `public.spacepotatis_schema_migrations` (configured in [dbmate.toml](dbmate.toml)).
 - Never use Prisma. Never install `@prisma/*`. If an agent suggests it, refuse.
 
 ### Comments
