@@ -168,6 +168,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const offset = SPAWN_OFFSET[slot];
     const fired = this.weaponsBySlot[slot].tryFire(
       weaponId,
+      slot,
       this.x + offset.x,
       this.y + offset.y,
       now,

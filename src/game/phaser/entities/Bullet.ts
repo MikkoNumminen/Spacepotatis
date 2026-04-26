@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { steerVelocity } from "../systems/weaponMath";
 
 export const BULLET_TEXTURE_FRIENDLY = "bullet-friendly";
 export const BULLET_TEXTURE_HOSTILE = "bullet-hostile";
@@ -73,22 +74,20 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body | null;
     if (!body) return;
 
-    const speed = Math.hypot(body.velocity.x, body.velocity.y);
-    if (speed === 0) return;
-
-    const desired = Math.atan2(target.y - this.y, target.x - this.x);
-    const current = Math.atan2(body.velocity.y, body.velocity.x);
-    // Wrap angle delta into [-PI, PI] so we always turn the short way around.
-    let diff = desired - current;
-    while (diff > Math.PI) diff -= 2 * Math.PI;
-    while (diff < -Math.PI) diff += 2 * Math.PI;
-
-    const maxStep = (this.homing.turnRateRadPerSec * delta) / 1000;
-    const step = Math.max(-maxStep, Math.min(maxStep, diff));
-    const next = current + step;
-
-    this.setVelocity(Math.cos(next) * speed, Math.sin(next) * speed);
-    this.setRotation(next + Math.PI / 2);
+    const next = steerVelocity(
+      body.velocity.x,
+      body.velocity.y,
+      this.x,
+      this.y,
+      target.x,
+      target.y,
+      this.homing.turnRateRadPerSec,
+      delta
+    );
+    this.setVelocity(next.vx, next.vy);
+    // Sprite forward axis is up (-Y), so rotate so the bullet's nose faces
+    // its motion vector regardless of which way the bullet texture points.
+    this.setRotation(Math.atan2(next.vy, next.vx) + Math.PI / 2);
   }
 }
 

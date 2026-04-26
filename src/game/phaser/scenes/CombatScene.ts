@@ -235,8 +235,11 @@ export class CombatScene extends Phaser.Scene {
     this.energyBar.lineStyle(1, 0x444a6a, 0.8);
     this.energyBar.strokeRect(barX, barY + 28, barW, barH);
 
+    // ASCII-only label so the readout renders identically on every platform —
+    // the previous bolt glyph (U+26A1) needed an emoji-capable font that
+    // monospace fallbacks don't always provide.
     this.energyText.setText(
-      `⚡ ${Math.round(this.player.energy)} / ${this.player.maxEnergy}`
+      `EN ${Math.round(this.player.energy)} / ${this.player.maxEnergy}`
     );
     this.energyText.setColor(lowEnergy ? "#ff8888" : "#ffcc33");
   }
