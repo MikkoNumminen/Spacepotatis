@@ -5,10 +5,12 @@ import {
   buyWeaponUpgrade,
   equipWeapon,
   getSellPrice,
+  installAugment,
   sellWeapon
 } from "@/game/state/GameState";
 import {
   MAX_LEVEL,
+  getInstalledAugments,
   getWeaponLevel,
   isWeaponEquipped,
   isWeaponUnlocked,
@@ -17,9 +19,13 @@ import {
   type SlotName
 } from "@/game/state/ShipConfig";
 import { getAllWeapons, getWeapon } from "@/game/phaser/data/weapons";
+import {
+  MAX_AUGMENTS_PER_WEAPON,
+  getAugment
+} from "@/game/phaser/data/augments";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponStats } from "@/components/WeaponStats";
-import type { WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
 
 interface Props {
   // "market" enables Sell + Upgrade buttons on owned weapons. "equip" hides
@@ -39,6 +45,7 @@ export default function LoadoutMenu({ mode }: Props) {
   const credits = useGameState((s) => s.credits);
   const ship = useGameState((s) => s.ship);
   const [picker, setPicker] = useState<SlotName | null>(null);
+  const [augPickerWeapon, setAugPickerWeapon] = useState<WeaponId | null>(null);
 
   const owned = getAllWeapons().filter((w) => isWeaponUnlocked(ship, w.id));
   const equippedList: { slot: SlotName; weapon: WeaponDefinition }[] = (
@@ -55,6 +62,12 @@ export default function LoadoutMenu({ mode }: Props) {
   const onPickerSelect = (slot: SlotName, id: WeaponDefinition["id"] | null) => {
     equipWeapon(slot, id);
     closePicker();
+  };
+
+  const closeAugPicker = () => setAugPickerWeapon(null);
+  const onAugPick = (weaponId: WeaponId, augmentId: AugmentId) => {
+    installAugment(weaponId, augmentId);
+    closeAugPicker();
   };
 
   return (
@@ -77,6 +90,7 @@ export default function LoadoutMenu({ mode }: Props) {
           <ul className="flex flex-col gap-3">
             {equippedList.map(({ slot, weapon }) => {
               const level = getWeaponLevel(ship, weapon.id);
+              const installed = getInstalledAugments(ship, weapon.id);
               return (
                 <WeaponCard
                   key={`equipped-${slot}-${weapon.id}`}
@@ -85,6 +99,10 @@ export default function LoadoutMenu({ mode }: Props) {
                   credits={credits}
                   showSellButton={false}
                   showUpgradeButton={true}
+                  showInstallButton={mode === "market"}
+                  installedAugments={installed}
+                  augmentInventory={ship.augmentInventory}
+                  onOpenInstaller={() => setAugPickerWeapon(weapon.id)}
                   slotBadge={SLOT_LABEL[slot]}
                 />
               );
@@ -104,6 +122,7 @@ export default function LoadoutMenu({ mode }: Props) {
         <ul className="flex flex-col gap-3">
           {inventory.map((weapon) => {
             const level = getWeaponLevel(ship, weapon.id);
+            const installed = getInstalledAugments(ship, weapon.id);
             return (
               <WeaponCard
                 key={weapon.id}
@@ -112,10 +131,42 @@ export default function LoadoutMenu({ mode }: Props) {
                 credits={credits}
                 showSellButton={mode === "market"}
                 showUpgradeButton={mode === "market"}
+                showInstallButton={mode === "market"}
+                installedAugments={installed}
+                augmentInventory={ship.augmentInventory}
+                onOpenInstaller={() => setAugPickerWeapon(weapon.id)}
               />
             );
           })}
         </ul>
+      )}
+
+      {mode === "market" && ship.augmentInventory.length > 0 && (
+        <>
+          <h3 className="mt-6 mb-2 font-display text-xs tracking-widest text-hud-green/70">
+            AUGMENT INVENTORY
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {ship.augmentInventory.map((id, idx) => {
+              const aug = getAugment(id);
+              return (
+                <li
+                  key={`${id}-${idx}`}
+                  className="rounded border border-space-border p-3"
+                >
+                  <div className="flex items-baseline gap-2">
+                    <AugmentDot tint={aug.tint} />
+                    <span className="font-display tracking-wider">{aug.name}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-hud-green/70">{aug.description}</p>
+                  <p className="mt-1 text-[10px] text-hud-amber/70">
+                    → install via the buttons above
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
 
       {picker && (
@@ -128,6 +179,16 @@ export default function LoadoutMenu({ mode }: Props) {
           onClose={closePicker}
         />
       )}
+
+      {augPickerWeapon && (
+        <AugmentPicker
+          weaponId={augPickerWeapon}
+          installed={getInstalledAugments(ship, augPickerWeapon)}
+          augmentInventory={ship.augmentInventory}
+          onPick={(augId) => onAugPick(augPickerWeapon, augId)}
+          onClose={closeAugPicker}
+        />
+      )}
     </section>
   );
 }
@@ -138,6 +199,10 @@ function WeaponCard({
   credits,
   showSellButton,
   showUpgradeButton,
+  showInstallButton,
+  installedAugments,
+  augmentInventory,
+  onOpenInstaller,
   slotBadge
 }: {
   weapon: WeaponDefinition;
@@ -145,6 +210,10 @@ function WeaponCard({
   credits: number;
   showSellButton: boolean;
   showUpgradeButton: boolean;
+  showInstallButton: boolean;
+  installedAugments: readonly AugmentId[];
+  augmentInventory: readonly AugmentId[];
+  onOpenInstaller: () => void;
   slotBadge?: string;
 }) {
   const sellPrice = getSellPrice(weapon);
@@ -152,6 +221,10 @@ function WeaponCard({
   const atMaxLevel = level >= MAX_LEVEL;
   const upgradeCost = atMaxLevel ? null : weaponUpgradeCost(level);
   const canAffordUpgrade = upgradeCost !== null && credits >= upgradeCost;
+
+  const slotsFree = MAX_AUGMENTS_PER_WEAPON - installedAugments.length;
+  const eligibleInventory = augmentInventory.filter((id) => !installedAugments.includes(id));
+  const canInstall = showInstallButton && slotsFree > 0 && eligibleInventory.length > 0;
 
   return (
     <li className="rounded border border-space-border p-3">
@@ -165,33 +238,64 @@ function WeaponCard({
         </div>
         <MarkBadge level={level} />
       </div>
-      <WeaponStats weapon={weapon} level={level} />
+      <WeaponStats weapon={weapon} level={level} augmentIds={installedAugments} />
       <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
-      <div className="mt-2 flex items-center justify-end gap-2">
-        {showUpgradeButton &&
-          (atMaxLevel ? (
-            <span className="font-mono text-[10px] text-hud-green/50">Mk {MAX_LEVEL} maxed</span>
-          ) : (
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <AugmentChips installed={installedAugments} />
+        <div className="flex items-center gap-2">
+          {canInstall && (
             <button
               type="button"
-              disabled={!canAffordUpgrade}
-              onClick={() => void buyWeaponUpgrade(weapon.id)}
-              className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+              onClick={onOpenInstaller}
+              className="rounded border border-hud-green/60 px-3 py-1 text-xs text-hud-green hover:bg-hud-green/10"
             >
-              UPGRADE Mk{level + 1} · ¢ {upgradeCost}
+              INSTALL
             </button>
-          ))}
-        {sellable && (
-          <button
-            type="button"
-            onClick={() => void sellWeapon(weapon.id)}
-            className="rounded border border-hud-red/60 px-3 py-1 text-xs text-hud-red hover:bg-hud-red/10"
-          >
-            SELL · ¢ {sellPrice}
-          </button>
-        )}
+          )}
+          {showUpgradeButton &&
+            (atMaxLevel ? (
+              <span className="font-mono text-[10px] text-hud-green/50">Mk {MAX_LEVEL} maxed</span>
+            ) : (
+              <button
+                type="button"
+                disabled={!canAffordUpgrade}
+                onClick={() => void buyWeaponUpgrade(weapon.id)}
+                className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+              >
+                UPGRADE Mk{level + 1} · ¢ {upgradeCost}
+              </button>
+            ))}
+          {sellable && (
+            <button
+              type="button"
+              onClick={() => void sellWeapon(weapon.id)}
+              className="rounded border border-hud-red/60 px-3 py-1 text-xs text-hud-red hover:bg-hud-red/10"
+            >
+              SELL · ¢ {sellPrice}
+            </button>
+          )}
+        </div>
       </div>
     </li>
+  );
+}
+
+function AugmentChips({ installed }: { installed: readonly AugmentId[] }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="font-mono text-[10px] text-hud-green/50">
+        {installed.length}/{MAX_AUGMENTS_PER_WEAPON}
+      </span>
+      <div className="flex items-center gap-1">
+        {installed.map((id, idx) => {
+          const aug = getAugment(id);
+          return <AugmentDot key={`${id}-${idx}`} tint={aug.tint} title={aug.name} />;
+        })}
+        {installed.length === 0 && (
+          <span className="font-mono text-[10px] text-hud-green/40">no augments</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -382,12 +486,105 @@ function SlotPicker({
   );
 }
 
+function AugmentPicker({
+  weaponId,
+  installed,
+  augmentInventory,
+  onPick,
+  onClose
+}: {
+  weaponId: WeaponId;
+  installed: readonly AugmentId[];
+  augmentInventory: readonly AugmentId[];
+  onPick: (augmentId: AugmentId) => void;
+  onClose: () => void;
+}) {
+  const weapon = getWeapon(weaponId);
+  // Only offer augments the weapon doesn't already hold. Duplicates of the
+  // same augment id can sit in inventory if the player bought multiple
+  // copies — show all such entries so the count adds up, but disable the
+  // duplicates of an already-installed augment.
+  const eligible = augmentInventory
+    .map((id, idx) => ({ id, idx }))
+    .filter(({ id }) => !installed.includes(id));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded border border-space-border bg-space-panel p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="mb-3 flex items-baseline justify-between">
+          <h3 className="font-display tracking-widest text-hud-green">
+            INSTALL · {weapon.name}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs text-hud-green/60 hover:text-hud-green"
+          >
+            close
+          </button>
+        </header>
+
+        <p className="mb-3 text-[11px] text-hud-green/60">
+          {installed.length}/{MAX_AUGMENTS_PER_WEAPON} slots used. Augments are permanent
+          once installed.
+        </p>
+
+        {eligible.length === 0 ? (
+          <p className="text-[11px] text-hud-green/60">
+            No eligible augments in your inventory. Visit the shop to buy more.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {eligible.map(({ id, idx }) => {
+              const aug = getAugment(id);
+              return (
+                <li key={`${id}-${idx}`}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(id)}
+                    className="flex w-full flex-col gap-1 rounded border border-space-border px-3 py-2 text-left text-xs hover:border-hud-amber/60"
+                  >
+                    <span className="flex items-baseline gap-2">
+                      <AugmentDot tint={aug.tint} />
+                      <span className="font-display tracking-wider text-hud-green">
+                        {aug.name}
+                      </span>
+                    </span>
+                    <span className="text-[11px] text-hud-green/70">{aug.description}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WeaponDot({ tint }: { tint: string }) {
   return (
     <span
       aria-hidden
       className="inline-block h-2.5 w-2.5 rounded-full"
       style={{ backgroundColor: tint, boxShadow: `0 0 6px ${tint}` }}
+    />
+  );
+}
+
+function AugmentDot({ tint, title }: { tint: string; title?: string }) {
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className="inline-block h-2 w-2 rounded-full"
+      style={{ backgroundColor: tint, boxShadow: `0 0 4px ${tint}` }}
     />
   );
 }
