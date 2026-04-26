@@ -1,5 +1,5 @@
 import { Kysely, PostgresDialect, type Generated } from "kysely";
-import { Pool } from "pg";
+import { Pool } from "@neondatabase/serverless";
 
 /**
  * Kysely database interface — the canonical TypeScript shape of our schema.
@@ -12,6 +12,11 @@ import { Pool } from "pg";
  *
  * `Generated<T>` marks columns that are `NOT NULL DEFAULT ...` in SQL — they
  * are required on SELECT but optional on INSERT.
+ *
+ * Pool comes from Neon's serverless driver — API-compatible with `pg.Pool`
+ * but uses WebSockets so it works in Vercel Edge runtime as well as Node.
+ * The Edge data routes (/api/save, /api/leaderboard) and the Node auth
+ * route share the same `getDb()` because of this.
  */
 export interface Database {
   "spacepotatis.players": PlayersTable;
