@@ -1,7 +1,9 @@
 import Link from "next/link";
+import PlayButton from "@/components/PlayButton";
 import SignInButton from "@/components/SignInButton";
 
-// Landing page. Static by design — the sign-in button is a client island.
+// Landing page. Static by design — the sign-in button + play button are
+// client islands that hydrate with the session state.
 export const dynamic = "force-static";
 
 export default function Home() {
@@ -16,13 +18,8 @@ export default function Home() {
         </p>
       </div>
 
-      <nav className="flex flex-col gap-3">
-        <Link
-          href="/play"
-          className="rounded border border-hud-green/60 px-8 py-3 font-display tracking-widest hover:bg-hud-green/10"
-        >
-          PLAY
-        </Link>
+      <nav className="flex flex-col items-center gap-3">
+        <PlayButton />
         <Link
           href="/leaderboard"
           className="rounded border border-space-border px-8 py-2 text-sm text-hud-green/80 hover:bg-space-panel"
