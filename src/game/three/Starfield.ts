@@ -39,12 +39,18 @@ export class Starfield {
     this.geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
     this.material = new THREE.PointsMaterial({
-      size: 0.6,
+      size: 0.9,
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
-      opacity: 0.9,
-      depthWrite: false
+      opacity: 1.0,
+      depthWrite: false,
+      // Additive so stars never overwrite the sun's halo with a dim square —
+      // they just add light, which makes them naturally fade against bright
+      // backgrounds (no "black star" artifacts).
+      blending: THREE.AdditiveBlending,
+      map: createStarSprite(),
+      alphaTest: 0.01
     });
 
     this.object = new THREE.Points(this.geometry, this.material);
@@ -57,6 +63,28 @@ export class Starfield {
 
   dispose(): void {
     this.geometry.dispose();
+    this.material.map?.dispose();
     this.material.dispose();
   }
+}
+
+// Soft circular gradient → stars render as round glow dots instead of the
+// default opaque square sprite. Cached as a single CanvasTexture for all stars.
+function createStarSprite(): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Starfield: 2D canvas context unavailable");
+  const cx = size / 2;
+  const gradient = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+  gradient.addColorStop(0.0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.4, "rgba(255,255,255,0.6)");
+  gradient.addColorStop(1.0, "rgba(255,255,255,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
 }
