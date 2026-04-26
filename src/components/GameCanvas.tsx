@@ -4,23 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
-import type { MissionDefinition } from "@/types/game";
+import type { MissionDefinition, SolarSystemDefinition, SolarSystemId } from "@/types/game";
 import LoadoutMenu from "@/components/LoadoutMenu";
 import MissionSelect from "@/components/MissionSelect";
 import SignInButton from "@/components/SignInButton";
 import MuteToggle from "@/components/MuteToggle";
 import { useGameState } from "@/game/state/useGameState";
+import { setSolarSystem } from "@/game/state/GameState";
 import { loadSave, saveNow, submitScore } from "@/game/state/sync";
 import missionsData from "@/game/phaser/data/missions.json";
+import { getAllSolarSystems, getSolarSystem } from "@/game/phaser/data/solarSystems";
 
 const MISSIONS = missionsData.missions as readonly MissionDefinition[];
 
 function pickNextMission(
   unlocked: readonly string[],
-  completed: readonly string[]
+  completed: readonly string[],
+  systemId: SolarSystemId
 ): MissionDefinition | null {
   const playable = MISSIONS.filter(
-    (m) => m.kind === "mission" && unlocked.includes(m.id)
+    (m) => m.kind === "mission" && m.solarSystemId === systemId && unlocked.includes(m.id)
   );
   return (
     playable.find((m) => !completed.includes(m.id)) ??
@@ -44,18 +47,21 @@ export default function GameCanvas() {
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
   const [loadoutOpen, setLoadoutOpen] = useState(false);
+  const [warpOpen, setWarpOpen] = useState(false);
   const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
   const completedMissions = useGameState((s) => s.completedMissions);
+  const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
+  const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
 
   // On entering the galaxy view, surface the next playable mission so the
   // launch panel is visible immediately. User can dismiss with × — it stays
   // closed until the next galaxy entry.
   useEffect(() => {
     if (mode !== "galaxy") return;
-    const next = pickNextMission(unlockedPlanets, completedMissions);
+    const next = pickNextMission(unlockedPlanets, completedMissions, currentSolarSystemId);
     if (next) setSelected(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [mode, currentSolarSystemId]);
 
   // Hydrate from cloud save once on sign-in. No-op when unauthenticated.
   useEffect(() => {
@@ -64,6 +70,8 @@ export default function GameCanvas() {
   }, [authStatus]);
 
   // Galaxy lifecycle: mount GalaxyScene when mode=galaxy, tear down otherwise.
+  // Re-mounts when the active solar system changes so the planet set + sun
+  // tint reflect the new system. Cheap because Three.js disposal is fast.
   useEffect(() => {
     if (mode !== "galaxy") return;
     const canvas = galaxyCanvasRef.current;
@@ -77,7 +85,8 @@ export default function GameCanvas() {
       if (disposed) return;
       const scene = new GalaxyScene(canvas, {
         onPlanetHover: setHovered,
-        onPlanetSelect: setSelected
+        onPlanetSelect: setSelected,
+        activeSystemId: currentSolarSystemId
       });
       scene.start();
       cleanup = () => scene.dispose();
@@ -87,7 +96,7 @@ export default function GameCanvas() {
       disposed = true;
       cleanup?.();
     };
-  }, [mode]);
+  }, [mode, currentSolarSystemId]);
 
   // Combat lifecycle: mount Phaser into the parent div when mode=combat.
   useEffect(() => {
@@ -164,6 +173,8 @@ export default function GameCanvas() {
             lastSummary={lastSummary}
             onBackToMenu={() => router.push("/")}
             onOpenLoadout={() => setLoadoutOpen(true)}
+            onOpenWarp={() => setWarpOpen(true)}
+            warpAvailable={unlockedSolarSystems.length > 1}
           />
           <MissionSelect
             mission={selected}
@@ -184,6 +195,17 @@ export default function GameCanvas() {
                 <LoadoutMenu mode="equip" />
               </div>
             </div>
+          )}
+          {warpOpen && (
+            <WarpPicker
+              currentSystemId={currentSolarSystemId}
+              unlockedSystemIds={unlockedSolarSystems}
+              onClose={() => setWarpOpen(false)}
+              onSelect={(id) => {
+                setSolarSystem(id);
+                setWarpOpen(false);
+              }}
+            />
           )}
         </div>
       )}
@@ -229,20 +251,31 @@ function HudFrame({
   hovered,
   lastSummary,
   onBackToMenu,
-  onOpenLoadout
+  onOpenLoadout,
+  onOpenWarp,
+  warpAvailable
 }: {
   hovered: MissionDefinition | null;
   lastSummary: CombatSummary | null;
   onBackToMenu: () => void;
   onOpenLoadout: () => void;
+  onOpenWarp: () => void;
+  warpAvailable: boolean;
 }) {
   const credits = useGameState((s) => s.credits);
   const cleared = useGameState((s) => s.completedMissions.length);
+  const currentSystemId = useGameState((s) => s.currentSolarSystemId);
+  const currentSystem = getSolarSystem(currentSystemId);
 
   return (
     <>
-      <div className="absolute left-1/2 top-6 -translate-x-1/2 font-display text-xl tracking-widest text-hud-green/90 drop-shadow-[0_0_8px_rgba(94,255,167,0.25)]">
-        SPACEPOTATIS
+      <div className="absolute left-1/2 top-6 -translate-x-1/2 flex flex-col items-center">
+        <div className="font-display text-xl tracking-widest text-hud-green/90 drop-shadow-[0_0_8px_rgba(94,255,167,0.25)]">
+          SPACEPOTATIS
+        </div>
+        <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.3em] text-hud-amber/80">
+          {currentSystem.name}
+        </div>
       </div>
       <div className="absolute left-6 top-6 flex flex-col gap-3">
         <div className="pointer-events-auto flex gap-2">
@@ -259,6 +292,15 @@ function HudFrame({
             className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
           >
             Loadout
+          </button>
+          <button
+            type="button"
+            onClick={onOpenWarp}
+            disabled={!warpAvailable}
+            title={warpAvailable ? "Warp to another system" : "No other systems unlocked yet"}
+            className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors enabled:hover:bg-hud-green/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+          >
+            Warp
           </button>
         </div>
         <StatsPanel credits={credits} cleared={cleared} />
@@ -292,5 +334,72 @@ function HudFrame({
         </div>
       </div>
     </>
+  );
+}
+
+function WarpPicker({
+  currentSystemId,
+  unlockedSystemIds,
+  onClose,
+  onSelect
+}: {
+  currentSystemId: SolarSystemId;
+  unlockedSystemIds: readonly SolarSystemId[];
+  onClose: () => void;
+  onSelect: (id: SolarSystemId) => void;
+}) {
+  const systems: readonly SolarSystemDefinition[] = getAllSolarSystems().filter((s) =>
+    unlockedSystemIds.includes(s.id)
+  );
+
+  return (
+    <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="relative w-[28rem] max-w-[92vw] rounded border border-space-border bg-space-panel/95 p-5">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute -right-2 -top-2 z-10 rounded-full border border-space-border bg-space-panel px-2 py-0.5 text-sm text-hud-green hover:text-hud-amber"
+        >
+          ×
+        </button>
+        <div className="font-display text-lg tracking-widest text-hud-green">WARP DRIVE</div>
+        <p className="mt-1 text-[11px] text-hud-amber">Select a destination system.</p>
+        <ul className="mt-4 flex flex-col gap-2">
+          {systems.map((sys) => {
+            const active = sys.id === currentSystemId;
+            return (
+              <li key={sys.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(sys.id)}
+                  disabled={active}
+                  className="w-full rounded border border-hud-green/60 bg-space-bg/40 px-3 py-2 text-left transition-colors enabled:hover:bg-hud-green/10 disabled:cursor-default disabled:border-space-border"
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span
+                      className={`font-display tracking-widest ${active ? "text-hud-amber" : "text-hud-green"}`}
+                    >
+                      {sys.name}
+                    </span>
+                    <span
+                      className="ml-3 inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: sys.sunColor }}
+                      aria-hidden
+                    />
+                  </div>
+                  <div className="mt-1 text-[11px] text-hud-green/70">{sys.description}</div>
+                  {active && (
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-hud-amber/80">
+                      current
+                    </div>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
   );
 }

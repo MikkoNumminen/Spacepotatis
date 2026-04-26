@@ -68,6 +68,7 @@ function styleFor(id: MissionId): SurfaceStyle {
         craterSizeRange: [4, 9]
       };
     case "shop":
+    case "tubernovae-outpost":
       return {
         noiseScale: 2.4,
         octaves: 4,
@@ -77,6 +78,39 @@ function styleFor(id: MissionId): SurfaceStyle {
         featureMix: 0.7,
         craters: 0,
         craterSizeRange: [0, 0]
+      };
+    case "pirate-beacon":
+      return {
+        noiseScale: 2.8,
+        octaves: 5,
+        bandStrength: 0,
+        featureColor: [180, 60, 60],
+        featureThreshold: 0.6,
+        featureMix: 0.6,
+        craters: 18,
+        craterSizeRange: [3, 10]
+      };
+    case "ember-run":
+      return {
+        noiseScale: 3.0,
+        octaves: 5,
+        bandStrength: 0.2,
+        featureColor: [255, 120, 50],
+        featureThreshold: 0.55,
+        featureMix: 0.7,
+        craters: 14,
+        craterSizeRange: [3, 12]
+      };
+    case "burnt-spud":
+      return {
+        noiseScale: 2.2,
+        octaves: 5,
+        bandStrength: 0,
+        featureColor: [120, 30, 30],
+        featureThreshold: 0.66,
+        featureMix: 0.85,
+        craters: 30,
+        craterSizeRange: [4, 13]
       };
   }
 }
