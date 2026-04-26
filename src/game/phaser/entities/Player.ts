@@ -3,7 +3,15 @@ import type { WeaponId } from "@/types/game";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
-import { getMaxArmor, getMaxShield, type ShipConfig } from "@/game/state/ShipConfig";
+import {
+  getMaxArmor,
+  getMaxShield,
+  getReactorCapacity,
+  getReactorRecharge,
+  type ShipConfig,
+  type SlotName
+} from "@/game/state/ShipConfig";
+import { getWeapon } from "../data/weapons";
 import { sfx } from "@/game/audio/sfx";
 
 export const PLAYER_TEXTURE = "player-ship";
@@ -12,15 +20,24 @@ const SPEED = 360;
 const SHIELD_REGEN_PER_SEC = 6;
 const SHIELD_REGEN_DELAY_MS = 2000;
 
+// Slots that have firing wired up today. The rear + sidekick slots equip via
+// the loadout UI but do not actually shoot yet — see TODO in tryFireSlot().
+const ACTIVE_FIRE_SLOTS: readonly SlotName[] = ["front"];
+
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private controls: Controls;
-  private weapons: WeaponSystem;
-  private weaponId: WeaponId;
+  // One WeaponSystem per slot keeps each weapon fireRate cooldown isolated.
+  private weaponsBySlot: Record<SlotName, WeaponSystem>;
+  private slotWeapons: Record<SlotName, WeaponId | null>;
+
   readonly maxShield: number;
   readonly maxArmor: number;
+  readonly maxEnergy: number;
+  readonly energyRechargePerSec: number;
 
   shield: number;
   armor: number;
+  energy: number;
   private lastDamageAt = 0;
 
   // Mission-only perk state — reset every CombatScene boot.
@@ -38,20 +55,35 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setSize(this.width * 0.55, this.height * 0.65);
 
     this.controls = createKeyboardControls(scene);
-    this.weapons = new WeaponSystem(pool);
-    this.weaponId = ship.primaryWeapon;
+    this.weaponsBySlot = {
+      front: new WeaponSystem(pool),
+      rear: new WeaponSystem(pool),
+      sidekickLeft: new WeaponSystem(pool),
+      sidekickRight: new WeaponSystem(pool)
+    };
+    this.slotWeapons = {
+      front: ship.slots.front,
+      rear: ship.slots.rear,
+      sidekickLeft: ship.slots.sidekickLeft,
+      sidekickRight: ship.slots.sidekickRight
+    };
+
     this.maxShield = getMaxShield(ship);
     this.maxArmor = getMaxArmor(ship);
+    this.maxEnergy = getReactorCapacity(ship);
+    this.energyRechargePerSec = getReactorRecharge(ship);
+
     this.shield = this.maxShield;
     this.armor = this.maxArmor;
+    this.energy = this.maxEnergy;
   }
 
-  setWeapon(id: WeaponId): void {
-    this.weaponId = id;
+  setSlotWeapon(slot: SlotName, id: WeaponId | null): void {
+    this.slotWeapons[slot] = id;
   }
 
-  getWeapon(): WeaponId {
-    return this.weaponId;
+  getSlotWeapon(slot: SlotName): WeaponId | null {
+    return this.slotWeapons[slot];
   }
 
   takeDamage(amount: number): void {
@@ -94,15 +126,39 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.setVelocity(vx * SPEED, vy * SPEED);
 
+    // Recharge first so a fire that arrives this tick can use the new energy.
+    if (this.energy < this.maxEnergy) {
+      this.energy = Math.min(
+        this.maxEnergy,
+        this.energy + (this.energyRechargePerSec * delta) / 1000
+      );
+    }
+
     if (this.controls.firePrimary()) {
       const fireRateMul = this.hasOverdrive ? 0.66 : 1;
-      if (this.weapons.tryFire(this.weaponId, this.x, this.y - 18, time, true, fireRateMul)) {
-        sfx.laser();
+      // TODO: wire dedicated fire keys for rear + sidekick slots. For MVP only
+      // the front slot fires on Space; the loadout UI lets the player equip
+      // the other slots, but they are inert until those keybinds land.
+      for (const slot of ACTIVE_FIRE_SLOTS) {
+        this.tryFireSlot(slot, time, fireRateMul);
       }
     }
 
     if (time - this.lastDamageAt > SHIELD_REGEN_DELAY_MS && this.shield < this.maxShield) {
       this.shield = Math.min(this.maxShield, this.shield + (SHIELD_REGEN_PER_SEC * delta) / 1000);
+    }
+  }
+
+  private tryFireSlot(slot: SlotName, now: number, fireRateMul: number): void {
+    const weaponId = this.slotWeapons[slot];
+    if (!weaponId) return;
+    const def = getWeapon(weaponId);
+    if (this.energy < def.energyCost) return;
+
+    const fired = this.weaponsBySlot[slot].tryFire(weaponId, this.x, this.y - 18, now, true, fireRateMul);
+    if (fired) {
+      this.energy = Math.max(0, this.energy - def.energyCost);
+      sfx.laser();
     }
   }
 }
