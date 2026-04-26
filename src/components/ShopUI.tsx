@@ -22,7 +22,7 @@ import {
 } from "@/game/state/ShipConfig";
 import { getAllWeapons } from "@/game/phaser/data/weapons";
 import { useGameState } from "@/game/state/useGameState";
-import { WeaponStats } from "@/components/LoadoutMenu";
+import { WeaponStats } from "@/components/WeaponStats";
 
 export default function ShopUI() {
   const credits = useGameState((s) => s.credits);

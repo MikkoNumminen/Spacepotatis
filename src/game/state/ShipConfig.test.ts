@@ -9,12 +9,15 @@ import {
   getMaxShield,
   getReactorCapacity,
   getReactorRecharge,
+  getWeaponLevel,
   isWeaponEquipped,
   isWeaponUnlocked,
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost,
   slotKindFor,
+  weaponDamageMultiplier,
+  weaponUpgradeCost,
   type ShipConfig
 } from "./ShipConfig";
 
@@ -146,5 +149,38 @@ describe("slot helpers", () => {
   it("findEquippedSlot returns the slot name or null", () => {
     expect(findEquippedSlot(DEFAULT_SHIP, "rapid-fire")).toBe("front");
     expect(findEquippedSlot(DEFAULT_SHIP, "heavy-cannon")).toBeNull();
+  });
+});
+
+describe("weapon mark levels", () => {
+  it("default ship has an empty weaponLevels map; getWeaponLevel falls back to 1", () => {
+    expect(DEFAULT_SHIP.weaponLevels).toEqual({});
+    expect(getWeaponLevel(DEFAULT_SHIP, "rapid-fire")).toBe(1);
+    expect(getWeaponLevel(DEFAULT_SHIP, "spread-shot")).toBe(1);
+  });
+
+  it("getWeaponLevel reads explicit entries when present", () => {
+    const ship: ShipConfig = {
+      ...DEFAULT_SHIP,
+      weaponLevels: { "rapid-fire": 4 }
+    };
+    expect(getWeaponLevel(ship, "rapid-fire")).toBe(4);
+    // Other weapons still default to 1 because they're not in the map.
+    expect(getWeaponLevel(ship, "spread-shot")).toBe(1);
+  });
+
+  it("weaponDamageMultiplier scales linearly: level 1 = 1.0, level 5 = 1.60", () => {
+    expect(weaponDamageMultiplier(1)).toBeCloseTo(1.0, 6);
+    expect(weaponDamageMultiplier(2)).toBeCloseTo(1.15, 6);
+    expect(weaponDamageMultiplier(3)).toBeCloseTo(1.3, 6);
+    expect(weaponDamageMultiplier(4)).toBeCloseTo(1.45, 6);
+    expect(weaponDamageMultiplier(5)).toBeCloseTo(1.6, 6);
+  });
+
+  it("weaponUpgradeCost doubles per current level: 200 / 400 / 800 / 1600", () => {
+    expect(weaponUpgradeCost(1)).toBe(200);
+    expect(weaponUpgradeCost(2)).toBe(400);
+    expect(weaponUpgradeCost(3)).toBe(800);
+    expect(weaponUpgradeCost(4)).toBe(1600);
   });
 });

@@ -12,14 +12,17 @@ import {
   EMPTY_SLOTS,
   MAX_LEVEL,
   armorUpgradeCost,
+  getWeaponLevel,
   isWeaponEquipped,
   isWeaponUnlocked,
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost,
   slotKindFor,
+  weaponUpgradeCost,
   type ShipConfig,
   type SlotName,
+  type WeaponLevels,
   type WeaponSlots
 } from "./ShipConfig";
 import { getWeapon } from "../phaser/data/weapons";
@@ -304,6 +307,25 @@ export function buyReactorRechargeUpgrade(): boolean {
   return true;
 }
 
+// Spend credits to bump a single weapon's mark level by one. Refuses on
+// non-owned weapons (you can't upgrade something you don't own) and at the
+// MAX_LEVEL cap. Cost scales 200, 400, 800, 1600 — same family as shield/armor.
+export function buyWeaponUpgrade(id: WeaponId): boolean {
+  if (!isWeaponUnlocked(state.ship, id)) return false;
+  const current = getWeaponLevel(state.ship, id);
+  if (current >= MAX_LEVEL) return false;
+  const cost = weaponUpgradeCost(current);
+  if (!spendCredits(cost)) return false;
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      weaponLevels: { ...state.ship.weaponLevels, [id]: current + 1 }
+    }
+  });
+  return true;
+}
+
 export function isMissionCompleted(id: MissionId): boolean {
   return state.completedMissions.includes(id);
 }
@@ -334,6 +356,7 @@ export function toSnapshot(): StateSnapshot {
     ship: {
       slots: { ...state.ship.slots },
       unlockedWeapons: [...state.ship.unlockedWeapons],
+      weaponLevels: { ...state.ship.weaponLevels },
       shieldLevel: state.ship.shieldLevel,
       armorLevel: state.ship.armorLevel,
       reactor: { ...state.ship.reactor }
@@ -377,6 +400,7 @@ interface LegacyShipSnapshot {
   primaryWeapon?: WeaponId;
   slots?: Partial<WeaponSlots>;
   unlockedWeapons?: readonly WeaponId[];
+  weaponLevels?: WeaponLevels;
   shieldLevel?: number;
   armorLevel?: number;
   reactor?: Partial<ShipConfig["reactor"]>;
@@ -404,9 +428,22 @@ function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
     slots = { ...DEFAULT_SHIP.slots };
   }
 
+  // Filter weaponLevels to entries the player actually owns, clamp to
+  // [1, MAX_LEVEL]. Missing or absent → empty map; consumers default to 1.
+  const ownedSet = new Set<WeaponId>(unlocked);
+  const weaponLevels: Record<string, number> = {};
+  if (raw.weaponLevels) {
+    for (const [id, lvl] of Object.entries(raw.weaponLevels)) {
+      if (typeof lvl !== "number" || !Number.isFinite(lvl)) continue;
+      if (!ownedSet.has(id as WeaponId)) continue;
+      weaponLevels[id] = Math.max(1, Math.min(MAX_LEVEL, Math.trunc(lvl)));
+    }
+  }
+
   return {
     slots,
     unlockedWeapons: unlocked,
+    weaponLevels,
     shieldLevel: raw.shieldLevel ?? 0,
     armorLevel: raw.armorLevel ?? 0,
     reactor: {

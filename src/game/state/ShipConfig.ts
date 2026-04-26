@@ -14,15 +14,24 @@ export interface ReactorConfig {
   rechargeLevel: number;
 }
 
+// Per-weapon mark levels. Sparse map keyed by WeaponId — missing entries
+// default to level 1 (base). Each level adds WEAPON_DAMAGE_PER_LEVEL to the
+// damage multiplier; nothing else (fire rate, projectile count, spread) ever
+// scales with level. Phase B will add an augments slice alongside this.
+export type WeaponLevels = Readonly<Partial<Record<WeaponId, number>>>;
+
 export interface ShipConfig {
   slots: WeaponSlots;
   unlockedWeapons: readonly WeaponId[];
+  weaponLevels: WeaponLevels;
   shieldLevel: number;
   armorLevel: number;
   reactor: ReactorConfig;
 }
 
 export const MAX_LEVEL = 5;
+// Per-level additive damage bonus. Level 1 = 1.0× base, level 5 = 1.60×.
+const WEAPON_DAMAGE_PER_LEVEL = 0.15;
 
 const BASE_SHIELD = 40;
 const BASE_ARMOR = 60;
@@ -45,6 +54,7 @@ export const EMPTY_SLOTS: WeaponSlots = {
 export const DEFAULT_SHIP: ShipConfig = {
   slots: { ...EMPTY_SLOTS, front: "rapid-fire" },
   unlockedWeapons: ["rapid-fire"],
+  weaponLevels: {},
   shieldLevel: 0,
   armorLevel: 0,
   reactor: { capacityLevel: 0, rechargeLevel: 0 }
@@ -80,6 +90,23 @@ export function reactorCapacityCost(level: number): number {
 
 export function reactorRechargeCost(level: number): number {
   return 200 * Math.pow(2, level);
+}
+
+// Per-weapon level helpers. The level lives in the ShipConfig, not on the
+// weapon definition — different players can hold different levels of the
+// same weapon, and the JSON catalog stays the canonical "base" stats.
+export function getWeaponLevel(config: ShipConfig, id: WeaponId): number {
+  return config.weaponLevels[id] ?? 1;
+}
+
+export function weaponDamageMultiplier(level: number): number {
+  return 1 + WEAPON_DAMAGE_PER_LEVEL * (level - 1);
+}
+
+// Level 1 → 2 costs 200; doubles each step. Level 5 is the cap; once there,
+// callers should refuse the purchase.
+export function weaponUpgradeCost(currentLevel: number): number {
+  return 200 * Math.pow(2, currentLevel - 1);
 }
 
 export function isWeaponUnlocked(config: ShipConfig, id: WeaponId): boolean {
