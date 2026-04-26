@@ -21,6 +21,16 @@ export type WeaponId =
 // a single rear slot, and two symmetric sidekick mounts.
 export type WeaponSlot = "front" | "rear" | "sidekick";
 
+// Permanent weapon modifiers. See src/game/phaser/data/augments.ts for the
+// catalog and effect math. An augment is bound to a single weapon when
+// installed and is destroyed if that weapon is sold.
+export type AugmentId =
+  | "damage-up"
+  | "fire-rate-up"
+  | "extra-projectile"
+  | "energy-down"
+  | "homing-up";
+
 export interface WeaponDefinition {
   readonly id: WeaponId;
   readonly name: string;

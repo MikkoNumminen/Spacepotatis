@@ -5,6 +5,7 @@ import {
   MAX_LEVEL,
   armorUpgradeCost,
   findEquippedSlot,
+  getInstalledAugments,
   getMaxArmor,
   getMaxShield,
   getReactorCapacity,
@@ -20,6 +21,10 @@ import {
   weaponUpgradeCost,
   type ShipConfig
 } from "./ShipConfig";
+import {
+  NEUTRAL_AUGMENT_EFFECTS,
+  foldAugmentEffects
+} from "@/game/phaser/data/augments";
 
 describe("DEFAULT_SHIP", () => {
   it("starts with the free starter weapon equipped to the front slot only", () => {
@@ -182,5 +187,71 @@ describe("weapon mark levels", () => {
     expect(weaponUpgradeCost(2)).toBe(400);
     expect(weaponUpgradeCost(3)).toBe(800);
     expect(weaponUpgradeCost(4)).toBe(1600);
+  });
+});
+
+describe("installed augments", () => {
+  it("getInstalledAugments returns [] for the default ship", () => {
+    expect(getInstalledAugments(DEFAULT_SHIP, "rapid-fire")).toEqual([]);
+  });
+
+  it("reads back the array stored under weaponAugments[id]", () => {
+    const ship: ShipConfig = {
+      ...DEFAULT_SHIP,
+      weaponAugments: { "rapid-fire": ["damage-up", "fire-rate-up"] }
+    };
+    expect(getInstalledAugments(ship, "rapid-fire")).toEqual(["damage-up", "fire-rate-up"]);
+  });
+
+  it("returns [] for an owned weapon with no entry in weaponAugments", () => {
+    const ship: ShipConfig = {
+      ...DEFAULT_SHIP,
+      unlockedWeapons: ["rapid-fire", "spread-shot"],
+      weaponAugments: { "rapid-fire": ["damage-up"] }
+    };
+    expect(getInstalledAugments(ship, "spread-shot")).toEqual([]);
+  });
+});
+
+describe("foldAugmentEffects", () => {
+  it("returns the identity for an empty list", () => {
+    expect(foldAugmentEffects([])).toEqual(NEUTRAL_AUGMENT_EFFECTS);
+    expect(foldAugmentEffects([])).toEqual({
+      damageMul: 1,
+      fireRateMul: 1,
+      projectileBonus: 0,
+      energyMul: 1,
+      turnRateMul: 1
+    });
+  });
+
+  it("a single augment surfaces only its modifier; others stay at default", () => {
+    const eff = foldAugmentEffects(["damage-up"]);
+    expect(eff.damageMul).toBeCloseTo(1.25, 6);
+    expect(eff.fireRateMul).toBe(1);
+    expect(eff.projectileBonus).toBe(0);
+    expect(eff.energyMul).toBe(1);
+    expect(eff.turnRateMul).toBe(1);
+  });
+
+  it("two compatible augments compose: multipliers multiply, others untouched", () => {
+    // damage-up (×1.25 dmg) + fire-rate-up (×0.7 fire-rate) — different kinds
+    // are the realistic "two installed" case because installAugment refuses
+    // duplicates of the same id on a weapon.
+    const eff = foldAugmentEffects(["damage-up", "fire-rate-up"]);
+    expect(eff.damageMul).toBeCloseTo(1.25, 6);
+    expect(eff.fireRateMul).toBeCloseTo(0.7, 6);
+    expect(eff.projectileBonus).toBe(0);
+    expect(eff.energyMul).toBe(1);
+    expect(eff.turnRateMul).toBe(1);
+  });
+
+  it("extra-projectile is purely additive and leaves multipliers alone", () => {
+    const eff = foldAugmentEffects(["extra-projectile"]);
+    expect(eff.projectileBonus).toBe(1);
+    expect(eff.damageMul).toBe(1);
+    expect(eff.fireRateMul).toBe(1);
+    expect(eff.energyMul).toBe(1);
+    expect(eff.turnRateMul).toBe(1);
   });
 });

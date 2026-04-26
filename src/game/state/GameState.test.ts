@@ -3,6 +3,7 @@ import {
   addCredits,
   addPlayedTime,
   buyArmorUpgrade,
+  buyAugment,
   buyReactorCapacityUpgrade,
   buyReactorRechargeUpgrade,
   buyShieldUpgrade,
@@ -11,8 +12,10 @@ import {
   completeMission,
   equipWeapon,
   getState,
+  grantAugment,
   grantWeapon,
   hydrate,
+  installAugment,
   isMissionCompleted,
   isPlanetUnlocked,
   resetForTests,
@@ -22,6 +25,7 @@ import {
   subscribe,
   toSnapshot
 } from "./GameState";
+import { MAX_AUGMENTS_PER_WEAPON } from "@/game/phaser/data/augments";
 
 beforeEach(() => {
   resetForTests();
@@ -455,7 +459,7 @@ describe("buyWeaponUpgrade", () => {
   });
 });
 
-describe("hydrate weapon levels", () => {
+describe("hydrate", () => {
   it("defaults weaponLevels to {} when snapshot omits it (legacy save)", () => {
     hydrate({
       ship: {
@@ -480,6 +484,8 @@ describe("hydrate weapon levels", () => {
           "spread-shot": 0,            // clamp up to 1
           "heavy-cannon": 3            // dropped — not owned
         },
+        weaponAugments: {},
+        augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 0, rechargeLevel: 0 }
@@ -501,5 +507,191 @@ describe("hydrate weapon levels", () => {
     expect(getState().ship.weaponLevels["rapid-fire"]).toBeUndefined();
     hydrate(snap);
     expect(getState().ship.weaponLevels["rapid-fire"]).toBe(3);
+  });
+
+  it("weaponAugments: drops unknown ids, drops entries for un-owned weapons, caps and dedupes", () => {
+    hydrate({
+      ship: {
+        slots: { front: "rapid-fire", rear: null, sidekickLeft: null, sidekickRight: null },
+        unlockedWeapons: ["rapid-fire", "spread-shot"],
+        weaponLevels: {},
+        weaponAugments: {
+          // Unknown ids filtered, dupes deduped, capped at MAX_AUGMENTS_PER_WEAPON
+          "rapid-fire": [
+            "damage-up",
+            "damage-up",
+            "bogus-id",
+            "fire-rate-up",
+            "extra-projectile"
+          ],
+          // Dropped — heavy-cannon is not owned
+          "heavy-cannon": ["damage-up"]
+        },
+        augmentInventory: [],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      } as unknown as ReturnType<typeof toSnapshot>["ship"]
+    });
+    const aug = getState().ship.weaponAugments;
+    expect(aug["rapid-fire"]).toEqual(["damage-up", "fire-rate-up"]);
+    expect(aug["rapid-fire"]?.length).toBe(MAX_AUGMENTS_PER_WEAPON);
+    expect(aug["heavy-cannon"]).toBeUndefined();
+    expect(aug["spread-shot"]).toBeUndefined();
+  });
+
+  it("augmentInventory: keeps only known ids and preserves order", () => {
+    hydrate({
+      ship: {
+        slots: { front: "rapid-fire", rear: null, sidekickLeft: null, sidekickRight: null },
+        unlockedWeapons: ["rapid-fire"],
+        weaponLevels: {},
+        weaponAugments: {},
+        augmentInventory: [
+          "damage-up",
+          "bogus-id",
+          "fire-rate-up",
+          "another-bogus",
+          "extra-projectile"
+        ],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      } as unknown as ReturnType<typeof toSnapshot>["ship"]
+    });
+    expect(getState().ship.augmentInventory).toEqual([
+      "damage-up",
+      "fire-rate-up",
+      "extra-projectile"
+    ]);
+  });
+
+  it("round-trips weaponAugments + augmentInventory through toSnapshot/hydrate", () => {
+    addCredits(10000);
+    grantAugment("damage-up");
+    grantAugment("fire-rate-up");
+    expect(installAugment("rapid-fire", "damage-up")).toBe(true);
+    // One augment installed on rapid-fire, one still in inventory.
+    expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+    expect(getState().ship.augmentInventory).toEqual(["fire-rate-up"]);
+
+    const snap = toSnapshot();
+    resetForTests();
+    expect(getState().ship.weaponAugments).toEqual({});
+    expect(getState().ship.augmentInventory).toEqual([]);
+
+    hydrate(snap);
+    expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+    expect(getState().ship.augmentInventory).toEqual(["fire-rate-up"]);
+  });
+});
+
+describe("augment mutators", () => {
+  describe("buyAugment", () => {
+    it("refuses when the player can't afford it; inventory unchanged", () => {
+      addCredits(0);
+      expect(buyAugment("damage-up")).toBe(false);
+      expect(getState().ship.augmentInventory).toEqual([]);
+      expect(getState().credits).toBe(0);
+    });
+
+    it("on success spends credits and pushes the augment into inventory", () => {
+      addCredits(1000);
+      expect(buyAugment("damage-up")).toBe(true);
+      expect(getState().credits).toBe(0);
+      expect(getState().ship.augmentInventory).toEqual(["damage-up"]);
+    });
+
+    it("buying the same augment twice stacks two copies in inventory", () => {
+      addCredits(2000);
+      expect(buyAugment("damage-up")).toBe(true);
+      expect(buyAugment("damage-up")).toBe(true);
+      expect(getState().ship.augmentInventory).toEqual(["damage-up", "damage-up"]);
+    });
+  });
+
+  describe("grantAugment", () => {
+    it("adds to inventory regardless of credits (no cost check)", () => {
+      expect(getState().credits).toBe(0);
+      grantAugment("extra-projectile");
+      expect(getState().ship.augmentInventory).toEqual(["extra-projectile"]);
+      expect(getState().credits).toBe(0);
+    });
+  });
+
+  describe("installAugment", () => {
+    it("refuses when the weapon is not owned", () => {
+      grantAugment("damage-up");
+      expect(installAugment("heavy-cannon", "damage-up")).toBe(false);
+      // Inventory copy is preserved on failure.
+      expect(getState().ship.augmentInventory).toEqual(["damage-up"]);
+    });
+
+    it("refuses when the augment is not in inventory", () => {
+      grantAugment("fire-rate-up");
+      expect(installAugment("rapid-fire", "damage-up")).toBe(false);
+      expect(getState().ship.weaponAugments["rapid-fire"]).toBeUndefined();
+    });
+
+    it("refuses past MAX_AUGMENTS_PER_WEAPON", () => {
+      grantAugment("damage-up");
+      grantAugment("fire-rate-up");
+      grantAugment("extra-projectile");
+      expect(installAugment("rapid-fire", "damage-up")).toBe(true);
+      expect(installAugment("rapid-fire", "fire-rate-up")).toBe(true);
+      expect(installAugment("rapid-fire", "extra-projectile")).toBe(false);
+      expect(getState().ship.weaponAugments["rapid-fire"]).toEqual([
+        "damage-up",
+        "fire-rate-up"
+      ]);
+      // The extra-projectile copy is still sitting in inventory because the
+      // install was rejected before mutation.
+      expect(getState().ship.augmentInventory).toEqual(["extra-projectile"]);
+    });
+
+    it("refuses when the same augment is already installed on that weapon", () => {
+      grantAugment("damage-up");
+      grantAugment("damage-up");
+      expect(installAugment("rapid-fire", "damage-up")).toBe(true);
+      expect(installAugment("rapid-fire", "damage-up")).toBe(false);
+      expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+      // The second copy stayed in inventory.
+      expect(getState().ship.augmentInventory).toEqual(["damage-up"]);
+    });
+
+    it("on success removes ONE copy from inventory and appends to weaponAugments", () => {
+      grantAugment("damage-up");
+      grantAugment("damage-up");
+      grantAugment("fire-rate-up");
+      expect(installAugment("rapid-fire", "damage-up")).toBe(true);
+      // Only one of the two damage-up copies should leave inventory.
+      expect(getState().ship.augmentInventory).toEqual(["damage-up", "fire-rate-up"]);
+      expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+    });
+  });
+
+  describe("sellWeapon drops augments", () => {
+    it("destroys the weapon's augment list and does NOT refund augments back to inventory", () => {
+      addCredits(450);
+      expect(buyWeapon("spread-shot")).toBe(true);
+      grantAugment("damage-up");
+      grantAugment("fire-rate-up");
+      expect(installAugment("spread-shot", "damage-up")).toBe(true);
+      expect(installAugment("spread-shot", "fire-rate-up")).toBe(true);
+      expect(getState().ship.weaponAugments["spread-shot"]).toEqual([
+        "damage-up",
+        "fire-rate-up"
+      ]);
+      expect(getState().ship.augmentInventory).toEqual([]);
+
+      // sellWeapon refuses equipped weapons. buyWeapon left spread-shot
+      // unequipped (front slot was already occupied by rapid-fire), so we can
+      // sell it directly.
+      expect(sellWeapon("spread-shot")).toBe(true);
+
+      expect(getState().ship.weaponAugments["spread-shot"]).toBeUndefined();
+      expect(getState().ship.augmentInventory).toEqual([]);
+      expect(getState().ship.unlockedWeapons).not.toContain("spread-shot");
+    });
   });
 });

@@ -86,6 +86,8 @@ export function isShipConfig(value: unknown): value is StateSnapshot["ship"] {
 
   if (v.reactor !== undefined && !isReactorConfig(v.reactor)) return false;
   if (v.weaponLevels !== undefined && !isWeaponLevels(v.weaponLevels)) return false;
+  if (v.weaponAugments !== undefined && !isWeaponAugments(v.weaponAugments)) return false;
+  if (v.augmentInventory !== undefined && !isAugmentInventory(v.augmentInventory)) return false;
   return true;
 }
 
@@ -95,6 +97,20 @@ function isWeaponLevels(value: unknown): boolean {
     if (typeof lvl !== "number" || !Number.isFinite(lvl)) return false;
   }
   return true;
+}
+
+function isWeaponAugments(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  for (const list of Object.values(value as Record<string, unknown>)) {
+    if (!Array.isArray(list)) return false;
+    if (list.some((item) => typeof item !== "string")) return false;
+  }
+  return true;
+}
+
+function isAugmentInventory(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => typeof item === "string");
 }
 
 function isWeaponSlots(value: unknown): boolean {

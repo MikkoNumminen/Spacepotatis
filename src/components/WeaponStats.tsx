@@ -1,35 +1,54 @@
-import { weaponDps, weaponRps } from "@/game/phaser/data/weapons";
 import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
-import type { WeaponDefinition } from "@/types/game";
+import { foldAugmentEffects } from "@/game/phaser/data/augments";
+import type { AugmentId, WeaponDefinition } from "@/types/game";
 
 // Two-column "spec sheet". Designed to make the per-bullet vs total picture
 // obvious so players see WHY one weapon outclasses another. Optional `level`
 // scales damage + dps by the weapon-mark multiplier; defaults to 1 (base) so
-// shop "NEW WEAPONS" listings show the as-purchased numbers.
+// shop "NEW WEAPONS" listings show the as-purchased numbers. Optional
+// `augmentIds` folds installed augment effects into the displayed numbers
+// (damage, dps, fire rate, energy) so the loadout view reflects what the
+// weapon actually fires like.
 export function WeaponStats({
   weapon,
-  level = 1
+  level = 1,
+  augmentIds = []
 }: {
   weapon: WeaponDefinition;
   level?: number;
+  augmentIds?: readonly AugmentId[];
 }) {
   const isMulti = weapon.projectileCount > 1;
-  const mul = weaponDamageMultiplier(level);
-  const damage = Math.round(weapon.damage * mul);
-  const dps = Math.round(weaponDps(weapon) * mul);
+  const markMul = weaponDamageMultiplier(level);
+  const effects = foldAugmentEffects(augmentIds);
+
+  const hasAugments = augmentIds.length > 0;
+  const baseDamage = weapon.damage * markMul;
+  const damage = Math.round(baseDamage * effects.damageMul);
+  const projectileTotal = weapon.projectileCount + effects.projectileBonus;
+  const fireRateMs = weapon.fireRateMs * effects.fireRateMul;
+  const dps = Math.round(baseDamage * effects.damageMul * projectileTotal * (1000 / fireRateMs));
+  const rps = Math.round((1000 / fireRateMs) * 10) / 10;
+  const energy = Math.max(1, Math.round(weapon.energyCost * effects.energyMul));
+
   return (
     <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px]">
       <Stat
         label="damage"
-        value={`${damage}${isMulti ? ` × ${weapon.projectileCount}` : ""}`}
+        value={`${damage}${projectileTotal > 1 ? ` × ${projectileTotal}` : ""}`}
       />
       <Stat label="dps" value={String(dps)} />
-      <Stat label="fire rate" value={`${weaponRps(weapon)} rps`} />
-      <Stat label="energy" value={`⚡ ${weapon.energyCost}`} />
-      {isMulti ? (
+      <Stat label="fire rate" value={`${rps} rps`} />
+      <Stat label="energy" value={`⚡ ${energy}`} />
+      {isMulti || effects.projectileBonus > 0 ? (
         <Stat label="spread" value={`${weapon.spreadDegrees}°`} />
       ) : (
         <Stat label="bullet speed" value={String(weapon.bulletSpeed)} />
+      )}
+      {hasAugments && (
+        <div className="col-span-2 mt-1 text-[10px] text-hud-amber/70">
+          {augmentIds.length} augment{augmentIds.length === 1 ? "" : "s"} applied
+        </div>
       )}
     </div>
   );

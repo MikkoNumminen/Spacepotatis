@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import {
   buyArmorUpgrade,
+  buyAugment,
   buyReactorCapacityUpgrade,
   buyReactorRechargeUpgrade,
   buyShieldUpgrade,
@@ -21,6 +22,7 @@ import {
   shieldUpgradeCost
 } from "@/game/state/ShipConfig";
 import { getAllWeapons } from "@/game/phaser/data/weapons";
+import { getAllAugments } from "@/game/phaser/data/augments";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponStats } from "@/components/WeaponStats";
 
@@ -129,7 +131,56 @@ export default function ShopUI() {
           );
         })()}
       </section>
+
+      <section className="rounded border border-space-border bg-space-panel/70 p-5 md:col-span-2">
+        <header className="mb-4 flex items-baseline justify-between">
+          <h2 className="font-display tracking-widest text-hud-green">AUGMENTS</h2>
+          <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
+        </header>
+
+        <p className="mb-3 text-[11px] text-hud-green/60">
+          Permanent weapon modifiers. Once installed they cannot be moved or sold —
+          choose carefully. You may stock multiple copies in inventory.
+        </p>
+
+        <ul className="flex flex-col gap-3">
+          {getAllAugments()
+            .filter((a) => a.cost > 0)
+            .map((aug) => (
+              <li
+                key={aug.id}
+                className="flex items-start justify-between gap-3 rounded border border-space-border p-3"
+              >
+                <div className="flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <AugmentDot tint={aug.tint} />
+                    <span className="font-display tracking-wider">{aug.name}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-hud-green/70">{aug.description}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={credits < aug.cost}
+                  onClick={() => void buyAugment(aug.id)}
+                  className="shrink-0 rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                >
+                  BUY · ¢ {aug.cost}
+                </button>
+              </li>
+            ))}
+        </ul>
+      </section>
     </div>
+  );
+}
+
+function AugmentDot({ tint }: { tint: string }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-2 w-2 rounded-full"
+      style={{ backgroundColor: tint, boxShadow: `0 0 4px ${tint}` }}
+    />
   );
 }
 
