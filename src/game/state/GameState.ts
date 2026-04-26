@@ -1,4 +1,4 @@
-import missionsData from "@/game/data/missions.json";
+import { getAllMissions } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import type {
   AugmentId,
@@ -58,7 +58,7 @@ export interface GameStateShape {
   readonly unlockedSolarSystems: readonly SolarSystemId[];
 }
 
-const MISSIONS: readonly MissionDefinition[] = missionsData.missions as readonly MissionDefinition[];
+const MISSIONS: readonly MissionDefinition[] = getAllMissions();
 
 const INITIAL_UNLOCKED: readonly MissionId[] = MISSIONS.filter(
   (m) => m.requires.length === 0

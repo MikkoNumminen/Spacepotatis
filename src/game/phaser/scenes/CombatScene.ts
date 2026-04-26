@@ -20,10 +20,7 @@ import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
 import { getWeapon } from "../../data/weapons";
-import missionsData from "../../data/missions.json";
-import type { MissionDefinition } from "@/types/game";
-
-const MISSIONS = missionsData.missions as readonly MissionDefinition[];
+import { getMission } from "../../data/missions";
 
 function hexToInt(hex: string): number {
   return parseInt(hex.replace(/^#/, ""), 16);
@@ -329,8 +326,8 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private rollDrop(): PowerUpKind {
-    const mission = MISSIONS.find((m) => m.id === this.bootData.missionId);
-    const perksAllowed = mission?.perksAllowed === true;
+    const mission = getMission(this.bootData.missionId);
+    const perksAllowed = mission.perksAllowed === true;
     if (perksAllowed && Math.random() < PERK_DROP_SHARE) {
       return { perk: randomPerkId() };
     }

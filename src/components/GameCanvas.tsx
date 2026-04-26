@@ -12,10 +12,10 @@ import MuteToggle from "@/components/MuteToggle";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
 import { loadSave, saveNow, submitScore } from "@/game/state/sync";
-import missionsData from "@/game/data/missions.json";
+import { getAllMissions } from "@/game/data/missions";
 import { getAllSolarSystems, getSolarSystem } from "@/game/data/solarSystems";
 
-const MISSIONS = missionsData.missions as readonly MissionDefinition[];
+const MISSIONS = getAllMissions();
 
 function pickNextMission(
   unlocked: readonly string[],

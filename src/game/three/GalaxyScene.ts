@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import missionsData from "@/game/data/missions.json";
+import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
 import type { MissionDefinition, SolarSystemId } from "@/types/game";
 import { Planet } from "./Planet";
@@ -13,7 +13,7 @@ export interface GalaxyOptions {
   activeSystemId?: SolarSystemId;
 }
 
-const MISSIONS = missionsData.missions as readonly MissionDefinition[];
+const MISSIONS = getAllMissions();
 
 export class GalaxyScene {
   private readonly canvas: HTMLCanvasElement;

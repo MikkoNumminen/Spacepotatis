@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import missionsData from "@/game/data/missions.json";
+import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
 import type { MissionDefinition } from "@/types/game";
 import { Planet } from "./Planet";
@@ -13,7 +13,7 @@ import { Sun } from "./Sun";
 // out half its features or letting it eat hover state every frame on a page
 // where there's nothing to hover.
 
-const MISSIONS = missionsData.missions as readonly MissionDefinition[];
+const MISSIONS = getAllMissions();
 
 // Speed multiplier on planet orbit angular velocity. The gameplay scene runs
 // at the catalog's natural pace, which is glacial when nothing else is moving;

@@ -1,6 +1,5 @@
 import Link from "next/link";
-import missionsData from "@/game/data/missions.json";
-import type { MissionDefinition } from "@/types/game";
+import { getCombatMissions } from "@/game/data/missions";
 import Leaderboard from "@/components/Leaderboard";
 
 // ISR: re-render at most every 60s. Each render goes through the cached
@@ -8,9 +7,7 @@ import Leaderboard from "@/components/Leaderboard";
 // minute, and zero when the cache is warm.
 export const revalidate = 60;
 
-const COMBAT_MISSIONS = (missionsData.missions as readonly MissionDefinition[]).filter(
-  (m) => m.kind === "mission"
-);
+const COMBAT_MISSIONS = getCombatMissions();
 
 export default function LeaderboardPage() {
   return (
