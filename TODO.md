@@ -114,7 +114,36 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 
 ---
 
+## Phase 11 — Per-weapon Mk levels (DONE)
+
+- Sparse `weaponLevels: Partial<Record<WeaponId, number>>` on `ShipConfig`. Missing entries default to level 1, so existing saves migrate cleanly with no schema break.
+- Cap at `MAX_LEVEL = 5`. Each level adds `WEAPON_DAMAGE_PER_LEVEL = 0.15` to the damage multiplier; nothing else (fire rate, projectile count, spread) ever scales with level.
+- Cost curve: `weaponUpgradeCost(currentLevel) = 200 * 2^(currentLevel - 1)` — level 1→2 is ¢200, level 4→5 is ¢1600.
+- `buyWeaponUpgrade(id)` mutator on `GameState`; refuses if weapon not owned, level already at cap, or insufficient credits.
+- LoadoutMenu shows a Mk badge per weapon and an UPGRADE button in market mode and on equipped slots. WeaponStats panel scales the displayed damage/dps via `weaponDamageMultiplier(level)`.
+- Player caches `slotDamageMul` per slot at boot; `WeaponSystem.fire` accepts a damage multiplier so per-weapon levels apply at runtime.
+- Save migration in `hydrate` clamps levels into `[1, MAX_LEVEL]` and drops levels for unowned weapons.
+- Shipped in PR #17.
+
+---
+
+## Phase 12 — Augment system (DONE)
+
+- New `AugmentId` union (5 augments): `damage-up` (1.25× dmg, ¢1000), `fire-rate-up` (0.7× cooldown, ¢900), `extra-projectile` (+1 projectile, ¢1500), `energy-down` (0.6× energy cost, ¢600), `homing-up` (1.5× turn rate, ¢500). Catalog lives in [src/game/phaser/data/augments.ts](src/game/phaser/data/augments.ts).
+- `MAX_AUGMENTS_PER_WEAPON = 2`. Augments are **permanently bound** when installed: cannot be removed, cannot be transferred. Selling a weapon destroys both the weapon and its augment list together (intentional — player must find a new augment piece to use on a different weapon).
+- `weaponAugments: Partial<Record<WeaponId, readonly AugmentId[]>>` and `augmentInventory: readonly AugmentId[]` on `ShipConfig`. Inventory holds bought-but-not-yet-bound augments.
+- `buyAugment(id)`, `grantAugment(id)`, `installAugment(weaponId, augmentId)` mutators. Install refuses if weapon not owned, weapon already at max augments, or augment not in inventory.
+- `foldAugmentEffects(ids)` returns multiplicative `{damageMul, fireRateMul, projectileBonus, energyMul, turnRateMul}`. Pure function — used by both Player runtime and WeaponStats display.
+- Player resolves per-slot mods at boot/swap (energy cost rounded once with a floor of 1 to prevent `0.6 × 1 = 0` collapse). `WeaponSystem.fire` now takes a `FireModifiers` object instead of a single damage multiplier.
+- Shop UI: AUGMENTS section in market, AUGMENT INVENTORY section listing owned augments, INSTALL button + AugmentPicker modal in LoadoutMenu. WeaponStats accepts an `augmentIds` prop and recomputes damage/dps/fire-rate/energy from the folded effects.
+- Save migration filters unknown augment ids, dedupes per weapon, caps at `MAX_AUGMENTS_PER_WEAPON`, drops entries for unowned weapons.
+- Shipped in PR #18 (combat / UI / tests landed via parallel worktree agents on disjoint files).
+
+---
+
 ## Next up (post-MVP, not required for first playable)
+
+- **Phase B2** — `pierce` augment (bullets pass through one extra enemy) and mid-mission augment drops (rare power-up that grants a random augment to `augmentInventory`). Deferred from Phase 12 because both need new content beyond a numeric multiplier — the pierce effect needs Bullet collision changes, and drops need a new PowerUp kind plus pickup notification.
 
 - Real art: drop PNGs into [public/sprites/](public/sprites/) with the keys already referenced in code (e.g. `/sprites/player/ship.png`). [BootScene](src/game/phaser/scenes/BootScene.ts) currently synthesizes placeholders — switch its `preload` to load files when assets exist.
 - Real audio: drop files into [public/audio/](public/audio/) and rewrite [sfx.ts](src/game/audio/sfx.ts) to trigger HTMLAudioElement playback. Public folder structure is already documented in [public/README.md](public/README.md).
