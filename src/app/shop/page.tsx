@@ -13,7 +13,7 @@ export default function ShopPage() {
         href="/play"
         className="absolute right-full top-10 mr-3 rounded border border-hud-amber/40 px-3 py-1 text-sm text-hud-amber hover:bg-hud-amber/10"
       >
-        ← Back to galaxy
+        Back
       </Link>
       <header>
         <h1 className="font-display text-3xl tracking-widest">MARKET</h1>
