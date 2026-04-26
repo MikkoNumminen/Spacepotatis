@@ -55,3 +55,7 @@ Thumbs.db
 
 # dbmate
 /db/schema.sql
+
+# Claude Code worktrees and per-session settings (skills/ IS tracked)
+.claude/worktrees/
+.claude/settings.local.json
