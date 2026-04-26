@@ -5,7 +5,16 @@
 // Weapons
 // ---------------------------------------------------------------------------
 
-export type WeaponId = "rapid-fire" | "spread-shot" | "heavy-cannon";
+export type WeaponId =
+  | "rapid-fire"
+  | "spread-shot"
+  | "heavy-cannon"
+  | "spud-missile"
+  | "tater-net"
+  | "tail-gunner"
+  | "side-spitter"
+  | "plasma-whip"
+  | "hailstorm";
 
 // Where on the ship a weapon mounts. Mirrors the four loadout slots in
 // ShipConfig: a single front slot (the "main" gun the player aims with),
@@ -23,8 +32,8 @@ export interface WeaponDefinition {
   readonly spreadDegrees: number;
   readonly cost: number;
   readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
-  readonly slot: WeaponSlot;      // which slot this weapon can be equipped into
-  readonly energyCost: number;    // reactor energy drained per fire event (1 trigger = 1 cost, regardless of projectile count)
+  readonly slot: WeaponSlot;      // hardpoint this weapon mounts to (front/rear/sidekick)
+  readonly energyCost: number;    // reactor energy spent per FIRE event, not per bullet
 }
 
 // ---------------------------------------------------------------------------
