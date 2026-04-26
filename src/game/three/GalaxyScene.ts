@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import missionsData from "@/game/phaser/data/missions.json";
-import type { MissionDefinition } from "@/types/game";
+import { getSolarSystem } from "@/game/phaser/data/solarSystems";
+import type { MissionDefinition, SolarSystemId } from "@/types/game";
 import { Planet } from "./Planet";
 import { Starfield } from "./Starfield";
 import { CameraController } from "./CameraController";
@@ -9,6 +10,7 @@ import { Sun } from "./Sun";
 export interface GalaxyOptions {
   onPlanetHover?: (mission: MissionDefinition | null) => void;
   onPlanetSelect?: (mission: MissionDefinition) => void;
+  activeSystemId?: SolarSystemId;
 }
 
 const MISSIONS = missionsData.missions as readonly MissionDefinition[];
@@ -58,7 +60,13 @@ export class GalaxyScene {
     this.starfield = new Starfield();
     this.scene.add(this.starfield.object);
 
-    this.sun = new Sun();
+    const activeSystemId: SolarSystemId = opts.activeSystemId ?? "tutorial";
+    const activeSystem = getSolarSystem(activeSystemId);
+
+    this.sun = new Sun({
+      coreColor: activeSystem.sunColor,
+      sizeScale: activeSystem.sunSize
+    });
     this.scene.add(this.sun.object);
 
     const ambient = new THREE.AmbientLight(0x1a2440, 0.07);
@@ -67,6 +75,7 @@ export class GalaxyScene {
     this.scene.add(ambient, rimLight);
 
     for (const def of MISSIONS) {
+      if (def.solarSystemId !== activeSystemId) continue;
       const planet = new Planet(def);
       this.planets.push(planet);
       this.pickables.push(planet.getMesh());

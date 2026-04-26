@@ -1,0 +1,21 @@
+{
+  "$schema": "./schema/solar-systems.schema.json",
+  "systems": [
+    {
+      "id": "tutorial",
+      "name": "Sol Spudensis",
+      "description": "Where the potato journey begins.",
+      "sunColor": "#ffe9b8",
+      "sunSize": 1.0,
+      "ambientHue": "#1a1424"
+    },
+    {
+      "id": "tubernovae",
+      "name": "Tubernovae Cluster",
+      "description": "A cluster of dying stars and pirate-held outposts.",
+      "sunColor": "#ff7755",
+      "sunSize": 1.4,
+      "ambientHue": "#2a1014"
+    }
+  ]
+}

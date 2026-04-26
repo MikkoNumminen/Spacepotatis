@@ -64,6 +64,80 @@
           ]
         }
       ]
+    },
+    {
+      "missionId": "pirate-beacon",
+      "waves": [
+        {
+          "id": "pirate-beacon-wave-1",
+          "durationMs": 26000,
+          "spawns": [
+            { "enemy": "basic",  "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",    "xPercent": 0.35 },
+            { "enemy": "basic",  "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",    "xPercent": 0.65 },
+            { "enemy": "zigzag", "count": 3, "delayMs": 12000, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        },
+        {
+          "id": "pirate-beacon-wave-2",
+          "durationMs": 30000,
+          "spawns": [
+            { "enemy": "zigzag", "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.25 },
+            { "enemy": "zigzag", "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.75 },
+            { "enemy": "basic",  "count": 6, "delayMs": 9000,  "intervalMs": 1500, "formation": "line",    "xPercent": 0.5 }
+          ]
+        }
+      ]
+    },
+    {
+      "missionId": "ember-run",
+      "waves": [
+        {
+          "id": "ember-run-wave-1",
+          "durationMs": 28000,
+          "spawns": [
+            { "enemy": "kamikaze", "count": 5, "delayMs": 1500,  "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "zigzag",   "count": 4, "delayMs": 11000, "intervalMs": 1600, "formation": "scatter", "xPercent": 0.3 }
+          ]
+        },
+        {
+          "id": "ember-run-wave-2",
+          "durationMs": 30000,
+          "spawns": [
+            { "enemy": "zigzag",   "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.15 },
+            { "enemy": "zigzag",   "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.85 },
+            { "enemy": "kamikaze", "count": 6, "delayMs": 10000, "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        },
+        {
+          "id": "ember-run-wave-3",
+          "durationMs": 34000,
+          "spawns": [
+            { "enemy": "kamikaze", "count": 8, "delayMs": 0,     "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "zigzag",   "count": 5, "delayMs": 9000,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "kamikaze", "count": 6, "delayMs": 19000, "intervalMs": 1300, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        }
+      ]
+    },
+    {
+      "missionId": "burnt-spud",
+      "waves": [
+        {
+          "id": "burnt-spud-intro",
+          "durationMs": 18000,
+          "spawns": [
+            { "enemy": "zigzag",   "count": 4, "delayMs": 1500,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "kamikaze", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 }
+          ]
+        },
+        {
+          "id": "burnt-spud-fight",
+          "durationMs": 110000,
+          "spawns": [
+            { "enemy": "boss-1", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
+          ]
+        }
+      ]
     }
   ]
 }

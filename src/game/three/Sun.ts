@@ -1,9 +1,12 @@
 import * as THREE from "three";
 
-const SUN_RADIUS = 1.6;
-const CORE_COLOR = 0xfff1c4;
-const HALO_COLOR = 0xffb766;
-const LIGHT_COLOR = 0xfff0c8;
+const BASE_SUN_RADIUS = 1.6;
+const DEFAULT_CORE_COLOR = "#fff1c4";
+
+export interface SunOptions {
+  readonly coreColor?: string;     // "#RRGGBB"; tints all three sun layers
+  readonly sizeScale?: number;     // multiplier on the base radius (default 1.0)
+}
 
 export class Sun {
   readonly object: THREE.Group;
@@ -17,14 +20,24 @@ export class Sun {
   private readonly haloTexture: THREE.CanvasTexture;
   private readonly flareTexture: THREE.CanvasTexture;
   private readonly geometry: THREE.SphereGeometry;
+  private readonly radius: number;
   private t = 0;
 
-  constructor() {
+  constructor(opts: SunOptions = {}) {
     this.object = new THREE.Group();
 
-    this.geometry = new THREE.SphereGeometry(SUN_RADIUS, 48, 32);
+    const sizeScale = opts.sizeScale ?? 1;
+    this.radius = BASE_SUN_RADIUS * sizeScale;
+    const coreHex = opts.coreColor ?? DEFAULT_CORE_COLOR;
+    const coreColor = new THREE.Color(coreHex);
+    // Halo is the same hue, slightly darker; light is a pale, warmer wash so
+    // planet shading still has a believable key light regardless of star tint.
+    const haloColor = coreColor.clone().multiplyScalar(0.85);
+    const lightColor = coreColor.clone().lerp(new THREE.Color(0xffffff), 0.35);
+
+    this.geometry = new THREE.SphereGeometry(this.radius, 48, 32);
     this.coreMaterial = new THREE.MeshBasicMaterial({
-      color: CORE_COLOR,
+      color: coreColor,
       toneMapped: false
     });
     this.core = new THREE.Mesh(this.geometry, this.coreMaterial);
@@ -38,13 +51,13 @@ export class Sun {
     ]);
     this.haloMaterial = new THREE.SpriteMaterial({
       map: this.haloTexture,
-      color: HALO_COLOR,
+      color: haloColor,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
     this.halo = new THREE.Sprite(this.haloMaterial);
-    this.halo.scale.set(SUN_RADIUS * 7, SUN_RADIUS * 7, 1);
+    this.halo.scale.set(this.radius * 7, this.radius * 7, 1);
 
     this.flareTexture = createRadialTexture([
       [0.0, "rgba(255, 255, 240, 0.95)"],
@@ -59,9 +72,9 @@ export class Sun {
       blending: THREE.AdditiveBlending
     });
     this.flare = new THREE.Sprite(this.flareMaterial);
-    this.flare.scale.set(SUN_RADIUS * 18, SUN_RADIUS * 18, 1);
+    this.flare.scale.set(this.radius * 18, this.radius * 18, 1);
 
-    this.light = new THREE.PointLight(LIGHT_COLOR, 2.4, 0, 0);
+    this.light = new THREE.PointLight(lightColor, 2.4, 0, 0);
     this.light.position.set(0, 0, 0);
 
     this.object.add(this.flare);
@@ -73,10 +86,10 @@ export class Sun {
   update(dt: number): void {
     this.t += dt;
     const pulse = 1 + Math.sin(this.t * 1.4) * 0.04;
-    const haloS = SUN_RADIUS * 7 * pulse;
+    const haloS = this.radius * 7 * pulse;
     this.halo.scale.set(haloS, haloS, 1);
     const flarePulse = 1 + Math.sin(this.t * 0.8 + 1.3) * 0.06;
-    const flareS = SUN_RADIUS * 18 * flarePulse;
+    const flareS = this.radius * 18 * flarePulse;
     this.flare.scale.set(flareS, flareS, 1);
     this.core.rotation.y += dt * 0.05;
   }
