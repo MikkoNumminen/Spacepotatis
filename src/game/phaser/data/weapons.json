@@ -27,13 +27,13 @@
     },
     {
       "id": "heavy-cannon",
-      "name": "Plasma Lance",
-      "description": "Slow-firing, heavy shots that punch through light armor.",
-      "damage": 22,
+      "name": "Plasma Triad",
+      "description": "Three heavy plasma bolts in a tight cone. Brutal up close.",
+      "damage": 14,
       "fireRateMs": 480,
-      "bulletSpeed": 560,
-      "projectileCount": 1,
-      "spreadDegrees": 0,
+      "bulletSpeed": 580,
+      "projectileCount": 3,
+      "spreadDegrees": 12,
       "cost": 900,
       "tint": "#ff8844"
     }

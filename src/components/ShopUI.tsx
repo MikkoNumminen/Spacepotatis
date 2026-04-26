@@ -12,6 +12,7 @@ import {
 } from "@/game/state/ShipConfig";
 import { getAllWeapons } from "@/game/phaser/data/weapons";
 import { useGameState } from "@/game/state/useGameState";
+import { WeaponStats } from "@/components/LoadoutMenu";
 
 export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
@@ -72,13 +73,9 @@ export default function ShopUI() {
                 <li key={weapon.id} className="rounded border border-space-border p-3">
                   <div className="flex items-baseline justify-between">
                     <span className="font-display tracking-wider">{weapon.name}</span>
-                    <span className="text-[11px] text-hud-amber">
-                      dmg {weapon.damage}
-                      {weapon.projectileCount > 1 ? ` × ${weapon.projectileCount}` : ""} ·{" "}
-                      {Math.round(1000 / weapon.fireRateMs)} rps
-                    </span>
                   </div>
-                  <p className="mt-1 text-[11px] text-hud-green/70">{weapon.description}</p>
+                  <WeaponStats weapon={weapon} />
+                  <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
                   <div className="mt-2 flex items-center justify-end gap-2">
                     <button
                       type="button"

@@ -17,3 +17,12 @@ export function getWeapon(id: WeaponId): WeaponDefinition {
 export function getAllWeapons(): readonly WeaponDefinition[] {
   return weaponsData.weapons as readonly WeaponDefinition[];
 }
+
+// Pure stat derivations — kept here so UI never recomputes them inline.
+export function weaponDps(w: WeaponDefinition): number {
+  return Math.round(w.damage * w.projectileCount * (1000 / w.fireRateMs));
+}
+
+export function weaponRps(w: WeaponDefinition): number {
+  return Math.round((1000 / w.fireRateMs) * 10) / 10;
+}

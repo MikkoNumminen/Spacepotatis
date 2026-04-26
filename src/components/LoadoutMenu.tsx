@@ -2,8 +2,9 @@
 
 import { getSellPrice, selectWeapon, sellWeapon } from "@/game/state/GameState";
 import { isWeaponUnlocked } from "@/game/state/ShipConfig";
-import { getAllWeapons } from "@/game/phaser/data/weapons";
+import { getAllWeapons, weaponDps, weaponRps } from "@/game/phaser/data/weapons";
 import { useGameState } from "@/game/state/useGameState";
+import type { WeaponDefinition } from "@/types/game";
 
 interface Props {
   // "market" enables Sell buttons on owned, non-equipped, non-starter weapons.
@@ -42,13 +43,9 @@ export default function LoadoutMenu({ mode }: Props) {
                   <WeaponDot tint={weapon.tint} />
                   <span className="font-display tracking-wider">{weapon.name}</span>
                 </div>
-                <span className="text-[11px] text-hud-amber">
-                  dmg {weapon.damage}
-                  {weapon.projectileCount > 1 ? ` × ${weapon.projectileCount}` : ""} ·{" "}
-                  {Math.round(1000 / weapon.fireRateMs)} rps
-                </span>
               </div>
-              <p className="mt-1 text-[11px] text-hud-green/70">{weapon.description}</p>
+              <WeaponStats weapon={weapon} />
+              <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
               <div className="mt-2 flex items-center justify-end gap-2">
                 {sellable && (
                   <button
@@ -83,5 +80,35 @@ function WeaponDot({ tint }: { tint: string }) {
       className="inline-block h-2.5 w-2.5 rounded-full"
       style={{ backgroundColor: tint, boxShadow: `0 0 6px ${tint}` }}
     />
+  );
+}
+
+// Two-column "spec sheet". Designed to make the per-bullet vs total picture
+// obvious so players see WHY one weapon outclasses another.
+export function WeaponStats({ weapon }: { weapon: WeaponDefinition }) {
+  const isMulti = weapon.projectileCount > 1;
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px]">
+      <Stat
+        label="damage"
+        value={`${weapon.damage}${isMulti ? ` × ${weapon.projectileCount}` : ""}`}
+      />
+      <Stat label="dps" value={String(weaponDps(weapon))} />
+      <Stat label="fire rate" value={`${weaponRps(weapon)} rps`} />
+      {isMulti ? (
+        <Stat label="spread" value={`${weapon.spreadDegrees}°`} />
+      ) : (
+        <Stat label="bullet speed" value={String(weapon.bulletSpeed)} />
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-hud-green/60">{label}</span>
+      <span className="text-hud-amber">{value}</span>
+    </div>
   );
 }
