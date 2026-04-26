@@ -6,13 +6,17 @@ import { Pool } from "pg";
  * Keep in lockstep with db/migrations/*.sql. When adding a migration, update
  * this type in the same commit.
  *
+ * Tables are namespaced under the `spacepotatis` Postgres schema so this
+ * project can share a Vercel/Neon database with other services without
+ * stepping on table names.
+ *
  * `Generated<T>` marks columns that are `NOT NULL DEFAULT ...` in SQL — they
  * are required on SELECT but optional on INSERT.
  */
 export interface Database {
-  players: PlayersTable;
-  save_games: SaveGamesTable;
-  leaderboard: LeaderboardTable;
+  "spacepotatis.players": PlayersTable;
+  "spacepotatis.save_games": SaveGamesTable;
+  "spacepotatis.leaderboard": LeaderboardTable;
 }
 
 export interface PlayersTable {

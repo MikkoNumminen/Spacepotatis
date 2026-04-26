@@ -37,7 +37,7 @@ export async function GET(): Promise<Response> {
     const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
 
     const row = await db
-      .selectFrom("save_games")
+      .selectFrom("spacepotatis.save_games")
       .selectAll()
       .where("player_id", "=", playerId)
       .where("slot", "=", 1)
@@ -84,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
         : {};
 
     await db
-      .insertInto("save_games")
+      .insertInto("spacepotatis.save_games")
       .values({
         player_id: playerId,
         slot: 1,

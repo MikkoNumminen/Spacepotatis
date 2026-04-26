@@ -24,18 +24,18 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const db = getDb();
     const rows = await db
-      .selectFrom("leaderboard")
-      .innerJoin("players", "players.id", "leaderboard.player_id")
+      .selectFrom("spacepotatis.leaderboard as lb")
+      .innerJoin("spacepotatis.players as p", "p.id", "lb.player_id")
       .select([
-        "players.name as player_name",
-        "players.email as player_email",
-        "leaderboard.score",
-        "leaderboard.time_seconds",
-        "leaderboard.created_at"
+        "p.name as player_name",
+        "p.email as player_email",
+        "lb.score",
+        "lb.time_seconds",
+        "lb.created_at"
       ])
-      .where("leaderboard.mission_id", "=", missionId)
-      .orderBy("leaderboard.score", "desc")
-      .orderBy("leaderboard.created_at", "desc")
+      .where("lb.mission_id", "=", missionId)
+      .orderBy("lb.score", "desc")
+      .orderBy("lb.created_at", "desc")
       .limit(limit)
       .execute();
 
@@ -83,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
     const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
 
     await db
-      .insertInto("leaderboard")
+      .insertInto("spacepotatis.leaderboard")
       .values({
         player_id: playerId,
         mission_id: missionId,
