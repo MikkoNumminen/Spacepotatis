@@ -78,6 +78,8 @@ describe("weapons.json", () => {
       expect(w.spreadDegrees).toBeLessThan(180);
       expect(w.cost).toBeGreaterThanOrEqual(0);
       expect(w.name.length).toBeGreaterThan(0);
+      expect(["front", "rear", "sidekick"]).toContain(w.slot);
+      expect(w.energyCost).toBeGreaterThanOrEqual(0);
     }
   );
 
