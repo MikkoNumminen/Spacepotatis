@@ -23,8 +23,6 @@ export class WeaponSystem {
     if (!canFire(now, this.lastFireMs, def.fireRateMs * fireRateMul)) return false;
     this.lastFireMs = now;
 
-    // TODO(engine): homing projectiles not yet wired. Spud Missile currently
-    // fires as a straight shot; revisit when Bullet gains a steering update.
     const vectors = slotVectors(
       def.slot,
       def.projectileCount,
@@ -32,8 +30,9 @@ export class WeaponSystem {
       def.bulletSpeed,
       friendly
     );
+    const homing = def.homing ? { turnRateRadPerSec: def.turnRateRadPerSec ?? 3.5 } : null;
     for (const v of vectors) {
-      this.pool.spawn(originX, originY, v.vx, v.vy, def.damage, friendly);
+      this.pool.spawn(originX, originY, v.vx, v.vy, def.damage, friendly, homing);
     }
     return true;
   }

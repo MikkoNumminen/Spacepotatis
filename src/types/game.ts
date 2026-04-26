@@ -34,6 +34,8 @@ export interface WeaponDefinition {
   readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
   readonly slot: WeaponSlot;      // hardpoint this weapon mounts to (front/rear/sidekick)
   readonly energyCost: number;    // reactor energy spent per FIRE event, not per bullet
+  readonly homing?: boolean;      // if true, projectiles steer toward the nearest enemy
+  readonly turnRateRadPerSec?: number; // homing turn rate; defaults to 3.5 if homing without explicit value
 }
 
 // ---------------------------------------------------------------------------
