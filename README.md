@@ -100,11 +100,11 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 
 | Skill                | What it does                                                                                       |
 | -------------------- | -------------------------------------------------------------------------------------------------- |
-| `/new-mission`       | Adds a new combat mission and wires up everything around it.                                       |
+| `/new-mission`       | Adds a new combat mission, picks the solar system it belongs to, and wires up waves + planet binding.|
 | `/new-enemy`         | Adds a new enemy entry, generates a placeholder sprite, and (optionally) drops it into a test wave.|
-| `/new-weapon`        | Adds a new ship weapon with the right unlock wiring (starter / shop-bought / mission reward).      |
+| `/new-weapon`        | Adds a new ship weapon (front / rear / sidekick slot, energy cost, optional homing) with the right unlock wiring. |
 | `/new-perk`          | Adds a new mid-mission buff (a "perk") with its icon, HUD chip, and pickup logic.                  |
-| `/new-solar-system`  | Adds a new solar system and migrates the existing single galaxy into the multi-system data shape.  |
+| `/new-solar-system`  | Adds a new selectable star system to the galaxy overworld (sun color/size, unlock condition, etc).  |
 | `/balance-review`    | Compares your uncommitted JSON tweaks against the previous version and prints a balance report.    |
 | `/content-audit`     | Walks every cross-file invariant the unit tests don't cover. Run it before opening a pull request. |
 
@@ -124,6 +124,8 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 | **Total**            |               |             **185 uses** | **~1.77M tokens** |
 
 The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
+
+The savings get bigger over time: every time the project's data shape evolves (a new field on weapons, a new mission attribute, etc.), the skill instructions are updated once, and every future agent gets the new pattern for free instead of having to discover it by grepping. Without skills, an agent asked to "add a new weapon" today would need to read at least seven files (`weapons.json`, `types/game.ts`, `ShipConfig.ts`, two test files, plus the shop and loadout UI components) to figure out the required fields. With the skill, it reads one ~80-line recipe.
 
 ## Where to look next
 
