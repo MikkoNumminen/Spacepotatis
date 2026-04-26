@@ -148,26 +148,9 @@ export interface MissionDefinition {
 // ---------------------------------------------------------------------------
 // Ship / player state
 // ---------------------------------------------------------------------------
-
-export interface WeaponSlots {
-  front: WeaponId | null;
-  rear: WeaponId | null;
-  sidekickLeft: WeaponId | null;
-  sidekickRight: WeaponId | null;
-}
-
-export interface ReactorConfig {
-  capacityLevel: number;   // 0..MAX_LEVEL — bumps reactor capacity
-  rechargeLevel: number;   // 0..MAX_LEVEL — bumps energy regen per second
-}
-
-export interface ShipConfig {
-  slots: WeaponSlots;
-  shieldLevel: number;     // 0..max, affects shield capacity + regen
-  armorLevel: number;      // 0..max, affects hit points
-  reactor: ReactorConfig;
-  powerUps: readonly string[];
-}
+// ShipConfig, WeaponSlots, and ReactorConfig live in src/game/state/ShipConfig.ts.
+// They are gameplay state, not shared cross-engine schema, so they stay alongside
+// the helpers that mutate them.
 
 export interface PlayerProgress {
   credits: number;
