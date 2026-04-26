@@ -1,5 +1,12 @@
 import missionsData from "@/game/phaser/data/missions.json";
-import type { MissionDefinition, MissionId, WeaponDefinition, WeaponId } from "@/types/game";
+import { getAllSolarSystems } from "@/game/phaser/data/solarSystems";
+import type {
+  MissionDefinition,
+  MissionId,
+  SolarSystemId,
+  WeaponDefinition,
+  WeaponId
+} from "@/types/game";
 import {
   DEFAULT_SHIP,
   MAX_LEVEL,
@@ -29,6 +36,8 @@ export interface GameStateShape {
   readonly playedTimeSeconds: number;
   readonly ship: ShipConfig;
   readonly saveSlot: number;
+  readonly currentSolarSystemId: SolarSystemId;
+  readonly unlockedSolarSystems: readonly SolarSystemId[];
 }
 
 const MISSIONS: readonly MissionDefinition[] = missionsData.missions as readonly MissionDefinition[];
@@ -37,13 +46,22 @@ const INITIAL_UNLOCKED: readonly MissionId[] = MISSIONS.filter(
   (m) => m.requires.length === 0
 ).map((m) => m.id);
 
+// Completing one of these missions unlocks the corresponding system the next
+// time GameState commits. Keep map small and flat — gating is rare and cheap
+// to read on every completeMission call.
+const SYSTEM_UNLOCK_GATES: ReadonlyMap<MissionId, SolarSystemId> = new Map([
+  ["boss-1", "tubernovae"]
+]);
+
 const INITIAL_STATE: GameStateShape = {
   credits: 0,
   completedMissions: [],
   unlockedPlanets: INITIAL_UNLOCKED,
   playedTimeSeconds: 0,
   ship: DEFAULT_SHIP,
-  saveSlot: 1
+  saveSlot: 1,
+  currentSolarSystemId: "tutorial",
+  unlockedSolarSystems: ["tutorial"]
 };
 
 let state: GameStateShape = INITIAL_STATE;
@@ -92,11 +110,28 @@ export function completeMission(id: MissionId): void {
     }
   }
 
+  const gatedSystem = SYSTEM_UNLOCK_GATES.get(id);
+  const nextSystems =
+    gatedSystem && !state.unlockedSolarSystems.includes(gatedSystem)
+      ? [...state.unlockedSolarSystems, gatedSystem]
+      : state.unlockedSolarSystems;
+
   commit({
     ...state,
     completedMissions: completed,
-    unlockedPlanets: Array.from(nextUnlocks)
+    unlockedPlanets: Array.from(nextUnlocks),
+    unlockedSolarSystems: nextSystems
   });
+}
+
+// Switch the active solar system shown in the galaxy view. Refuses to switch
+// to a system the player has not unlocked yet — the warp UI never offers
+// locked systems, so this is a defensive guard against bad callers.
+export function setSolarSystem(id: SolarSystemId): boolean {
+  if (!state.unlockedSolarSystems.includes(id)) return false;
+  if (state.currentSolarSystemId === id) return true;
+  commit({ ...state, currentSolarSystemId: id });
+  return true;
 }
 
 export function selectWeapon(id: WeaponId): boolean {
@@ -197,6 +232,8 @@ export interface StateSnapshot {
   playedTimeSeconds: number;
   ship: ShipConfig;
   saveSlot: number;
+  currentSolarSystemId: SolarSystemId;
+  unlockedSolarSystems: SolarSystemId[];
 }
 
 export function toSnapshot(): StateSnapshot {
@@ -206,18 +243,34 @@ export function toSnapshot(): StateSnapshot {
     unlockedPlanets: [...state.unlockedPlanets],
     playedTimeSeconds: state.playedTimeSeconds,
     ship: { ...state.ship, unlockedWeapons: [...state.ship.unlockedWeapons] },
-    saveSlot: state.saveSlot
+    saveSlot: state.saveSlot,
+    currentSolarSystemId: state.currentSolarSystemId,
+    unlockedSolarSystems: [...state.unlockedSolarSystems]
   };
 }
 
 export function hydrate(snapshot: Partial<StateSnapshot>): void {
+  const knownSystemIds = new Set(getAllSolarSystems().map((s) => s.id));
+  const unlockedSystems =
+    snapshot.unlockedSolarSystems && snapshot.unlockedSolarSystems.length > 0
+      ? snapshot.unlockedSolarSystems.filter((id) => knownSystemIds.has(id))
+      : [...INITIAL_STATE.unlockedSolarSystems];
+  const fallbackSystem = unlockedSystems[0] ?? INITIAL_STATE.currentSolarSystemId;
+  const requestedCurrent = snapshot.currentSolarSystemId;
+  const currentSystem =
+    requestedCurrent && unlockedSystems.includes(requestedCurrent)
+      ? requestedCurrent
+      : fallbackSystem;
+
   commit({
     credits: snapshot.credits ?? INITIAL_STATE.credits,
     completedMissions: snapshot.completedMissions ?? [...INITIAL_STATE.completedMissions],
     unlockedPlanets: snapshot.unlockedPlanets ?? [...INITIAL_STATE.unlockedPlanets],
     playedTimeSeconds: snapshot.playedTimeSeconds ?? INITIAL_STATE.playedTimeSeconds,
     ship: snapshot.ship ?? { ...INITIAL_STATE.ship },
-    saveSlot: snapshot.saveSlot ?? INITIAL_STATE.saveSlot
+    saveSlot: snapshot.saveSlot ?? INITIAL_STATE.saveSlot,
+    currentSolarSystemId: currentSystem,
+    unlockedSolarSystems: unlockedSystems
   });
 }
 
