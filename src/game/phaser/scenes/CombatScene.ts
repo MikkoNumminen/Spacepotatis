@@ -54,6 +54,7 @@ export class CombatScene extends Phaser.Scene {
   private shieldBar!: Phaser.GameObjects.Graphics;
   private armorBar!: Phaser.GameObjects.Graphics;
   private energyBar!: Phaser.GameObjects.Graphics;
+  private energyText!: Phaser.GameObjects.Text;
   private perkChipsLayer!: Phaser.GameObjects.Container;
 
   // Mission-only perk state. Reset on every CombatScene boot.
@@ -176,6 +177,11 @@ export class CombatScene extends Phaser.Scene {
     this.shieldBar = this.add.graphics();
     this.armorBar = this.add.graphics();
     this.energyBar = this.add.graphics();
+    this.energyText = this.add.text(VIRTUAL_WIDTH - 220, 44, "", {
+      fontFamily: "monospace",
+      fontSize: "10px",
+      color: "#ffcc33"
+    });
     this.perkChipsLayer = this.add.container(VIRTUAL_WIDTH - 188, 62);
   }
 
@@ -210,18 +216,29 @@ export class CombatScene extends Phaser.Scene {
       barH
     );
 
-    // Reactor energy bar — sits below shield/armor in matching style. Amber
-    // so it visually pairs with the credits readout (both are resources).
+    // Reactor energy bar. Color shifts amber -> orange -> red as energy
+    // drains, and the bar pulses below 25% so the player notices BEFORE
+    // they spam-fire and find a slot mute on cooldown.
+    const energyRatio = this.player.energy / this.player.maxEnergy;
+    const energyColor =
+      energyRatio > 0.5 ? 0xffcc33 : energyRatio > 0.25 ? 0xff9933 : 0xff4d6d;
+    const lowEnergy = energyRatio < 0.25;
+    const pulse = lowEnergy ? 0.55 + 0.45 * Math.sin(this.time.now / 120) : 1;
+
     this.energyBar.clear();
     this.energyBar.fillStyle(0x1f2340, 1);
     this.energyBar.fillRect(barX, barY + 28, barW, barH);
-    this.energyBar.fillStyle(0xffcc33, 1);
-    this.energyBar.fillRect(
-      barX,
-      barY + 28,
-      (this.player.energy / this.player.maxEnergy) * barW,
-      barH
+    this.energyBar.fillStyle(energyColor, pulse);
+    this.energyBar.fillRect(barX, barY + 28, energyRatio * barW, barH);
+    // Thin outline so the bar reads as a discrete UI element rather than a
+    // floating colored rectangle.
+    this.energyBar.lineStyle(1, 0x444a6a, 0.8);
+    this.energyBar.strokeRect(barX, barY + 28, barW, barH);
+
+    this.energyText.setText(
+      `⚡ ${Math.round(this.player.energy)} / ${this.player.maxEnergy}`
     );
+    this.energyText.setColor(lowEnergy ? "#ff8888" : "#ffcc33");
   }
 
   private handleEnemyKilled(enemy: Enemy): void {
