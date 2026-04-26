@@ -11,7 +11,7 @@ export default function Home() {
   return (
     <>
       <LandingBackground />
-      <main className="relative mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-10 px-6 text-center">
+      <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-10 px-6 text-center">
         <div className="rounded-2xl bg-black/35 px-8 py-6 backdrop-blur-sm">
           <h1 className="font-display text-5xl tracking-widest text-hud-green drop-shadow-[0_0_20px_rgba(94,255,167,0.45)]">
             SPACEPOTATIS
