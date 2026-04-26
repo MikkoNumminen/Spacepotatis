@@ -50,7 +50,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setTint(0xffffff);
     this.scene.time.delayedCall(40, () => this.clearTint());
     if (this.hp <= 0) {
-      this.scene.events.emit("enemyKilled", this);
+      // Death handling lives on CombatScene via the collision callback's
+      // `killed` flag (see wireCollisions onEnemyHit) — no event needed.
       this.disableBody(true, true);
       return true;
     }

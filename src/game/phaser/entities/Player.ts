@@ -16,6 +16,7 @@ import {
 } from "@/game/state/ShipConfig";
 import { getWeapon } from "../../data/weapons";
 import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../../data/augments";
+import { emit } from "../events";
 import { sfx } from "@/game/audio/sfx";
 
 export const PLAYER_TEXTURE = "player-ship";
@@ -161,7 +162,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(80, () => this.clearTint());
 
     if (this.armor <= 0) {
-      this.scene.events.emit("playerDied");
+      emit(this.scene, { type: "playerDied" });
     }
   }
 

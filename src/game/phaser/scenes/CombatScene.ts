@@ -6,7 +6,8 @@ import { EnemyPool } from "../entities/Enemy";
 import type { Enemy } from "../entities/Enemy";
 import { Player } from "../entities/Player";
 import * as GameState from "@/game/state/GameState";
-import { PAUSE_SCENE_KEY } from "./PauseScene";
+import { on } from "../events";
+import { setSummary } from "../registry";
 import { sfx } from "@/game/audio/sfx";
 import {
   PowerUpPool,
@@ -122,12 +123,12 @@ export class CombatScene extends Phaser.Scene {
       this.bootData.missionId
     );
 
-    this.events.on("allWavesComplete", () => {
+    on(this, "allWavesComplete", () => {
       this.allWavesDone = true;
     });
 
-    this.events.on("playerDied", () => this.finish(false));
-    this.events.on("abandon", () => this.finish(false));
+    on(this, "playerDied", () => this.finish(false));
+    on(this, "abandon", () => this.finish(false));
 
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-ESC", () => this.togglePause());
@@ -462,7 +463,7 @@ export class CombatScene extends Phaser.Scene {
   private togglePause(): void {
     if (this.finished) return;
     if (this.scene.isPaused()) return; // PauseScene owns the resume key
-    this.scene.launch(PAUSE_SCENE_KEY, { combatKey: SCENE_KEYS.Combat });
+    this.scene.launch(SCENE_KEYS.Pause, { combatKey: SCENE_KEYS.Combat });
     this.scene.pause();
   }
 
@@ -478,7 +479,7 @@ export class CombatScene extends Phaser.Scene {
       timeSeconds,
       victory
     };
-    this.registry.set("summary", summary);
+    setSummary(this.game, summary);
 
     GameState.addPlayedTime(timeSeconds);
     if (victory) {

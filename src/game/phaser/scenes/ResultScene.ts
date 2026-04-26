@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
-import { SCENE_KEYS, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, type BootData, type CombatSummary } from "../config";
+import { SCENE_KEYS, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, type BootData } from "../config";
+import { getSummary } from "../registry";
 
 export class ResultScene extends Phaser.Scene {
   private bootData!: BootData;
@@ -13,7 +14,7 @@ export class ResultScene extends Phaser.Scene {
   }
 
   create(): void {
-    const summary = this.registry.get("summary") as CombatSummary | undefined;
+    const summary = getSummary(this.game);
 
     this.add.rectangle(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0x05060f, 0.9).setOrigin(0);
 

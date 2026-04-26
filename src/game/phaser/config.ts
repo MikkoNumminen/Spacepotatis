@@ -1,4 +1,5 @@
 import type { MissionId } from "@/types/game";
+import { getSummary, setBootData } from "./registry";
 
 export const VIRTUAL_WIDTH = 960;
 export const VIRTUAL_HEIGHT = 720;
@@ -7,7 +8,8 @@ export const SCENE_KEYS = {
   Boot: "BootScene",
   Combat: "CombatScene",
   Boss: "BossScene",
-  Result: "ResultScene"
+  Result: "ResultScene",
+  Pause: "PauseScene"
 } as const;
 
 export type SceneKey = (typeof SCENE_KEYS)[keyof typeof SCENE_KEYS];
@@ -58,7 +60,7 @@ export async function createPhaserGame(
     missionId: opts.missionId,
     onComplete: () => {
       // Summary populated by ResultScene before calling onComplete via registry.
-      const summary = game.registry.get("summary") as CombatSummary | undefined;
+      const summary = getSummary(game);
       opts.onComplete(
         summary ?? {
           missionId: opts.missionId,
@@ -70,7 +72,7 @@ export async function createPhaserGame(
       );
     }
   };
-  game.registry.set("bootData", data);
+  setBootData(game, data);
   game.scene.start(SCENE_KEYS.Boot, data);
 
   return game;

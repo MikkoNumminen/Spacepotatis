@@ -3,6 +3,7 @@ import type { MissionId, WaveDefinition, WaveSpawn } from "@/types/game";
 import type { BulletPool } from "../entities/Bullet";
 import type { EnemyPool } from "../entities/Enemy";
 import { VIRTUAL_WIDTH } from "../config";
+import { emit } from "../events";
 import { getWavesForMission } from "../../data/waves";
 
 export { getWavesForMission };
@@ -41,18 +42,19 @@ export class WaveManager {
     this.waveIndex += 1;
     const wave = this.waves[this.waveIndex];
     if (!wave) {
-      this.scene.events.emit("allWavesComplete");
+      emit(this.scene, { type: "allWavesComplete" });
       return;
     }
 
     for (const spawn of wave.spawns) this.schedule(spawn);
 
     this.scene.time.delayedCall(wave.durationMs, () => {
-      this.scene.events.emit("waveComplete", wave.id);
+      // Per-wave completion has no live consumer; only the terminal
+      // allWavesComplete is observed by CombatScene.
       if (this.hasMoreWaves()) {
         this.advance();
       } else {
-        this.scene.events.emit("allWavesComplete");
+        emit(this.scene, { type: "allWavesComplete" });
       }
     });
   }
