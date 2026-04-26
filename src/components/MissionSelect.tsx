@@ -15,15 +15,16 @@ export default function MissionSelect({ mission, onClose, onLaunch }: Props) {
   const completed = useGameState((s) => (mission ? s.completedMissions.includes(mission.id) : false));
   const unlocked = useGameState((s) => (mission ? s.unlockedPlanets.includes(mission.id) : false));
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const missionId = mission?.id;
 
   useEffect(() => {
-    if (!mission || !panelRef.current) return;
+    if (!missionId || !panelRef.current) return;
     gsap.fromTo(
       panelRef.current,
       { y: -12, opacity: 0 },
       { y: 0, opacity: 1, duration: 0.24, ease: "power3.out" }
     );
-  }, [mission?.id]);
+  }, [missionId]);
 
   if (!mission) return null;
 

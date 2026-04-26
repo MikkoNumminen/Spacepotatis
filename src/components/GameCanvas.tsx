@@ -55,13 +55,18 @@ export default function GameCanvas() {
 
   // On entering the galaxy view, surface the next playable mission so the
   // launch panel is visible immediately. User can dismiss with × — it stays
-  // closed until the next galaxy entry.
+  // closed until the next galaxy entry. The previous-mode ref ensures we
+  // only run on combat→galaxy (or first-mount) transitions, not every time
+  // unlockedPlanets / completedMissions change while already in galaxy.
+  const prevModeRef = useRef<Mode | null>(null);
   useEffect(() => {
+    const prev = prevModeRef.current;
+    prevModeRef.current = mode;
     if (mode !== "galaxy") return;
+    if (prev === "galaxy") return;
     const next = pickNextMission(unlockedPlanets, completedMissions, currentSolarSystemId);
     if (next) setSelected(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, currentSolarSystemId]);
+  }, [mode, currentSolarSystemId, unlockedPlanets, completedMissions]);
 
   // Hydrate from cloud save once on sign-in. No-op when unauthenticated.
   useEffect(() => {
@@ -126,7 +131,6 @@ export default function GameCanvas() {
       disposed = true;
       game?.destroy(true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, launching]);
 
   const fadeOverlay = useCallback(async (toOpacity: number) => {
