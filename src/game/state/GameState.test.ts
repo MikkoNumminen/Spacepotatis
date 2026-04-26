@@ -7,6 +7,7 @@ import {
   buyReactorRechargeUpgrade,
   buyShieldUpgrade,
   buyWeapon,
+  buyWeaponUpgrade,
   completeMission,
   equipWeapon,
   getState,
@@ -409,5 +410,96 @@ describe("snapshot / hydrate", () => {
     unsub();
     addCredits(30);
     expect(count).toBe(2);
+  });
+});
+
+describe("buyWeaponUpgrade", () => {
+  it("refuses to upgrade a weapon the player does not own", () => {
+    addCredits(10000);
+    expect(buyWeaponUpgrade("heavy-cannon")).toBe(false);
+    expect(getState().credits).toBe(10000);
+  });
+
+  it("upgrades the starter weapon from level 1 to 2 for 200 credits", () => {
+    addCredits(500);
+    expect(buyWeaponUpgrade("rapid-fire")).toBe(true);
+    const s = getState();
+    expect(s.credits).toBe(300);
+    expect(s.ship.weaponLevels["rapid-fire"]).toBe(2);
+  });
+
+  it("doubles cost per current level (200, 400, 800, 1600)", () => {
+    addCredits(10000);
+    buyWeaponUpgrade("rapid-fire"); // 1 -> 2  cost 200
+    buyWeaponUpgrade("rapid-fire"); // 2 -> 3  cost 400
+    buyWeaponUpgrade("rapid-fire"); // 3 -> 4  cost 800
+    buyWeaponUpgrade("rapid-fire"); // 4 -> 5  cost 1600
+    const s = getState();
+    expect(s.ship.weaponLevels["rapid-fire"]).toBe(5);
+    expect(s.credits).toBe(10000 - 200 - 400 - 800 - 1600);
+  });
+
+  it("refuses past MAX_LEVEL", () => {
+    addCredits(10000);
+    for (let i = 0; i < 4; i++) buyWeaponUpgrade("rapid-fire");
+    const before = getState().credits;
+    expect(buyWeaponUpgrade("rapid-fire")).toBe(false);
+    expect(getState().credits).toBe(before);
+  });
+
+  it("refuses when the player can't afford the next upgrade", () => {
+    addCredits(199);
+    expect(buyWeaponUpgrade("rapid-fire")).toBe(false);
+    expect(getState().credits).toBe(199);
+    expect(getState().ship.weaponLevels["rapid-fire"]).toBeUndefined();
+  });
+});
+
+describe("hydrate weapon levels", () => {
+  it("defaults weaponLevels to {} when snapshot omits it (legacy save)", () => {
+    hydrate({
+      ship: {
+        slots: { front: "rapid-fire", rear: null, sidekickLeft: null, sidekickRight: null },
+        unlockedWeapons: ["rapid-fire"],
+        // No weaponLevels here — simulates a pre-Phase-A save
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      } as unknown as ReturnType<typeof toSnapshot>["ship"]
+    });
+    expect(getState().ship.weaponLevels).toEqual({});
+  });
+
+  it("clamps levels to [1, MAX_LEVEL] and drops levels for un-owned weapons", () => {
+    hydrate({
+      ship: {
+        slots: { front: "rapid-fire", rear: null, sidekickLeft: null, sidekickRight: null },
+        unlockedWeapons: ["rapid-fire", "spread-shot"],
+        weaponLevels: {
+          "rapid-fire": 99,           // clamp down to 5
+          "spread-shot": 0,            // clamp up to 1
+          "heavy-cannon": 3            // dropped — not owned
+        },
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      }
+    });
+    const lvls = getState().ship.weaponLevels;
+    expect(lvls["rapid-fire"]).toBe(5);
+    expect(lvls["spread-shot"]).toBe(1);
+    expect(lvls["heavy-cannon"]).toBeUndefined();
+  });
+
+  it("round-trips weaponLevels through toSnapshot/hydrate", () => {
+    addCredits(10000);
+    buyWeaponUpgrade("rapid-fire");
+    buyWeaponUpgrade("rapid-fire");
+    const snap = toSnapshot();
+    expect(snap.ship.weaponLevels["rapid-fire"]).toBe(3);
+    resetForTests();
+    expect(getState().ship.weaponLevels["rapid-fire"]).toBeUndefined();
+    hydrate(snap);
+    expect(getState().ship.weaponLevels["rapid-fire"]).toBe(3);
   });
 });

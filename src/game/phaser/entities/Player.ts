@@ -8,6 +8,8 @@ import {
   getMaxShield,
   getReactorCapacity,
   getReactorRecharge,
+  getWeaponLevel,
+  weaponDamageMultiplier,
   type ShipConfig,
   type SlotName
 } from "@/game/state/ShipConfig";
@@ -35,6 +37,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // One WeaponSystem per slot keeps each weapon fireRate cooldown isolated.
   private weaponsBySlot: Record<SlotName, WeaponSystem>;
   private slotWeapons: Record<SlotName, WeaponId | null>;
+  // Per-slot damage multiplier resolved at boot (and on slot swap) from the
+  // owning weapon's mark level. Mid-mission pickups are level-1 by default —
+  // upgrades only happen at the shop, never inside a combat scene.
+  private slotDamageMul: Record<SlotName, number> = {
+    front: 1,
+    rear: 1,
+    sidekickLeft: 1,
+    sidekickRight: 1
+  };
 
   readonly maxShield: number;
   readonly maxArmor: number;
@@ -73,6 +84,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       sidekickLeft: ship.slots.sidekickLeft,
       sidekickRight: ship.slots.sidekickRight
     };
+    for (const slot of Object.keys(this.slotWeapons) as SlotName[]) {
+      const wid = this.slotWeapons[slot];
+      this.slotDamageMul[slot] = wid ? weaponDamageMultiplier(getWeaponLevel(ship, wid)) : 1;
+    }
 
     this.maxShield = getMaxShield(ship);
     this.maxArmor = getMaxArmor(ship);
@@ -86,6 +101,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   setSlotWeapon(slot: SlotName, id: WeaponId | null): void {
     this.slotWeapons[slot] = id;
+    // Mid-mission pickups grant a fresh level-1 weapon, so the multiplier
+    // resets to 1.0 here. If a future feature lets the player equip a
+    // higher-level inventory weapon mid-mission, this needs to read the
+    // current level from GameState instead.
+    this.slotDamageMul[slot] = 1;
   }
 
   getSlotWeapon(slot: SlotName): WeaponId | null {
@@ -173,7 +193,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.y + offset.y,
       now,
       true,
-      fireRateMul
+      fireRateMul,
+      this.slotDamageMul[slot]
     );
     if (fired) {
       this.energy = Math.max(0, this.energy - def.energyCost);

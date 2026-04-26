@@ -85,6 +85,15 @@ export function isShipConfig(value: unknown): value is StateSnapshot["ship"] {
   if (!hasNewShape && !hasLegacyShape) return false;
 
   if (v.reactor !== undefined && !isReactorConfig(v.reactor)) return false;
+  if (v.weaponLevels !== undefined && !isWeaponLevels(v.weaponLevels)) return false;
+  return true;
+}
+
+function isWeaponLevels(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  for (const lvl of Object.values(value as Record<string, unknown>)) {
+    if (typeof lvl !== "number" || !Number.isFinite(lvl)) return false;
+  }
   return true;
 }
 
