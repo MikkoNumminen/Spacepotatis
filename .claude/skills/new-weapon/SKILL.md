@@ -21,7 +21,7 @@ If any field is missing, ask once before editing.
 2. Extend the `WeaponId` union in `src/types/game.ts` (line 8) by appending `| "<weaponId>"`. Do NOT change `WeaponDefinition` shape unless the user asked for a new field.
 3. If unlock is `starter`: append `weaponId` to `DEFAULT_SHIP.unlockedWeapons` in `src/game/state/ShipConfig.ts`. Otherwise leave defaults alone — `ShopUI` (`src/components/ShopUI.tsx`) auto-renders every entry from `getAllWeapons()`, so a `cost > 0` entry needs no shop-list edit.
 4. Update tests:
-   - `src/game/state/ShipConfig.test.ts` — if you touched `DEFAULT_SHIP.unlockedWeapons`, fix the `expect([...])` assertion on line ~17 and the `isWeaponUnlocked` rejection list.
+   - `src/game/state/ShipConfig.test.ts` — if you touched `DEFAULT_SHIP.unlockedWeapons`, find the `expect(DEFAULT_SHIP.unlockedWeapons).toEqual([...])` assertion and the `isWeaponUnlocked` rejection list and update both.
    - `src/game/phaser/data/data.test.ts` — covers all weapons via `it.each`; new entry is validated automatically. No edit needed unless the test asserts a fixed count.
 5. Special-case audit — if the weapon needs any of: homing, piercing, beam (continuous), charge-up, area-of-effect, or per-shot energy cost, STOP and tell the user: "WeaponSystem (`src/game/phaser/systems/WeaponSystem.ts`) only supports straight-line bullets via `spreadVectors`. Adding <feature> requires extending WeaponSystem + Bullet + weaponMath. Proceed?"
 6. Run `npm run typecheck && npm test` — the `data.test.ts` suite enforces unique ids and sane numerics; failures here are usually a typo in the JSON or a missed `WeaponId` union update.

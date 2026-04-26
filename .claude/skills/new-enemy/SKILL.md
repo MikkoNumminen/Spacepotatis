@@ -15,7 +15,7 @@ Run `/new-enemy` to add a new enemy end-to-end. The skill writes JSON balance da
 - `addTestWave` — default yes. Appends one spawn line to the `tutorial-1` wave in `waves.json` for fast playtest. Ask which mission if the user prefers another.
 
 # Steps
-1. Add the entry to `src/game/phaser/data/enemies.json` under `enemies[]`. Required fields: `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`. Use `spriteKey` = `enemy-<enemyId>` (or `boss-<enemyId>` for bosses).
+1. Add the entry to `src/game/phaser/data/enemies.json` under `enemies[]`. Required fields: `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`. Sprite-key convention: `spriteKey = "enemy-<enemyId>"` for regular enemies; for bosses the `id` should itself start with `boss-` and `spriteKey` equals the id (e.g. id `boss-1` → spriteKey `boss-1`). Do NOT prefix `boss-` to an existing id.
 2. Extend the `EnemyId` union in `src/types/game.ts` with the new id literal so `getEnemy` stays type-safe.
 3. Behavior gate: if the requested `behavior` is not in `{straight, zigzag, homing, boss}`, STOP and tell the user — `Enemy.ts#preUpdate` switch will silently skip it at runtime. Adding a new behavior requires editing `src/game/phaser/entities/Enemy.ts`; that is out of scope for this skill.
 4. Add a placeholder sprite for the new `spriteKey` in `src/game/phaser/scenes/BootScene.ts#generateTextures` by calling one of the existing helpers: `drawEnemyBasic`, `drawEnemyDiamond`, `drawTriangleDown`, or `drawBoss`. Pick the helper closest to the new behavior (e.g. `drawTriangleDown` for kamikaze-style, `drawBoss` for `behavior === "boss"`). Do NOT add new asset files.

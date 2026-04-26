@@ -63,14 +63,20 @@ export class Starfield {
 
   dispose(): void {
     this.geometry.dispose();
-    this.material.map?.dispose();
     this.material.dispose();
+    // Intentionally do NOT dispose the shared star sprite — it's a module-level
+    // cache reused across any future Starfield instance in this session.
   }
 }
 
 // Soft circular gradient → stars render as round glow dots instead of the
-// default opaque square sprite. Cached as a single CanvasTexture for all stars.
+// default opaque square sprite. Lazily built on first use and cached at module
+// scope — Starfield is short on instances per session, but allocating a 64×64
+// canvas + texture per construction was a waste the comment used to lie about.
+let cachedStarSprite: THREE.CanvasTexture | null = null;
+
 function createStarSprite(): THREE.CanvasTexture {
+  if (cachedStarSprite) return cachedStarSprite;
   const size = 64;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -86,5 +92,6 @@ function createStarSprite(): THREE.CanvasTexture {
   ctx.fillRect(0, 0, size, size);
   const tex = new THREE.CanvasTexture(canvas);
   tex.needsUpdate = true;
+  cachedStarSprite = tex;
   return tex;
 }
