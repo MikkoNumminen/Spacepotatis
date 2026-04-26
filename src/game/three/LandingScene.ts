@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
-import type { MissionDefinition } from "@/types/game";
 import { Planet } from "./Planet";
 import { Starfield } from "./Starfield";
 import { Sun } from "./Sun";
