@@ -480,6 +480,8 @@ describe("hydrate weapon levels", () => {
           "spread-shot": 0,            // clamp up to 1
           "heavy-cannon": 3            // dropped — not owned
         },
+        weaponAugments: {},
+        augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 0, rechargeLevel: 0 }

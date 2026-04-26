@@ -1,4 +1,4 @@
-import type { WeaponId, WeaponSlot } from "@/types/game";
+import type { AugmentId, WeaponId, WeaponSlot } from "@/types/game";
 
 export type SlotName = "front" | "rear" | "sidekickLeft" | "sidekickRight";
 
@@ -17,13 +17,23 @@ export interface ReactorConfig {
 // Per-weapon mark levels. Sparse map keyed by WeaponId — missing entries
 // default to level 1 (base). Each level adds WEAPON_DAMAGE_PER_LEVEL to the
 // damage multiplier; nothing else (fire rate, projectile count, spread) ever
-// scales with level. Phase B will add an augments slice alongside this.
+// scales with level. Augments stack on top via WeaponAugments.
 export type WeaponLevels = Readonly<Partial<Record<WeaponId, number>>>;
+
+// Per-weapon installed augments. Each weapon can hold up to
+// MAX_AUGMENTS_PER_WEAPON (see src/game/phaser/data/augments.ts). Augments
+// are permanently bound — sellWeapon() destroys both the weapon and its
+// augment list together.
+export type WeaponAugments = Readonly<Partial<Record<WeaponId, readonly AugmentId[]>>>;
 
 export interface ShipConfig {
   slots: WeaponSlots;
   unlockedWeapons: readonly WeaponId[];
   weaponLevels: WeaponLevels;
+  weaponAugments: WeaponAugments;
+  // Augments the player owns but has not yet bound to a weapon. Once an
+  // augment is installed it leaves this list and joins weaponAugments[wid].
+  augmentInventory: readonly AugmentId[];
   shieldLevel: number;
   armorLevel: number;
   reactor: ReactorConfig;
@@ -55,6 +65,8 @@ export const DEFAULT_SHIP: ShipConfig = {
   slots: { ...EMPTY_SLOTS, front: "rapid-fire" },
   unlockedWeapons: ["rapid-fire"],
   weaponLevels: {},
+  weaponAugments: {},
+  augmentInventory: [],
   shieldLevel: 0,
   armorLevel: 0,
   reactor: { capacityLevel: 0, rechargeLevel: 0 }
@@ -107,6 +119,13 @@ export function weaponDamageMultiplier(level: number): number {
 // callers should refuse the purchase.
 export function weaponUpgradeCost(currentLevel: number): number {
   return 200 * Math.pow(2, currentLevel - 1);
+}
+
+// Augment helpers. The actual augment definitions live in
+// src/game/phaser/data/augments.ts; these helpers just read the per-ship
+// installed list, which is the only ShipConfig-coupled piece.
+export function getInstalledAugments(config: ShipConfig, id: WeaponId): readonly AugmentId[] {
+  return config.weaponAugments[id] ?? [];
 }
 
 export function isWeaponUnlocked(config: ShipConfig, id: WeaponId): boolean {

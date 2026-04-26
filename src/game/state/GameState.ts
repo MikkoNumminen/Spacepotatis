@@ -1,6 +1,7 @@
 import missionsData from "@/game/phaser/data/missions.json";
 import { getAllSolarSystems } from "@/game/phaser/data/solarSystems";
 import type {
+  AugmentId,
   MissionDefinition,
   MissionId,
   SolarSystemId,
@@ -12,6 +13,7 @@ import {
   EMPTY_SLOTS,
   MAX_LEVEL,
   armorUpgradeCost,
+  getInstalledAugments,
   getWeaponLevel,
   isWeaponEquipped,
   isWeaponUnlocked,
@@ -22,10 +24,16 @@ import {
   weaponUpgradeCost,
   type ShipConfig,
   type SlotName,
+  type WeaponAugments,
   type WeaponLevels,
   type WeaponSlots
 } from "./ShipConfig";
 import { getWeapon } from "../phaser/data/weapons";
+import {
+  AUGMENT_IDS,
+  MAX_AUGMENTS_PER_WEAPON,
+  getAugment
+} from "../phaser/data/augments";
 
 // Sell-back rate. Half the purchase cost — generous enough to encourage
 // experimentation, cheap enough that you cannot farm credits by buy/sell churn.
@@ -207,18 +215,23 @@ export function grantWeapon(id: WeaponId): void {
 // Sell an owned, non-equipped weapon back for SELL_RATE × original cost.
 // Refuses to sell currently-equipped weapons (would silently unarm a slot)
 // or the starter weapon (cost 0 → no refund anyway, and it is the safety net).
+// Any augments installed on the weapon are destroyed with it — augments are
+// permanently bound and cannot be salvaged.
 export function sellWeapon(id: WeaponId): boolean {
   if (!isWeaponUnlocked(state.ship, id)) return false;
   if (isWeaponEquipped(state.ship, id)) return false;
   const weapon = getWeapon(id);
   const refund = getSellPrice(weapon);
   if (refund <= 0) return false;
+  const nextAugments: Record<string, readonly AugmentId[]> = { ...state.ship.weaponAugments };
+  delete nextAugments[id];
   commit({
     ...state,
     credits: state.credits + refund,
     ship: {
       ...state.ship,
-      unlockedWeapons: state.ship.unlockedWeapons.filter((w) => w !== id)
+      unlockedWeapons: state.ship.unlockedWeapons.filter((w) => w !== id),
+      weaponAugments: nextAugments
     }
   });
   return true;
@@ -326,6 +339,70 @@ export function buyWeaponUpgrade(id: WeaponId): boolean {
   return true;
 }
 
+// Buy an augment from the shop and add it to the player's augment inventory.
+// The augment is NOT bound to a weapon yet — that happens via installAugment.
+// Augments are permanent resources: once bought, they cannot be sold back.
+export function buyAugment(id: AugmentId): boolean {
+  const aug = getAugment(id);
+  if (aug.cost <= 0) return false;
+  if (!spendCredits(aug.cost)) return false;
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      augmentInventory: [...state.ship.augmentInventory, id]
+    }
+  });
+  return true;
+}
+
+// Mid-mission augment pickup: just add to inventory, no cost.
+export function grantAugment(id: AugmentId): void {
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      augmentInventory: [...state.ship.augmentInventory, id]
+    }
+  });
+}
+
+// Install an inventory augment onto a specific owned weapon. Refuses when:
+//   - weapon is not owned
+//   - augment is not in inventory
+//   - weapon already holds the same augment (no double-stacking)
+//   - weapon is at MAX_AUGMENTS_PER_WEAPON capacity
+// On success the augment leaves inventory and is permanently bound to the
+// weapon. There is no uninstall — the design is "commit carefully" by intent.
+export function installAugment(weaponId: WeaponId, augmentId: AugmentId): boolean {
+  if (!isWeaponUnlocked(state.ship, weaponId)) return false;
+  const invIndex = state.ship.augmentInventory.indexOf(augmentId);
+  if (invIndex < 0) return false;
+
+  const installed = getInstalledAugments(state.ship, weaponId);
+  if (installed.length >= MAX_AUGMENTS_PER_WEAPON) return false;
+  if (installed.includes(augmentId)) return false;
+
+  // Drop one copy of the augment from the inventory (a player could
+  // theoretically own multiple copies of the same augment if drops repeat).
+  const nextInventory = [
+    ...state.ship.augmentInventory.slice(0, invIndex),
+    ...state.ship.augmentInventory.slice(invIndex + 1)
+  ];
+  const nextAugments: Record<string, readonly AugmentId[]> = { ...state.ship.weaponAugments };
+  nextAugments[weaponId] = [...installed, augmentId];
+
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      augmentInventory: nextInventory,
+      weaponAugments: nextAugments
+    }
+  });
+  return true;
+}
+
 export function isMissionCompleted(id: MissionId): boolean {
   return state.completedMissions.includes(id);
 }
@@ -357,6 +434,8 @@ export function toSnapshot(): StateSnapshot {
       slots: { ...state.ship.slots },
       unlockedWeapons: [...state.ship.unlockedWeapons],
       weaponLevels: { ...state.ship.weaponLevels },
+      weaponAugments: cloneWeaponAugments(state.ship.weaponAugments),
+      augmentInventory: [...state.ship.augmentInventory],
       shieldLevel: state.ship.shieldLevel,
       armorLevel: state.ship.armorLevel,
       reactor: { ...state.ship.reactor }
@@ -401,9 +480,25 @@ interface LegacyShipSnapshot {
   slots?: Partial<WeaponSlots>;
   unlockedWeapons?: readonly WeaponId[];
   weaponLevels?: WeaponLevels;
+  weaponAugments?: WeaponAugments;
+  augmentInventory?: readonly AugmentId[];
   shieldLevel?: number;
   armorLevel?: number;
   reactor?: Partial<ShipConfig["reactor"]>;
+}
+
+function cloneWeaponAugments(aug: WeaponAugments): WeaponAugments {
+  const out: Record<string, readonly AugmentId[]> = {};
+  for (const [wid, ids] of Object.entries(aug)) {
+    if (ids && ids.length > 0) out[wid] = [...ids];
+  }
+  return out;
+}
+
+const KNOWN_AUGMENT_IDS = new Set<AugmentId>(AUGMENT_IDS);
+
+function isKnownAugment(id: unknown): id is AugmentId {
+  return typeof id === "string" && KNOWN_AUGMENT_IDS.has(id as AugmentId);
 }
 
 function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
@@ -440,10 +535,39 @@ function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
     }
   }
 
+  // weaponAugments: drop entries for weapons the player doesn't own; drop
+  // unknown augment ids; cap each list at MAX_AUGMENTS_PER_WEAPON; dedupe.
+  const weaponAugments: Record<string, readonly AugmentId[]> = {};
+  if (raw.weaponAugments) {
+    for (const [wid, list] of Object.entries(raw.weaponAugments)) {
+      if (!ownedSet.has(wid as WeaponId)) continue;
+      if (!Array.isArray(list)) continue;
+      const dedup: AugmentId[] = [];
+      for (const aid of list) {
+        if (!isKnownAugment(aid)) continue;
+        if (dedup.includes(aid)) continue;
+        dedup.push(aid);
+        if (dedup.length >= MAX_AUGMENTS_PER_WEAPON) break;
+      }
+      if (dedup.length > 0) weaponAugments[wid] = dedup;
+    }
+  }
+
+  // augmentInventory: keep only known augment ids; preserve order so a save
+  // round-trip is deterministic.
+  const augmentInventory: AugmentId[] = [];
+  if (Array.isArray(raw.augmentInventory)) {
+    for (const aid of raw.augmentInventory) {
+      if (isKnownAugment(aid)) augmentInventory.push(aid);
+    }
+  }
+
   return {
     slots,
     unlockedWeapons: unlocked,
     weaponLevels,
+    weaponAugments,
+    augmentInventory,
     shieldLevel: raw.shieldLevel ?? 0,
     armorLevel: raw.armorLevel ?? 0,
     reactor: {
