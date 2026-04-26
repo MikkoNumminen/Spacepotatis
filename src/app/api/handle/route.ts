@@ -12,6 +12,20 @@ interface HandlePayload {
   handle?: unknown;
 }
 
+// Postgres unique_violation. The Neon serverless driver surfaces pg-style
+// errors with `code` and `constraint` (constraint name) properties; check
+// both because the constraint name pin lets us only swallow OUR uniqueness
+// violation, not some other unique index that might exist later.
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { code?: unknown; constraint?: unknown; message?: unknown };
+  if (e.code !== "23505") return false;
+  if (typeof e.constraint === "string" && e.constraint === "players_handle_lower_idx") return true;
+  // Older pg versions don't always populate `constraint`; fall back to the
+  // index name appearing in the message.
+  return typeof e.message === "string" && e.message.includes("players_handle_lower_idx");
+}
+
 export async function GET(): Promise<Response> {
   const session = await auth();
   if (!session?.user?.email) {
@@ -76,9 +90,11 @@ export async function POST(request: Request): Promise<Response> {
         .where("id", "=", playerId)
         .execute();
     } catch (err) {
-      // Race with another request setting the same handle in the gap above.
-      // Postgres unique-violation code is 23505.
-      if (err instanceof Error && err.message.includes("players_handle_lower_idx")) {
+      // Race with another request setting the same handle in the gap between
+      // the pre-check above and this UPDATE. The DB partial unique index is
+      // the real source of truth — translate its violation back into a 409
+      // so the client gets the same "handle taken" message either way.
+      if (isUniqueViolation(err)) {
         return NextResponse.json({ error: "handle_taken" }, { status: 409 });
       }
       throw err;

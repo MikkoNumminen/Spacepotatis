@@ -53,7 +53,7 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
         body: JSON.stringify({ handle: result.handle })
       });
       if (res.status === 409) {
-        setError("That handle is already taken.");
+        setError("That handle is already taken — pick another.");
         setSubmitting(false);
         return;
       }
