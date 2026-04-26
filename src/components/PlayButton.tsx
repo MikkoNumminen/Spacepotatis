@@ -28,6 +28,11 @@ export default function PlayButton() {
   // because we don't want to flash the prompt before we know.
   const [handle, setHandle] = useState<string | null | undefined>(undefined);
   const [showPrompt, setShowPrompt] = useState(false);
+  // Set when the user clicks PLAY while the handle fetch is still pending —
+  // we intercept the click and decide what to do (open modal vs. navigate)
+  // once the fetch lands. Without this, a fast click before the fetch
+  // resolves used to navigate straight to /play and skip the prompt.
+  const [pendingClick, setPendingClick] = useState(false);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -66,15 +71,34 @@ export default function PlayButton() {
   }, [status]);
 
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // Unauthenticated → guest play, let the link navigate normally.
     if (status !== "authenticated") return;
-    // Still loading the handle — don't intercept; let it through, the /play
-    // page will work fine and we don't want to feel sluggish on first click.
-    if (handle === undefined) return;
-    if (handle === null) {
-      e.preventDefault();
-      setShowPrompt(true);
+    // Always intercept when authenticated. We need to know the handle before
+    // we can decide whether to navigate or prompt; defer everything until the
+    // fetch resolves rather than racing the user.
+    e.preventDefault();
+    if (handle === undefined) {
+      setPendingClick(true);
+      return;
     }
+    if (handle === null) {
+      setShowPrompt(true);
+      return;
+    }
+    router.push("/play");
   }
+
+  // If the click came in before the handle fetch resolved, finish what the
+  // user started as soon as we know which path to take.
+  useEffect(() => {
+    if (!pendingClick || handle === undefined) return;
+    setPendingClick(false);
+    if (handle === null) {
+      setShowPrompt(true);
+    } else {
+      router.push("/play");
+    }
+  }, [pendingClick, handle, router]);
 
   function handlePromptSubmit(picked: string) {
     setHandle(picked);
