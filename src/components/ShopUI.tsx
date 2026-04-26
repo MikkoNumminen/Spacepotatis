@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import {
-  buyArmorUpgrade,
-  buyShieldUpgrade,
-  buyWeapon,
-  selectWeapon
-} from "@/game/state/GameState";
+import { buyArmorUpgrade, buyShieldUpgrade, buyWeapon } from "@/game/state/GameState";
 import {
   MAX_LEVEL,
   armorUpgradeCost,
@@ -58,39 +53,33 @@ export default function ShopUI() {
 
       <section className="rounded border border-space-border bg-space-panel/70 p-5">
         <header className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-display tracking-widest text-hud-green">WEAPONS</h2>
+          <h2 className="font-display tracking-widest text-hud-green">NEW WEAPONS</h2>
           <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
         </header>
 
-        <ul className="flex flex-col gap-3">
-          {getAllWeapons().map((weapon) => {
-            const owned = isWeaponUnlocked(ship, weapon.id);
-            const equipped = ship.primaryWeapon === weapon.id;
+        {(() => {
+          const forSale = getAllWeapons().filter((w) => !isWeaponUnlocked(ship, w.id));
+          if (forSale.length === 0) {
             return (
-              <li
-                key={weapon.id}
-                className={`rounded border p-3 ${
-                  equipped ? "border-hud-green/60 bg-hud-green/5" : "border-space-border"
-                }`}
-              >
-                <div className="flex items-baseline justify-between">
-                  <span className="font-display tracking-wider">{weapon.name}</span>
-                  <span className="text-[11px] text-hud-amber">
-                    dmg {weapon.damage} · {Math.round(1000 / weapon.fireRateMs)} rps
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] text-hud-green/70">{weapon.description}</p>
-                <div className="mt-2 flex items-center justify-end gap-2">
-                  {owned ? (
-                    <button
-                      type="button"
-                      disabled={equipped}
-                      onClick={() => void selectWeapon(weapon.id)}
-                      className="rounded border border-hud-green/60 px-3 py-1 text-xs enabled:hover:bg-hud-green/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                    >
-                      {equipped ? "EQUIPPED" : "EQUIP"}
-                    </button>
-                  ) : (
+              <p className="text-[11px] text-hud-green/60">
+                All weapons unlocked. Manage them in the loadout above.
+              </p>
+            );
+          }
+          return (
+            <ul className="flex flex-col gap-3">
+              {forSale.map((weapon) => (
+                <li key={weapon.id} className="rounded border border-space-border p-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-display tracking-wider">{weapon.name}</span>
+                    <span className="text-[11px] text-hud-amber">
+                      dmg {weapon.damage}
+                      {weapon.projectileCount > 1 ? ` × ${weapon.projectileCount}` : ""} ·{" "}
+                      {Math.round(1000 / weapon.fireRateMs)} rps
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-hud-green/70">{weapon.description}</p>
+                  <div className="mt-2 flex items-center justify-end gap-2">
                     <button
                       type="button"
                       disabled={credits < weapon.cost}
@@ -99,12 +88,12 @@ export default function ShopUI() {
                     >
                       BUY · ¢ {weapon.cost}
                     </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
       </section>
     </div>
   );

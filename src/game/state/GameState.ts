@@ -1,5 +1,5 @@
 import missionsData from "@/game/phaser/data/missions.json";
-import type { MissionDefinition, MissionId, WeaponId } from "@/types/game";
+import type { MissionDefinition, MissionId, WeaponDefinition, WeaponId } from "@/types/game";
 import {
   DEFAULT_SHIP,
   MAX_LEVEL,
@@ -9,6 +9,14 @@ import {
   type ShipConfig
 } from "./ShipConfig";
 import { getWeapon } from "../phaser/data/weapons";
+
+// Sell-back rate. Half the purchase cost — generous enough to encourage
+// experimentation, cheap enough that you can't farm credits by buy/sell churn.
+const SELL_RATE = 0.5;
+
+export function getSellPrice(weapon: WeaponDefinition): number {
+  return Math.floor(weapon.cost * SELL_RATE);
+}
 
 // Module-level singleton. Phaser and React both read/write here. Persistence
 // happens at boundaries (mission complete, shop purchase, initial load) — see
@@ -113,6 +121,26 @@ export function grantWeapon(id: WeaponId): void {
       primaryWeapon: id
     }
   });
+}
+
+// Sell an owned, non-equipped weapon back for SELL_RATE × original cost.
+// Refuses to sell the equipped weapon (would leave the ship unarmed mid-flow)
+// or the starter weapon (cost 0 → no refund anyway, and it's the safety net).
+export function sellWeapon(id: WeaponId): boolean {
+  if (!isWeaponUnlocked(state.ship, id)) return false;
+  if (state.ship.primaryWeapon === id) return false;
+  const weapon = getWeapon(id);
+  const refund = getSellPrice(weapon);
+  if (refund <= 0) return false;
+  commit({
+    ...state,
+    credits: state.credits + refund,
+    ship: {
+      ...state.ship,
+      unlockedWeapons: state.ship.unlockedWeapons.filter((w) => w !== id)
+    }
+  });
+  return true;
 }
 
 export function buyWeapon(id: WeaponId): boolean {

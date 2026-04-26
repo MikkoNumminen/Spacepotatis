@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition } from "@/types/game";
+import LoadoutMenu from "@/components/LoadoutMenu";
 import MissionSelect from "@/components/MissionSelect";
 import SignInButton from "@/components/SignInButton";
 import MuteToggle from "@/components/MuteToggle";
@@ -42,6 +43,7 @@ export default function GameCanvas() {
   const [selected, setSelected] = useState<MissionDefinition | null>(null);
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
+  const [loadoutOpen, setLoadoutOpen] = useState(false);
   const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
   const completedMissions = useGameState((s) => s.completedMissions);
 
@@ -161,12 +163,28 @@ export default function GameCanvas() {
             hovered={hovered}
             lastSummary={lastSummary}
             onBackToMenu={() => router.push("/")}
+            onOpenLoadout={() => setLoadoutOpen(true)}
           />
           <MissionSelect
             mission={selected}
             onClose={() => setSelected(null)}
             onLaunch={handleLaunch}
           />
+          {loadoutOpen && (
+            <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="relative w-[28rem] max-w-[92vw]">
+                <button
+                  type="button"
+                  onClick={() => setLoadoutOpen(false)}
+                  aria-label="Close"
+                  className="absolute -right-2 -top-2 z-10 rounded-full border border-space-border bg-space-panel px-2 py-0.5 text-sm text-hud-green hover:text-hud-amber"
+                >
+                  ×
+                </button>
+                <LoadoutMenu mode="equip" />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -210,11 +228,13 @@ function StatRow({
 function HudFrame({
   hovered,
   lastSummary,
-  onBackToMenu
+  onBackToMenu,
+  onOpenLoadout
 }: {
   hovered: MissionDefinition | null;
   lastSummary: CombatSummary | null;
   onBackToMenu: () => void;
+  onOpenLoadout: () => void;
 }) {
   const credits = useGameState((s) => s.credits);
   const cleared = useGameState((s) => s.completedMissions.length);
@@ -225,13 +245,22 @@ function HudFrame({
         SPACEPOTATIS
       </div>
       <div className="absolute left-6 top-6 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={onBackToMenu}
-          className="pointer-events-auto self-start rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
-        >
-          ← Menu
-        </button>
+        <div className="pointer-events-auto flex gap-2">
+          <button
+            type="button"
+            onClick={onBackToMenu}
+            className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
+          >
+            ← Menu
+          </button>
+          <button
+            type="button"
+            onClick={onOpenLoadout}
+            className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
+          >
+            Loadout
+          </button>
+        </div>
         <StatsPanel credits={credits} cleared={cleared} />
       </div>
       <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-3 font-mono text-[11px]">
