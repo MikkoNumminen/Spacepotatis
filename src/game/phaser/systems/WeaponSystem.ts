@@ -1,4 +1,5 @@
 import type { WeaponId } from "@/types/game";
+import type { SlotName } from "@/game/state/ShipConfig";
 import type { BulletPool } from "../entities/Bullet";
 import { getWeapon } from "../data/weapons";
 import { canFire, slotVectors } from "./weaponMath";
@@ -11,8 +12,12 @@ export class WeaponSystem {
     this.pool = pool;
   }
 
+  // The `slot` parameter is the actual mount position (sidekickLeft vs
+  // sidekickRight matters for direction), NOT the weapon's `slot` kind.
+  // The two are checked for compatibility at equip time in GameState.
   tryFire(
     weaponId: WeaponId,
+    slot: SlotName,
     originX: number,
     originY: number,
     now: number,
@@ -24,7 +29,7 @@ export class WeaponSystem {
     this.lastFireMs = now;
 
     const vectors = slotVectors(
-      def.slot,
+      slot,
       def.projectileCount,
       def.spreadDegrees,
       def.bulletSpeed,
