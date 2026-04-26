@@ -7,6 +7,11 @@
 
 export type WeaponId = "rapid-fire" | "spread-shot" | "heavy-cannon";
 
+// Where on the ship a weapon mounts. Mirrors the four loadout slots in
+// ShipConfig: a single front slot (the "main" gun the player aims with),
+// a single rear slot, and two symmetric sidekick mounts.
+export type WeaponSlot = "front" | "rear" | "sidekick";
+
 export interface WeaponDefinition {
   readonly id: WeaponId;
   readonly name: string;
@@ -18,6 +23,8 @@ export interface WeaponDefinition {
   readonly spreadDegrees: number;
   readonly cost: number;
   readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
+  readonly slot: WeaponSlot;      // which slot this weapon can be equipped into
+  readonly energyCost: number;    // reactor energy drained per fire event (1 trigger = 1 cost, regardless of projectile count)
 }
 
 // ---------------------------------------------------------------------------
@@ -105,10 +112,23 @@ export interface MissionDefinition {
 // Ship / player state
 // ---------------------------------------------------------------------------
 
+export interface WeaponSlots {
+  front: WeaponId | null;
+  rear: WeaponId | null;
+  sidekickLeft: WeaponId | null;
+  sidekickRight: WeaponId | null;
+}
+
+export interface ReactorConfig {
+  capacityLevel: number;   // 0..MAX_LEVEL — bumps reactor capacity
+  rechargeLevel: number;   // 0..MAX_LEVEL — bumps energy regen per second
+}
+
 export interface ShipConfig {
-  primaryWeapon: WeaponId;
+  slots: WeaponSlots;
   shieldLevel: number;     // 0..max, affects shield capacity + regen
   armorLevel: number;      // 0..max, affects hit points
+  reactor: ReactorConfig;
   powerUps: readonly string[];
 }
 
