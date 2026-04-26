@@ -58,8 +58,14 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
         return;
       }
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { reason?: string } | null;
-        setError(body?.reason ?? "Could not save handle. Try again.");
+        const body = (await res.json().catch(() => null)) as
+          | { reason?: string; error?: string }
+          | null;
+        // Surface the status so the player can tell us exactly what they hit
+        // (e.g. 401 means session expired, 500 means the column isn't there
+        // yet because the DB migration didn't run).
+        const detail = body?.reason ?? body?.error ?? `HTTP ${res.status}`;
+        setError(`Could not save handle (${detail}). Try again.`);
         setSubmitting(false);
         return;
       }
