@@ -5,7 +5,18 @@
 // Weapons
 // ---------------------------------------------------------------------------
 
-export type WeaponId = "rapid-fire" | "spread-shot" | "heavy-cannon";
+export type WeaponId =
+  | "rapid-fire"
+  | "spread-shot"
+  | "heavy-cannon"
+  | "spud-missile"
+  | "tater-net"
+  | "tail-gunner"
+  | "side-spitter"
+  | "plasma-whip"
+  | "hailstorm";
+
+export type WeaponSlot = "front" | "rear" | "sidekick";
 
 export interface WeaponDefinition {
   readonly id: WeaponId;
@@ -18,6 +29,8 @@ export interface WeaponDefinition {
   readonly spreadDegrees: number;
   readonly cost: number;
   readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
+  readonly slot: WeaponSlot;      // hardpoint this weapon mounts to (front/rear/sidekick)
+  readonly energyCost: number;    // reactor energy spent per FIRE event (not per bullet)
 }
 
 // ---------------------------------------------------------------------------

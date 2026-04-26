@@ -1,7 +1,7 @@
 import type { WeaponId } from "@/types/game";
 import type { BulletPool } from "../entities/Bullet";
 import { getWeapon } from "../data/weapons";
-import { canFire, spreadVectors } from "./weaponMath";
+import { canFire, slotVectors } from "./weaponMath";
 
 export class WeaponSystem {
   private readonly pool: BulletPool;
@@ -23,8 +23,15 @@ export class WeaponSystem {
     if (!canFire(now, this.lastFireMs, def.fireRateMs * fireRateMul)) return false;
     this.lastFireMs = now;
 
-    const direction = friendly ? -1 : 1;
-    const vectors = spreadVectors(def.projectileCount, def.spreadDegrees, def.bulletSpeed, direction);
+    // TODO(engine): homing projectiles not yet wired. Spud Missile currently
+    // fires as a straight shot; revisit when Bullet gains a steering update.
+    const vectors = slotVectors(
+      def.slot,
+      def.projectileCount,
+      def.spreadDegrees,
+      def.bulletSpeed,
+      friendly
+    );
     for (const v of vectors) {
       this.pool.spawn(originX, originY, v.vx, v.vy, def.damage, friendly);
     }
