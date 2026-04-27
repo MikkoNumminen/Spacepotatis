@@ -1,45 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
-import type { MissionDefinition, SolarSystemId } from "@/types/game";
+import type { MissionDefinition } from "@/types/game";
 import MissionSelect from "@/components/MissionSelect";
 import HudFrame from "@/components/galaxy/HudFrame";
 import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import WarpPicker from "@/components/galaxy/WarpPicker";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
+import { useNextMissionAutoSelect } from "@/components/hooks/useNextMissionAutoSelect";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
 import { saveNow, submitScore } from "@/game/state/sync";
-import { getAllMissions } from "@/game/data/missions";
 import { ROUTES } from "@/lib/routes";
-
-const MISSIONS = getAllMissions();
-
-function pickNextMission(
-  unlocked: readonly string[],
-  completed: readonly string[],
-  systemId: SolarSystemId
-): MissionDefinition | null {
-  // Missions are one-shot: once cleared they cannot be replayed (future
-  // replayable content will live under a different concept, e.g. patrols
-  // or sorties). So this only suggests an UNCOMPLETED, unlocked mission
-  // in the active system. If everything is done, return null and the UI
-  // skips auto-opening the launch panel.
-  return (
-    MISSIONS.find(
-      (m) =>
-        m.kind === "mission" &&
-        m.solarSystemId === systemId &&
-        unlocked.includes(m.id) &&
-        !completed.includes(m.id)
-    ) ?? null
-  );
-}
 
 type Mode = "galaxy" | "combat";
 
@@ -62,22 +39,15 @@ export default function GameCanvas() {
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
 
-  // On entering the galaxy view, surface the next playable mission so the
-  // launch panel is visible immediately. User can dismiss with × — it stays
-  // closed until the next galaxy entry. The previous-mode ref ensures we
-  // only run on combat→galaxy (or first-mount) transitions, not every time
-  // unlockedPlanets / completedMissions change while already in galaxy.
-  const prevModeRef = useRef<Mode | null>(null);
-  useEffect(() => {
-    const prev = prevModeRef.current;
-    prevModeRef.current = mode;
-    if (mode !== "galaxy") return;
-    if (prev === "galaxy") return;
-    const next = pickNextMission(unlockedPlanets, completedMissions, currentSolarSystemId);
-    if (next) setSelected(next);
-  }, [mode, currentSolarSystemId, unlockedPlanets, completedMissions]);
-
   useCloudSaveSync();
+
+  useNextMissionAutoSelect({
+    inGalaxy: mode === "galaxy",
+    unlockedPlanets,
+    completedMissions,
+    currentSolarSystemId,
+    onSelect: setSelected
+  });
 
   useGalaxyScene({
     enabled: mode === "galaxy",
