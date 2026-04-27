@@ -2,10 +2,9 @@ import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
 import type { MissionDefinition, SolarSystemId } from "@/types/game";
-import { Planet } from "./Planet";
-import { Starfield } from "./Starfield";
+import type { Planet } from "./Planet";
 import { CameraController } from "./CameraController";
-import { Sun } from "./Sun";
+import { createSceneRig, type SceneRig } from "./SceneRig";
 
 export interface GalaxyOptions {
   onPlanetHover?: (mission: MissionDefinition | null) => void;
@@ -19,12 +18,8 @@ export class GalaxyScene {
   private readonly canvas: HTMLCanvasElement;
   private readonly opts: GalaxyOptions;
 
-  private readonly renderer: THREE.WebGLRenderer;
-  private readonly scene: THREE.Scene;
+  private readonly rig: SceneRig;
   private readonly cameraCtl: CameraController;
-  private readonly starfield: Starfield;
-  private readonly sun: Sun;
-  private readonly planets: Planet[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointerNdc = new THREE.Vector2(10, 10); // off-screen at boot
   private readonly pickables: THREE.Mesh[] = [];
@@ -42,44 +37,21 @@ export class GalaxyScene {
     this.canvas = canvas;
     this.opts = opts;
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: false,
-      powerPreference: "high-performance"
-    });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    this.renderer.setClearColor(0x05060f, 1);
-
-    this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x05060f, 0.008);
-
-    this.cameraCtl = new CameraController(canvas, canvas.clientWidth / canvas.clientHeight);
-
-    this.starfield = new Starfield();
-    this.scene.add(this.starfield.object);
-
     const activeSystemId: SolarSystemId = opts.activeSystemId ?? "tutorial";
     const activeSystem = getSolarSystem(activeSystemId);
 
-    this.sun = new Sun({
-      coreColor: activeSystem.sunColor,
-      sizeScale: activeSystem.sunSize
+    this.rig = createSceneRig(canvas, {
+      dpr: 2,
+      powerPreference: "high-performance",
+      sunColor: activeSystem.sunColor,
+      sunSize: activeSystem.sunSize,
+      planets: MISSIONS.filter((def) => def.solarSystemId === activeSystemId)
     });
-    this.scene.add(this.sun.object);
 
-    const ambient = new THREE.AmbientLight(0x1a2440, 0.07);
-    const rimLight = new THREE.DirectionalLight(0x3a5b8c, 0.10);
-    rimLight.position.set(-10, -2, -8);
-    this.scene.add(ambient, rimLight);
+    this.cameraCtl = new CameraController(canvas, canvas.clientWidth / canvas.clientHeight);
 
-    for (const def of MISSIONS) {
-      if (def.solarSystemId !== activeSystemId) continue;
-      const planet = new Planet(def);
-      this.planets.push(planet);
+    for (const planet of this.rig.planets) {
       this.pickables.push(planet.getMesh());
-      this.scene.add(planet.object);
     }
 
     canvas.addEventListener("pointermove", this.onPointerMove);
@@ -96,7 +68,7 @@ export class GalaxyScene {
       const dt = Math.min((now - this.lastMs) / 1000, 0.05);
       this.lastMs = now;
       this.update(dt);
-      this.renderer.render(this.scene, this.cameraCtl.camera);
+      this.rig.renderer.render(this.rig.scene, this.cameraCtl.camera);
       this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);
@@ -109,16 +81,13 @@ export class GalaxyScene {
     this.canvas.removeEventListener("click", this.onPointerClick);
     window.removeEventListener("resize", this.onResize);
     this.cameraCtl.dispose();
-    this.starfield.dispose();
-    this.sun.dispose();
-    for (const planet of this.planets) planet.dispose();
-    this.renderer.dispose();
+    this.rig.dispose();
   }
 
   private update(dt: number): void {
-    this.starfield.update(dt);
-    this.sun.update(dt);
-    for (const planet of this.planets) planet.update(dt);
+    this.rig.starfield.update(dt);
+    this.rig.sun.update(dt);
+    for (const planet of this.rig.planets) planet.update(dt);
     this.cameraCtl.update(dt);
     this.updateHover();
   }
@@ -128,7 +97,7 @@ export class GalaxyScene {
     const hits = this.raycaster.intersectObjects(this.pickables, false);
     const firstHit = hits[0];
     const hitMesh = firstHit ? firstHit.object : null;
-    const next = this.planets.find((p) => p.getMesh() === hitMesh) ?? null;
+    const next = this.rig.planets.find((p) => p.getMesh() === hitMesh) ?? null;
 
     if (next !== this.hovered) {
       this.hovered?.setHovered(false);
@@ -154,7 +123,7 @@ export class GalaxyScene {
   private resize(): void {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
-    this.renderer.setSize(w, h, false);
+    this.rig.renderer.setSize(w, h, false);
     this.cameraCtl.resize(w / h);
   }
 }
