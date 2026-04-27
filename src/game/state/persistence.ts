@@ -15,7 +15,7 @@ import {
   type WeaponSlots
 } from "./ShipConfig";
 import { AUGMENT_IDS, MAX_AUGMENTS_PER_WEAPON } from "../data/augments";
-import { INITIAL_STATE, commit, getState } from "./GameState";
+import { INITIAL_STATE, commit, getState } from "./stateCore";
 
 export interface StateSnapshot {
   credits: number;

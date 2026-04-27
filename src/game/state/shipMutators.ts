@@ -17,7 +17,7 @@ import {
 import { getWeapon } from "../data/weapons";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "../data/augments";
 import { getSellPrice } from "./pricing";
-import { commit, getState, spendCredits } from "./GameState";
+import { commit, getState, spendCredits } from "./stateCore";
 
 // Equip an owned weapon into a slot. The weapon slot kind must match the
 // target slot. If the weapon is already equipped elsewhere, it is moved
