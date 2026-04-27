@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition, MissionId } from "@/types/game";
+import { music } from "@/game/audio/music";
 import HudFrame from "@/components/galaxy/HudFrame";
 import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import QuestPanel from "@/components/galaxy/QuestPanel";
@@ -37,6 +38,17 @@ export default function GameCanvas() {
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
 
   useCloudSaveSync();
+
+  // Fade the menu bed out for the duration of a combat scene; resume on
+  // return to the galaxy. Unmount cleanup also unducks so a hard nav back
+  // to "/" picks the music up again.
+  useEffect(() => {
+    if (mode === "combat") music.duck();
+    else music.unduck();
+    return () => {
+      music.unduck();
+    };
+  }, [mode]);
 
   // Planet click in the 3D scene flows into QuestPanel as a focus signal so
   // the matching entry expands inline. Clearing on null lets a click on
