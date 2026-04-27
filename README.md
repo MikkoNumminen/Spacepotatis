@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/MikkoNumminen/Spacepotatis/actions/workflows/ci.yml/badge.svg)](https://github.com/MikkoNumminen/Spacepotatis/actions/workflows/ci.yml)
 
+> ## ▶ Play it now: **<https://spacepotatis.vercel.app/>**
+>
+> Runs in your browser. No install, no sign-up. (Sign in with Google only if you want your progress saved across devices and your score on the leaderboard.)
+
 Welcome! Spacepotatis is a small browser game where you fly a tiny spaceship around the galaxy, pick a planet, and then shoot enemies in space. Yes, you are also a potato. The little badge above tells you whether the latest version of the code is healthy — when it's green, everything builds and the tests pass.
 
 ## What it looks like
