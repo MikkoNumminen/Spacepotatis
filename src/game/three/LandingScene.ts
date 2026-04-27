@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
-import { Planet } from "./Planet";
-import { Starfield } from "./Starfield";
-import { Sun } from "./Sun";
+import type { Planet } from "./Planet";
+import { createSceneRig, type SceneRig } from "./SceneRig";
 
 // Cinematic, non-interactive galaxy used as the landing-page backdrop.
 // Distinct from GalaxyScene because it intentionally drops all input handling
@@ -28,12 +27,8 @@ const CAMERA_POLAR = Math.PI / 2.6; // ~69° off vertical → tilted top-down
 
 export class LandingScene {
   private readonly canvas: HTMLCanvasElement;
-  private readonly renderer: THREE.WebGLRenderer;
-  private readonly scene: THREE.Scene;
+  private readonly rig: SceneRig;
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly starfield: Starfield;
-  private readonly sun: Sun;
-  private readonly planets: Planet[] = [];
 
   private running = false;
   private rafId = 0;
@@ -46,19 +41,21 @@ export class LandingScene {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: false,
-      powerPreference: "low-power"
-    });
-    // Cap DPR lower than the gameplay scene — this is decorative, not gameplay.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    this.renderer.setClearColor(0x05060f, 1);
+    // Borrow the tutorial sun for the landing visual — bright warm core reads
+    // well as the focal point. We only ever show one sun; this isn't tied to
+    // gameplay state.
+    const system = getSolarSystem("tutorial");
 
-    this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x05060f, 0.008);
+    this.rig = createSceneRig(canvas, {
+      // Cap DPR lower than the gameplay scene — this is decorative, not gameplay.
+      dpr: 1.5,
+      powerPreference: "low-power",
+      sunColor: system.sunColor,
+      sunSize: system.sunSize * 1.1,
+      // Pull every planet from every system — the landing visual benefits from
+      // a busier orbit field than any single system shows in gameplay.
+      planets: MISSIONS
+    });
 
     this.camera = new THREE.PerspectiveCamera(
       55,
@@ -67,33 +64,10 @@ export class LandingScene {
       1000
     );
 
-    this.starfield = new Starfield();
-    this.scene.add(this.starfield.object);
-
-    // Borrow the tutorial sun for the landing visual — bright warm core reads
-    // well as the focal point. We only ever show one sun; this isn't tied to
-    // gameplay state.
-    const system = getSolarSystem("tutorial");
-    this.sun = new Sun({
-      coreColor: system.sunColor,
-      sizeScale: system.sunSize * 1.1
-    });
-    this.scene.add(this.sun.object);
-
-    const ambient = new THREE.AmbientLight(0x1a2440, 0.07);
-    const rimLight = new THREE.DirectionalLight(0x3a5b8c, 0.10);
-    rimLight.position.set(-10, -2, -8);
-    this.scene.add(ambient, rimLight);
-
-    // Pull every planet from every system — the landing visual benefits from
-    // a busier orbit field than any single system shows in gameplay.
-    for (const def of MISSIONS) {
-      const planet = new Planet(def);
-      // Hide the floating name labels; they'd compete with the SPACEPOTATIS
-      // wordmark and tagline.
+    // Hide the floating name labels; they'd compete with the SPACEPOTATIS
+    // wordmark and tagline.
+    for (const planet of this.rig.planets) {
       this.setPlanetLabelVisible(planet, false);
-      this.planets.push(planet);
-      this.scene.add(planet.object);
     }
 
     window.addEventListener("resize", this.onResize);
@@ -109,7 +83,7 @@ export class LandingScene {
       const dt = Math.min((now - this.lastMs) / 1000, 0.05);
       this.lastMs = now;
       this.update(dt);
-      this.renderer.render(this.scene, this.camera);
+      this.rig.renderer.render(this.rig.scene, this.camera);
       this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);
@@ -120,16 +94,13 @@ export class LandingScene {
     cancelAnimationFrame(this.rafId);
     window.removeEventListener("resize", this.onResize);
     document.removeEventListener("visibilitychange", this.onVisibility);
-    this.starfield.dispose();
-    this.sun.dispose();
-    for (const planet of this.planets) planet.dispose();
-    this.renderer.dispose();
+    this.rig.dispose();
   }
 
   private update(dt: number): void {
-    this.starfield.update(dt);
-    this.sun.update(dt);
-    for (const planet of this.planets) {
+    this.rig.starfield.update(dt);
+    this.rig.sun.update(dt);
+    for (const planet of this.rig.planets) {
       // Inline a temporarily boosted orbit by stepping with a scaled dt. The
       // Planet class advances internally, so we feed it the boosted dt instead
       // of mutating its private angle.
@@ -148,7 +119,7 @@ export class LandingScene {
   private resize(): void {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
-    this.renderer.setSize(w, h, false);
+    this.rig.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
