@@ -159,7 +159,7 @@ describe("POST /api/save", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(204);
-    const passed = insertSpy.mock.calls[0][0] as Record<string, unknown>;
+    const passed = insertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(passed.player_id).toBe("player-uuid");
     expect(passed.slot).toBe(1);
     expect(passed.credits).toBe(99); // truncated
@@ -181,7 +181,8 @@ describe("POST /api/save", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(204);
-    expect((insertSpy.mock.calls[0][0] as Record<string, unknown>).ship_config).toEqual({});
+    const passed = insertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(passed.ship_config).toEqual({});
   });
 
   it("returns 500 when the DB write fails", async () => {

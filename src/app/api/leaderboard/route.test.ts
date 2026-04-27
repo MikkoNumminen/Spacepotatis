@@ -182,7 +182,8 @@ describe("POST /api/leaderboard", () => {
       })
     );
     expect(res.status).toBe(201);
-    expect((insertSpy.mock.calls[0][0] as Record<string, unknown>).time_seconds).toBeNull();
+    const passed = insertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(passed.time_seconds).toBeNull();
   });
 
   it("returns 500 when the insert fails", async () => {
