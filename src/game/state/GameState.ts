@@ -5,7 +5,6 @@ import type {
   MissionDefinition,
   MissionId,
   SolarSystemId,
-  WeaponDefinition,
   WeaponId
 } from "@/types/game";
 import {
@@ -34,14 +33,9 @@ import {
   MAX_AUGMENTS_PER_WEAPON,
   getAugment
 } from "../data/augments";
+import { getSellPrice } from "./pricing";
 
-// Sell-back rate. Half the purchase cost — generous enough to encourage
-// experimentation, cheap enough that you cannot farm credits by buy/sell churn.
-const SELL_RATE = 0.5;
-
-export function getSellPrice(weapon: WeaponDefinition): number {
-  return Math.floor(weapon.cost * SELL_RATE);
-}
+export { getSellPrice } from "./pricing";
 
 // Module-level singleton. Phaser and React both read/write here. Persistence
 // happens at boundaries (mission complete, shop purchase, initial load) — see
