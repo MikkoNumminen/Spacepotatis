@@ -75,11 +75,13 @@ export class DropController {
       case "weapon": {
         const upgrade = this.nextWeaponUpgrade();
         if (upgrade) {
-          // grantWeapon equips into the canonical slot for the weapon kind
-          // (front for the existing pickup ladder). Mirror it onto the live
-          // Player so the change takes effect without rebuilding the entity.
+          // grantWeapon equips the new weapon into the first empty slot in
+          // GameState. Mirror that onto the live Player by re-reading where
+          // the weapon landed; if every slot was already full the weapon
+          // sits in inventory and the live Player has nothing to update.
           GameState.grantWeapon(upgrade.id);
-          player.setSlotWeapon("front", upgrade.id);
+          const slotIndex = GameState.getState().ship.slots.indexOf(upgrade.id);
+          if (slotIndex >= 0) player.setSlotWeapon(slotIndex, upgrade.id);
           this.flashPickup(
             `+ ${upgrade.name.toUpperCase()}`,
             hexToInt(upgrade.tint),
@@ -137,10 +139,9 @@ export class DropController {
     });
   }
 
-  // Weapon pickup progression: rapid → spread → heavy. Returns the next
-  // weapon the player has NOT yet unlocked, or null if all are owned.
-  // Future ship-weapon-modules slot into a separate side-mount system, not
-  // this primary cycle.
+  // Walks the fixed weapon-pickup ladder (rapid-fire → spread-shot →
+  // heavy-cannon) and returns the first weapon the player doesn't yet own,
+  // or null when the ladder is exhausted.
   private nextWeaponUpgrade() {
     const order: Array<"rapid-fire" | "spread-shot" | "heavy-cannon"> = [
       "rapid-fire",

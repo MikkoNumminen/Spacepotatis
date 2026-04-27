@@ -1,8 +1,7 @@
 import type { WeaponId } from "@/types/game";
-import type { SlotName } from "@/game/state/ShipConfig";
 import type { BulletPool } from "../entities/Bullet";
 import { getWeapon } from "../../data/weapons";
-import { canFire, slotVectors } from "./weaponMath";
+import { canFire, spreadVectors } from "./weaponMath";
 
 // Per-fire modifier bag. Resolved upstream (Player) by combining the weapon's
 // mark level, installed augments, and any active mission perk. Defaults are
@@ -22,12 +21,10 @@ export class WeaponSystem {
     this.pool = pool;
   }
 
-  // The `slot` parameter is the actual mount position (sidekickLeft vs
-  // sidekickRight matters for direction), NOT the weapon's `slot` kind.
-  // The two are checked for compatibility at equip time in GameState.
+  // All weapons fire forward — the slot-direction parameter from the
+  // pre-array layout is gone. Friendly fire goes up (-y), hostile down (+y).
   tryFire(
     weaponId: WeaponId,
-    slot: SlotName,
     originX: number,
     originY: number,
     now: number,
@@ -44,13 +41,8 @@ export class WeaponSystem {
     this.lastFireMs = now;
 
     const projectileCount = Math.max(1, def.projectileCount + projectileBonus);
-    const vectors = slotVectors(
-      slot,
-      projectileCount,
-      def.spreadDegrees,
-      def.bulletSpeed,
-      friendly
-    );
+    const direction: 1 | -1 = friendly ? -1 : 1;
+    const vectors = spreadVectors(projectileCount, def.spreadDegrees, def.bulletSpeed, direction);
     const homing = def.homing
       ? { turnRateRadPerSec: (def.turnRateRadPerSec ?? 3.5) * turnRateMul }
       : null;

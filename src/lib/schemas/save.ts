@@ -21,6 +21,7 @@ import type {
   ShipConfig,
   WeaponSlots
 } from "@/game/state/ShipConfig";
+import { MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
 
 // ---------------------------------------------------------------------------
 // ID enums — mirror the literal unions in src/types/game.ts. If you add a new
@@ -73,12 +74,13 @@ export const SolarSystemIdSchema = z.enum(SOLAR_SYSTEM_IDS);
 // Ship sub-schemas — strict shape for a fully-migrated ShipConfig.
 // ---------------------------------------------------------------------------
 
-export const WeaponSlotsSchema = z.object({
-  front: WeaponIdSchema.nullable(),
-  rear: WeaponIdSchema.nullable(),
-  sidekickLeft: WeaponIdSchema.nullable(),
-  sidekickRight: WeaponIdSchema.nullable()
-});
+// New strict shape: variable-length array of (WeaponId | null) entries.
+// One slot at minimum (slot 0); the player buys more via buyWeaponSlot(),
+// capped at MAX_WEAPON_SLOTS so a tampered save can't trash the loadout UI.
+export const WeaponSlotsSchema = z
+  .array(WeaponIdSchema.nullable())
+  .min(1)
+  .max(MAX_WEAPON_SLOTS);
 
 export const ReactorConfigSchema = z.object({
   capacityLevel: z.number().int().nonnegative(),
@@ -136,12 +138,15 @@ export const LegacyShipSchema = z
   .object({
     primaryWeapon: z.string().optional(),
     slots: z
-      .object({
-        front: z.string().nullable().optional(),
-        rear: z.string().nullable().optional(),
-        sidekickLeft: z.string().nullable().optional(),
-        sidekickRight: z.string().nullable().optional()
-      })
+      .union([
+        z.array(z.string().nullable()),
+        z.object({
+          front: z.string().nullable().optional(),
+          rear: z.string().nullable().optional(),
+          sidekickLeft: z.string().nullable().optional(),
+          sidekickRight: z.string().nullable().optional()
+        })
+      ])
       .optional(),
     unlockedWeapons: z.array(z.string()),
     weaponLevels: z.record(z.string(), z.number().finite()).optional(),

@@ -163,14 +163,29 @@ describe("DropController.applyPowerUp — shield", () => {
 });
 
 describe("DropController.applyPowerUp — weapon", () => {
-  it("on first weapon pickup, grants the next missing weapon and equips it on the player's front slot", () => {
+  it("on first weapon pickup, grants the next missing weapon", () => {
     const { controller, player } = setup();
     const power = { kind: "weapon" as const, x: 0, y: 0 } as unknown as PowerUp;
     controller.applyPowerUp(power);
     // Default ship only owns rapid-fire; the next in the upgrade ladder is rapid-fire→spread-shot→heavy-cannon.
     // rapid-fire is owned, so the next pickup grants spread-shot.
     expect(GameState.getState().ship.unlockedWeapons).toContain("spread-shot");
-    expect(player.setSlotWeapon).toHaveBeenCalledWith("front", "spread-shot");
+    // The default ship has only one slot (occupied by rapid-fire), so the
+    // new weapon lands in inventory and the live Player has nothing to
+    // mirror — setSlotWeapon stays uncalled.
+    expect(player.setSlotWeapon).not.toHaveBeenCalled();
+  });
+
+  it("when a slot is open, mirrors grantWeapon onto the player at the right slot index", () => {
+    const { controller, player } = setup();
+    // Buy an expansion slot so the new weapon has somewhere to land.
+    GameState.addCredits(500);
+    GameState.buyWeaponSlot();
+    const power = { kind: "weapon" as const, x: 0, y: 0 } as unknown as PowerUp;
+    controller.applyPowerUp(power);
+    // spread-shot got auto-equipped into slot 1 (the first empty one).
+    expect(GameState.getState().ship.slots).toEqual(["rapid-fire", "spread-shot"]);
+    expect(player.setSlotWeapon).toHaveBeenCalledWith(1, "spread-shot");
   });
 
   it("converts to credits (50) once the weapon ladder is exhausted", () => {

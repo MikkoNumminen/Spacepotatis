@@ -30,36 +30,31 @@ void _missionIds;
 void _systemIds;
 
 describe("WeaponSlotsSchema", () => {
-  it("accepts a fully populated slot map", () => {
+  it("accepts a single-slot array (the default ship)", () => {
+    expect(WeaponSlotsSchema.safeParse(["rapid-fire"]).success).toBe(true);
+  });
+
+  it("accepts a multi-slot array with empty slots", () => {
     expect(
-      WeaponSlotsSchema.safeParse({
-        front: "rapid-fire",
-        rear: null,
-        sidekickLeft: null,
-        sidekickRight: null
-      }).success
+      WeaponSlotsSchema.safeParse(["rapid-fire", null, "spread-shot"]).success
     ).toBe(true);
   });
 
+  it("rejects an empty array", () => {
+    expect(WeaponSlotsSchema.safeParse([]).success).toBe(false);
+  });
+
   it("rejects an unknown weapon id", () => {
-    const r = WeaponSlotsSchema.safeParse({
-      front: "death-laser",
-      rear: null,
-      sidekickLeft: null,
-      sidekickRight: null
-    });
-    expect(r.success).toBe(false);
+    expect(WeaponSlotsSchema.safeParse(["death-laser"]).success).toBe(false);
   });
 
   it("rejects a numeric slot value", () => {
-    expect(
-      WeaponSlotsSchema.safeParse({
-        front: 42,
-        rear: null,
-        sidekickLeft: null,
-        sidekickRight: null
-      }).success
-    ).toBe(false);
+    expect(WeaponSlotsSchema.safeParse([42]).success).toBe(false);
+  });
+
+  it("rejects an array longer than MAX_WEAPON_SLOTS", () => {
+    const oversized = new Array<null>(10).fill(null);
+    expect(WeaponSlotsSchema.safeParse(oversized).success).toBe(false);
   });
 });
 
@@ -87,15 +82,10 @@ describe("ReactorConfigSchema", () => {
 });
 
 describe("ShipConfigSchema", () => {
-  it("accepts a well-formed new-shape ship", () => {
+  it("accepts a well-formed new-shape ship (array slots)", () => {
     expect(
       ShipConfigSchema.safeParse({
-        slots: {
-          front: "rapid-fire",
-          rear: null,
-          sidekickLeft: null,
-          sidekickRight: null
-        },
+        slots: ["rapid-fire", null],
         unlockedWeapons: ["rapid-fire"],
         weaponLevels: { "rapid-fire": 3 },
         weaponAugments: { "rapid-fire": ["damage-up"] },
@@ -107,15 +97,25 @@ describe("ShipConfigSchema", () => {
     ).toBe(true);
   });
 
+  it("rejects an empty slots array (must always have at least one slot)", () => {
+    expect(
+      ShipConfigSchema.safeParse({
+        slots: [],
+        unlockedWeapons: ["rapid-fire"],
+        weaponLevels: {},
+        weaponAugments: {},
+        augmentInventory: [],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      }).success
+    ).toBe(false);
+  });
+
   it("rejects unknown weapon ids inside slots", () => {
     expect(
       ShipConfigSchema.safeParse({
-        slots: {
-          front: "death-laser",
-          rear: null,
-          sidekickLeft: null,
-          sidekickRight: null
-        },
+        slots: ["death-laser"],
         unlockedWeapons: [],
         weaponLevels: {},
         weaponAugments: {},
@@ -130,12 +130,7 @@ describe("ShipConfigSchema", () => {
   it("rejects unknown augment ids inside augmentInventory", () => {
     expect(
       ShipConfigSchema.safeParse({
-        slots: {
-          front: "rapid-fire",
-          rear: null,
-          sidekickLeft: null,
-          sidekickRight: null
-        },
+        slots: ["rapid-fire"],
         unlockedWeapons: ["rapid-fire"],
         weaponLevels: {},
         weaponAugments: {},
@@ -183,14 +178,9 @@ describe("LegacyShipSchema", () => {
 });
 
 describe("LegacyOrShipConfigSchema (used for shipConfig round-trip)", () => {
-  it("accepts a strict ShipConfig", () => {
+  it("accepts a strict ShipConfig (array slots)", () => {
     const r = LegacyOrShipConfigSchema.safeParse({
-      slots: {
-        front: "rapid-fire",
-        rear: null,
-        sidekickLeft: null,
-        sidekickRight: null
-      },
+      slots: ["rapid-fire"],
       unlockedWeapons: ["rapid-fire"],
       weaponLevels: {},
       weaponAugments: {},

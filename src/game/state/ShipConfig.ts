@@ -1,13 +1,17 @@
-import type { AugmentId, WeaponId, WeaponSlot } from "@/types/game";
+import type { AugmentId, WeaponId } from "@/types/game";
 
-export type SlotName = "front" | "rear" | "sidekickLeft" | "sidekickRight";
+// Indices into ShipConfig.slots. Slot 0 is the ship's main weapon mount
+// (always present); higher indices are expansion mounts purchased from
+// the shop. All slots fire forward — there is no left/right/rear kind
+// any more. Use `number` directly at call sites; this alias is just here
+// for readability when a function clearly takes "the index of a slot".
+export type SlotIndex = number;
 
-export interface WeaponSlots {
-  front: WeaponId | null;
-  rear: WeaponId | null;
-  sidekickLeft: WeaponId | null;
-  sidekickRight: WeaponId | null;
-}
+// Variable-length array of weapons. Each entry is either a WeaponId
+// (equipped) or null (slot owned but empty). A new save starts with one
+// slot containing the starter weapon; the player buys additional slots
+// at the shop via buyWeaponSlot().
+export type WeaponSlots = readonly (WeaponId | null)[];
 
 export interface ReactorConfig {
   capacityLevel: number;
@@ -43,6 +47,11 @@ export const MAX_LEVEL = 5;
 // Per-level additive damage bonus. Level 1 = 1.0× base, level 5 = 1.60×.
 const WEAPON_DAMAGE_PER_LEVEL = 0.15;
 
+// Soft cap on how many weapon slots a player can buy. The two starter
+// solar systems are designed around 1-3 slots; the ceiling exists so the
+// loadout UI never has to scroll, and to keep the cost curve bounded.
+export const MAX_WEAPON_SLOTS = 6;
+
 const BASE_SHIELD = 40;
 const BASE_ARMOR = 60;
 // Reactor base values. Energy is in arbitrary "joules"; weapon energyCost is
@@ -54,15 +63,8 @@ const REACTOR_CAPACITY_PER_LEVEL = 30;
 const BASE_REACTOR_RECHARGE = 25;
 const REACTOR_RECHARGE_PER_LEVEL = 8;
 
-export const EMPTY_SLOTS: WeaponSlots = {
-  front: null,
-  rear: null,
-  sidekickLeft: null,
-  sidekickRight: null
-};
-
 export const DEFAULT_SHIP: ShipConfig = {
-  slots: { ...EMPTY_SLOTS, front: "rapid-fire" },
+  slots: ["rapid-fire"],
   unlockedWeapons: ["rapid-fire"],
   weaponLevels: {},
   weaponAugments: {},
@@ -104,6 +106,18 @@ export function reactorRechargeCost(level: number): number {
   return 200 * Math.pow(2, level);
 }
 
+// Cost to buy ONE more weapon slot, given how many slots the ship already
+// owns. The first expansion (slot #2) is intentionally cheap so a player
+// who's cleared the first mission can afford it; from there the curve
+// climbs steeply enough that a 4+ slot loadout is real progression.
+export function slotPurchaseCost(currentSlotCount: number): number {
+  if (currentSlotCount < 1) return 0;
+  if (currentSlotCount === 1) return 500;
+  if (currentSlotCount === 2) return 2000;
+  // Slot 4: 4000, slot 5: 8000, slot 6: 16000 — doubles past slot 3.
+  return 4000 * Math.pow(2, currentSlotCount - 3);
+}
+
 // Per-weapon level helpers. The level lives in the ShipConfig, not on the
 // weapon definition — different players can hold different levels of the
 // same weapon, and the JSON catalog stays the canonical "base" stats.
@@ -132,24 +146,19 @@ export function isWeaponUnlocked(config: ShipConfig, id: WeaponId): boolean {
   return config.unlockedWeapons.includes(id);
 }
 
-// Slot ↔ WeaponSlot mapping. The two sidekick slots both accept "sidekick"
-// weapons. Used by the loadout UI when filtering candidates per slot.
-export function slotKindFor(slot: SlotName): WeaponSlot {
-  if (slot === "front") return "front";
-  if (slot === "rear") return "rear";
-  return "sidekick";
-}
-
 export function isWeaponEquipped(config: ShipConfig, id: WeaponId): boolean {
-  const s = config.slots;
-  return s.front === id || s.rear === id || s.sidekickLeft === id || s.sidekickRight === id;
+  return config.slots.includes(id);
 }
 
-export function findEquippedSlot(config: ShipConfig, id: WeaponId): SlotName | null {
-  const s = config.slots;
-  if (s.front === id) return "front";
-  if (s.rear === id) return "rear";
-  if (s.sidekickLeft === id) return "sidekickLeft";
-  if (s.sidekickRight === id) return "sidekickRight";
-  return null;
+// Returns the slot index that currently holds `id`, or -1 if it isn't
+// equipped. Indices are stable for a given save (slots only grow at the
+// tail when buyWeaponSlot pushes a null on).
+export function findEquippedSlot(config: ShipConfig, id: WeaponId): number {
+  return config.slots.indexOf(id);
+}
+
+// Index of the first empty slot, or -1 if every slot is occupied. Used by
+// grantWeapon / buyWeapon to auto-equip the next purchase if there's room.
+export function firstEmptySlot(config: ShipConfig): number {
+  return config.slots.indexOf(null);
 }

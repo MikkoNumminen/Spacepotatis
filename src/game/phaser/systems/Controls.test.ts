@@ -26,16 +26,14 @@ describe("createKeyboardControls", () => {
     expect(() => createKeyboardControls(noKb)).toThrow(/Keyboard plugin unavailable/);
   });
 
-  it("registers the WASD key bundle and the three special keys", () => {
+  it("registers the WASD key bundle and the single fire key (Space)", () => {
     const scene = createFakeScene();
     createKeyboardControls(scene as never);
     const kb = scene.input.keyboard;
     expect(kb.createCursorKeys).toHaveBeenCalledTimes(1);
     expect(kb.addKeys).toHaveBeenCalledWith("W,A,S,D");
     expect(kb.addKey).toHaveBeenCalledWith(32); // SPACE
-    expect(kb.addKey).toHaveBeenCalledWith(18); // ALT
-    expect(kb.addKey).toHaveBeenCalledWith(17); // CTRL
-    expect(kb.addCapture).toHaveBeenCalledWith([32, 18, 17]);
+    expect(kb.addCapture).toHaveBeenCalledWith([32]);
   });
 
   it("moveX returns -1 when ArrowLeft is held, +1 when ArrowRight is held, 0 when both", () => {
@@ -96,23 +94,14 @@ describe("createKeyboardControls", () => {
     expect(controls.moveX()).toBe(0);
   });
 
-  it("firePrimary follows Space, fireSecondary follows Alt, fireTertiary follows Ctrl", () => {
+  it("fire follows Space and reports false when Space is up", () => {
     const scene = createFakeScene();
     const controls = createKeyboardControls(scene as never);
-    const { space, alt, ctrl } = scene.input.keyboard.stub;
+    const { space } = scene.input.keyboard.stub;
 
-    expect(controls.firePrimary()).toBe(false);
-    expect(controls.fireSecondary()).toBe(false);
-    expect(controls.fireTertiary()).toBe(false);
-
+    expect(controls.fire()).toBe(false);
     space.isDown = true;
-    expect(controls.firePrimary()).toBe(true);
-
-    alt.isDown = true;
-    expect(controls.fireSecondary()).toBe(true);
-
-    ctrl.isDown = true;
-    expect(controls.fireTertiary()).toBe(true);
+    expect(controls.fire()).toBe(true);
   });
 
   it("returns a fresh, stateful Controls object on each call (no shared state across instances)", () => {

@@ -1,6 +1,11 @@
 "use client";
 
-import { getInstalledAugments } from "@/game/state/ShipConfig";
+import { buyWeaponSlot } from "@/game/state/GameState";
+import {
+  MAX_WEAPON_SLOTS,
+  getInstalledAugments,
+  slotPurchaseCost
+} from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
 import { SlotGrid } from "@/components/loadout/SlotGrid";
 import { SlotPicker } from "@/components/loadout/SlotPicker";
@@ -25,6 +30,11 @@ export default function LoadoutMenu({ mode }: Props) {
   const equippedEntries = getEquippedEntries(ship);
   const inventoryEntries = getInventoryEntries(ship);
 
+  const slotCount = ship.slots.length;
+  const canBuySlot = slotCount < MAX_WEAPON_SLOTS;
+  const nextSlotCost = canBuySlot ? slotPurchaseCost(slotCount) : null;
+  const canAffordSlot = nextSlotCost !== null && credits >= nextSlotCost;
+
   return (
     <section className="rounded border border-space-border bg-space-panel/70 p-5">
       <header className="mb-4 flex items-baseline justify-between">
@@ -33,6 +43,31 @@ export default function LoadoutMenu({ mode }: Props) {
       </header>
 
       <SlotGrid slots={ship.slots} weaponLevels={ship.weaponLevels} onPick={sel.openPicker} />
+
+      {mode === "market" && (
+        <div className="mt-3 flex items-center justify-between rounded border border-dashed border-space-border p-3">
+          <div>
+            <div className="font-display text-sm tracking-widest text-hud-green/80">
+              ADD WEAPON SLOT
+            </div>
+            <div className="text-[11px] text-hud-green/60">
+              {slotCount}/{MAX_WEAPON_SLOTS} mounted · expansions append at the right
+            </div>
+          </div>
+          {canBuySlot ? (
+            <button
+              type="button"
+              disabled={!canAffordSlot}
+              onClick={() => void buyWeaponSlot()}
+              className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+            >
+              BUY · ¢ {nextSlotCost}
+            </button>
+          ) : (
+            <span className="font-mono text-[11px] text-hud-green/50">slots maxed</span>
+          )}
+        </div>
+      )}
 
       {/* In market mode, surface equipped weapons so the player can upgrade
           without unequipping. INVENTORY below covers owned-but-unequipped. */}
@@ -75,10 +110,10 @@ export default function LoadoutMenu({ mode }: Props) {
 
       {sel.picker !== null && (
         <SlotPicker
-          slot={sel.picker}
+          slotIndex={sel.picker}
           owned={owned}
           weaponLevels={ship.weaponLevels}
-          equippedInThisSlot={ship.slots[sel.picker]}
+          equippedInThisSlot={ship.slots[sel.picker] ?? null}
           onPick={sel.selectForPicker}
           onClose={sel.closePicker}
         />

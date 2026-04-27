@@ -3,7 +3,7 @@ import type { WeaponId } from "@/types/game";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
-import { type ShipConfig, type SlotName } from "@/game/state/ShipConfig";
+import { type ShipConfig } from "@/game/state/ShipConfig";
 import {
   resolveSlotMods,
   slotModsForGrantedWeapon,
@@ -18,14 +18,15 @@ const SPEED = 360;
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly controls: Controls;
-  // One WeaponSystem per slot keeps each weapon fireRate cooldown isolated.
-  private readonly weaponsBySlot: Record<SlotName, WeaponSystem>;
-  private readonly slotWeapons: Record<SlotName, WeaponId | null>;
+  // One WeaponSystem per slot index keeps each weapon fireRate cooldown
+  // isolated. Indexed by position in the ShipConfig.slots array.
+  private readonly weaponsBySlot: WeaponSystem[];
+  private readonly slotWeapons: (WeaponId | null)[];
   // Per-slot modifier cache resolved at boot (and on slot swap). Mid-mission
   // pickups always reset to neutral mods because freshly granted weapons are
   // level 1 and have no augments — upgrades and augment installs only happen
   // at the shop, never inside a combat scene.
-  private readonly slotMods: Record<SlotName, SlotMods>;
+  private readonly slotMods: SlotMods[];
 
   private readonly combatant: PlayerCombatant;
   private readonly fire: PlayerFireController;
@@ -45,19 +46,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setSize(this.width * 0.55, this.height * 0.65);
 
     this.controls = createKeyboardControls(scene);
-    this.weaponsBySlot = {
-      front: new WeaponSystem(pool),
-      rear: new WeaponSystem(pool),
-      sidekickLeft: new WeaponSystem(pool),
-      sidekickRight: new WeaponSystem(pool)
-    };
-    this.slotWeapons = { ...ship.slots };
-    this.slotMods = {
-      front: resolveSlotMods("front", ship, this.slotWeapons.front),
-      rear: resolveSlotMods("rear", ship, this.slotWeapons.rear),
-      sidekickLeft: resolveSlotMods("sidekickLeft", ship, this.slotWeapons.sidekickLeft),
-      sidekickRight: resolveSlotMods("sidekickRight", ship, this.slotWeapons.sidekickRight)
-    };
+    this.slotWeapons = [...ship.slots];
+    this.weaponsBySlot = ship.slots.map(() => new WeaponSystem(pool));
+    this.slotMods = ship.slots.map((wid, i) => resolveSlotMods(i, ship, wid));
 
     this.combatant = new PlayerCombatant(ship);
     this.fire = new PlayerFireController(this.weaponsBySlot, this.slotWeapons, this.slotMods);
@@ -75,13 +66,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   get energy(): number { return this.combatant.energy; }
   set energy(value: number) { this.combatant.energy = value; }
 
-  setSlotWeapon(slot: SlotName, id: WeaponId | null): void {
-    this.slotWeapons[slot] = id;
-    this.slotMods[slot] = slotModsForGrantedWeapon(id);
+  setSlotWeapon(slotIndex: number, id: WeaponId | null): void {
+    if (slotIndex < 0 || slotIndex >= this.slotWeapons.length) return;
+    this.slotWeapons[slotIndex] = id;
+    this.slotMods[slotIndex] = slotModsForGrantedWeapon(id);
   }
 
-  getSlotWeapon(slot: SlotName): WeaponId | null {
-    return this.slotWeapons[slot];
+  getSlotWeapon(slotIndex: number): WeaponId | null {
+    return this.slotWeapons[slotIndex] ?? null;
   }
 
   takeDamage(amount: number): void {
@@ -106,18 +98,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.combatant.tickRegen(time, delta);
 
-    const overdriveMul = this.hasOverdrive ? 0.66 : 1;
-    if (this.controls.firePrimary()) {
-      this.fire.tryFireSlot("front", time, overdriveMul, this, this.combatant);
-    }
-    if (this.controls.fireSecondary()) {
-      // Twin sidekick pods fire together. Each pod has its own WeaponSystem
-      // cooldown, so different weapons in left/right slots fire independently.
-      this.fire.tryFireSlot("sidekickLeft", time, overdriveMul, this, this.combatant);
-      this.fire.tryFireSlot("sidekickRight", time, overdriveMul, this, this.combatant);
-    }
-    if (this.controls.fireTertiary()) {
-      this.fire.tryFireSlot("rear", time, overdriveMul, this, this.combatant);
+    if (this.controls.fire()) {
+      const overdriveMul = this.hasOverdrive ? 0.66 : 1;
+      this.fire.fireAll(time, overdriveMul, this, this.combatant);
     }
   }
 }
