@@ -1,7 +1,7 @@
 import Link from "next/link";
 import LandingBackground from "@/components/LandingBackground";
 import PlayButton from "@/components/PlayButton";
-import SignInButton from "@/components/SignInButton";
+import UserMenu from "@/components/UserMenu";
 import { ROUTES } from "@/lib/routes";
 
 // Landing page. Static by design — the Three.js backdrop, sign-in button and
@@ -31,7 +31,7 @@ export default function Home() {
             Leaderboard
           </Link>
           <div className="pt-2">
-            <SignInButton />
+            <UserMenu />
           </div>
         </nav>
       </main>
