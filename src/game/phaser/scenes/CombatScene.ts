@@ -147,6 +147,16 @@ export class CombatScene extends Phaser.Scene {
 
     if (this.allWavesDone && this.enemies.countActive(true) === 0) {
       this.finish(true);
+    } else if (
+      this.waves.isOnLastWave() &&
+      this.waves.allSpawnsFired() &&
+      this.enemies.countActive(true) === 0
+    ) {
+      // Boss missions used to pad the boss wave's durationMs to ~110s so the
+      // boss had time to die. After the kill, the player would stare at an
+      // empty sky for the rest of the timer. Short-circuit it here: if the
+      // last wave's spawns are all out and the field is clear, finish now.
+      this.waves.finishEarly();
     }
   }
 
