@@ -13,12 +13,22 @@ export async function loadSave(): Promise<boolean> {
   try {
     const res = await fetch(ROUTES.api.save, { cache: "no-store" });
     if (res.status === 401) return false;
-    if (!res.ok) return false;
+    if (!res.ok) {
+      // Surface server-side failures to the console — silent fallback to
+      // INITIAL_STATE used to make a 500 indistinguishable from "no save yet"
+      // and the user couldn't tell their save was actually unreachable.
+      const detail = await res.text().catch(() => "");
+      console.warn("loadSave: non-OK response", res.status, detail);
+      return false;
+    }
     const raw = (await res.json()) as unknown;
     if (raw === null) return false;
 
     const parsed = RemoteSaveSchema.safeParse(raw);
-    if (!parsed.success) return false;
+    if (!parsed.success) {
+      console.warn("loadSave: schema rejected save row", parsed.error.issues, raw);
+      return false;
+    }
     const body = parsed.data;
 
     // shipConfig already passes the legacy-or-new union; hydrate -> migrateShip

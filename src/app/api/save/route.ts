@@ -29,6 +29,13 @@ export async function GET(): Promise<Response> {
 
     if (!row) return NextResponse.json(null);
 
+    // Neon's Edge driver sometimes returns TIMESTAMPTZ as a string instead of
+    // a Date — coerce defensively so we never crash on `.toISOString()`.
+    const updatedAt =
+      row.updated_at instanceof Date
+        ? row.updated_at.toISOString()
+        : String(row.updated_at);
+
     return NextResponse.json({
       slot: row.slot,
       credits: row.credits,
@@ -37,11 +44,12 @@ export async function GET(): Promise<Response> {
       completedMissions: row.completed_missions,
       unlockedPlanets: row.unlocked_planets,
       playedTimeSeconds: row.played_time_seconds,
-      updatedAt: row.updated_at.toISOString()
+      updatedAt
     });
   } catch (err) {
     console.error("GET /api/save failed:", err);
-    return NextResponse.json({ error: "server_error" }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: "server_error", message }, { status: 500 });
   }
 }
 
