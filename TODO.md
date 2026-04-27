@@ -145,6 +145,13 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 
 - **Phase B2** — `pierce` augment (bullets pass through one extra enemy) and mid-mission augment drops (rare power-up that grants a random augment to `augmentInventory`). Deferred from Phase 12 because both need new content beyond a numeric multiplier — the pierce effect needs Bullet collision changes, and drops need a new PowerUp kind plus pickup notification.
 
+- **User menu features** — fill out the empty `UserMenu` dropdown in the galaxy view ([src/components/UserMenu.tsx](src/components/UserMenu.tsx)). Sign-out intentionally lives only on the landing page (`SignInButton`) so players can't accidentally log out mid-mission. Items to add, in rough priority order:
+  - **Avatar** — pick from a small library of preset images (`public/avatars/*`) or upload one. Stored on `players.avatar` (new column). Rendered next to the handle in the dropdown trigger and on the leaderboard rows.
+  - **Change handle** — opens the existing `HandlePrompt` modal in "edit" mode against POST `/api/handle`; same uniqueness rules apply. Cooldown/rate-limit TBD.
+  - **GDPR — export my data** — generates a JSON download with the player's row from `players`, all their `save_games`, and all their `leaderboard` entries. Edge route, no PII other than the player's own.
+  - **GDPR — delete my account** — confirmation modal, then deletes the player row (CASCADE wipes saves + leaderboard entries). Signs the user out afterwards.
+  - **Link to /settings** — when the menu grows beyond ~4-5 items, the heavier flows (avatar uploader, GDPR forms) should move to a dedicated `/settings` page; the dropdown becomes a thin shortcut.
+
 - Real art: drop PNGs into [public/sprites/](public/sprites/) with the keys already referenced in code (e.g. `/sprites/player/ship.png`). [BootScene](src/game/phaser/scenes/BootScene.ts) currently synthesizes placeholders — switch its `preload` to load files when assets exist.
 - Real audio: drop files into [public/audio/](public/audio/) and rewrite [sfx.ts](src/game/audio/sfx.ts) to trigger HTMLAudioElement playback. Public folder structure is already documented in [public/README.md](public/README.md).
 - Real planet textures: file names in [missions.json](src/game/phaser/data/missions.json) under `texture` — loader already tries and falls back to flat color.
