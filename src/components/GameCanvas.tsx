@@ -7,7 +7,6 @@ import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition, SolarSystemDefinition, SolarSystemId } from "@/types/game";
 import LoadoutMenu from "@/components/LoadoutMenu";
 import MissionSelect from "@/components/MissionSelect";
-import SignInButton from "@/components/SignInButton";
 import MuteToggle from "@/components/MuteToggle";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
@@ -318,7 +317,6 @@ function HudFrame({
       </div>
       <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-3 font-mono text-[11px]">
         <MuteToggle />
-        <SignInButton compact />
       </div>
       {lastSummary && (
         <div className="absolute left-1/2 top-20 -translate-x-1/2 rounded border border-space-border bg-space-panel/70 px-4 py-2 text-center text-xs backdrop-blur-sm">
