@@ -5,7 +5,6 @@ import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
 import { type ShipConfig, type SlotName } from "@/game/state/ShipConfig";
 import {
-  NEUTRAL_SLOT_MODS,
   resolveSlotMods,
   slotModsForGrantedWeapon,
   type SlotMods
@@ -18,20 +17,15 @@ export const PLAYER_TEXTURE = "player-ship";
 const SPEED = 360;
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  private controls: Controls;
+  private readonly controls: Controls;
   // One WeaponSystem per slot keeps each weapon fireRate cooldown isolated.
-  private weaponsBySlot: Record<SlotName, WeaponSystem>;
-  private slotWeapons: Record<SlotName, WeaponId | null>;
+  private readonly weaponsBySlot: Record<SlotName, WeaponSystem>;
+  private readonly slotWeapons: Record<SlotName, WeaponId | null>;
   // Per-slot modifier cache resolved at boot (and on slot swap). Mid-mission
   // pickups always reset to neutral mods because freshly granted weapons are
   // level 1 and have no augments — upgrades and augment installs only happen
   // at the shop, never inside a combat scene.
-  private slotMods: Record<SlotName, SlotMods> = {
-    front: NEUTRAL_SLOT_MODS,
-    rear: NEUTRAL_SLOT_MODS,
-    sidekickLeft: NEUTRAL_SLOT_MODS,
-    sidekickRight: NEUTRAL_SLOT_MODS
-  };
+  private readonly slotMods: Record<SlotName, SlotMods>;
 
   private readonly combatant: PlayerCombatant;
   private readonly fire: PlayerFireController;
@@ -57,15 +51,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       sidekickLeft: new WeaponSystem(pool),
       sidekickRight: new WeaponSystem(pool)
     };
-    this.slotWeapons = {
-      front: ship.slots.front,
-      rear: ship.slots.rear,
-      sidekickLeft: ship.slots.sidekickLeft,
-      sidekickRight: ship.slots.sidekickRight
+    this.slotWeapons = { ...ship.slots };
+    this.slotMods = {
+      front: resolveSlotMods("front", ship, this.slotWeapons.front),
+      rear: resolveSlotMods("rear", ship, this.slotWeapons.rear),
+      sidekickLeft: resolveSlotMods("sidekickLeft", ship, this.slotWeapons.sidekickLeft),
+      sidekickRight: resolveSlotMods("sidekickRight", ship, this.slotWeapons.sidekickRight)
     };
-    for (const slot of Object.keys(this.slotWeapons) as SlotName[]) {
-      this.slotMods[slot] = resolveSlotMods(slot, ship, this.slotWeapons[slot]);
-    }
 
     this.combatant = new PlayerCombatant(ship);
     this.fire = new PlayerFireController(this.weaponsBySlot, this.slotWeapons, this.slotMods);
