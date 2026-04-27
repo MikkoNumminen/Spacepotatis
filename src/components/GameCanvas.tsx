@@ -8,6 +8,7 @@ import type { MissionDefinition, SolarSystemDefinition, SolarSystemId } from "@/
 import LoadoutMenu from "@/components/LoadoutMenu";
 import MissionSelect from "@/components/MissionSelect";
 import MuteToggle from "@/components/MuteToggle";
+import UserMenu from "@/components/UserMenu";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
 import { loadSave, saveNow, submitScore } from "@/game/state/sync";
@@ -317,6 +318,7 @@ function HudFrame({
       </div>
       <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-3 font-mono text-[11px]">
         <MuteToggle />
+        <UserMenu />
       </div>
       {lastSummary && (
         <div className="absolute left-1/2 top-20 -translate-x-1/2 rounded border border-space-border bg-space-panel/70 px-4 py-2 text-center text-xs backdrop-blur-sm">
