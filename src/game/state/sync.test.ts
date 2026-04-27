@@ -91,23 +91,28 @@ describe("loadSave", () => {
     expect(fetchCalls[0]?.init?.cache).toBe("no-store");
   });
 
-  it("rejects the whole payload when shipConfig is malformed (Zod strict)", async () => {
+  it("still loads credits / missions when shipConfig is degenerate", async () => {
     const remote = {
       slot: 1,
-      credits: 10,
+      credits: 1170,
       currentPlanet: null,
-      shipConfig: { totally: "not a ship" },
-      completedMissions: [],
-      unlockedPlanets: [],
-      playedTimeSeconds: 0,
+      // Some old POSTs stored `{}` here because the client was sending the
+      // ship under a different field name. We can't lose the player's
+      // credits and progress just because of that — schema is permissive,
+      // migrateShip falls back to DEFAULT_SHIP for the ship itself.
+      shipConfig: {},
+      completedMissions: ["tutorial"],
+      unlockedPlanets: ["tutorial", "shop"],
+      playedTimeSeconds: 99,
       updatedAt: "2025-01-01T00:00:00.000Z"
     };
     fetchImpl.current = async () =>
       new Response(JSON.stringify(remote), { status: 200 });
-    // Post-T2 (Zod schemas), an invalid shipConfig fails RemoteSaveSchema.safeParse
-    // → loadSave returns false. State stays at defaults.
-    expect(await loadSave()).toBe(false);
-    expect(getState().ship.slots[0]).toBe("rapid-fire");
+    expect(await loadSave()).toBe(true);
+    const s = getState();
+    expect(s.credits).toBe(1170);
+    expect(s.completedMissions).toEqual(["tutorial"]);
+    expect(s.ship.slots[0]).toBe("rapid-fire");
   });
 });
 

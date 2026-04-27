@@ -134,42 +134,42 @@ void _shipCheck;
 // schema only needs to accept the loose shape so migration can run.
 // ---------------------------------------------------------------------------
 
-export const LegacyShipSchema = z
-  .object({
-    primaryWeapon: z.string().optional(),
-    slots: z
-      .union([
-        z.array(z.string().nullable()),
-        z.object({
-          front: z.string().nullable().optional(),
-          rear: z.string().nullable().optional(),
-          sidekickLeft: z.string().nullable().optional(),
-          sidekickRight: z.string().nullable().optional()
-        })
-      ])
-      .optional(),
-    unlockedWeapons: z.array(z.string()),
-    weaponLevels: z.record(z.string(), z.number().finite()).optional(),
-    // Legacy snapshots may carry unknown augment ids; migrateShip filters
-    // them. So accept arbitrary string lists here.
-    weaponAugments: z.record(z.string(), z.array(z.string())).optional(),
-    augmentInventory: z.array(z.string()).optional(),
-    shieldLevel: z.number(),
-    armorLevel: z.number(),
-    reactor: z
-      .object({
-        capacityLevel: z.number(),
-        rechargeLevel: z.number()
+// Every field is optional — the schema's job here is just to pass the data
+// through to migrateShip, which fills in DEFAULT_SHIP defaults for anything
+// missing. We used to require `unlockedWeapons` plus `slots`-or-`primaryWeapon`,
+// but that rejected save rows whose `shipConfig` was a degenerate `{}` (an
+// older POST bug stored that for some accounts), and the rejection cascaded
+// into the entire RemoteSaveSchema parse — losing the player's credits and
+// completed missions even though those fields were fine. Permissive shape
+// here + strict cleanup in migrateShip is the right split.
+export const LegacyShipSchema = z.object({
+  primaryWeapon: z.string().optional(),
+  slots: z
+    .union([
+      z.array(z.string().nullable()),
+      z.object({
+        front: z.string().nullable().optional(),
+        rear: z.string().nullable().optional(),
+        sidekickLeft: z.string().nullable().optional(),
+        sidekickRight: z.string().nullable().optional()
       })
-      .optional()
-  })
-  .refine(
-    (s) => Boolean(s.slots) || typeof s.primaryWeapon === "string",
-    {
-      message:
-        "ship snapshot must include either `slots` (new shape) or `primaryWeapon` (legacy shape)"
-    }
-  );
+    ])
+    .optional(),
+  unlockedWeapons: z.array(z.string()).optional(),
+  weaponLevels: z.record(z.string(), z.number().finite()).optional(),
+  // Legacy snapshots may carry unknown augment ids; migrateShip filters
+  // them. So accept arbitrary string lists here.
+  weaponAugments: z.record(z.string(), z.array(z.string())).optional(),
+  augmentInventory: z.array(z.string()).optional(),
+  shieldLevel: z.number().optional(),
+  armorLevel: z.number().optional(),
+  reactor: z
+    .object({
+      capacityLevel: z.number(),
+      rechargeLevel: z.number()
+    })
+    .optional()
+});
 
 // Discriminated by structural fit: the new strict schema wins when the
 // payload is well-formed; otherwise the legacy fallback parses it so

@@ -155,14 +155,17 @@ describe("LegacyShipSchema", () => {
     ).toBe(true);
   });
 
-  it("requires either slots or primaryWeapon", () => {
+  it("accepts a degenerate snapshot — migrateShip fills in defaults", () => {
+    // Some old POSTs stored `shipConfig: {}` because of a payload-shape
+    // mismatch between client and server. We can't lose those players'
+    // credits / completedMissions just because their ship blob is empty;
+    // migrateShip seeds DEFAULT_SHIP for any missing field.
+    expect(LegacyShipSchema.safeParse({}).success).toBe(true);
     expect(
       LegacyShipSchema.safeParse({
-        unlockedWeapons: ["rapid-fire"],
-        shieldLevel: 0,
-        armorLevel: 0
+        unlockedWeapons: ["rapid-fire"]
       }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("permits unknown weapon strings under slots (migration drops them)", () => {
@@ -208,11 +211,15 @@ describe("LegacyOrShipConfigSchema (used for shipConfig round-trip)", () => {
     expect(LegacyOrShipConfigSchema.safeParse(42).success).toBe(false);
   });
 
-  it("rejects objects missing required fields entirely", () => {
-    expect(LegacyOrShipConfigSchema.safeParse({}).success).toBe(false);
+  it("accepts degenerate ship objects so migrateShip can repair them", () => {
+    // The legacy fallback is intentionally permissive — every field is
+    // optional. Strict cleanup happens in migrateShip, not at the schema
+    // boundary, so a malformed shipConfig never costs us valid credits or
+    // completedMissions on the same row.
+    expect(LegacyOrShipConfigSchema.safeParse({}).success).toBe(true);
     expect(
       LegacyOrShipConfigSchema.safeParse({ primaryWeapon: "rapid-fire" }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("rejects objects where unlockedWeapons is not an array", () => {

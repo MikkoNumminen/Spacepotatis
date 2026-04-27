@@ -120,7 +120,7 @@ describe("GET /api/save", () => {
     const res = await GET();
     errSpy.mockRestore();
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "server_error" });
+    expect(await res.json()).toEqual({ error: "server_error", message: "connection refused" });
   });
 });
 

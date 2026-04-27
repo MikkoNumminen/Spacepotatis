@@ -26,7 +26,12 @@ export async function loadSave(): Promise<boolean> {
 
     const parsed = RemoteSaveSchema.safeParse(raw);
     if (!parsed.success) {
-      console.warn("loadSave: schema rejected save row", parsed.error.issues, raw);
+      console.warn(
+        "loadSave: schema rejected save row\nissues:",
+        JSON.stringify(parsed.error.issues, null, 2),
+        "\nraw:",
+        JSON.stringify(raw, null, 2)
+      );
       return false;
     }
     const body = parsed.data;
