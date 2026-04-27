@@ -31,6 +31,17 @@ There are two big screens you'll see while playing:
 
 The basic loop is: **galaxy → pick a planet → fight → return with money and loot → upgrade your ship at a shop → pick the next planet**. Repeat.
 
+## How do I play?
+
+The controls are deliberately tiny — there's only one fire key, so you can keep your other hand on a snack.
+
+- **Move:** the **WASD** keys (or the arrow keys, whichever you prefer). W / Up moves the ship forward, S / Down pulls it back, A and D slide it left and right.
+- **Fire:** the **Space** key. Tap it for a single volley, or hold it down for continuous fire. Every weapon you have equipped fires at the same time — each weapon slot has its own internal "cooldown" (the short pause between shots), so faster weapons fire more often than slower ones, all from the same key. You start with one weapon slot, and you can buy more slots at the shop.
+- **Pause:** the **P** or **Esc** key. Once paused, P resumes; Esc abandons the mission (which counts as a loss, so be sure).
+- **Galaxy view:** **drag** with the mouse to rotate the camera, **scroll** the mouse wheel to zoom in and out, and **click** a planet to open its mission panel.
+
+That's the whole input scheme. There used to be separate keys for rear-firing and side-firing weapons, but the ship is now a single forward-firing platform with however many slots you've bought, so one Space key handles everything.
+
 ## What's under the hood?
 
 Spacepotatis is a website that runs a game in your browser, so the technology is mostly web stuff. Here's what each piece does, in plain English:
@@ -116,7 +127,7 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 | -------------------- | -------------------------------------------------------------------------------------------------- |
 | `/new-mission`       | Adds a new combat mission, picks the solar system it belongs to, and wires up waves + planet binding.|
 | `/new-enemy`         | Adds a new enemy entry, generates a placeholder sprite, and (optionally) drops it into a test wave.|
-| `/new-weapon`        | Adds a new ship weapon (front / rear / sidekick slot, energy cost, optional homing) with the right unlock wiring. |
+| `/new-weapon`        | Adds a new ship weapon (energy cost, optional homing) with the right unlock wiring. All weapons fire forward and can be equipped in any slot. |
 | `/new-perk`          | Adds a new mid-mission buff (a "perk") with its icon, HUD chip, and pickup logic.                  |
 | `/new-solar-system`  | Adds a new selectable star system to the galaxy overworld (sun color/size, unlock condition, etc).  |
 | `/balance-review`    | Compares your uncommitted JSON tweaks against the previous version and prints a balance report.    |

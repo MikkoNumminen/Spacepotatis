@@ -139,10 +139,9 @@ export class DropController {
     });
   }
 
-  // Weapon pickup progression: rapid → spread → heavy. Returns the next
-  // weapon the player has NOT yet unlocked, or null if all are owned.
-  // Future ship-weapon-modules slot into a separate side-mount system, not
-  // this primary cycle.
+  // Walks the fixed weapon-pickup ladder (rapid-fire → spread-shot →
+  // heavy-cannon) and returns the first weapon the player doesn't yet own,
+  // or null when the ladder is exhausted.
   private nextWeaponUpgrade() {
     const order: Array<"rapid-fire" | "spread-shot" | "heavy-cannon"> = [
       "rapid-fire",

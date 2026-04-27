@@ -51,6 +51,11 @@ describe("WeaponSlotsSchema", () => {
   it("rejects a numeric slot value", () => {
     expect(WeaponSlotsSchema.safeParse([42]).success).toBe(false);
   });
+
+  it("rejects an array longer than MAX_WEAPON_SLOTS", () => {
+    const oversized = new Array<null>(10).fill(null);
+    expect(WeaponSlotsSchema.safeParse(oversized).success).toBe(false);
+  });
 });
 
 describe("ReactorConfigSchema", () => {
