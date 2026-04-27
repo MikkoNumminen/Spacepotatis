@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
@@ -10,6 +10,8 @@ import HudFrame from "@/components/galaxy/HudFrame";
 import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import WarpPicker from "@/components/galaxy/WarpPicker";
+import Splash, { type SplashStep } from "@/components/Splash";
+import SplashGate from "@/components/SplashGate";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
@@ -17,6 +19,7 @@ import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
+import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 
 type Mode = "galaxy" | "combat";
 
@@ -27,6 +30,7 @@ export default function GameCanvas() {
 
   const router = useRouter();
   const { status: authStatus } = useSession();
+  const { isVerified } = useOptimisticAuth();
   const [mode, setMode] = useState<Mode>("galaxy");
   const [hovered, setHovered] = useState<MissionDefinition | null>(null);
   const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
@@ -37,7 +41,7 @@ export default function GameCanvas() {
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
 
-  useCloudSaveSync();
+  const { loaded: saveLoaded } = useCloudSaveSync();
 
   // Fade the menu bed out for the duration of a combat scene; resume on
   // return to the galaxy. Unmount cleanup also unducks so a hard nav back
@@ -57,7 +61,7 @@ export default function GameCanvas() {
     setFocusedPlanetId(mission?.id ?? null);
   }, []);
 
-  useGalaxyScene({
+  const { ready: sceneReady } = useGalaxyScene({
     enabled: mode === "galaxy",
     canvasRef: galaxyCanvasRef,
     currentSolarSystemId,
@@ -122,7 +126,18 @@ export default function GameCanvas() {
     onComplete: stableComplete
   });
 
+  const splashSteps = useMemo<readonly SplashStep[]>(
+    () => [
+      { label: "verify pilot session", done: isVerified },
+      { label: "load saved progress", done: saveLoaded },
+      { label: "spin up galaxy", done: sceneReady }
+    ],
+    [isVerified, saveLoaded, sceneReady]
+  );
+  const ready = isVerified && saveLoaded && sceneReady;
+
   return (
+    <SplashGate ready={ready} splash={<Splash steps={splashSteps} />}>
     <div className="relative h-screen w-screen overflow-hidden bg-space-bg">
       {mode === "galaxy" && <canvas ref={galaxyCanvasRef} className="block h-full w-full" />}
       {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
@@ -164,5 +179,6 @@ export default function GameCanvas() {
         style={{ opacity: 0 }}
       />
     </div>
+    </SplashGate>
   );
 }

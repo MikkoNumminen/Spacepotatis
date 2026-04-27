@@ -1,0 +1,52 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { shouldHideSplash } from "./splashGateLogic";
+
+const MIN_DISPLAY_MS = 600;
+const FADE_MS = 400;
+
+export default function SplashGate({
+  ready,
+  splash,
+  children
+}: {
+  ready: boolean;
+  splash: ReactNode;
+  children: ReactNode;
+}) {
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [unmount, setUnmount] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMinTimeElapsed(true), MIN_DISPLAY_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  const hide = shouldHideSplash(ready, minTimeElapsed);
+
+  // Run the fade for FADE_MS, then drop the splash from the tree entirely so
+  // it stops costing render cycles on the live page.
+  useEffect(() => {
+    if (!hide) return;
+    const t = setTimeout(() => setUnmount(true), FADE_MS);
+    return () => clearTimeout(t);
+  }, [hide]);
+
+  return (
+    <>
+      {children}
+      {!unmount && (
+        <div
+          className={`fixed inset-0 z-50 transition-opacity ${
+            hide ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"
+          }`}
+          style={{ transitionDuration: `${FADE_MS}ms` }}
+          aria-hidden={hide}
+        >
+          {splash}
+        </div>
+      )}
+    </>
+  );
+}
