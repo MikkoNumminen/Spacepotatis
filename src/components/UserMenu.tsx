@@ -1,21 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useHandle } from "@/lib/useHandle";
 
 // Top-right account control in the galaxy view (and any other in-game
 // surface that wants the richer user dropdown). The simple sign-in/out
-// button lives in SignInButton on the landing page.
+// button lives in SignInButton on the landing page; sign-out is
+// intentionally NOT in this dropdown — account changes belong on the
+// main menu so the player can't accidentally log out mid-mission.
 //
 // Three states:
 //   loading         → "…" placeholder
 //   unauthenticated → "Sign in with Google" button
-//   authenticated   → handle button that opens a dropdown menu
+//   authenticated   → handle button that opens an empty menu
 //
-// The dropdown is intentionally sparse for now (just sign-out + a "more
-// soon" footer). Future profile actions (avatar, GDPR export/delete, etc.)
-// will land here as additional <button role="menuitem"> children.
+// The dropdown is empty for now — future profile actions (avatar,
+// GDPR export/delete, etc.) will land here as <button role="menuitem">
+// children. The "more options coming soon" footer is the only content
+// until then.
 export default function UserMenu() {
   const { status } = useSession();
   const { handle } = useHandle();
@@ -23,7 +26,7 @@ export default function UserMenu() {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Close on outside-click and Escape, plus when the auth status changes
-  // (sign-out should never leave the menu lingering open).
+  // (a sign-out from elsewhere shouldn't leave the menu lingering open).
   useEffect(() => {
     if (!open) return;
     function onMouseDown(e: MouseEvent) {
@@ -80,18 +83,7 @@ export default function UserMenu() {
           role="menu"
           className="absolute right-0 z-50 mt-2 w-48 rounded border border-hud-amber/40 bg-space-bg shadow-[0_0_20px_rgba(255,204,51,0.15)]"
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              void signOut();
-            }}
-            className="block w-full px-3 py-2 text-left text-xs text-hud-green/90 hover:bg-hud-amber/10 hover:text-hud-red"
-          >
-            Sign out
-          </button>
-          <p className="border-t border-hud-amber/20 px-3 py-2 text-[11px] text-hud-amber/50">
+          <p className="px-3 py-2 text-[11px] text-hud-amber/50">
             More options coming soon.
           </p>
         </div>
