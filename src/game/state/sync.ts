@@ -23,6 +23,17 @@ export function clearLoadSaveCache(): void {
   inflight = null;
 }
 
+// Read-only window into the module cache. Hooks consult this to seed their
+// React initial state so a hot remount (e.g. nav between / and /play) can
+// render with ready=true on the very first frame, skipping the splash.
+export function isSaveCached(): boolean {
+  return cached !== null;
+}
+
+export function getSaveCache(): boolean | null {
+  return cached;
+}
+
 export async function loadSave(): Promise<boolean> {
   if (cached !== null) return cached;
   if (inflight) return inflight;

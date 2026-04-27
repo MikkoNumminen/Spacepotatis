@@ -8,7 +8,7 @@ import {
   writeAuthCache,
   type AuthSnapshot
 } from "./authCache";
-import { loadSave } from "@/game/state/sync";
+import { getSaveCache, loadSave } from "@/game/state/sync";
 import { useHandle, type HandleStatus } from "./useHandle";
 
 export type OptimisticAuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -53,7 +53,10 @@ export function isAuthVerified(
 export function useOptimisticAuth(): OptimisticAuthResult {
   const { status: sessionStatus } = useSession();
   const handleResult = useHandle();
-  const [hasSave, setHasSave] = useState<boolean | null>(null);
+  // Seed from the loadSave module cache so a hot remount renders with
+  // hasSave already known — that's what lets isAuthVerified return true on
+  // the very first render and SplashGate skip the splash entirely.
+  const [hasSave, setHasSave] = useState<boolean | null>(() => getSaveCache());
   const [cached] = useState<AuthSnapshot | null>(() => readAuthCache());
 
   // Derive hasSave from the shared loadSave promise so the splash gate's

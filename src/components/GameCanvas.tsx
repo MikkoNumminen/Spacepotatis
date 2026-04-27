@@ -142,7 +142,7 @@ export default function GameCanvas() {
       {mode === "galaxy" && <canvas ref={galaxyCanvasRef} className="block h-full w-full" />}
       {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
 
-      {mode === "galaxy" && (
+      {mode === "galaxy" && ready && (
         <div className="pointer-events-none absolute inset-0">
           <HudFrame
             hovered={hovered}
