@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCombatMissions } from "@/game/data/missions";
 import Leaderboard from "@/components/Leaderboard";
+import TopPilots from "@/components/TopPilots";
 import { ROUTES } from "@/lib/routes";
 
 // ISR: re-render at most every 60s. Each render goes through the cached
@@ -22,6 +23,8 @@ export default function LeaderboardPage() {
       <header>
         <h1 className="font-display text-3xl tracking-widest">LEADERBOARD</h1>
       </header>
+
+      <TopPilots limit={10} />
 
       <div className="grid gap-6 md:grid-cols-2">
         {COMBAT_MISSIONS.map((m) => (
