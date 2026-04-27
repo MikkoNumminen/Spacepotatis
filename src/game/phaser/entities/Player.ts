@@ -3,15 +3,7 @@ import type { WeaponId } from "@/types/game";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
-import {
-  getMaxArmor,
-  getMaxShield,
-  getReactorCapacity,
-  getReactorRecharge,
-  type ShipConfig,
-  type SlotName
-} from "@/game/state/ShipConfig";
-import { emit } from "../events";
+import { type ShipConfig, type SlotName } from "@/game/state/ShipConfig";
 import { sfx } from "@/game/audio/sfx";
 import {
   NEUTRAL_SLOT_MODS,
@@ -19,12 +11,11 @@ import {
   slotModsForGrantedWeapon,
   type SlotMods
 } from "./player/SlotModResolver";
+import { PlayerCombatant } from "./player/PlayerCombatant";
 
 export const PLAYER_TEXTURE = "player-ship";
 
 const SPEED = 360;
-const SHIELD_REGEN_PER_SEC = 6;
-const SHIELD_REGEN_DELAY_MS = 2000;
 
 // Per-slot bullet spawn offset relative to the player sprite center. Front
 // emerges from the nose, rear from the tail, sidekicks from the shoulder
@@ -52,15 +43,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     sidekickRight: NEUTRAL_SLOT_MODS
   };
 
-  readonly maxShield: number;
-  readonly maxArmor: number;
-  readonly maxEnergy: number;
-  readonly energyRechargePerSec: number;
-
-  shield: number;
-  armor: number;
-  energy: number;
-  private lastDamageAt = 0;
+  private readonly combatant: PlayerCombatant;
 
   // Mission-only perk state — reset every CombatScene boot.
   hasOverdrive = false;
@@ -93,15 +76,20 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.slotMods[slot] = resolveSlotMods(slot, ship, this.slotWeapons[slot]);
     }
 
-    this.maxShield = getMaxShield(ship);
-    this.maxArmor = getMaxArmor(ship);
-    this.maxEnergy = getReactorCapacity(ship);
-    this.energyRechargePerSec = getReactorRecharge(ship);
-
-    this.shield = this.maxShield;
-    this.armor = this.maxArmor;
-    this.energy = this.maxEnergy;
+    this.combatant = new PlayerCombatant(ship);
   }
+
+  get maxShield(): number { return this.combatant.maxShield; }
+  get maxArmor(): number { return this.combatant.maxArmor; }
+  get maxEnergy(): number { return this.combatant.maxEnergy; }
+  get energyRechargePerSec(): number { return this.combatant.energyRechargePerSec; }
+
+  get shield(): number { return this.combatant.shield; }
+  set shield(value: number) { this.combatant.shield = value; }
+  get armor(): number { return this.combatant.armor; }
+  set armor(value: number) { this.combatant.armor = value; }
+  get energy(): number { return this.combatant.energy; }
+  set energy(value: number) { this.combatant.energy = value; }
 
   setSlotWeapon(slot: SlotName, id: WeaponId | null): void {
     this.slotWeapons[slot] = id;
@@ -113,31 +101,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount: number): void {
-    this.lastDamageAt = this.scene.time.now;
-
-    if (this.hasHardened) amount *= 0.7;
-
-    if (this.shield > 0) {
-      const absorbed = Math.min(this.shield, amount);
-      this.shield -= absorbed;
-      amount -= absorbed;
-    }
-    if (amount > 0) {
-      this.armor = Math.max(0, this.armor - amount);
-    }
-
-    sfx.hit();
-    this.scene.cameras.main.shake(120, 0.006);
-    this.setTint(0xff4d6d);
-    this.scene.time.delayedCall(80, () => this.clearTint());
-
-    if (this.armor <= 0) {
-      emit(this.scene, { type: "playerDied" });
-    }
+    this.combatant.takeDamage(amount, this.hasHardened, this, this.scene);
   }
 
   isDead(): boolean {
-    return this.armor <= 0;
+    return this.combatant.isDead();
   }
 
   override preUpdate(time: number, delta: number): void {
@@ -152,13 +120,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.setVelocity(vx * SPEED, vy * SPEED);
 
-    // Recharge first so a fire that arrives this tick can use the new energy.
-    if (this.energy < this.maxEnergy) {
-      this.energy = Math.min(
-        this.maxEnergy,
-        this.energy + (this.energyRechargePerSec * delta) / 1000
-      );
-    }
+    this.combatant.tickRegen(time, delta);
 
     const overdriveMul = this.hasOverdrive ? 0.66 : 1;
     if (this.controls.firePrimary()) {
@@ -173,17 +135,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.controls.fireTertiary()) {
       this.tryFireSlot("rear", time, overdriveMul);
     }
-
-    if (time - this.lastDamageAt > SHIELD_REGEN_DELAY_MS && this.shield < this.maxShield) {
-      this.shield = Math.min(this.maxShield, this.shield + (SHIELD_REGEN_PER_SEC * delta) / 1000);
-    }
   }
 
   private tryFireSlot(slot: SlotName, now: number, overdriveMul: number): void {
     const weaponId = this.slotWeapons[slot];
     if (!weaponId) return;
     const mods = this.slotMods[slot];
-    if (this.energy < mods.energyCost) return;
+    if (this.combatant.energy < mods.energyCost) return;
 
     const offset = SPAWN_OFFSET[slot];
     // Overdrive's fire-rate bonus stacks multiplicatively on top of any
@@ -204,7 +162,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
     );
     if (fired) {
-      this.energy = Math.max(0, this.energy - mods.energyCost);
+      this.combatant.energy = Math.max(0, this.combatant.energy - mods.energyCost);
       sfx.laser();
     }
   }
