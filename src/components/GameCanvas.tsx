@@ -4,14 +4,13 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
-import type { MissionDefinition } from "@/types/game";
-import MissionSelect from "@/components/MissionSelect";
+import type { MissionDefinition, MissionId } from "@/types/game";
 import HudFrame from "@/components/galaxy/HudFrame";
 import LoadoutModal from "@/components/galaxy/LoadoutModal";
+import QuestPanel from "@/components/galaxy/QuestPanel";
 import WarpPicker from "@/components/galaxy/WarpPicker";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
-import { useNextMissionAutoSelect } from "@/components/hooks/useNextMissionAutoSelect";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
@@ -29,32 +28,29 @@ export default function GameCanvas() {
   const { status: authStatus } = useSession();
   const [mode, setMode] = useState<Mode>("galaxy");
   const [hovered, setHovered] = useState<MissionDefinition | null>(null);
-  const [selected, setSelected] = useState<MissionDefinition | null>(null);
+  const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
   const [loadoutOpen, setLoadoutOpen] = useState(false);
   const [warpOpen, setWarpOpen] = useState(false);
-  const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
-  const completedMissions = useGameState((s) => s.completedMissions);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
 
   useCloudSaveSync();
 
-  useNextMissionAutoSelect({
-    inGalaxy: mode === "galaxy",
-    unlockedPlanets,
-    completedMissions,
-    currentSolarSystemId,
-    onSelect: setSelected
-  });
+  // Planet click in the 3D scene flows into QuestPanel as a focus signal so
+  // the matching entry expands inline. Clearing on null lets a click on
+  // empty space collapse-back through the panel's own toggle.
+  const handleSceneSelect = useCallback((mission: MissionDefinition | null) => {
+    setFocusedPlanetId(mission?.id ?? null);
+  }, []);
 
   useGalaxyScene({
     enabled: mode === "galaxy",
     canvasRef: galaxyCanvasRef,
     currentSolarSystemId,
     onHover: setHovered,
-    onSelect: setSelected
+    onSelect: handleSceneSelect
   });
 
   const fadeOverlay = useCallback(async (toOpacity: number) => {
@@ -71,7 +67,7 @@ export default function GameCanvas() {
         router.push(ROUTES.page.shop);
         return;
       }
-      setSelected(null);
+      setFocusedPlanetId(null);
       await fadeOverlay(1);
       setLaunching(mission);
       setMode("combat");
@@ -129,10 +125,11 @@ export default function GameCanvas() {
             onOpenWarp={() => setWarpOpen(true)}
             warpAvailable={unlockedSolarSystems.length > 1}
           />
-          <MissionSelect
-            mission={selected}
-            onClose={() => setSelected(null)}
+          <QuestPanel
+            currentSolarSystemId={currentSolarSystemId}
+            focusedPlanetId={focusedPlanetId}
             onLaunch={handleLaunch}
+            onOpenWarp={() => setWarpOpen(true)}
           />
           {loadoutOpen && <LoadoutModal onClose={() => setLoadoutOpen(false)} />}
           {warpOpen && (
