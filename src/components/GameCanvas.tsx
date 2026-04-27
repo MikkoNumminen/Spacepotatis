@@ -9,9 +9,12 @@ import MissionSelect from "@/components/MissionSelect";
 import HudFrame from "@/components/galaxy/HudFrame";
 import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import WarpPicker from "@/components/galaxy/WarpPicker";
+import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
+import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
+import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
-import { loadSave, saveNow, submitScore } from "@/game/state/sync";
+import { saveNow, submitScore } from "@/game/state/sync";
 import { getAllMissions } from "@/game/data/missions";
 import { ROUTES } from "@/lib/routes";
 
@@ -74,70 +77,15 @@ export default function GameCanvas() {
     if (next) setSelected(next);
   }, [mode, currentSolarSystemId, unlockedPlanets, completedMissions]);
 
-  // Hydrate from cloud save once on sign-in. No-op when unauthenticated.
-  useEffect(() => {
-    if (authStatus !== "authenticated") return;
-    void loadSave();
-  }, [authStatus]);
+  useCloudSaveSync();
 
-  // Galaxy lifecycle: mount GalaxyScene when mode=galaxy, tear down otherwise.
-  // Re-mounts when the active solar system changes so the planet set + sun
-  // tint reflect the new system. Cheap because Three.js disposal is fast.
-  useEffect(() => {
-    if (mode !== "galaxy") return;
-    const canvas = galaxyCanvasRef.current;
-    if (!canvas) return;
-
-    let disposed = false;
-    let cleanup: (() => void) | null = null;
-
-    void (async () => {
-      const { GalaxyScene } = await import("@/game/three/GalaxyScene");
-      if (disposed) return;
-      const scene = new GalaxyScene(canvas, {
-        onPlanetHover: setHovered,
-        onPlanetSelect: setSelected,
-        activeSystemId: currentSolarSystemId
-      });
-      scene.start();
-      cleanup = () => scene.dispose();
-    })();
-
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [mode, currentSolarSystemId]);
-
-  // Combat lifecycle: mount Phaser into the parent div when mode=combat.
-  // We route onComplete through a ref so a mid-combat auth flip ("loading"
-  // → "authenticated") doesn't leave Phaser holding a stale closure that
-  // skips saveNow()/submitScore(). Re-instantiating Phaser on auth changes
-  // would be wasteful (and would tear down the active game), so the ref
-  // pattern is the correct fix here.
-  const completeRef = useRef<(summary: CombatSummary) => void | Promise<void>>(() => undefined);
-  useEffect(() => {
-    if (mode !== "combat") return;
-    const parent = combatParentRef.current;
-    if (!parent || !launching) return;
-
-    let disposed = false;
-    let game: import("phaser").Game | null = null;
-
-    void (async () => {
-      const { createPhaserGame } = await import("@/game/phaser/config");
-      if (disposed || !combatParentRef.current) return;
-      game = await createPhaserGame(combatParentRef.current, {
-        missionId: launching.id,
-        onComplete: (summary) => completeRef.current(summary)
-      });
-    })();
-
-    return () => {
-      disposed = true;
-      game?.destroy(true);
-    };
-  }, [mode, launching]);
+  useGalaxyScene({
+    enabled: mode === "galaxy",
+    canvasRef: galaxyCanvasRef,
+    currentSolarSystemId,
+    onHover: setHovered,
+    onSelect: setSelected
+  });
 
   const fadeOverlay = useCallback(async (toOpacity: number) => {
     const el = overlayRef.current;
@@ -176,7 +124,25 @@ export default function GameCanvas() {
     },
     [fadeOverlay, authStatus]
   );
+
+  // Route Phaser's onComplete through a ref so a mid-combat auth flip
+  // ("loading" → "authenticated") doesn't leave Phaser holding a stale
+  // closure that skips saveNow()/submitScore(). Re-instantiating Phaser
+  // on auth changes would be wasteful (and would tear down the active
+  // game), so the ref pattern is the correct fix here.
+  const completeRef = useRef<(summary: CombatSummary) => void | Promise<void>>(() => undefined);
   completeRef.current = handleMissionComplete;
+  const stableComplete = useCallback(
+    (summary: CombatSummary) => completeRef.current(summary),
+    []
+  );
+
+  usePhaserGame({
+    enabled: mode === "combat",
+    parentRef: combatParentRef,
+    missionId: launching?.id ?? null,
+    onComplete: stableComplete
+  });
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-space-bg">
@@ -221,4 +187,3 @@ export default function GameCanvas() {
     </div>
   );
 }
-
