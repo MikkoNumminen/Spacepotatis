@@ -26,13 +26,14 @@ export interface UseHandleResult {
 }
 
 // Module-level cache + in-flight de-dup. Multiple components mount on the
-// same page (UserMenu, PlayButton, HandlePrompt's parent) and used to fire
-// concurrent GETs each render. With this cache the round-trip happens
-// once per session, every consumer awaits the same Promise, and subsequent
-// hook calls resolve from cache synchronously on first effect tick.
+// same page (SignInButton on landing, UserMenu in galaxy, PlayButton,
+// HandlePrompt's parent) and used to fire concurrent GETs each render.
+// With this cache the round-trip happens once per session, every consumer
+// awaits the same Promise, and subsequent hook calls resolve from cache
+// synchronously on first effect tick.
 //
 // TODO: clear `cached` on signOut so a new account doesn't see the previous
-// account's handle. Acceptable to defer because every UserMenu mount
+// account's handle. Acceptable to defer because every consumer mount
 // already triggers a fresh fetch keyed off auth status changes.
 let cached: HandleResponse | null = null;
 let inflight: Promise<HandleResponse> | null = null;

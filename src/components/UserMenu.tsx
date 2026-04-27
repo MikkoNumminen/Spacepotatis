@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useHandle } from "@/lib/useHandle";
 
-// Top-right account control on the landing page.
+// Top-right account control in the galaxy view (and any other in-game
+// surface that wants the richer user dropdown). The simple sign-in/out
+// button lives in SignInButton on the landing page.
 //
 // Three states:
 //   loading         → "…" placeholder
