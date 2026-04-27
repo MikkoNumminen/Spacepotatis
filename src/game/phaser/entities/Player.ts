@@ -4,7 +4,6 @@ import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
 import { type ShipConfig, type SlotName } from "@/game/state/ShipConfig";
-import { sfx } from "@/game/audio/sfx";
 import {
   NEUTRAL_SLOT_MODS,
   resolveSlotMods,
@@ -12,20 +11,11 @@ import {
   type SlotMods
 } from "./player/SlotModResolver";
 import { PlayerCombatant } from "./player/PlayerCombatant";
+import { PlayerFireController } from "./player/PlayerFireController";
 
 export const PLAYER_TEXTURE = "player-ship";
 
 const SPEED = 360;
-
-// Per-slot bullet spawn offset relative to the player sprite center. Front
-// emerges from the nose, rear from the tail, sidekicks from the shoulder
-// pods. slotVectors() in weaponMath then handles the firing direction per slot.
-const SPAWN_OFFSET: Record<SlotName, { readonly x: number; readonly y: number }> = {
-  front: { x: 0, y: -18 },
-  rear: { x: 0, y: 18 },
-  sidekickLeft: { x: -16, y: 0 },
-  sidekickRight: { x: 16, y: 0 }
-};
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private controls: Controls;
@@ -44,6 +34,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   };
 
   private readonly combatant: PlayerCombatant;
+  private readonly fire: PlayerFireController;
 
   // Mission-only perk state — reset every CombatScene boot.
   hasOverdrive = false;
@@ -77,6 +68,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.combatant = new PlayerCombatant(ship);
+    this.fire = new PlayerFireController(this.weaponsBySlot, this.slotWeapons, this.slotMods);
   }
 
   get maxShield(): number { return this.combatant.maxShield; }
@@ -124,46 +116,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     const overdriveMul = this.hasOverdrive ? 0.66 : 1;
     if (this.controls.firePrimary()) {
-      this.tryFireSlot("front", time, overdriveMul);
+      this.fire.tryFireSlot("front", time, overdriveMul, this, this.combatant);
     }
     if (this.controls.fireSecondary()) {
       // Twin sidekick pods fire together. Each pod has its own WeaponSystem
       // cooldown, so different weapons in left/right slots fire independently.
-      this.tryFireSlot("sidekickLeft", time, overdriveMul);
-      this.tryFireSlot("sidekickRight", time, overdriveMul);
+      this.fire.tryFireSlot("sidekickLeft", time, overdriveMul, this, this.combatant);
+      this.fire.tryFireSlot("sidekickRight", time, overdriveMul, this, this.combatant);
     }
     if (this.controls.fireTertiary()) {
-      this.tryFireSlot("rear", time, overdriveMul);
-    }
-  }
-
-  private tryFireSlot(slot: SlotName, now: number, overdriveMul: number): void {
-    const weaponId = this.slotWeapons[slot];
-    if (!weaponId) return;
-    const mods = this.slotMods[slot];
-    if (this.combatant.energy < mods.energyCost) return;
-
-    const offset = SPAWN_OFFSET[slot];
-    // Overdrive's fire-rate bonus stacks multiplicatively on top of any
-    // augment fire-rate modifier — both are "cooldown multipliers", so the
-    // effective cooldown is base × augment × overdrive.
-    const fired = this.weaponsBySlot[slot].tryFire(
-      weaponId,
-      slot,
-      this.x + offset.x,
-      this.y + offset.y,
-      now,
-      true,
-      {
-        damageMul: mods.damageMul,
-        fireRateMul: mods.fireRateMul * overdriveMul,
-        projectileBonus: mods.projectileBonus,
-        turnRateMul: mods.turnRateMul
-      }
-    );
-    if (fired) {
-      this.combatant.energy = Math.max(0, this.combatant.energy - mods.energyCost);
-      sfx.laser();
+      this.fire.tryFireSlot("rear", time, overdriveMul, this, this.combatant);
     }
   }
 }
