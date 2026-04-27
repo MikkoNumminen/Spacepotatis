@@ -1,11 +1,10 @@
 import {
   isWeaponEquipped,
   isWeaponUnlocked,
-  type ShipConfig,
-  type SlotName
+  type ShipConfig
 } from "@/game/state/ShipConfig";
 import { getAllWeapons, getWeapon } from "@/game/data/weapons";
-import { SLOT_LABEL } from "./SlotGrid";
+import { slotLabel } from "./SlotGrid";
 import type { WeaponListEntry } from "./WeaponList";
 
 export function getOwnedWeapons(ship: ShipConfig) {
@@ -13,12 +12,11 @@ export function getOwnedWeapons(ship: ShipConfig) {
 }
 
 export function getEquippedEntries(ship: ShipConfig): WeaponListEntry[] {
-  return (Object.keys(ship.slots) as SlotName[])
-    .map((slot): WeaponListEntry | null => {
-      const wid = ship.slots[slot];
+  return ship.slots
+    .map((wid, slot): WeaponListEntry | null => {
       if (!wid) return null;
       const weapon = getWeapon(wid);
-      return { weapon, key: `equipped-${slot}-${weapon.id}`, slotBadge: SLOT_LABEL[slot] };
+      return { weapon, key: `equipped-${slot}-${weapon.id}`, slotBadge: slotLabel(slot) };
     })
     .filter((e): e is WeaponListEntry => e !== null);
 }

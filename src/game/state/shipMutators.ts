@@ -1,7 +1,9 @@
 import type { AugmentId, WeaponId } from "@/types/game";
 import {
   MAX_LEVEL,
+  MAX_WEAPON_SLOTS,
   armorUpgradeCost,
+  firstEmptySlot,
   getInstalledAugments,
   getWeaponLevel,
   isWeaponEquipped,
@@ -9,9 +11,8 @@ import {
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost,
-  slotKindFor,
+  slotPurchaseCost,
   weaponUpgradeCost,
-  type SlotName,
   type WeaponSlots
 } from "./ShipConfig";
 import { getWeapon } from "../data/weapons";
@@ -19,57 +20,61 @@ import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "../data/augments";
 import { getSellPrice } from "./pricing";
 import { commit, getState, spendCredits } from "./stateCore";
 
-// Equip an owned weapon into a slot. The weapon slot kind must match the
-// target slot. If the weapon is already equipped elsewhere, it is moved
-// (single-instance ownership — no duplicating one weapon across two slots).
-// If another weapon is currently in the target slot it gets bumped to null
-// (still owned, just unequipped).
-export function equipWeapon(slot: SlotName, id: WeaponId | null): boolean {
+// Equip an owned weapon into a slot by index. Single-instance ownership —
+// if the weapon is already equipped in some other slot, that slot is
+// vacated first so we never end up with the same weapon in two places.
+// Passing null clears the target slot. Returns false if the slot index is
+// out of range or the weapon isn't unlocked.
+export function equipWeapon(slotIndex: number, id: WeaponId | null): boolean {
   const state = getState();
+  if (slotIndex < 0 || slotIndex >= state.ship.slots.length) return false;
+
   if (id === null) {
-    if (state.ship.slots[slot] === null) return true;
-    commit({ ...state, ship: { ...state.ship, slots: { ...state.ship.slots, [slot]: null } } });
+    if (state.ship.slots[slotIndex] === null) return true;
+    const cleared = [...state.ship.slots];
+    cleared[slotIndex] = null;
+    commit({ ...state, ship: { ...state.ship, slots: cleared } });
     return true;
   }
+
   if (!isWeaponUnlocked(state.ship, id)) return false;
-  const weapon = getWeapon(id);
-  if (weapon.slot !== slotKindFor(slot)) return false;
-  if (state.ship.slots[slot] === id) return true;
+  if (state.ship.slots[slotIndex] === id) return true;
 
-  const nextSlots: WeaponSlots = { ...state.ship.slots };
-  // If the weapon is already in another slot, vacate that slot first so we
-  // never end up with the same weapon in two places.
-  for (const k of Object.keys(nextSlots) as SlotName[]) {
-    if (nextSlots[k] === id) nextSlots[k] = null;
-  }
-  nextSlots[slot] = id;
-
-  commit({ ...state, ship: { ...state.ship, slots: nextSlots } });
+  const next: (WeaponId | null)[] = state.ship.slots.map((entry) =>
+    entry === id ? null : entry
+  );
+  next[slotIndex] = id;
+  commit({ ...state, ship: { ...state.ship, slots: next } });
   return true;
 }
 
-// Mid-mission weapon pickup: unlock the weapon (no cost) and equip it into
-// the canonical slot for its kind. Sidekicks default to the left mount; the
-// player can rearrange via the loadout UI.
+// Mid-mission weapon pickup: unlock the weapon (no cost) and equip it
+// into the first empty slot if there is one. If every slot is occupied the
+// weapon just lands in inventory and the player can rearrange later.
 export function grantWeapon(id: WeaponId): void {
   const state = getState();
-  const weapon = getWeapon(id);
   const alreadyUnlocked = state.ship.unlockedWeapons.includes(id);
 
   const nextUnlocked = alreadyUnlocked
     ? state.ship.unlockedWeapons
     : [...state.ship.unlockedWeapons, id];
 
-  const target: SlotName =
-    weapon.slot === "front" ? "front" : weapon.slot === "rear" ? "rear" : "sidekickLeft";
-
-  if (alreadyUnlocked && state.ship.slots[target] === id) return;
-
-  const nextSlots: WeaponSlots = { ...state.ship.slots };
-  for (const k of Object.keys(nextSlots) as SlotName[]) {
-    if (nextSlots[k] === id) nextSlots[k] = null;
+  // If the weapon is already equipped somewhere, this is a no-op for slots —
+  // the player picked up a duplicate of a weapon they already use.
+  if (state.ship.slots.includes(id)) {
+    if (alreadyUnlocked) return;
+    commit({
+      ...state,
+      ship: { ...state.ship, unlockedWeapons: nextUnlocked }
+    });
+    return;
   }
-  nextSlots[target] = id;
+
+  const target = firstEmptySlot(state.ship);
+  const nextSlots: WeaponSlots =
+    target >= 0
+      ? state.ship.slots.map((entry, i) => (i === target ? id : entry))
+      : state.ship.slots;
 
   commit({
     ...state,
@@ -113,23 +118,16 @@ export function buyWeapon(id: WeaponId): boolean {
   const weapon = getWeapon(id);
   if (!spendCredits(weapon.cost)) return false;
 
-  // Auto-equip into the first matching slot if it is empty; otherwise leave
-  // unequipped in inventory. Keeps the post-purchase UX snappy for new
-  // players (their first buy of a slot kind just lands on the ship).
+  // Auto-equip into the first empty slot if there is one; otherwise leave
+  // unequipped in inventory. Players who haven't bought any expansions yet
+  // won't see anything change here — the new weapon shows up in the
+  // loadout's INVENTORY section and they can swap it into slot 0 manually.
   const post = getState();
-  const target: SlotName =
-    weapon.slot === "front"
-      ? "front"
-      : weapon.slot === "rear"
-        ? "rear"
-        : post.ship.slots.sidekickLeft === null
-          ? "sidekickLeft"
-          : "sidekickRight";
-
-  const slotIsFree = post.ship.slots[target] === null;
-  const nextSlots: WeaponSlots = slotIsFree
-    ? { ...post.ship.slots, [target]: id }
-    : post.ship.slots;
+  const target = firstEmptySlot(post.ship);
+  const nextSlots: WeaponSlots =
+    target >= 0
+      ? post.ship.slots.map((entry, i) => (i === target ? id : entry))
+      : post.ship.slots;
 
   commit({
     ...post,
@@ -137,6 +135,27 @@ export function buyWeapon(id: WeaponId): boolean {
       ...post.ship,
       unlockedWeapons: [...post.ship.unlockedWeapons, id],
       slots: nextSlots
+    }
+  });
+  return true;
+}
+
+// Buy an additional weapon slot. Refuses at MAX_WEAPON_SLOTS or if the
+// player can't afford the next-slot cost. The new slot is appended at the
+// tail so existing slot indices stay stable for everything else (in-flight
+// references in the loadout UI, the Player entity's per-slot WeaponSystem
+// instances, etc.).
+export function buyWeaponSlot(): boolean {
+  const state = getState();
+  if (state.ship.slots.length >= MAX_WEAPON_SLOTS) return false;
+  const cost = slotPurchaseCost(state.ship.slots.length);
+  if (!spendCredits(cost)) return false;
+  const post = getState();
+  commit({
+    ...post,
+    ship: {
+      ...post.ship,
+      slots: [...post.ship.slots, null]
     }
   });
   return true;

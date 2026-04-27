@@ -3,8 +3,7 @@ import {
   getInstalledAugments,
   getWeaponLevel,
   weaponDamageMultiplier,
-  type ShipConfig,
-  type SlotName
+  type ShipConfig
 } from "@/game/state/ShipConfig";
 import { getWeapon } from "../../../data/weapons";
 import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../../../data/augments";
@@ -29,8 +28,12 @@ export const NEUTRAL_SLOT_MODS: SlotMods = {
   turnRateMul: 1
 };
 
+// Slot index doesn't influence mod resolution — the mods are entirely a
+// function of the weapon and the ship's per-weapon level/augment data —
+// but we keep the parameter so call-site code reads "resolve mods for THIS
+// slot" rather than passing the weapon id around bare.
 export function resolveSlotMods(
-  slot: SlotName,
+  _slotIndex: number,
   ship: ShipConfig,
   currentWeaponId: WeaponId | null
 ): SlotMods {

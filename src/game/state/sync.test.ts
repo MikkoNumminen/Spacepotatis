@@ -107,7 +107,7 @@ describe("loadSave", () => {
     // Post-T2 (Zod schemas), an invalid shipConfig fails RemoteSaveSchema.safeParse
     // → loadSave returns false. State stays at defaults.
     expect(await loadSave()).toBe(false);
-    expect(getState().ship.slots.front).toBe("rapid-fire");
+    expect(getState().ship.slots[0]).toBe("rapid-fire");
   });
 });
 

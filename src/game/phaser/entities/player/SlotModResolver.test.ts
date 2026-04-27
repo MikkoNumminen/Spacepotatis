@@ -15,12 +15,12 @@ function shipWith(overrides: Partial<ShipConfig>): ShipConfig {
 
 describe("resolveSlotMods", () => {
   it("returns NEUTRAL_SLOT_MODS when the slot has no weapon", () => {
-    const mods = resolveSlotMods("rear", DEFAULT_SHIP, null);
+    const mods = resolveSlotMods(0, DEFAULT_SHIP, null);
     expect(mods).toBe(NEUTRAL_SLOT_MODS);
   });
 
   it("with no augments and level 1, damage multiplier is 1× and energy cost equals base", () => {
-    const mods = resolveSlotMods("front", DEFAULT_SHIP, "rapid-fire");
+    const mods = resolveSlotMods(0, DEFAULT_SHIP, "rapid-fire");
     // rapid-fire: base damage 6, energyCost 4, level 1
     expect(mods.damageMul).toBe(1);
     expect(mods.fireRateMul).toBe(1);
@@ -31,7 +31,7 @@ describe("resolveSlotMods", () => {
 
   it("scales damage with weapon level (level 5 → 1.6× via 0.15 per level)", () => {
     const ship = shipWith({ weaponLevels: { "rapid-fire": 5 } });
-    const mods = resolveSlotMods("front", ship, "rapid-fire");
+    const mods = resolveSlotMods(0, ship, "rapid-fire");
     expect(mods.damageMul).toBeCloseTo(1.6, 6);
   });
 
@@ -40,25 +40,25 @@ describe("resolveSlotMods", () => {
       weaponLevels: { "rapid-fire": 3 }, // 1.30×
       weaponAugments: { "rapid-fire": ["damage-up"] } // 1.25×
     });
-    const mods = resolveSlotMods("front", ship, "rapid-fire");
+    const mods = resolveSlotMods(0, ship, "rapid-fire");
     expect(mods.damageMul).toBeCloseTo(1.3 * 1.25, 6);
   });
 
   it("fire-rate-up augment forwards the cooldown multiplier (0.7 = ~43% faster)", () => {
     const ship = shipWith({ weaponAugments: { "rapid-fire": ["fire-rate-up"] } });
-    const mods = resolveSlotMods("front", ship, "rapid-fire");
+    const mods = resolveSlotMods(0, ship, "rapid-fire");
     expect(mods.fireRateMul).toBeCloseTo(0.7, 6);
   });
 
   it("extra-projectile augment adds +1 to the projectile bonus", () => {
     const ship = shipWith({ weaponAugments: { "rapid-fire": ["extra-projectile"] } });
-    const mods = resolveSlotMods("front", ship, "rapid-fire");
+    const mods = resolveSlotMods(0, ship, "rapid-fire");
     expect(mods.projectileBonus).toBe(1);
   });
 
   it("energy-down augment reduces the rounded energy cost (4 × 0.6 = 2.4 → 2)", () => {
     const ship = shipWith({ weaponAugments: { "rapid-fire": ["energy-down"] } });
-    const mods = resolveSlotMods("front", ship, "rapid-fire");
+    const mods = resolveSlotMods(0, ship, "rapid-fire");
     expect(mods.energyCost).toBe(2);
   });
 
@@ -70,13 +70,13 @@ describe("resolveSlotMods", () => {
     // here only matters for the >=1 floor — we simulate by passing a weapon
     // with cost 1 and the energy-down augment. Use side-spitter (3) + energy-down → 1.8 → 2.
     const ship = shipWith({ weaponAugments: { "side-spitter": ["energy-down"] } });
-    const mods = resolveSlotMods("sidekickLeft", ship, "side-spitter");
+    const mods = resolveSlotMods(0, ship, "side-spitter");
     expect(mods.energyCost).toBeGreaterThanOrEqual(1);
   });
 
   it("homing-up augment scales the turn-rate multiplier", () => {
     const ship = shipWith({ weaponAugments: { "spud-missile": ["homing-up"] } });
-    const mods = resolveSlotMods("front", ship, "spud-missile");
+    const mods = resolveSlotMods(0, ship, "spud-missile");
     expect(mods.turnRateMul).toBeCloseTo(1.5, 6);
   });
 
@@ -84,7 +84,7 @@ describe("resolveSlotMods", () => {
     const ship = shipWith({
       weaponAugments: { "rapid-fire": ["damage-up", "extra-projectile"] }
     });
-    const mods = resolveSlotMods("front", ship, "rapid-fire");
+    const mods = resolveSlotMods(0, ship, "rapid-fire");
     expect(mods.damageMul).toBeCloseTo(1.25, 6);
     expect(mods.projectileBonus).toBe(1);
   });

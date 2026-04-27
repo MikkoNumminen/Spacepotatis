@@ -7,8 +7,8 @@ import type {
 } from "@/types/game";
 import {
   DEFAULT_SHIP,
-  EMPTY_SLOTS,
   MAX_LEVEL,
+  MAX_WEAPON_SLOTS,
   type ShipConfig,
   type WeaponAugments,
   type WeaponLevels,
@@ -36,7 +36,7 @@ export function toSnapshot(): StateSnapshot {
     unlockedPlanets: [...state.unlockedPlanets],
     playedTimeSeconds: state.playedTimeSeconds,
     ship: {
-      slots: { ...state.ship.slots },
+      slots: [...state.ship.slots],
       unlockedWeapons: [...state.ship.unlockedWeapons],
       weaponLevels: { ...state.ship.weaponLevels },
       weaponAugments: cloneWeaponAugments(state.ship.weaponAugments),
@@ -51,10 +51,11 @@ export function toSnapshot(): StateSnapshot {
   };
 }
 
-// Accepts both the new snapshot shape (ship.slots + ship.reactor) AND legacy
-// snapshots that pre-date the loadout refactor (ship.primaryWeapon, no reactor
-// field). Legacy ships are migrated by parking primaryWeapon in slots.front
-// and zeroing the reactor levels.
+// Accepts the new array-based ship snapshot AND legacy snapshots that
+// pre-date the slot refactor:
+//   - the original `ship.primaryWeapon` shape (pre-loadout refactor)
+//   - the four-named-slot `ship.slots: { front, rear, sidekickLeft, sidekickRight }` shape
+// Both are flattened into `slots: [WeaponId | null, ...]` here.
 export function hydrate(snapshot: Partial<StateSnapshot>): void {
   const knownSystemIds = new Set(getAllSolarSystems().map((s) => s.id));
   const unlockedSystems =
@@ -80,9 +81,14 @@ export function hydrate(snapshot: Partial<StateSnapshot>): void {
   });
 }
 
+// Loose snapshot accepted by migrateShip. Covers all historical ship shapes
+// the persistence layer may see in a save row:
+//   - new array slots: { slots: WeaponSlots, ... }
+//   - four-named-slot object: { slots: { front, rear, sidekickLeft, sidekickRight }, ... }
+//   - pre-loadout primaryWeapon: { primaryWeapon: WeaponId, ... }
 export interface LegacyShipSnapshot {
   primaryWeapon?: WeaponId;
-  slots?: Partial<WeaponSlots>;
+  slots?: WeaponSlots | LegacyNamedSlots;
   unlockedWeapons?: readonly WeaponId[];
   weaponLevels?: WeaponLevels;
   weaponAugments?: WeaponAugments;
@@ -90,6 +96,13 @@ export interface LegacyShipSnapshot {
   shieldLevel?: number;
   armorLevel?: number;
   reactor?: Partial<ShipConfig["reactor"]>;
+}
+
+interface LegacyNamedSlots {
+  front?: WeaponId | null;
+  rear?: WeaponId | null;
+  sidekickLeft?: WeaponId | null;
+  sidekickRight?: WeaponId | null;
 }
 
 export function cloneWeaponAugments(aug: WeaponAugments): WeaponAugments {
@@ -114,23 +127,11 @@ export function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig 
       ? [...raw.unlockedWeapons]
       : DEFAULT_SHIP.unlockedWeapons;
 
-  let slots: WeaponSlots;
-  if (raw.slots) {
-    slots = {
-      front: raw.slots.front ?? null,
-      rear: raw.slots.rear ?? null,
-      sidekickLeft: raw.slots.sidekickLeft ?? null,
-      sidekickRight: raw.slots.sidekickRight ?? null
-    };
-  } else if (raw.primaryWeapon) {
-    slots = { ...EMPTY_SLOTS, front: raw.primaryWeapon };
-  } else {
-    slots = { ...DEFAULT_SHIP.slots };
-  }
+  const ownedSet = new Set<WeaponId>(unlocked);
+  const slots = migrateSlots(raw, ownedSet);
 
   // Filter weaponLevels to entries the player actually owns, clamp to
   // [1, MAX_LEVEL]. Missing or absent → empty map; consumers default to 1.
-  const ownedSet = new Set<WeaponId>(unlocked);
   const weaponLevels: Record<string, number> = {};
   if (raw.weaponLevels) {
     for (const [id, lvl] of Object.entries(raw.weaponLevels)) {
@@ -180,4 +181,38 @@ export function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig 
       rechargeLevel: raw.reactor?.rechargeLevel ?? 0
     }
   };
+}
+
+// Three input shapes funnel into a single WeaponSlots array:
+//   1. New array shape — keep entries that resolve to owned weapons or null.
+//      Cap length at MAX_WEAPON_SLOTS so a tampered save can't blow up the UI.
+//   2. Legacy named-slot object — only the `front` weapon survives. Rear and
+//      sidekicks were per-side fire kinds in the old combat model and don't
+//      carry over; the player keeps them in inventory (still in unlockedWeapons)
+//      and can re-equip them into any slot they buy later.
+//   3. Pre-loadout `primaryWeapon` — single weapon, becomes slot 0.
+//   4. Nothing parseable — fall back to the DEFAULT_SHIP slot layout.
+function migrateSlots(raw: LegacyShipSnapshot, owned: Set<WeaponId>): WeaponSlots {
+  const sanitize = (entry: WeaponId | null | undefined): WeaponId | null =>
+    typeof entry === "string" && owned.has(entry as WeaponId) ? (entry as WeaponId) : null;
+
+  if (Array.isArray(raw.slots)) {
+    const trimmed: (WeaponId | null)[] = raw.slots
+      .slice(0, MAX_WEAPON_SLOTS)
+      .map((entry) => sanitize(entry ?? null));
+    // Always guarantee at least the starter slot — a save with zero slots
+    // would leave the player unable to equip the one weapon they own.
+    return trimmed.length > 0 ? trimmed : [null];
+  }
+
+  if (raw.slots && typeof raw.slots === "object") {
+    const named = raw.slots as LegacyNamedSlots;
+    return [sanitize(named.front)];
+  }
+
+  if (raw.primaryWeapon) {
+    return [sanitize(raw.primaryWeapon)];
+  }
+
+  return [...DEFAULT_SHIP.slots];
 }

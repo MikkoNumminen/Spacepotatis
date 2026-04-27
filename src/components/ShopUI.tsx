@@ -107,12 +107,7 @@ export default function ShopUI() {
             <ul className="flex flex-col gap-3">
               {forSale.map((weapon) => (
                 <li key={weapon.id} className="rounded border border-space-border p-3">
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-display tracking-wider">{weapon.name}</span>
-                    <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
-                      {weapon.slot}
-                    </span>
-                  </div>
+                  <div className="font-display tracking-wider">{weapon.name}</div>
                   <WeaponStats weapon={weapon} />
                   <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
                   <div className="mt-2 flex items-center justify-end gap-2">

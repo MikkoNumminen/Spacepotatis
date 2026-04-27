@@ -16,11 +16,6 @@ export type WeaponId =
   | "plasma-whip"
   | "hailstorm";
 
-// Where on the ship a weapon mounts. Mirrors the four loadout slots in
-// ShipConfig: a single front slot (the "main" gun the player aims with),
-// a single rear slot, and two symmetric sidekick mounts.
-export type WeaponSlot = "front" | "rear" | "sidekick";
-
 // Permanent weapon modifiers. See src/game/data/augments.ts for the
 // catalog and effect math. An augment is bound to a single weapon when
 // installed and is destroyed if that weapon is sold.
@@ -31,6 +26,9 @@ export type AugmentId =
   | "energy-down"
   | "homing-up";
 
+// Every weapon is forward-firing now — slot kinds (rear / sidekick) were
+// removed in the slot-array refactor. Mounted in any open slot on the
+// ship; bullets always fly straight up.
 export interface WeaponDefinition {
   readonly id: WeaponId;
   readonly name: string;
@@ -42,7 +40,6 @@ export interface WeaponDefinition {
   readonly spreadDegrees: number;
   readonly cost: number;
   readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
-  readonly slot: WeaponSlot;      // hardpoint this weapon mounts to (front/rear/sidekick)
   readonly energyCost: number;    // reactor energy spent per FIRE event, not per bullet
   readonly homing?: boolean;      // if true, projectiles steer toward the nearest enemy
   readonly turnRateRadPerSec?: number; // homing turn rate; defaults to 3.5 if homing without explicit value

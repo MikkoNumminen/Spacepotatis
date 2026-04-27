@@ -1,6 +1,5 @@
 // Pure math helpers backing WeaponSystem. Extracted so the rate-limit and
 // spread computations can be tested without instantiating Phaser.
-import type { SlotName } from "@/game/state/ShipConfig";
 
 export function canFire(now: number, lastFireMs: number, fireRateMs: number): boolean {
   return now - lastFireMs >= fireRateMs;
@@ -15,6 +14,10 @@ export interface BulletVector {
   readonly vy: number;
 }
 
+// Build a horizontally-spread set of bullet velocities. `direction` flips
+// the y axis: friendly fire flies up (-1), hostile fire flies down (+1).
+// Slot-aware variants (rear-fire, sidekick angles, etc.) were removed in
+// the slot-array refactor — every weapon now emits straight forward.
 export function spreadVectors(
   count: number,
   spreadDegrees: number,
@@ -37,47 +40,6 @@ export function spreadVectors(
     });
   }
   return out;
-}
-
-// Slot-aware vector generator. The slot is the actual mount POSITION, not
-// the weapon kind — direction depends on where on the ship the bullet
-// emerges from. Front uses straight spreadVectors. Rear flips the friendly
-// base direction so bullets fly downward. Each sidekick pod emits its own
-// stream rotated 45 deg outward (left pod fires up-and-left, right pod
-// fires up-and-right). projectileCount + spreadDegrees still apply — a
-// 3-bullet sidekick fires a 3-cone at 45 deg outward, not just one bullet.
-const SIDEKICK_DEGREES = 45;
-
-export function slotVectors(
-  slot: SlotName,
-  count: number,
-  spreadDegrees: number,
-  speed: number,
-  friendly: boolean
-): readonly BulletVector[] {
-  const friendlyDir: 1 | -1 = friendly ? -1 : 1;
-  if (slot === "front") {
-    return spreadVectors(count, spreadDegrees, speed, friendlyDir);
-  }
-  if (slot === "rear") {
-    const flipped: 1 | -1 = friendly ? 1 : -1;
-    return spreadVectors(count, spreadDegrees, speed, flipped);
-  }
-  // Sidekick pods: build the spread in the friendly frame (straight up),
-  // rotate ±45° depending on which mount, then mirror Y for hostile fire so
-  // "left = negative vx" stays the same regardless of who's shooting. If we
-  // rotated the already-flipped hostile baseline directly, the rotation
-  // would swap left↔right because the baseline now points down.
-  const direction = slot === "sidekickLeft" ? -1 : 1;
-  const rad = degToRad(SIDEKICK_DEGREES) * direction;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const yFlip = friendly ? 1 : -1;
-  return spreadVectors(count, spreadDegrees, speed, -1).map((v) => {
-    const vx = v.vx * cos - v.vy * sin;
-    const vy = v.vx * sin + v.vy * cos;
-    return { vx, vy: vy * yFlip };
-  });
 }
 
 // Pure homing-steering math used by Bullet. Takes the bullet's current

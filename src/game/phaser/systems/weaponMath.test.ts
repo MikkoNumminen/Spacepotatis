@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canFire, degToRad, slotVectors, spreadVectors, steerVelocity } from "./weaponMath";
+import { canFire, degToRad, spreadVectors, steerVelocity } from "./weaponMath";
 
 describe("canFire", () => {
   it("blocks firing while the cooldown is still active", () => {
@@ -67,64 +67,6 @@ describe("spreadVectors", () => {
   });
 });
 
-describe("slotVectors", () => {
-  const SPEED = 600;
-
-  it("front slot fires straight ahead with the same shape as spreadVectors", () => {
-    const v = slotVectors("front", 1, 0, SPEED, true);
-    expect(v).toHaveLength(1);
-    expect(v[0]?.vx).toBeCloseTo(0, 6);
-    expect(v[0]?.vy).toBeCloseTo(-SPEED, 6);
-  });
-
-  it("rear slot flips Y so friendly bullets fly downward", () => {
-    const v = slotVectors("rear", 1, 0, SPEED, true);
-    expect(v).toHaveLength(1);
-    expect(v[0]?.vx).toBeCloseTo(0, 6);
-    expect(v[0]?.vy).toBeCloseTo(SPEED, 6);
-  });
-
-  it("sidekickLeft fires up-and-LEFT at 45 degrees, ONE bullet per call", () => {
-    const v = slotVectors("sidekickLeft", 1, 0, SPEED, true);
-    expect(v).toHaveLength(1);
-    const expected = SPEED / Math.SQRT2;
-    expect(v[0]?.vx).toBeCloseTo(-expected, 6);
-    expect(v[0]?.vy).toBeCloseTo(-expected, 6);
-  });
-
-  it("sidekickRight fires up-and-RIGHT at 45 degrees, ONE bullet per call", () => {
-    const v = slotVectors("sidekickRight", 1, 0, SPEED, true);
-    expect(v).toHaveLength(1);
-    const expected = SPEED / Math.SQRT2;
-    expect(v[0]?.vx).toBeCloseTo(expected, 6);
-    expect(v[0]?.vy).toBeCloseTo(-expected, 6);
-  });
-
-  it("sidekickLeft + sidekickRight produce mirrored streams (the twin-pod feel)", () => {
-    const left = slotVectors("sidekickLeft", 1, 0, SPEED, true)[0];
-    const right = slotVectors("sidekickRight", 1, 0, SPEED, true)[0];
-    expect(left).toBeDefined();
-    expect(right).toBeDefined();
-    if (!left || !right) return;
-    expect(left.vx).toBeCloseTo(-right.vx, 6);
-    expect(left.vy).toBeCloseTo(right.vy, 6);
-  });
-
-  it("sidekick respects projectileCount + spreadDegrees, rotating the whole cone outward", () => {
-    const v = slotVectors("sidekickRight", 3, 22, SPEED, true);
-    expect(v).toHaveLength(3);
-    // Every bullet should still travel at the same speed (rotation preserves magnitude).
-    for (const b of v) {
-      expect(Math.hypot(b.vx, b.vy)).toBeCloseTo(SPEED, 6);
-    }
-  });
-
-  it("hostile sidekick flips outward direction down-and-out (not up-and-out)", () => {
-    const v = slotVectors("sidekickLeft", 1, 0, SPEED, false);
-    expect(v[0]?.vy).toBeGreaterThan(0);
-    expect(v[0]?.vx).toBeLessThan(0);
-  });
-});
 
 describe("steerVelocity", () => {
   const SPEED = 400;

@@ -18,7 +18,6 @@ import type {
 const KNOWN_FORMATIONS = new Set(["line", "vee", "scatter", "column"]);
 const KNOWN_BEHAVIORS = new Set(["straight", "zigzag", "homing", "boss"]);
 const KNOWN_KINDS = new Set(["mission", "shop"]);
-const KNOWN_SLOTS = new Set(["front", "rear", "sidekick"]);
 
 describe("enemies.json", () => {
   const enemies = enemiesJson.enemies as readonly EnemyDefinition[];
@@ -86,15 +85,13 @@ describe("weapons.json", () => {
       expect(w.spreadDegrees).toBeLessThan(180);
       expect(w.cost).toBeGreaterThanOrEqual(0);
       expect(w.name.length).toBeGreaterThan(0);
-      expect(["front", "rear", "sidekick"]).toContain(w.slot);
       expect(w.energyCost).toBeGreaterThanOrEqual(0);
     }
   );
 
   it.each(weapons.map((w) => [w.id, w] as const))(
-    "%s has a valid slot and a positive energyCost",
+    "%s has a positive energyCost",
     (_id, w) => {
-      expect(KNOWN_SLOTS.has(w.slot)).toBe(true);
       expect(w.energyCost).toBeGreaterThan(0);
     }
   );

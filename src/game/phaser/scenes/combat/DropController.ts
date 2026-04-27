@@ -75,11 +75,13 @@ export class DropController {
       case "weapon": {
         const upgrade = this.nextWeaponUpgrade();
         if (upgrade) {
-          // grantWeapon equips into the canonical slot for the weapon kind
-          // (front for the existing pickup ladder). Mirror it onto the live
-          // Player so the change takes effect without rebuilding the entity.
+          // grantWeapon equips the new weapon into the first empty slot in
+          // GameState. Mirror that onto the live Player by re-reading where
+          // the weapon landed; if every slot was already full the weapon
+          // sits in inventory and the live Player has nothing to update.
           GameState.grantWeapon(upgrade.id);
-          player.setSlotWeapon("front", upgrade.id);
+          const slotIndex = GameState.getState().ship.slots.indexOf(upgrade.id);
+          if (slotIndex >= 0) player.setSlotWeapon(slotIndex, upgrade.id);
           this.flashPickup(
             `+ ${upgrade.name.toUpperCase()}`,
             hexToInt(upgrade.tint),

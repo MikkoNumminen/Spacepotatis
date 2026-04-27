@@ -12,7 +12,6 @@
       "spreadDegrees": 0,
       "cost": 0,
       "tint": "#4fd1ff",
-      "slot": "front",
       "energyCost": 4
     },
     {
@@ -26,7 +25,6 @@
       "spreadDegrees": 22,
       "cost": 450,
       "tint": "#ff66cc",
-      "slot": "front",
       "energyCost": 8
     },
     {
@@ -40,7 +38,6 @@
       "spreadDegrees": 12,
       "cost": 900,
       "tint": "#ff8844",
-      "slot": "front",
       "energyCost": 18
     },
     {
@@ -54,7 +51,6 @@
       "spreadDegrees": 0,
       "cost": 1100,
       "tint": "#ff5566",
-      "slot": "front",
       "energyCost": 22,
       "homing": true,
       "turnRateRadPerSec": 3.5
@@ -70,7 +66,6 @@
       "spreadDegrees": 28,
       "cost": 600,
       "tint": "#66ffaa",
-      "slot": "front",
       "energyCost": 6
     },
     {
@@ -84,7 +79,6 @@
       "spreadDegrees": 0,
       "cost": 700,
       "tint": "#88aaff",
-      "slot": "rear",
       "energyCost": 5
     },
     {
@@ -98,7 +92,6 @@
       "spreadDegrees": 0,
       "cost": 500,
       "tint": "#ffcc44",
-      "slot": "sidekick",
       "energyCost": 3
     },
     {
@@ -112,7 +105,6 @@
       "spreadDegrees": 0,
       "cost": 1300,
       "tint": "#cc44ff",
-      "slot": "front",
       "energyCost": 9
     },
     {
@@ -126,7 +118,6 @@
       "spreadDegrees": 36,
       "cost": 1500,
       "tint": "#ddffdd",
-      "slot": "front",
       "energyCost": 14
     }
   ]

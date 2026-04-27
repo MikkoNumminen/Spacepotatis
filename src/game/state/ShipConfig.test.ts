@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SHIP,
-  EMPTY_SLOTS,
   MAX_LEVEL,
+  MAX_WEAPON_SLOTS,
   armorUpgradeCost,
   findEquippedSlot,
+  firstEmptySlot,
   getInstalledAugments,
   getMaxArmor,
   getMaxShield,
@@ -16,7 +17,7 @@ import {
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost,
-  slotKindFor,
+  slotPurchaseCost,
   weaponDamageMultiplier,
   weaponUpgradeCost,
   type ShipConfig
@@ -27,25 +28,13 @@ import {
 } from "@/game/data/augments";
 
 describe("DEFAULT_SHIP", () => {
-  it("starts with the free starter weapon equipped to the front slot only", () => {
-    expect(DEFAULT_SHIP.slots.front).toBe("rapid-fire");
-    expect(DEFAULT_SHIP.slots.rear).toBeNull();
-    expect(DEFAULT_SHIP.slots.sidekickLeft).toBeNull();
-    expect(DEFAULT_SHIP.slots.sidekickRight).toBeNull();
+  it("starts with one slot containing the free starter weapon", () => {
+    expect(DEFAULT_SHIP.slots).toEqual(["rapid-fire"]);
     expect(DEFAULT_SHIP.unlockedWeapons).toEqual(["rapid-fire"]);
     expect(DEFAULT_SHIP.shieldLevel).toBe(0);
     expect(DEFAULT_SHIP.armorLevel).toBe(0);
     expect(DEFAULT_SHIP.reactor.capacityLevel).toBe(0);
     expect(DEFAULT_SHIP.reactor.rechargeLevel).toBe(0);
-  });
-
-  it("EMPTY_SLOTS exposes a fully empty slot record", () => {
-    expect(EMPTY_SLOTS).toEqual({
-      front: null,
-      rear: null,
-      sidekickLeft: null,
-      sidekickRight: null
-    });
   });
 });
 
@@ -139,21 +128,39 @@ describe("isWeaponUnlocked", () => {
 });
 
 describe("slot helpers", () => {
-  it("slotKindFor maps slot names to weapon-slot kinds", () => {
-    expect(slotKindFor("front")).toBe("front");
-    expect(slotKindFor("rear")).toBe("rear");
-    expect(slotKindFor("sidekickLeft")).toBe("sidekick");
-    expect(slotKindFor("sidekickRight")).toBe("sidekick");
-  });
-
   it("isWeaponEquipped reports true when the weapon is in any slot", () => {
     expect(isWeaponEquipped(DEFAULT_SHIP, "rapid-fire")).toBe(true);
     expect(isWeaponEquipped(DEFAULT_SHIP, "heavy-cannon")).toBe(false);
   });
 
-  it("findEquippedSlot returns the slot name or null", () => {
-    expect(findEquippedSlot(DEFAULT_SHIP, "rapid-fire")).toBe("front");
-    expect(findEquippedSlot(DEFAULT_SHIP, "heavy-cannon")).toBeNull();
+  it("findEquippedSlot returns the slot index or -1", () => {
+    expect(findEquippedSlot(DEFAULT_SHIP, "rapid-fire")).toBe(0);
+    expect(findEquippedSlot(DEFAULT_SHIP, "heavy-cannon")).toBe(-1);
+  });
+
+  it("firstEmptySlot finds the leftmost null", () => {
+    expect(firstEmptySlot(DEFAULT_SHIP)).toBe(-1);
+    const ship: ShipConfig = { ...DEFAULT_SHIP, slots: ["rapid-fire", null, "spread-shot"] };
+    expect(firstEmptySlot(ship)).toBe(1);
+  });
+});
+
+describe("slotPurchaseCost", () => {
+  it("returns the per-slot cost curve: 500, 2000, then doubles past slot 3", () => {
+    expect(slotPurchaseCost(1)).toBe(500);
+    expect(slotPurchaseCost(2)).toBe(2000);
+    expect(slotPurchaseCost(3)).toBe(4000);
+    expect(slotPurchaseCost(4)).toBe(8000);
+    expect(slotPurchaseCost(5)).toBe(16000);
+  });
+
+  it("returns 0 for nonsense input below 1 slot", () => {
+    expect(slotPurchaseCost(0)).toBe(0);
+    expect(slotPurchaseCost(-1)).toBe(0);
+  });
+
+  it("MAX_WEAPON_SLOTS is the soft cap consumers should respect", () => {
+    expect(MAX_WEAPON_SLOTS).toBeGreaterThanOrEqual(3);
   });
 });
 

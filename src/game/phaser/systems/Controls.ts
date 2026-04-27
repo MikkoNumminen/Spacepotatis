@@ -2,12 +2,15 @@ import * as Phaser from "phaser";
 
 // Input abstraction layer. The Player reads through this interface so future
 // input sources (gamepad, touch, remapped keys) only need a new factory.
+//
+// Single fire key now — every weapon slot fires together when Space is held.
+// The old per-slot keys (Alt for sidekicks, Ctrl for rear) went away with
+// the slot-array refactor; all slots are forward-firing and there's no
+// reason to fire them independently.
 export interface Controls {
   moveX(): number; // -1 | 0 | 1
   moveY(): number;
-  firePrimary(): boolean;    // Space — front slot (held to fire)
-  fireSecondary(): boolean;  // Alt — both sidekick pods (held to fire)
-  fireTertiary(): boolean;   // Ctrl — rear slot (held to fire)
+  fire(): boolean; // Space — every active weapon slot
 }
 
 export function createKeyboardControls(scene: Phaser.Scene): Controls {
@@ -20,15 +23,9 @@ export function createKeyboardControls(scene: Phaser.Scene): Controls {
     Phaser.Input.Keyboard.Key
   >;
   const space = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-  const alt = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ALT);
-  const ctrl = kb.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
 
-  // Stop the browser from acting on Space/Alt/Ctrl while the game has focus.
-  kb.addCapture([
-    Phaser.Input.Keyboard.KeyCodes.SPACE,
-    Phaser.Input.Keyboard.KeyCodes.ALT,
-    Phaser.Input.Keyboard.KeyCodes.CTRL
-  ]);
+  // Stop the browser from acting on Space while the game has focus.
+  kb.addCapture([Phaser.Input.Keyboard.KeyCodes.SPACE]);
 
   return {
     moveX() {
@@ -43,14 +40,8 @@ export function createKeyboardControls(scene: Phaser.Scene): Controls {
       if (cursors.down.isDown || wasd.S.isDown) y += 1;
       return y;
     },
-    firePrimary() {
+    fire() {
       return space.isDown;
-    },
-    fireSecondary() {
-      return alt.isDown;
-    },
-    fireTertiary() {
-      return ctrl.isDown;
     }
   };
 }

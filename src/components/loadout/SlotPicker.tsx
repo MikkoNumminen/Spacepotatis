@@ -1,24 +1,24 @@
-import { slotKindFor, type SlotName } from "@/game/state/ShipConfig";
-import type { WeaponDefinition } from "@/types/game";
-import { SLOT_LABEL, type WeaponLevels } from "./SlotGrid";
+import type { WeaponDefinition, WeaponId } from "@/types/game";
+import { slotLabel, type WeaponLevels } from "./SlotGrid";
 import { WeaponDot } from "./dots";
 
 export function SlotPicker({
-  slot,
+  slotIndex,
   owned,
   weaponLevels,
   equippedInThisSlot,
   onPick,
   onClose
 }: {
-  slot: SlotName;
+  slotIndex: number;
   owned: readonly WeaponDefinition[];
   weaponLevels: WeaponLevels;
-  equippedInThisSlot: WeaponDefinition["id"] | null;
-  onPick: (id: WeaponDefinition["id"] | null) => void;
+  equippedInThisSlot: WeaponId | null;
+  onPick: (id: WeaponId | null) => void;
   onClose: () => void;
 }) {
-  const candidates = owned.filter((w) => w.slot === slotKindFor(slot));
+  // Every owned weapon fits every slot — there are no slot kinds any more.
+  const candidates = owned;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
@@ -30,7 +30,7 @@ export function SlotPicker({
       >
         <header className="mb-3 flex items-baseline justify-between">
           <h3 className="font-display tracking-widest text-hud-green">
-            EQUIP · {SLOT_LABEL[slot]}
+            EQUIP · {slotLabel(slotIndex)}
           </h3>
           <button
             type="button"
@@ -43,7 +43,7 @@ export function SlotPicker({
 
         {candidates.length === 0 ? (
           <p className="text-[11px] text-hud-green/60">
-            No owned weapons fit this slot. Buy one in the shop.
+            No owned weapons. Buy one in the shop.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">

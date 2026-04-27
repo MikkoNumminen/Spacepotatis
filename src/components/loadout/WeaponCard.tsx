@@ -48,9 +48,11 @@ export function WeaponCard({
         <div className="flex items-baseline gap-2">
           <WeaponDot tint={weapon.tint} />
           <span className="font-display tracking-wider">{weapon.name}</span>
-          <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
-            {slotBadge ?? weapon.slot}
-          </span>
+          {slotBadge && (
+            <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
+              {slotBadge}
+            </span>
+          )}
         </div>
         <MarkBadge level={level} />
       </div>

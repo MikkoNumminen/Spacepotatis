@@ -31,7 +31,7 @@ describe("WeaponSystem.tryFire", () => {
   it("spawns one projectile for rapid-fire and reports success", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    const ok = ws.tryFire("rapid-fire", "front", 100, 200, 1000, true);
+    const ok = ws.tryFire("rapid-fire", 100, 200, 1000, true);
     expect(ok).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.x).toBe(100);
@@ -47,7 +47,7 @@ describe("WeaponSystem.tryFire", () => {
     const ws = new WeaponSystem(pool);
     // canFire compares now - lastFireMs (initial 0) against cooldown — supply a
     // `now` past the cooldown so the very first shot is allowed to fire.
-    ws.tryFire("spread-shot", "front", 0, 0, 1000, true);
+    ws.tryFire("spread-shot", 0, 0, 1000, true);
     expect(calls).toHaveLength(3);
   });
 
@@ -55,16 +55,16 @@ describe("WeaponSystem.tryFire", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
     // rapid-fire fireRateMs = 120
-    expect(ws.tryFire("rapid-fire", "front", 0, 0, 1000, true)).toBe(true);
-    expect(ws.tryFire("rapid-fire", "front", 0, 0, 1050, true)).toBe(false);
+    expect(ws.tryFire("rapid-fire", 0, 0, 1000, true)).toBe(true);
+    expect(ws.tryFire("rapid-fire", 0, 0, 1050, true)).toBe(false);
     expect(calls).toHaveLength(1);
   });
 
   it("permits a follow-up fire once the cooldown elapses", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    expect(ws.tryFire("rapid-fire", "front", 0, 0, 1000, true)).toBe(true);
-    expect(ws.tryFire("rapid-fire", "front", 0, 0, 1120, true)).toBe(true);
+    expect(ws.tryFire("rapid-fire", 0, 0, 1000, true)).toBe(true);
+    expect(ws.tryFire("rapid-fire", 0, 0, 1120, true)).toBe(true);
     expect(calls).toHaveLength(2);
   });
 
@@ -72,55 +72,55 @@ describe("WeaponSystem.tryFire", () => {
     const fast = makeFakePool();
     const fastWs = new WeaponSystem(fast.pool);
     // fireRateMul 0.5 → cooldown halves to 60ms; t=1000 then t=1060 should both fire.
-    expect(fastWs.tryFire("rapid-fire", "front", 0, 0, 1000, true, { fireRateMul: 0.5 })).toBe(true);
-    expect(fastWs.tryFire("rapid-fire", "front", 0, 0, 1060, true, { fireRateMul: 0.5 })).toBe(true);
+    expect(fastWs.tryFire("rapid-fire", 0, 0, 1000, true, { fireRateMul: 0.5 })).toBe(true);
+    expect(fastWs.tryFire("rapid-fire", 0, 0, 1060, true, { fireRateMul: 0.5 })).toBe(true);
 
     const slow = makeFakePool();
     const slowWs = new WeaponSystem(slow.pool);
     // fireRateMul 2.0 → cooldown doubles to 240ms; second fire at +120 should fail.
-    expect(slowWs.tryFire("rapid-fire", "front", 0, 0, 1000, true, { fireRateMul: 2 })).toBe(true);
-    expect(slowWs.tryFire("rapid-fire", "front", 0, 0, 1120, true, { fireRateMul: 2 })).toBe(false);
+    expect(slowWs.tryFire("rapid-fire", 0, 0, 1000, true, { fireRateMul: 2 })).toBe(true);
+    expect(slowWs.tryFire("rapid-fire", 0, 0, 1120, true, { fireRateMul: 2 })).toBe(false);
   });
 
   it("applies damageMul to every spawned projectile", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("rapid-fire", "front", 0, 0, 1000, true, { damageMul: 1.5 });
+    ws.tryFire("rapid-fire", 0, 0, 1000, true, { damageMul: 1.5 });
     expect(calls[0]?.damage).toBe(9); // 6 * 1.5
   });
 
   it("applies projectileBonus additively, never below 1 projectile", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("rapid-fire", "front", 0, 0, 1000, true, { projectileBonus: 2 });
+    ws.tryFire("rapid-fire", 0, 0, 1000, true, { projectileBonus: 2 });
     expect(calls).toHaveLength(3);
   });
 
   it("clamps projectile count to a minimum of 1 even with negative bonus", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("rapid-fire", "front", 0, 0, 1000, true, { projectileBonus: -10 });
+    ws.tryFire("rapid-fire", 0, 0, 1000, true, { projectileBonus: -10 });
     expect(calls).toHaveLength(1);
   });
 
   it("forwards homing config when the weapon is homing (spud-missile)", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("spud-missile", "front", 0, 0, 1000, true);
+    ws.tryFire("spud-missile", 0, 0, 1000, true);
     expect(calls[0]?.homing).toEqual({ turnRateRadPerSec: 3.5 });
   });
 
   it("scales the homing turn rate via turnRateMul", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("spud-missile", "front", 0, 0, 1000, true, { turnRateMul: 2 });
+    ws.tryFire("spud-missile", 0, 0, 1000, true, { turnRateMul: 2 });
     expect(calls[0]?.homing?.turnRateRadPerSec).toBeCloseTo(7);
   });
 
   it("never sends homing config for a non-homing weapon", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("rapid-fire", "front", 0, 0, 1000, true, { turnRateMul: 999 });
+    ws.tryFire("rapid-fire", 0, 0, 1000, true, { turnRateMul: 999 });
     expect(calls[0]?.homing).toBeNull();
   });
 
@@ -129,8 +129,8 @@ describe("WeaponSystem.tryFire", () => {
     const b = makeFakePool();
     const wsA = new WeaponSystem(a.pool);
     const wsB = new WeaponSystem(b.pool);
-    expect(wsA.tryFire("rapid-fire", "front", 0, 0, 1000, true)).toBe(true);
-    expect(wsB.tryFire("rapid-fire", "front", 0, 0, 1000, true)).toBe(true);
+    expect(wsA.tryFire("rapid-fire", 0, 0, 1000, true)).toBe(true);
+    expect(wsB.tryFire("rapid-fire", 0, 0, 1000, true)).toBe(true);
     expect(a.calls).toHaveLength(1);
     expect(b.calls).toHaveLength(1);
   });
@@ -138,8 +138,8 @@ describe("WeaponSystem.tryFire", () => {
   it("identity-mods (no modifier object) match an explicit empty mods bag", () => {
     const a = makeFakePool();
     const b = makeFakePool();
-    new WeaponSystem(a.pool).tryFire("rapid-fire", "front", 0, 0, 1000, true);
-    new WeaponSystem(b.pool).tryFire("rapid-fire", "front", 0, 0, 1000, true, {});
+    new WeaponSystem(a.pool).tryFire("rapid-fire", 0, 0, 1000, true);
+    new WeaponSystem(b.pool).tryFire("rapid-fire", 0, 0, 1000, true, {});
     expect(a.calls[0]?.damage).toBe(b.calls[0]?.damage);
     expect(a.calls.length).toBe(b.calls.length);
   });
