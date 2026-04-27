@@ -9,30 +9,14 @@ import * as GameState from "@/game/state/GameState";
 import { on } from "../events";
 import { setSummary } from "../registry";
 import { sfx } from "@/game/audio/sfx";
-import {
-  PowerUpPool,
-  isPerkKind,
-  type PowerUp,
-  type PowerUpKind,
-  type PermanentPowerUpKind
-} from "../entities/PowerUp";
-import { PERKS, randomPerkId, type PerkId } from "../../data/perks";
+import { PowerUpPool } from "../entities/PowerUp";
+import { PERKS, type PerkId } from "../../data/perks";
 import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
-import { getWeapon } from "../../data/weapons";
-import { getMission } from "../../data/missions";
 import { CombatVfx } from "./combat/CombatVfx";
 import { CombatHud } from "./combat/CombatHud";
-
-function hexToInt(hex: string): number {
-  return parseInt(hex.replace(/^#/, ""), 16);
-}
-
-const DROP_CHANCE = 0.18;
-// Of any drop, 25% is a mission perk (rare). Remaining 75% splits across
-// the permanent powerups with the existing weights.
-const PERK_DROP_SHARE = 0.25;
+import { DropController } from "./combat/DropController";
 
 export class CombatScene extends Phaser.Scene {
   private bootData!: BootData;
@@ -45,6 +29,7 @@ export class CombatScene extends Phaser.Scene {
   private score!: ScoreSystem;
   private vfx!: CombatVfx;
   private hud!: CombatHud;
+  private dropController!: DropController;
 
   private startedAt = 0;
   private allWavesDone = false;
@@ -92,6 +77,15 @@ export class CombatScene extends Phaser.Scene {
 
     this.score = new ScoreSystem();
 
+    this.dropController = new DropController(
+      this,
+      this.bootData.missionId,
+      this.powerUps,
+      () => this.player,
+      () => this.score,
+      (perkId, x, y) => this.applyPerk(perkId, x, y)
+    );
+
     const getPlayerPos = () => (this.player.active ? { x: this.player.x, y: this.player.y } : null);
 
     wireCollisions(
@@ -107,7 +101,7 @@ export class CombatScene extends Phaser.Scene {
         },
         onPlayerHitByBullet: (bullet) => this.player.takeDamage(bullet.damage),
         onPlayerTouchEnemy: (enemy) => this.player.takeDamage(enemy.definition.collisionDamage),
-        onPlayerGetPowerUp: (power) => this.applyPowerUp(power)
+        onPlayerGetPowerUp: (power) => this.dropController.applyPowerUp(power)
       }
     );
 
@@ -175,50 +169,9 @@ export class CombatScene extends Phaser.Scene {
 
     sfx.explosion();
 
-    if (Math.random() < DROP_CHANCE) {
-      const kind: PowerUpKind = this.rollDrop();
-      this.powerUps.spawn(kind, enemy.x, enemy.y);
-    }
+    this.dropController.maybeDrop(enemy);
 
     this.vfx.emitExplosionParticles(enemy.x, enemy.y, def.behavior === "boss" ? 48 : 14);
-  }
-
-  private applyPowerUp(power: PowerUp): void {
-    sfx.pickup();
-    if (isPerkKind(power.kind)) {
-      this.applyPerk(power.kind.perk, power.x, power.y);
-      return;
-    }
-    switch (power.kind) {
-      case "shield":
-        this.player.shield = Math.min(
-          this.player.maxShield,
-          this.player.shield + this.player.maxShield * 0.5
-        );
-        this.flashPickup("+ SHIELD", 0x4fd1ff, power.x, power.y, "potato");
-        break;
-      case "credit":
-        this.score.addCredits(25);
-        this.flashPickup("+ ¢25", 0xffcc33, power.x, power.y, "potato");
-        break;
-      case "weapon": {
-        const upgrade = this.nextWeaponUpgrade();
-        if (upgrade) {
-          // grantWeapon equips into the canonical slot for the weapon kind
-          // (front for the existing pickup ladder). Mirror it onto the live
-          // Player so the change takes effect without rebuilding the entity.
-          GameState.grantWeapon(upgrade.id);
-          this.player.setSlotWeapon("front", upgrade.id);
-          this.flashPickup(`+ ${upgrade.name.toUpperCase()}`, hexToInt(upgrade.tint), power.x, power.y, "potato");
-        } else {
-          // Already maxed on weapons — convert pickup to credits so the player
-          // is never penalized by a duplicate.
-          this.score.addCredits(50);
-          this.flashPickup("+ ¢50", 0xffcc33, power.x, power.y, "potato");
-        }
-        break;
-      }
-    }
   }
 
   private applyPerk(perkId: PerkId, x: number, y: number): void {
@@ -235,19 +188,8 @@ export class CombatScene extends Phaser.Scene {
         break;
     }
     this.activePerks.add(perkId);
-    this.flashPickup(`+ ${def.name.toUpperCase()}`, def.tint, x, y, "mission");
+    this.dropController.flashPickup(`+ ${def.name.toUpperCase()}`, def.tint, x, y, "mission");
     this.hud.refreshPerkChips();
-  }
-
-  private rollDrop(): PowerUpKind {
-    const mission = getMission(this.bootData.missionId);
-    const perksAllowed = mission.perksAllowed === true;
-    if (perksAllowed && Math.random() < PERK_DROP_SHARE) {
-      return { perk: randomPerkId() };
-    }
-    const roll = Math.random();
-    const kind: PermanentPowerUpKind = roll < 0.5 ? "credit" : roll < 0.8 ? "shield" : "weapon";
-    return kind;
   }
 
   private useActivePerk(): void {
@@ -280,62 +222,6 @@ export class CombatScene extends Phaser.Scene {
     });
     this.cameras.main.flash(120, 255, 200, 240, false);
     sfx.explosion();
-  }
-
-  private flashPickup(
-    text: string,
-    color: number,
-    x: number,
-    y: number,
-    category: "potato" | "mission" = "potato"
-  ): void {
-    const hex = `#${color.toString(16).padStart(6, "0")}`;
-    const tag = category === "potato" ? "POTATO UPGRADE" : "MISSION ONLY";
-    const tagColor = category === "potato" ? "#ffd66b" : "#ff66cc";
-
-    const name = this.add.text(x, y - 14, text, {
-      fontFamily: "monospace",
-      fontSize: "14px",
-      fontStyle: "bold",
-      color: hex
-    });
-    name.setOrigin(0.5, 1);
-
-    const subtitle = this.add.text(x, y, tag, {
-      fontFamily: "monospace",
-      fontSize: "10px",
-      color: tagColor
-    });
-    subtitle.setOrigin(0.5, 1);
-
-    this.tweens.add({
-      targets: [name, subtitle],
-      y: `-=44`,
-      alpha: 0,
-      duration: 1100,
-      ease: "cubic.out",
-      onComplete: () => {
-        name.destroy();
-        subtitle.destroy();
-      }
-    });
-  }
-
-  // Weapon pickup progression: rapid → spread → heavy. Returns the next
-  // weapon the player has NOT yet unlocked, or null if all are owned.
-  // Future ship-weapon-modules slot into a separate side-mount system, not
-  // this primary cycle.
-  private nextWeaponUpgrade() {
-    const order: Array<"rapid-fire" | "spread-shot" | "heavy-cannon"> = [
-      "rapid-fire",
-      "spread-shot",
-      "heavy-cannon"
-    ];
-    const owned = new Set(GameState.getState().ship.unlockedWeapons);
-    for (const id of order) {
-      if (!owned.has(id)) return getWeapon(id);
-    }
-    return null;
   }
 
   private togglePause(): void {
