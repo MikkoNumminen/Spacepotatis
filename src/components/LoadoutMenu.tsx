@@ -25,6 +25,8 @@ import {
 } from "@/game/data/augments";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponStats } from "@/components/WeaponStats";
+import { SLOT_LABEL, SlotGrid } from "@/components/loadout/SlotGrid";
+import { AugmentDot, WeaponDot } from "@/components/loadout/dots";
 import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
 
 interface Props {
@@ -33,13 +35,6 @@ interface Props {
   // shuffling, not spending credits.
   mode: "equip" | "market";
 }
-
-const SLOT_LABEL: Record<SlotName, string> = {
-  front: "FRONT",
-  rear: "REAR",
-  sidekickLeft: "SIDEKICK · LEFT",
-  sidekickRight: "SIDEKICK · RIGHT"
-};
 
 export default function LoadoutMenu({ mode }: Props) {
   const credits = useGameState((s) => s.credits);
@@ -308,93 +303,6 @@ function MarkBadge({ level }: { level: number }) {
   );
 }
 
-function SlotGrid({
-  slots,
-  weaponLevels,
-  onPick
-}: {
-  slots: {
-    front: WeaponDefinition["id"] | null;
-    rear: WeaponDefinition["id"] | null;
-    sidekickLeft: WeaponDefinition["id"] | null;
-    sidekickRight: WeaponDefinition["id"] | null;
-  };
-  weaponLevels: Readonly<Partial<Record<WeaponDefinition["id"], number>>>;
-  onPick: (slot: SlotName) => void;
-}) {
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      <div />
-      <SlotCard slot="front" weaponId={slots.front} weaponLevels={weaponLevels} onPick={onPick} />
-      <div />
-
-      <SlotCard
-        slot="sidekickLeft"
-        weaponId={slots.sidekickLeft}
-        weaponLevels={weaponLevels}
-        onPick={onPick}
-      />
-      <div className="rounded border border-dashed border-space-border/40 p-3 text-center text-[10px] text-hud-green/40">
-        SHIP
-      </div>
-      <SlotCard
-        slot="sidekickRight"
-        weaponId={slots.sidekickRight}
-        weaponLevels={weaponLevels}
-        onPick={onPick}
-      />
-
-      <div />
-      <SlotCard slot="rear" weaponId={slots.rear} weaponLevels={weaponLevels} onPick={onPick} />
-      <div />
-    </div>
-  );
-}
-
-function SlotCard({
-  slot,
-  weaponId,
-  weaponLevels,
-  onPick
-}: {
-  slot: SlotName;
-  weaponId: WeaponDefinition["id"] | null;
-  weaponLevels: Readonly<Partial<Record<WeaponDefinition["id"], number>>>;
-  onPick: (slot: SlotName) => void;
-}) {
-  const weapon = weaponId ? getWeapon(weaponId) : null;
-  const level = weaponId ? weaponLevels[weaponId] ?? 1 : 1;
-  return (
-    <button
-      type="button"
-      onClick={() => onPick(slot)}
-      className={`rounded border p-3 text-left transition ${
-        weapon
-          ? "border-hud-green/60 bg-hud-green/5 hover:border-hud-green"
-          : "border-dashed border-space-border hover:border-hud-amber/60"
-      }`}
-    >
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
-          {SLOT_LABEL[slot]}
-        </span>
-        {weapon && level > 1 && (
-          <span className="font-mono text-[10px] text-hud-green/80">Mk {level}</span>
-        )}
-      </div>
-      {weapon ? (
-        <div className="mt-1 flex items-baseline gap-2">
-          <WeaponDot tint={weapon.tint} />
-          <span className="font-display text-sm tracking-wider">{weapon.name}</span>
-        </div>
-      ) : (
-        <div className="mt-1 font-mono text-[11px] text-hud-green/40">empty</div>
-      )}
-      <div className="mt-2 text-[10px] text-hud-amber/80">change</div>
-    </button>
-  );
-}
-
 function SlotPicker({
   slot,
   owned,
@@ -568,23 +476,3 @@ function AugmentPicker({
   );
 }
 
-function WeaponDot({ tint }: { tint: string }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-block h-2.5 w-2.5 rounded-full"
-      style={{ backgroundColor: tint, boxShadow: `0 0 6px ${tint}` }}
-    />
-  );
-}
-
-function AugmentDot({ tint, title }: { tint: string; title?: string }) {
-  return (
-    <span
-      title={title}
-      aria-label={title}
-      className="inline-block h-2 w-2 rounded-full"
-      style={{ backgroundColor: tint, boxShadow: `0 0 4px ${tint}` }}
-    />
-  );
-}
