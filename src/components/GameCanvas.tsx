@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition, SolarSystemId } from "@/types/game";
-import LoadoutMenu from "@/components/LoadoutMenu";
 import MissionSelect from "@/components/MissionSelect";
 import HudFrame from "@/components/galaxy/HudFrame";
+import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import WarpPicker from "@/components/galaxy/WarpPicker";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
@@ -198,20 +198,7 @@ export default function GameCanvas() {
             onClose={() => setSelected(null)}
             onLaunch={handleLaunch}
           />
-          {loadoutOpen && (
-            <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-              <div className="relative w-[28rem] max-w-[92vw]">
-                <button
-                  type="button"
-                  onClick={() => setLoadoutOpen(false)}
-                  className="absolute right-full top-0 mr-3 rounded border border-hud-amber/40 px-3 py-1 text-sm text-hud-amber hover:bg-hud-amber/10"
-                >
-                  Back
-                </button>
-                <LoadoutMenu mode="equip" />
-              </div>
-            </div>
-          )}
+          {loadoutOpen && <LoadoutModal onClose={() => setLoadoutOpen(false)} />}
           {warpOpen && (
             <WarpPicker
               currentSystemId={currentSolarSystemId}
