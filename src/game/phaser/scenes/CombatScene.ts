@@ -72,6 +72,10 @@ export class CombatScene extends Phaser.Scene {
 
     this.score = new ScoreSystem();
 
+    // PerkController and DropController have a circular handshake: drops can
+    // grant perks (perk pickup), and applying a perk uses dropController's
+    // pickup-flash routine. Both controllers receive lazy accessors for the
+    // pieces they didn't construct yet.
     this.perks = new PerkController(
       this,
       () => this.player,
@@ -79,7 +83,6 @@ export class CombatScene extends Phaser.Scene {
       (text, color, x, y) => this.dropController.flashPickup(text, color, x, y, "mission"),
       () => this.hud.refreshPerkChips()
     );
-
     this.dropController = new DropController(
       this,
       this.bootData.missionId,
@@ -88,6 +91,24 @@ export class CombatScene extends Phaser.Scene {
       () => this.score,
       (perkId, x, y) => this.perks.apply(perkId, x, y)
     );
+
+    this.hud = new CombatHud(this, () => {
+      const perkState = this.perks.getState();
+      return {
+        score: this.score.score,
+        combo: this.score.combo,
+        credits: this.score.credits,
+        shield: this.player.shield,
+        maxShield: this.player.maxShield,
+        armor: this.player.armor,
+        maxArmor: this.player.maxArmor,
+        energy: this.player.energy,
+        maxEnergy: this.player.maxEnergy,
+        activePerks: perkState.activePerks,
+        empCharges: perkState.empCharges
+      };
+    });
+    this.hud.build();
 
     const getPlayerPos = () => (this.player.active ? { x: this.player.x, y: this.player.y } : null);
 
@@ -119,31 +140,12 @@ export class CombatScene extends Phaser.Scene {
     on(this, "allWavesComplete", () => {
       this.allWavesDone = true;
     });
-
     on(this, "playerDied", () => this.finish(false));
     on(this, "abandon", () => this.finish(false));
 
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-ESC", () => this.togglePause());
     this.input.keyboard?.on("keydown-CTRL", () => this.perks.triggerActive());
-
-    this.hud = new CombatHud(this, () => {
-      const perkState = this.perks.getState();
-      return {
-        score: this.score.score,
-        combo: this.score.combo,
-        credits: this.score.credits,
-        shield: this.player.shield,
-        maxShield: this.player.maxShield,
-        armor: this.player.armor,
-        maxArmor: this.player.maxArmor,
-        energy: this.player.energy,
-        maxEnergy: this.player.maxEnergy,
-        activePerks: perkState.activePerks,
-        empCharges: perkState.empCharges
-      };
-    });
-    this.hud.build();
 
     this.startedAt = this.time.now;
     this.waves.start();
