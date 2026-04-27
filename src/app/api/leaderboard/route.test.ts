@@ -138,7 +138,8 @@ describe("POST /api/leaderboard", () => {
       new Request("http://x/api/leaderboard", { method: "POST", body: JSON.stringify({ score: 100 }) })
     );
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "bad_payload" });
+    // Zod schema rejection — wire format is { error: "validation_failed", issues: [...] }
+    expect((await res.json()).error).toBe("validation_failed");
 
     res = await POST(
       new Request("http://x/api/leaderboard", {
@@ -149,15 +150,17 @@ describe("POST /api/leaderboard", () => {
     expect(res.status).toBe(400);
   });
 
-  it("inserts a score, truncates float fields, revalidates the cache tag, returns 201", async () => {
+  it("inserts an integer score, revalidates the cache tag, returns 201", async () => {
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
     const insertSpy = vi.fn();
     dbStub.insertSpy = insertSpy;
     const { POST } = await loadRoute();
+    // Zod schema requires integer score + integer timeSeconds. Float values
+    // are now rejected at parse time (was: silently truncated by route logic).
     const res = await POST(
       new Request("http://x/api/leaderboard", {
         method: "POST",
-        body: JSON.stringify({ missionId: "tutorial", score: 1234.7, timeSeconds: 60.9 })
+        body: JSON.stringify({ missionId: "tutorial", score: 1234, timeSeconds: 60 })
       })
     );
     expect(res.status).toBe(201);

@@ -141,11 +141,13 @@ describe("POST /api/save", () => {
     expect(await res.json()).toEqual({ error: "bad_json" });
   });
 
-  it("coerces unknown payload fields and passes the typed values to the upsert", async () => {
+  it("rejects malformed payload with 400 + validation_failed (Zod strict)", async () => {
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
     const insertSpy = vi.fn();
     dbStub.insertSpy = insertSpy;
     const { POST } = await loadRoute();
+    // Pre-T2 the route silently coerced/floored these fields; post-T2
+    // SavePayloadSchema.safeParse rejects garbage at the boundary.
     const req = new Request("http://x/api/save", {
       method: "POST",
       body: JSON.stringify({
@@ -158,19 +160,12 @@ describe("POST /api/save", () => {
       })
     });
     const res = await POST(req);
-    expect(res.status).toBe(204);
-    const passed = insertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(passed.player_id).toBe("player-uuid");
-    expect(passed.slot).toBe(1);
-    expect(passed.credits).toBe(99); // truncated
-    expect(passed.current_planet).toBe("tutorial");
-    expect(passed.ship_config).toEqual({ weapon: "rapid-fire" });
-    expect(passed.completed_missions).toEqual(["tutorial"]); // strings only
-    expect(passed.unlocked_planets).toEqual([]); // non-array fallback
-    expect(passed.played_time_seconds).toBe(0); // non-number fallback
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("validation_failed");
+    expect(insertSpy).not.toHaveBeenCalled();
   });
 
-  it("falls back to {} when shipConfig is an array (defensive)", async () => {
+  it("rejects an array as shipConfig with 400 (Zod strict)", async () => {
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
     const insertSpy = vi.fn();
     dbStub.insertSpy = insertSpy;
@@ -180,9 +175,8 @@ describe("POST /api/save", () => {
       body: JSON.stringify({ shipConfig: ["bad"] })
     });
     const res = await POST(req);
-    expect(res.status).toBe(204);
-    const passed = insertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(passed.ship_config).toEqual({});
+    expect(res.status).toBe(400);
+    expect(insertSpy).not.toHaveBeenCalled();
   });
 
   it("returns 500 when the DB write fails", async () => {

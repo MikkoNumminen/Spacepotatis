@@ -91,7 +91,7 @@ describe("loadSave", () => {
     expect(fetchCalls[0]?.init?.cache).toBe("no-store");
   });
 
-  it("hydrates with the snapshot ship omitted when shipConfig is bogus", async () => {
+  it("rejects the whole payload when shipConfig is malformed (Zod strict)", async () => {
     const remote = {
       slot: 1,
       credits: 10,
@@ -104,8 +104,9 @@ describe("loadSave", () => {
     };
     fetchImpl.current = async () =>
       new Response(JSON.stringify(remote), { status: 200 });
-    expect(await loadSave()).toBe(true);
-    // Falls back to default ship — front slot is rapid-fire.
+    // Post-T2 (Zod schemas), an invalid shipConfig fails RemoteSaveSchema.safeParse
+    // → loadSave returns false. State stays at defaults.
+    expect(await loadSave()).toBe(false);
     expect(getState().ship.slots.front).toBe("rapid-fire");
   });
 });

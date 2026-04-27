@@ -56,12 +56,20 @@ beforeEach(() => {
 describe("getCachedLeaderboard cache wiring", () => {
   it("registers the leaderboard cache tag, key, and 60s revalidate window", async () => {
     // Importing here so the mocks above are in place before the module evaluates.
+    // The module wires TWO caches (entries + top-pilots), both under the same tag.
     const mod = await import("./leaderboard");
-    expect(cacheCall).toHaveBeenCalledTimes(1);
-    const [keyParts, options] = cacheCall.mock.calls[0] as [string[], { revalidate: number; tags: string[] }];
-    expect(keyParts).toEqual(["leaderboard-entries-v1"]);
-    expect(options.revalidate).toBe(60);
-    expect(options.tags).toEqual([mod.LEADERBOARD_CACHE_TAG]);
+    expect(cacheCall).toHaveBeenCalledTimes(2);
+
+    const [entriesKey, entriesOpts] = cacheCall.mock.calls[0] as [string[], { revalidate: number; tags: string[] }];
+    expect(entriesKey).toEqual(["leaderboard-entries-v1"]);
+    expect(entriesOpts.revalidate).toBe(60);
+    expect(entriesOpts.tags).toEqual([mod.LEADERBOARD_CACHE_TAG]);
+
+    const [topPilotsKey, topPilotsOpts] = cacheCall.mock.calls[1] as [string[], { revalidate: number; tags: string[] }];
+    expect(topPilotsKey).toEqual(["top-pilots-v1"]);
+    expect(topPilotsOpts.revalidate).toBe(60);
+    expect(topPilotsOpts.tags).toEqual([mod.LEADERBOARD_CACHE_TAG]);
+
     expect(mod.LEADERBOARD_CACHE_TAG).toBe("leaderboard");
   });
 });
