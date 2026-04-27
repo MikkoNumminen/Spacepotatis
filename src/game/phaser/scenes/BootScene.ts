@@ -21,7 +21,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private generateTextures(): void {
-    this.drawTriangleUp("player-ship", 0x5effa7, 36, 44);
+    this.drawPotatoShip("player-ship");
 
     this.drawBullet("bullet-friendly", 0x4fd1ff, 6, 18);
     this.drawBullet("bullet-hostile", 0xff4d6d, 8, 14);
@@ -154,6 +154,88 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(0xffffff, 1);
     g.fillCircle(size / 2, size / 2, size / 2);
     g.generateTexture(key, size, size);
+    g.destroy();
+  }
+
+  // The player ship is a Spacepotato — a slightly lumpy tuber with a tiny
+  // green sprout pointing forward (up-screen) and a faint cyan space-rim glow.
+  // Drawn into a padded canvas so the rim glow is captured by generateTexture.
+  private drawPotatoShip(key: string): void {
+    const PAD = 6;
+    const innerW = 50;
+    const innerH = 42;
+    const W = innerW + PAD * 2;
+    const H = innerH + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Atmospheric rim — two soft cyan halos so it reads as "in space".
+    g.fillStyle(0x4fd1ff, 0.10);
+    g.fillEllipse(cx, cy, innerW + PAD * 2, innerH + PAD * 2);
+    g.fillStyle(0x4fd1ff, 0.18);
+    g.fillEllipse(cx, cy, innerW + PAD, innerH + PAD);
+
+    // Lumpy silhouette — pre-baked noise so the shape is identical every boot.
+    const noise = [0.07, -0.04, 0.05, -0.03, 0.02, -0.05, 0.04, 0.01, -0.06, 0.03, 0.05, -0.02, 0.04, -0.05, 0.03, 0.0, 0.05, -0.03];
+    const steps = 18;
+    const baseRx = innerW / 2;
+    const baseRy = innerH / 2;
+    const body: { x: number; y: number }[] = [];
+    for (let i = 0; i < steps; i++) {
+      const a = (Math.PI * 2 * i) / steps;
+      const wobble = 1 + (noise[i] ?? 0);
+      body.push({ x: cx + Math.cos(a) * baseRx * wobble, y: cy + Math.sin(a) * baseRy * wobble });
+    }
+
+    const tracePath = (): void => {
+      const first = body[0];
+      if (!first) return;
+      g.beginPath();
+      g.moveTo(first.x, first.y);
+      for (let i = 1; i < body.length; i++) {
+        const p = body[i];
+        if (p) g.lineTo(p.x, p.y);
+      }
+      g.closePath();
+    };
+
+    g.fillStyle(0xa86b3d, 1);
+    tracePath();
+    g.fillPath();
+
+    g.fillStyle(0x6b3f1f, 0.55);
+    g.fillEllipse(cx + 5, cy + 6, innerW - 14, innerH - 16);
+
+    g.fillStyle(0xd9a378, 0.7);
+    g.fillEllipse(cx - 7, cy - 7, innerW - 22, innerH - 22);
+
+    g.fillStyle(0xffe6b8, 0.9);
+    g.fillEllipse(cx - 9, cy - 10, 7, 4);
+
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 4, cy - 4, 1.4);
+    g.fillCircle(cx - 6, cy + 5, 1.6);
+    g.fillCircle(cx + 9, cy + 3, 1.2);
+    g.fillCircle(cx - 2, cy + 8, 1.3);
+    g.fillCircle(cx + 11, cy - 7, 1.0);
+    g.fillCircle(cx - 11, cy - 2, 1.2);
+
+    // Tiny green sprout on top — points to the front of the ship.
+    g.lineStyle(1.5, 0x4caa55, 1);
+    g.beginPath();
+    g.moveTo(cx + 5, cy - innerH / 2 + 1);
+    g.lineTo(cx + 5, cy - innerH / 2 - 4);
+    g.strokePath();
+    g.fillStyle(0x6fdc6f, 1);
+    g.fillEllipse(cx + 2, cy - innerH / 2 - 4, 5, 2.5);
+    g.fillEllipse(cx + 8, cy - innerH / 2 - 3, 5, 2.5);
+
+    g.lineStyle(1.2, 0x2a1808, 0.7);
+    tracePath();
+    g.strokePath();
+
+    g.generateTexture(key, W, H);
     g.destroy();
   }
 

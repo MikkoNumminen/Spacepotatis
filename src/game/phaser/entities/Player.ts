@@ -43,7 +43,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(this.width * 0.55, this.height * 0.65);
+    // Hitbox tracks the potato silhouette, not the cyan rim glow padding.
+    body.setSize(this.width * 0.55, this.height * 0.55);
 
     this.controls = createKeyboardControls(scene);
     this.slotWeapons = [...ship.slots];
@@ -87,14 +88,27 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   override preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
 
-    let vx = this.controls.moveX();
-    let vy = this.controls.moveY();
+    const ix = this.controls.moveX();
+    const iy = this.controls.moveY();
+    let vx = ix;
+    let vy = iy;
     if (vx !== 0 && vy !== 0) {
       const inv = 1 / Math.SQRT2;
       vx *= inv;
       vy *= inv;
     }
     this.setVelocity(vx * SPEED, vy * SPEED);
+
+    // Bank into horizontal motion; fake pitch on vertical motion via squash/
+    // stretch on Y plus a small narrowing on X when banking. Eased toward the
+    // target so direction changes look like a tumble, not a snap.
+    const targetAngle = ix * 18;
+    const targetScaleY = 1 - iy * 0.10;
+    const targetScaleX = 1 - Math.abs(ix) * 0.06;
+    const t = Math.min(1, delta * 0.012);
+    this.angle += (targetAngle - this.angle) * t;
+    this.scaleY += (targetScaleY - this.scaleY) * t;
+    this.scaleX += (targetScaleX - this.scaleX) * t;
 
     this.combatant.tickRegen(time, delta);
 
