@@ -141,6 +141,20 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 
 ---
 
+## Phase: Modularity audit (2026-04-27, DONE)
+
+A 4-wave audit (foundation → safety net → god-module splits → polish) landed 17 items across 54 commits (master `be0166e`). Foundation work removed duplicate types, renamed `src/game/phaser/data/` → `src/game/data/`, added a `loadMissions()` helper, fixed a latent GameCanvas auth-flip bug (and cleared the two associated eslint-disables), introduced a typed Phaser event bus, centralized routes in `src/lib/routes.ts` with a `useHandle` hook, and migrated to ESLint flat-config plus `next build` + coverage artifact in CI. Safety net added Zod validation at every API boundary, split GameState from a 582-LOC monolith into a 9-LOC barrel + 4 focused files, and brought persistence (lib/* + 4 API routes + sync.ts) from ~0% to 80–100% coverage. God-module splits broke up Player, GameCanvas, LoadoutMenu, and CombatScene into single-responsibility modules. Polish added a shared `SceneRig` factory and a `fakeScene` test harness for combat-track tests. Test count went 197 → 397.
+
+**Going-forward principle — modularity discipline:** see CLAUDE.md §5 for the file-size ceilings, single-responsibility expectations, and "split before it grows" guidance that the audit codified.
+
+### Audit follow-ups (not yet shipped)
+
+- **`.claude/skills/*/SKILL.md`** still reference the pre-rename `src/game/phaser/data/` paths. Update them to point at `src/game/data/`.
+- **Optional Zod boot-time parse of `src/game/data/missions.json`** — currently the `as readonly MissionDefinition[]` cast at module load is unguarded. Low risk (tests would catch most drift), but a one-shot `MissionDefinitionSchema.array().parse(...)` would close the gap.
+- **CombatScene at 216 LOC** is at the suggested 300-LOC ceiling — justified by its orchestrator role, but worth flagging. If it grows further, split out the next responsibility (likely spawn or HUD wiring) rather than letting it drift.
+
+---
+
 ## Next up (post-MVP, not required for first playable)
 
 - **Phase B2** — `pierce` augment (bullets pass through one extra enemy) and mid-mission augment drops (rare power-up that grants a random augment to `augmentInventory`). Deferred from Phase 12 because both need new content beyond a numeric multiplier — the pierce effect needs Bullet collision changes, and drops need a new PowerUp kind plus pickup notification.

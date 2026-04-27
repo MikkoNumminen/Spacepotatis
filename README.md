@@ -115,6 +115,34 @@ Two more commands you might want while you work:
 - `npm run test:watch` — runs the tests and re-runs them automatically every time you save a file. Useful when you're writing or fixing a test.
 - `npm run coverage` — runs the tests once and produces a report showing which lines of code were exercised. Helps you see what's untested.
 
+## Recent quality push (April 2026)
+
+Hello! If you're reading the codebase right now, you're catching it just after a big tidy-up. Over a few days the project went through a four-wave "modularity audit" — basically, a sweep that looks for files that have grown too big or rules that are easy to break by accident, and shrinks or tightens them. Here's what changed and, more importantly, why it makes the project nicer to poke at.
+
+**Test coverage roughly doubled.** "Test coverage" is the percentage of the project's code that gets exercised by automated tests — the higher it is, the more likely a bug will be caught by `npm test` before it reaches a real player. The number of tests grew from 197 to 397, and they all pass. The combat systems (the code that decides when a bullet hits a ship, when an enemy dies, what loot drops) went from essentially zero coverage to between 80 and 100 percent. The persistence layer — the code that writes your save game to the database, fetches the leaderboard, and handles signing in — went from zero to over 95 percent. In practice that means a lot of small bugs that used to slip past will now trip a red light on CI (the GitHub robot, defined earlier, that runs the checks on every push) before they ever ship.
+
+**A real bug got caught and fixed.** Here is the most player-visible win. Previously, if you started a combat mission while signed out, then signed in with Google partway through, then beat the mission, your final score quietly failed to save. The galaxy view would refresh and your leaderboard entry just wouldn't be there. The cause was deep in the React glue that mounts the Phaser game into the page: a piece of code captured the "you are not signed in" state at the moment the mission started, and never noticed when that changed. The fix uses something called a `useRef` (a small React tool that holds a value which can be updated freely without re-rendering the component, so the latest sign-in state is always visible to the running game). End result: sign in mid-mission and your score now lands where it should.
+
+**Five oversized files were broken into about thirty small focused ones.** Big files are harder to read, harder to test, and they invite merge conflicts when two people edit them at once. Each of the files below was split into a small "entry point" plus a handful of single-purpose helpers. Where you see the word "barrel", that means a file whose only job is to re-export things from a few other files — useful because the rest of the project keeps importing from the same path it always did, while the actual code now lives in smaller, focused modules behind it.
+
+The numbers below are line counts before and after the split — they show how much each main file shrank once its pieces moved out into helpers.
+
+| File | Before | After | What came out |
+| ---- | -----: | ----: | ------------- |
+| `GameState.ts` | 582 | 9 | Barrel over 4 files: state core, ship mutators, persistence, sell pricing |
+| `LoadoutMenu.tsx` | 590 | 98 | 9 sub-components |
+| `CombatScene.ts` | 525 | 216 | 4 helpers: HUD, visual effects, drops, perks |
+| `GameCanvas.tsx` | 405 | 159 | 7 hooks and sub-components |
+| `Player.ts` | 257 | 123 | 3 helpers |
+
+**JSON traffic is now type-checked at runtime by Zod.** Zod is a small library that lets you describe the shape of a piece of data once and then automatically check, at runtime, that incoming data matches that shape — and reject it with a clear error if it doesn't. Every save-game request, leaderboard request, and the responses to both, are now validated by Zod schemas at the network edge. That replaces about 80 lines of hand-written "is this field a string? is this one a number?" code that was easy to forget to update when fields changed. Now there's one schema per payload and the project relies on it.
+
+**Phaser scenes talk to each other through a typed event union instead of raw strings.** Phaser (covered earlier in the "Under the hood" section) lets scenes broadcast events by name. Previously those names were plain strings sprinkled through the code, which means a typo or a rename could silently break communication between, say, the combat scene and the heads-up display. Now every event has a TypeScript-defined shape, and if someone renames an event the compiler points at every place that needed updating. Less magic, fewer surprises.
+
+**The build pipeline got tougher.** Two changes here. First, CI now runs the full Next.js production build (the same kind of build that goes to the live website) on every push, not just the cheaper dev-mode checks. That catches a class of bugs that only appear when Next.js (the framework, also defined earlier) does its production-only optimizations. Second, the project's lint configuration was migrated to the new "flat config" format that ESLint (the linter — the tool that scans your code for likely mistakes — also mentioned earlier) recommends. The old format is being removed in Next.js 16, so this gets the project ahead of that deadline instead of scrambling later.
+
+None of this changes how the game looks or feels. It just means the next person to add a new enemy, weapon, or mission has firmer ground to stand on.
+
 ## How AI helps build this game (Claude Code skills)
 
 This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains seven custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time.
