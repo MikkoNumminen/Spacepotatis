@@ -30,6 +30,12 @@ export default function MissionSelect({ mission, onClose, onLaunch }: Props) {
 
   const isShop = mission.kind === "shop";
   const locked = !isShop && !unlocked;
+  // Missions are one-shot. The shop ("DOCK") is excluded — players will dock
+  // many times over a save. Future replayable content will live under a
+  // different `kind` and won't go through this completion gate.
+  const replayBlocked = !isShop && completed;
+  const launchDisabled = locked || replayBlocked;
+  const launchLabel = isShop ? "DOCK" : replayBlocked ? "CLEARED" : "LAUNCH MISSION";
 
   return (
     <div
@@ -64,10 +70,10 @@ export default function MissionSelect({ mission, onClose, onLaunch }: Props) {
         <button
           type="button"
           onClick={() => onLaunch?.(mission)}
-          disabled={locked}
+          disabled={launchDisabled}
           className="rounded border border-hud-green/60 px-4 py-2 font-display text-sm tracking-widest enabled:hover:bg-hud-green/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
         >
-          {isShop ? "DOCK" : "LAUNCH MISSION"}
+          {launchLabel}
         </button>
       </div>
     </div>
