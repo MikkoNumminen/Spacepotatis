@@ -22,6 +22,7 @@ import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
 import { getWeapon } from "../../data/weapons";
 import { getMission } from "../../data/missions";
+import { CombatVfx } from "./combat/CombatVfx";
 
 function hexToInt(hex: string): number {
   return parseInt(hex.replace(/^#/, ""), 16);
@@ -41,6 +42,7 @@ export class CombatScene extends Phaser.Scene {
   private powerUps!: PowerUpPool;
   private waves!: WaveManager;
   private score!: ScoreSystem;
+  private vfx!: CombatVfx;
 
   private startedAt = 0;
   private allWavesDone = false;
@@ -74,13 +76,14 @@ export class CombatScene extends Phaser.Scene {
   create(): void {
     this.physics.world.setBounds(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-    this.drawBackground();
+    this.vfx = new CombatVfx(this);
+    this.vfx.drawBackground();
 
     // Friendly bullets (Spud Missile etc.) home toward the closest active
     // enemy; the closure resolves `this.enemies` lazily so construction order
     // here doesn't matter.
     this.playerBullets = new BulletPool(this, 200, {
-      findTarget: (x, y) => this.findClosestEnemyTo(x, y)
+      findTarget: (x, y) => this.vfx.findClosestEnemyTo(this.enemies, x, y)
     });
     this.enemyBullets = new BulletPool(this, 160);
     this.enemies = new EnemyPool(this);
@@ -157,17 +160,6 @@ export class CombatScene extends Phaser.Scene {
       // empty sky for the rest of the timer. Short-circuit it here: if the
       // last wave's spawns are all out and the field is clear, finish now.
       this.waves.finishEarly();
-    }
-  }
-
-  private drawBackground(): void {
-    const g = this.add.graphics();
-    g.fillStyle(0x0b0d1c, 1);
-    g.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-    // Simple starfield underlay.
-    g.fillStyle(0xffffff, 0.6);
-    for (let i = 0; i < 80; i++) {
-      g.fillCircle(Math.random() * VIRTUAL_WIDTH, Math.random() * VIRTUAL_HEIGHT, Math.random() * 1.4);
     }
   }
 
@@ -263,21 +255,7 @@ export class CombatScene extends Phaser.Scene {
       this.powerUps.spawn(kind, enemy.x, enemy.y);
     }
 
-    this.emitExplosionParticles(enemy.x, enemy.y, def.behavior === "boss" ? 48 : 14);
-  }
-
-  private emitExplosionParticles(x: number, y: number, count: number): void {
-    const emitter = this.add.particles(x, y, "particle-spark", {
-      speed: { min: 60, max: 260 },
-      angle: { min: 0, max: 360 },
-      lifespan: { min: 240, max: 520 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 1, end: 0 },
-      quantity: count,
-      emitting: false
-    });
-    emitter.explode(count);
-    this.time.delayedCall(700, () => emitter.destroy());
+    this.vfx.emitExplosionParticles(enemy.x, enemy.y, def.behavior === "boss" ? 48 : 14);
   }
 
   private applyPowerUp(power: PowerUp): void {
@@ -500,26 +478,5 @@ export class CombatScene extends Phaser.Scene {
     this.time.delayedCall(500, () => {
       this.scene.start(SCENE_KEYS.Result, this.bootData);
     });
-  }
-
-  // Squared-distance scan over the active enemy group. Used by friendly
-  // homing bullets — keeping it here (not on EnemyPool) because target
-  // selection might evolve to factor in HP, threat, or screen position.
-  private findClosestEnemyTo(x: number, y: number): { x: number; y: number } | null {
-    let best: { x: number; y: number } | null = null;
-    let bestDistSq = Infinity;
-    this.enemies.children.iterate((child) => {
-      const e = child as Phaser.Physics.Arcade.Sprite;
-      if (!e.active) return true;
-      const dx = e.x - x;
-      const dy = e.y - y;
-      const d = dx * dx + dy * dy;
-      if (d < bestDistSq) {
-        bestDistSq = d;
-        best = { x: e.x, y: e.y };
-      }
-      return true;
-    });
-    return best;
   }
 }
