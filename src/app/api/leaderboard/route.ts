@@ -4,17 +4,12 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
 import { upsertPlayerId } from "@/lib/players";
+import { ScorePayloadSchema } from "@/lib/schemas/save";
 import type { MissionId } from "@/types/game";
 
 // Edge runtime — getDb() is now Neon serverless (Edge-compatible) and the
 // NextAuth `auth()` call is JWT-cookie based, so no Node primitives needed.
 export const runtime = "edge";
-
-interface ScorePayload {
-  missionId?: unknown;
-  score?: unknown;
-  timeSeconds?: unknown;
-}
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -44,24 +39,21 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let body: ScorePayload;
+  let raw: unknown;
   try {
-    body = (await request.json()) as ScorePayload;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
 
-  const missionId = typeof body.missionId === "string" ? body.missionId : null;
-  const score =
-    typeof body.score === "number" && Number.isFinite(body.score) ? Math.trunc(body.score) : null;
-  const timeSeconds =
-    typeof body.timeSeconds === "number" && Number.isFinite(body.timeSeconds)
-      ? Math.trunc(body.timeSeconds)
-      : null;
-
-  if (!missionId || score === null) {
-    return NextResponse.json({ error: "bad_payload" }, { status: 400 });
+  const parsed = ScorePayloadSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "validation_failed", issues: parsed.error.issues },
+      { status: 400 }
+    );
   }
+  const { missionId, score, timeSeconds = null } = parsed.data;
 
   try {
     const db = getDb();

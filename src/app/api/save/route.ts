@@ -3,30 +3,12 @@ import { sql } from "kysely";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { upsertPlayerId } from "@/lib/players";
+import { SavePayloadSchema } from "@/lib/schemas/save";
 
 // Edge runtime — db.ts uses Neon's serverless WebSocket Pool (Edge-compatible)
 // and NextAuth v5 `auth()` is JWT-cookie based here, so no Node primitives
 // are needed. Cuts function duration ~5-10x vs the prior Node runtime.
 export const runtime = "edge";
-
-interface SavePayload {
-  credits?: unknown;
-  currentPlanet?: unknown;
-  shipConfig?: unknown;
-  completedMissions?: unknown;
-  unlockedPlanets?: unknown;
-  playedTimeSeconds?: unknown;
-}
-
-function asString(v: unknown): string | null {
-  return typeof v === "string" ? v : null;
-}
-function asInt(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : fallback;
-}
-function asStringArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-}
 
 export async function GET(): Promise<Response> {
   const session = await auth();
@@ -69,33 +51,45 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let body: SavePayload;
+  let raw: unknown;
   try {
-    body = (await request.json()) as SavePayload;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
+
+  const parsed = SavePayloadSchema.safeParse(raw);
+  if (!parsed.success) {
+    // Surface only the issue list — Zod's full error object leaks internals
+    // and makes the response harder for the client to log/inspect.
+    return NextResponse.json(
+      { error: "validation_failed", issues: parsed.error.issues },
+      { status: 400 }
+    );
+  }
+  const body = parsed.data;
 
   try {
     const db = getDb();
     const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
 
+    // Snapshot serialization sends the ship under `ship`; the legacy /api
+    // contract calls it `shipConfig`. Accept both, prefer the explicit one.
+    const shipPayload = body.shipConfig ?? body.ship;
     const shipConfig =
-      body.shipConfig && typeof body.shipConfig === "object" && !Array.isArray(body.shipConfig)
-        ? (body.shipConfig as Record<string, unknown>)
-        : {};
+      shipPayload && typeof shipPayload === "object" ? (shipPayload as Record<string, unknown>) : {};
 
     await db
       .insertInto("spacepotatis.save_games")
       .values({
         player_id: playerId,
         slot: 1,
-        credits: asInt(body.credits, 0),
-        current_planet: asString(body.currentPlanet),
+        credits: body.credits ?? 0,
+        current_planet: body.currentPlanet ?? null,
         ship_config: shipConfig,
-        completed_missions: asStringArray(body.completedMissions),
-        unlocked_planets: asStringArray(body.unlockedPlanets),
-        played_time_seconds: asInt(body.playedTimeSeconds, 0),
+        completed_missions: body.completedMissions ?? [],
+        unlocked_planets: body.unlockedPlanets ?? [],
+        played_time_seconds: body.playedTimeSeconds ?? 0,
         updated_at: new Date()
       })
       .onConflict((oc) =>
