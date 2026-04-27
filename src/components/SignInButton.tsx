@@ -1,7 +1,9 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
-import { useHandle } from "@/lib/useHandle";
+import { signIn, signOut } from "next-auth/react";
+import { clearAuthCache } from "@/lib/authCache";
+import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
+import { clearHandleCache } from "@/lib/useHandle";
 
 // Simple auth control used on the landing page. Shows the handle (never the
 // Google profile name) plus a sign-out affordance when authenticated, or a
@@ -9,10 +11,20 @@ import { useHandle } from "@/lib/useHandle";
 // the galaxy view where future profile actions (avatar, GDPR, etc.) will
 // hang off the same trigger.
 export default function SignInButton({ compact = false }: { compact?: boolean }) {
-  const { status } = useSession();
-  const { handle } = useHandle();
+  const { status, handle, firstVisit } = useOptimisticAuth();
 
-  if (status === "loading") {
+  function handleSignOut() {
+    // Wipe the optimistic snapshot before NextAuth begins its redirect dance,
+    // otherwise the next mount would briefly render the previous account's
+    // handle from the stale cache. Same for the handle module-level cache.
+    clearAuthCache();
+    clearHandleCache();
+    void signOut();
+  }
+
+  // Only show the loading placeholder on a true first visit. Returning
+  // users render directly from the cached snapshot — no flash.
+  if (firstVisit) {
     return <span className="text-[11px] text-space-border">…</span>;
   }
 
@@ -21,7 +33,7 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
     return (
       <button
         type="button"
-        onClick={() => void signOut()}
+        onClick={handleSignOut}
         className={`rounded border border-hud-amber/40 ${
           compact ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
         } text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red`}

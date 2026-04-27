@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
-import { useHandle } from "@/lib/useHandle";
+import { signIn } from "next-auth/react";
+import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 
 // Top-right account control in the galaxy view (and any other in-game
 // surface that wants the richer user dropdown). The simple sign-in/out
@@ -20,8 +20,7 @@ import { useHandle } from "@/lib/useHandle";
 // children. The "more options coming soon" footer is the only content
 // until then.
 export default function UserMenu() {
-  const { status } = useSession();
-  const { handle } = useHandle();
+  const { status, handle, firstVisit } = useOptimisticAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -49,7 +48,9 @@ export default function UserMenu() {
     if (status !== "authenticated") setOpen(false);
   }, [status]);
 
-  if (status === "loading") {
+  // First visit only — returning users render straight from the cached
+  // snapshot with no flash.
+  if (firstVisit) {
     return <span className="text-[11px] text-space-border">…</span>;
   }
 

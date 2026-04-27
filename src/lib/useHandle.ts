@@ -31,12 +31,16 @@ export interface UseHandleResult {
 // With this cache the round-trip happens once per session, every consumer
 // awaits the same Promise, and subsequent hook calls resolve from cache
 // synchronously on first effect tick.
-//
-// TODO: clear `cached` on signOut so a new account doesn't see the previous
-// account's handle. Acceptable to defer because every consumer mount
-// already triggers a fresh fetch keyed off auth status changes.
 let cached: HandleResponse | null = null;
 let inflight: Promise<HandleResponse> | null = null;
+
+// Reset on sign-out so a fresh sign-in (potentially a different account)
+// doesn't render the previous account's handle for a moment. Called from
+// the sign-out flow alongside clearAuthCache.
+export function clearHandleCache(): void {
+  cached = null;
+  inflight = null;
+}
 
 async function fetchHandle(): Promise<HandleResponse> {
   if (cached) return cached;
