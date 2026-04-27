@@ -18,6 +18,18 @@ The **galaxy view** is where you choose what to do next. You're looking at a rea
 
 ![Galaxy view of Sol Spudensis with the star, three planets, and the mission info panel for Spud Prime](docs/screenshots/galaxy.png)
 
+## Music
+
+The calm, ambient music you hear while you're in the menus is original — written specifically for this game. We owe a big thank-you to a sister project that lives in its own repository on GitHub: **<https://github.com/MikkoNumminen/strudel-patterns>**. If you like the music and want to hear more of it (or take the underlying recipe and turn it into something of your own), that's the place to look.
+
+A quick word about how it was made, because it's a fun corner of music tech that not everyone has bumped into yet. Most people picture music being made with a microphone in front of a guitar, or a person dragging notes around in a program like GarageBand. The strudel-patterns repo uses a different approach called **Strudel** — a tool where you describe music by typing very short text snippets (think a sentence like "play these four drum sounds in this order, twice as fast"), then press a button and hear what you wrote. It's a bit like writing a tiny program whose output is a song. The advantages are that you can iterate very quickly, share the "song" as a few lines of text rather than a giant audio file, and tweak any tiny detail by just editing the text. The output of those Strudel patterns is exported as a regular audio file, and that file is what you hear in Spacepotatis.
+
+Once it's loaded into the game, the music behaves the way you'd want a thoughtful background score to behave. The first time you click or press a key, the track quietly starts. (Web browsers don't allow websites to play sound on their own — they wait for you to interact with the page first, so that opening a tab doesn't suddenly blast noise at you. We respect that rule and arm the music on your first input.) From that point on, the same track keeps playing as you move between the main menu, the galaxy view (where you pick a planet), and the shop. If you stay in the menus long enough for the song to reach its end, it doesn't snap back to the start — instead it gently fades out, holds a brief silence, and fades back in, so it feels like the music drew a breath rather than rebooted.
+
+When you launch into a combat mission, the music does a slow fade-out (a "duck", in audio terms — like ducking under a wave) so that the in-game sound effects of lasers and explosions have room to land. The moment you finish the mission and you're back in the galaxy view, the music fades back in.
+
+And if you'd rather play in silence — maybe you're at work, maybe you're listening to a podcast — the **♪ on / ♪ off** button in the top-right corner of every menu mutes both the music and the sound effects at once. It remembers your choice between visits, so you only have to set it once.
+
 ## What kind of game is this?
 
 It's a **vertical scrolling space shooter**. That's a genre where your ship sits near the bottom of the screen, the world scrolls past you from top to bottom, and waves of enemies come down toward you. You move left and right (and a bit up and down), you shoot upward, and you try not to get hit. Think of the old arcade game *Galaga* — same idea.
