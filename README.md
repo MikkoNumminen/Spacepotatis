@@ -4,6 +4,16 @@
 
 Welcome! Spacepotatis is a small browser game where you fly a tiny spaceship around the galaxy, pick a planet, and then shoot enemies in space. Yes, you are also a potato. The little badge above tells you whether the latest version of the code is healthy — when it's green, everything builds and the tests pass.
 
+## What it looks like
+
+The **main menu** is the front door. The dark backdrop is a real, slowly spinning 3D galaxy scene running behind the title — the game's actual rendering engine, used here just for atmosphere. From here you sign in, pick PLAY (or CONTINUE if you have a save), or browse the leaderboard.
+
+![Main menu showing the SPACEPOTATIS title over a slowly spinning galaxy backdrop](docs/screenshots/landing.png)
+
+The **galaxy view** is where you choose what to do next. You're looking at a real solar system — drag with the mouse to rotate, scroll to zoom, click a planet to open its mission panel and launch. The HUD around the edges is your menu (top-left), credits + missions cleared (left), audio + your handle (top-right).
+
+![Galaxy view of Sol Spudensis with the star, three planets, and the mission info panel for Spud Prime](docs/screenshots/galaxy.png)
+
 ## What kind of game is this?
 
 It's a **vertical scrolling space shooter**. That's a genre where your ship sits near the bottom of the screen, the world scrolls past you from top to bottom, and waves of enemies come down toward you. You move left and right (and a bit up and down), you shoot upward, and you try not to get hit. Think of the old arcade game *Galaga* — same idea.
