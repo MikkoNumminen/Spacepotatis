@@ -23,13 +23,19 @@ function pickNextMission(
   completed: readonly string[],
   systemId: SolarSystemId
 ): MissionDefinition | null {
-  const playable = MISSIONS.filter(
-    (m) => m.kind === "mission" && m.solarSystemId === systemId && unlocked.includes(m.id)
-  );
+  // Missions are one-shot: once cleared they cannot be replayed (future
+  // replayable content will live under a different concept, e.g. patrols
+  // or sorties). So this only suggests an UNCOMPLETED, unlocked mission
+  // in the active system. If everything is done, return null and the UI
+  // skips auto-opening the launch panel.
   return (
-    playable.find((m) => !completed.includes(m.id)) ??
-    playable[playable.length - 1] ??
-    null
+    MISSIONS.find(
+      (m) =>
+        m.kind === "mission" &&
+        m.solarSystemId === systemId &&
+        unlocked.includes(m.id) &&
+        !completed.includes(m.id)
+    ) ?? null
   );
 }
 
