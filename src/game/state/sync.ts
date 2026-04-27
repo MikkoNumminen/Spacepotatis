@@ -9,7 +9,36 @@ import type { CombatSummary } from "@/game/phaser/config";
 import { ROUTES } from "@/lib/routes";
 import { RemoteSaveSchema } from "@/lib/schemas/save";
 
+// Module-level cache + in-flight de-dup. Both useCloudSaveSync (which
+// hydrates the GameState) and useOptimisticAuth (which only needs to know
+// whether a save exists for the CONTINUE label) want the same /api/save
+// payload. Without this, both fired separate Edge invocations on every
+// authenticated mount — doubling the cold-start cost for no gain. Cleared
+// on sign-out so a different account doesn't see the previous one's save.
+let cached: boolean | null = null;
+let inflight: Promise<boolean> | null = null;
+
+export function clearLoadSaveCache(): void {
+  cached = null;
+  inflight = null;
+}
+
 export async function loadSave(): Promise<boolean> {
+  if (cached !== null) return cached;
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      return await doLoadSave();
+    } finally {
+      inflight = null;
+    }
+  })();
+  const result = await inflight;
+  cached = result;
+  return result;
+}
+
+async function doLoadSave(): Promise<boolean> {
   try {
     const res = await fetch(ROUTES.api.save, { cache: "no-store" });
     if (res.status === 401) return false;
@@ -61,6 +90,9 @@ export async function saveNow(): Promise<void> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(snap)
     });
+    // After a successful POST, the server now definitely has a save row,
+    // so any future loadSave() should report hasSave=true without re-fetching.
+    cached = true;
   } catch {
     // ignore — snapshot stays in memory
   }

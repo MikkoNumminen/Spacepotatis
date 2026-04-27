@@ -8,7 +8,7 @@ import {
   writeAuthCache,
   type AuthSnapshot
 } from "./authCache";
-import { ROUTES } from "./routes";
+import { loadSave } from "@/game/state/sync";
 import { useHandle, type HandleStatus } from "./useHandle";
 
 export type OptimisticAuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -56,28 +56,19 @@ export function useOptimisticAuth(): OptimisticAuthResult {
   const [hasSave, setHasSave] = useState<boolean | null>(null);
   const [cached] = useState<AuthSnapshot | null>(() => readAuthCache());
 
-  // Probe /api/save once we know the user is authenticated. Co-located here
-  // (instead of in PlayButton) so SignInButton/UserMenu also get the cache
-  // refreshed even if the player never visits the landing page during the
-  // session.
+  // Derive hasSave from the shared loadSave promise so the splash gate's
+  // useCloudSaveSync and this hook share a single /api/save Edge invocation.
+  // loadSave() returns true when a save row was loaded into GameState, false
+  // otherwise — same boolean we want for hasSave.
   useEffect(() => {
     if (sessionStatus !== "authenticated") {
       setHasSave(null);
       return;
     }
     let cancelled = false;
-    fetch(ROUTES.api.save, { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return false;
-        const body = (await res.json()) as unknown;
-        return body !== null;
-      })
-      .then((exists) => {
-        if (!cancelled) setHasSave(exists);
-      })
-      .catch(() => {
-        if (!cancelled) setHasSave(false);
-      });
+    void loadSave().then((exists) => {
+      if (!cancelled) setHasSave(exists);
+    });
     return () => {
       cancelled = true;
     };

@@ -4,6 +4,7 @@ import { signIn, signOut } from "next-auth/react";
 import { clearAuthCache } from "@/lib/authCache";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 import { clearHandleCache } from "@/lib/useHandle";
+import { clearLoadSaveCache } from "@/game/state/sync";
 
 // Simple auth control used on the landing page. Shows the handle (never the
 // Google profile name) plus a sign-out affordance when authenticated, or a
@@ -14,11 +15,13 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
   const { status, handle, firstVisit } = useOptimisticAuth();
 
   function handleSignOut() {
-    // Wipe the optimistic snapshot before NextAuth begins its redirect dance,
-    // otherwise the next mount would briefly render the previous account's
-    // handle from the stale cache. Same for the handle module-level cache.
+    // Wipe every client-side cache before NextAuth begins its redirect dance,
+    // otherwise the next mount (potentially a different account) would briefly
+    // render the previous account's handle / save state from stale module
+    // caches.
     clearAuthCache();
     clearHandleCache();
+    clearLoadSaveCache();
     void signOut();
   }
 

@@ -15,13 +15,19 @@ export default function SplashGate({
   splash: ReactNode;
   children: ReactNode;
 }) {
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
-  const [unmount, setUnmount] = useState(false);
+  // If ready was already true on the very first render — e.g. navigating
+  // /play → / where every cache is hot — skip the splash entirely. Without
+  // this guard the 600ms minimum-display timer would re-run on every mount,
+  // re-flashing the boot screen between in-app navigations.
+  const [readyOnMount] = useState(ready);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(readyOnMount);
+  const [unmount, setUnmount] = useState(readyOnMount);
 
   useEffect(() => {
+    if (readyOnMount) return;
     const t = setTimeout(() => setMinTimeElapsed(true), MIN_DISPLAY_MS);
     return () => clearTimeout(t);
-  }, []);
+  }, [readyOnMount]);
 
   const hide = shouldHideSplash(ready, minTimeElapsed);
 

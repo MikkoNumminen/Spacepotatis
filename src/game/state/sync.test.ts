@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadSave, saveNow, submitScore } from "./sync";
+import { clearLoadSaveCache, loadSave, saveNow, submitScore } from "./sync";
 import { getState, resetForTests } from "./GameState";
 import type { CombatSummary } from "@/game/phaser/config";
 
@@ -23,6 +23,10 @@ beforeEach(() => {
   fetchCalls.length = 0;
   fetchImpl.current = async () => new Response(null, { status: 200 });
   resetForTests();
+  // loadSave caches at module level so consecutive calls dedupe — that's
+  // the production behavior, but each test case needs a fresh slate so a
+  // 401 fixture in one case doesn't leak into a 200 fixture in the next.
+  clearLoadSaveCache();
   vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     fetchCalls.push({ input: url, init });
@@ -113,6 +117,32 @@ describe("loadSave", () => {
     expect(s.credits).toBe(1170);
     expect(s.completedMissions).toEqual(["tutorial"]);
     expect(s.ship.slots[0]).toBe("rapid-fire");
+  });
+
+  it("dedupes concurrent calls into a single /api/save fetch", async () => {
+    // useCloudSaveSync (galaxy hydration) and useOptimisticAuth (CONTINUE
+    // label) both want this — without the dedup the boot splash spent ~200ms
+    // extra waiting on a redundant Edge invocation.
+    type ResolveFn = (res: Response) => void;
+    const holder: { resolve: ResolveFn | null } = { resolve: null };
+    fetchImpl.current = () =>
+      new Promise<Response>((resolve) => {
+        holder.resolve = resolve;
+      });
+    const a = loadSave();
+    const b = loadSave();
+    expect(fetchCalls).toHaveLength(1);
+    holder.resolve?.(new Response(null, { status: 200 }));
+    expect(await a).toBe(false);
+    expect(await b).toBe(false);
+    expect(fetchCalls).toHaveLength(1);
+  });
+
+  it("subsequent loadSave calls hit the cache without re-fetching", async () => {
+    fetchImpl.current = async () => new Response(null, { status: 401 });
+    expect(await loadSave()).toBe(false);
+    expect(await loadSave()).toBe(false);
+    expect(fetchCalls).toHaveLength(1);
   });
 });
 
