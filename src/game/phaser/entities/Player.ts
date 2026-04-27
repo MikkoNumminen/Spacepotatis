@@ -4,20 +4,21 @@ import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
 import {
-  getInstalledAugments,
   getMaxArmor,
   getMaxShield,
   getReactorCapacity,
   getReactorRecharge,
-  getWeaponLevel,
-  weaponDamageMultiplier,
   type ShipConfig,
   type SlotName
 } from "@/game/state/ShipConfig";
-import { getWeapon } from "../../data/weapons";
-import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../../data/augments";
 import { emit } from "../events";
 import { sfx } from "@/game/audio/sfx";
+import {
+  NEUTRAL_SLOT_MODS,
+  resolveSlotMods,
+  slotModsForGrantedWeapon,
+  type SlotMods
+} from "./player/SlotModResolver";
 
 export const PLAYER_TEXTURE = "player-ship";
 
@@ -33,26 +34,6 @@ const SPAWN_OFFSET: Record<SlotName, { readonly x: number; readonly y: number }>
   rear: { x: 0, y: 18 },
   sidekickLeft: { x: -16, y: 0 },
   sidekickRight: { x: 16, y: 0 }
-};
-
-// Pre-resolved per-slot modifier cache. Combines mark-level damage scaling
-// with the folded effects of every augment installed on the slot's weapon.
-// `energyCost` is the effective integer cost per shot (floored at 1) so the
-// fire path doesn't repeat the rounding each tick.
-interface SlotMods {
-  readonly damageMul: number;
-  readonly fireRateMul: number;
-  readonly projectileBonus: number;
-  readonly energyCost: number;
-  readonly turnRateMul: number;
-}
-
-const NEUTRAL_SLOT_MODS: SlotMods = {
-  damageMul: 1,
-  fireRateMul: 1,
-  projectileBonus: 0,
-  energyCost: 0,
-  turnRateMul: 1
 };
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -109,7 +90,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       sidekickRight: ship.slots.sidekickRight
     };
     for (const slot of Object.keys(this.slotWeapons) as SlotName[]) {
-      this.slotMods[slot] = this.resolveSlotMods(slot, ship);
+      this.slotMods[slot] = resolveSlotMods(slot, ship, this.slotWeapons[slot]);
     }
 
     this.maxShield = getMaxShield(ship);
@@ -124,18 +105,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   setSlotWeapon(slot: SlotName, id: WeaponId | null): void {
     this.slotWeapons[slot] = id;
-    // Mid-mission pickups grant a fresh level-1 weapon with no augments, so
-    // the slot resets to neutral mods. The energy cost falls back to the
-    // weapon's base cost; null clears mods entirely.
-    if (id === null) {
-      this.slotMods[slot] = NEUTRAL_SLOT_MODS;
-    } else {
-      const def = getWeapon(id);
-      this.slotMods[slot] = {
-        ...NEUTRAL_SLOT_MODS,
-        energyCost: def.energyCost
-      };
-    }
+    this.slotMods[slot] = slotModsForGrantedWeapon(id);
   }
 
   getSlotWeapon(slot: SlotName): WeaponId | null {
@@ -207,22 +177,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (time - this.lastDamageAt > SHIELD_REGEN_DELAY_MS && this.shield < this.maxShield) {
       this.shield = Math.min(this.maxShield, this.shield + (SHIELD_REGEN_PER_SEC * delta) / 1000);
     }
-  }
-
-  private resolveSlotMods(slot: SlotName, ship: ShipConfig): SlotMods {
-    const wid = this.slotWeapons[slot];
-    if (!wid) return NEUTRAL_SLOT_MODS;
-    const def = getWeapon(wid);
-    const installed = getInstalledAugments(ship, wid);
-    const effects = installed.length === 0 ? NEUTRAL_AUGMENT_EFFECTS : foldAugmentEffects(installed);
-    const levelMul = weaponDamageMultiplier(getWeaponLevel(ship, wid));
-    return {
-      damageMul: levelMul * effects.damageMul,
-      fireRateMul: effects.fireRateMul,
-      projectileBonus: effects.projectileBonus,
-      energyCost: Math.max(1, Math.round(def.energyCost * effects.energyMul)),
-      turnRateMul: effects.turnRateMul
-    };
   }
 
   private tryFireSlot(slot: SlotName, now: number, overdriveMul: number): void {
