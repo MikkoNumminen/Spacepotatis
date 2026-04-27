@@ -99,10 +99,16 @@ remount GalaxyScene
 
 **No Redux. No Zustand. No Context gymnastics.** A single module-level object called `GameState` holds the in-memory truth during a session.
 
-- [src/game/state/GameState.ts](src/game/state/GameState.ts) — `credits`, `completedMissions`, `unlockedPlanets`, `playedTimeSeconds`, `ship` (`ShipConfig`), `saveSlot`, `currentSolarSystemId`, `unlockedSolarSystems`. Mutations go through named functions (`addCredits`, `completeMission`, `equipWeapon`, `grantWeapon`, `sellWeapon`, `buyShieldUpgrade`, `buyReactorCapacityUpgrade`, `buyReactorRechargeUpgrade`, `setSolarSystem`, …) that produce immutable new snapshots and notify subscribers. The `SYSTEM_UNLOCK_GATES` map (also in this file) drives mission-completion → solar-system-unlock side effects.
-- [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — Tyrian-style modular loadout: `slots: { front, rear, sidekickLeft, sidekickRight }` (each is `WeaponId | null`), `unlockedWeapons` (the inventory), `shieldLevel`, `armorLevel`, `reactor: { capacityLevel, rechargeLevel }`, plus pure helpers for shield/armor/reactor max and upgrade pricing. The runtime energy value is NOT here — it's mutable per-mission state on `Player` and resets every CombatScene boot.
+**`GameState` is split across four cohesive files (post-2026-04-27 audit) plus a barrel:**
+
+- [src/game/state/GameState.ts](src/game/state/GameState.ts) — thin barrel that re-exports the slices below. `import * as GameState from "@/game/state/GameState"` still works for Phaser scenes and tests.
+- [src/game/state/stateCore.ts](src/game/state/stateCore.ts) — the singleton: `GameStateShape`, module-level `let state`, `listeners`, `getState`, `subscribe`, `commit`, plus non-ship mutators (`addCredits`, `spendCredits`, `addPlayedTime`, `completeMission`, `setSolarSystem`, `isMissionCompleted`, `isPlanetUnlocked`, `resetForTests`). Owns `INITIAL_STATE`, `MISSIONS`, `SYSTEM_UNLOCK_GATES` (mission-completion → solar-system-unlock).
+- [src/game/state/shipMutators.ts](src/game/state/shipMutators.ts) — every ship-shape mutator: `equipWeapon`, `grantWeapon`, `sellWeapon`, `buyWeapon`, `buyShieldUpgrade`, `buyArmorUpgrade`, `buyReactorCapacityUpgrade`, `buyReactorRechargeUpgrade`, `buyWeaponUpgrade`, `buyAugment`, `grantAugment`, `installAugment`. Imports `commit` and `getState` from `stateCore`.
+- [src/game/state/persistence.ts](src/game/state/persistence.ts) — `StateSnapshot`, `toSnapshot`, `hydrate`, `migrateShip`, `cloneWeaponAugments`, legacy-snapshot helpers. Migrates pre-multi-slot saves (`ship.primaryWeapon`) into the current shape.
+- [src/game/state/pricing.ts](src/game/state/pricing.ts) — `SELL_RATE` constant + `getSellPrice(weapon)`. Pure.
+- [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — Tyrian-style modular loadout: `slots: { front, rear, sidekickLeft, sidekickRight }` (each `WeaponId | null`), `unlockedWeapons`, `shieldLevel`, `armorLevel`, `reactor: { capacityLevel, rechargeLevel }`, plus pure helpers for shield/armor/reactor max and upgrade pricing. Runtime energy value is NOT here — it's mutable per-mission state on `Player`.
 - [src/game/state/useGameState.ts](src/game/state/useGameState.ts) — `useSyncExternalStore` hook for React selectors.
-- [src/game/state/sync.ts](src/game/state/sync.ts) — `loadSave`, `saveNow`, `submitScore`. Best-effort fetches; failures and missing auth degrade silently so anonymous play keeps working. `loadSave` migrates legacy snapshots (pre-multi-slot, with `ship.primaryWeapon`) into the current shape.
+- [src/game/state/sync.ts](src/game/state/sync.ts) — `loadSave`, `saveNow`, `submitScore`. Best-effort fetches; failures and missing auth degrade silently so anonymous play keeps working. **All wire payloads validated by Zod schemas** in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — a malformed remote save is rejected with `loadSave()` returning `false`, not silently hydrated.
 
 Mid-mission perks (overdrive, hardened, EMP) live on the `Player` instance / `CombatScene` and are explicitly **not** in `GameState` — they reset on every combat boot.
 
@@ -147,6 +153,8 @@ All routes live under [src/app/api/](src/app/api/). Keep the list short — ever
 | `/api/leaderboard`             | POST   | Edge    | req'd | Submit a score; `revalidateTag('leaderboard')`. |
 
 `/api/save` and `/api/leaderboard` run on the Edge runtime via `@neondatabase/serverless` (WebSocket-backed `Pool` that's API-compatible with `pg.Pool`). NextAuth's `auth()` is JWT-cookie based and works in Edge. `/api/auth/[...nextauth]` stays on Node because Google OAuth's callback handshake isn't Edge-safe.
+
+**Every request and response is validated by Zod schemas** in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — the source of truth for the wire format. The save and leaderboard routes both `safeParse()` request bodies and reject malformed input with `{ error: "validation_failed", issues: [...] }` at status 400. The client (`sync.ts`) parses server responses through `RemoteSaveSchema` so a server-side schema drift can't corrupt local state. Path strings are centralized in [src/lib/routes.ts](src/lib/routes.ts) (`ROUTES.api.save`, etc.) — never hard-code `"/api/..."` strings in components.
 
 ### Request / response shapes
 
@@ -211,18 +219,25 @@ BootScene             CombatScene                       ResultScene
   procedurally with `Phaser.GameObjects.Graphics` and registered via
   `generateTexture`. Real PNGs can be dropped into `/public/sprites` later
   by rewriting this scene as a proper preloader.
-- **CombatScene** owns: `Player`, `BulletPool` (×2), `EnemyPool`, `PowerUpPool`,
-  `WaveManager`, `ScoreSystem`, the inline HUD layer, and the perk state
-  (`activePerks`, `empCharges`). Collisions are wired by `wireCollisions(...)`
-  from [systems/CollisionSystem.ts](src/game/phaser/systems/CollisionSystem.ts).
-- **ResultScene** reads `summary` from the Phaser registry, animates a count-up,
-  and on input fires `bootData.onComplete()`. The `/api/save` and
-  `/api/leaderboard` writes happen back in `GameCanvas.handleMissionComplete`,
-  not inside the scene itself.
-- **PauseScene** is launched on top of a paused `CombatScene` and owns its own
-  input (`P` resume, `ESC` abandon → emits `"abandon"` on the combat scene).
-- **BossScene** (planned). Currently a no-op placeholder reserved for scripted
-  phase logic in a later phase.
+- **CombatScene** is now a thin orchestrator (~216 LOC after the audit) that wires together: `Player`, `BulletPool` (×2), `EnemyPool`, `PowerUpPool`, `WaveManager`, `ScoreSystem`, plus four extracted helpers under [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/):
+  - **`CombatHud`** — score/credit/shield/armor/energy bars + perk chips.
+  - **`CombatVfx`** — background, explosion particles, target-finding glue.
+  - **`DropController`** — `rollDrop`, `applyPowerUp`, `flashPickup`, weapon-upgrade ladder.
+  - **`PerkController`** — `applyPerk` (gain), `useActivePerk` (consume), `detonateEmp`. Holds `activePerks` + `empCharges`.
+  Collisions are wired by `wireCollisions(...)` from [systems/CollisionSystem.ts](src/game/phaser/systems/CollisionSystem.ts).
+- **`Player`** is also an orchestrator that composes helpers from [src/game/phaser/entities/player/](src/game/phaser/entities/player/): `SlotModResolver` (pure mod resolution per slot), `PlayerCombatant` (shield/armor/energy/regen/`takeDamage`), `PlayerFireController` (`tryFireSlot`). CombatScene's reads (`player.shield`, `player.takeDamage(...)`) flow through unchanged passthroughs.
+- **ResultScene** reads `summary` from the Phaser registry via the typed accessor `getSummary(this.game)` (see §5.5), animates a count-up, and on input fires `bootData.onComplete()`. The `/api/save` and `/api/leaderboard` writes happen back in `GameCanvas.handleMissionComplete`, not inside the scene itself.
+- **PauseScene** is launched on top of a paused `CombatScene` and owns its own input (`P` resume, `ESC` abandon → `emit(combat, { type: "abandon" })` via the typed bus).
+- **BossScene** (planned). Currently a no-op placeholder reserved for scripted phase logic in a later phase.
+
+### 5.5 Phaser communication contracts (typed bus + typed registry)
+
+Cross-scene communication and shared scene-graph state both go through typed wrappers. **No string-keyed `scene.events.emit(...)` or `game.registry.set(...)` calls** — they're compile-blind and hide rename regressions.
+
+- [src/game/phaser/events.ts](src/game/phaser/events.ts) exports a discriminated `CombatEvent` union (`playerDied | allWavesComplete | abandon`) plus `emit<E>(scene, event)` and `on<T>(scene, type, handler)` wrappers. Adding a new event means extending the union; renaming one is a compile error in every consumer.
+- [src/game/phaser/registry.ts](src/game/phaser/registry.ts) exports `REGISTRY_KEYS` plus typed `getSummary` / `setSummary` / `getBootData` / `setBootData`. The `CombatSummary` and `BootData` shapes ride a typed channel between CombatScene → Phaser registry → ResultScene without any `as` casts.
+
+Two historical events (`enemyKilled`, `waveComplete`) were emitted but had no listeners; the audit deleted both. The kill path now flows through the `wireCollisions(...)` callback (`onEnemyHit(enemy, _bullet, killed)`) rather than a separate event.
 
 ## 6. Transition flow (galaxy ↔ combat)
 
@@ -251,8 +266,13 @@ Combat → Galaxy (handleMissionComplete, summary):
   6. requestAnimationFrame → fade(overlay, 0)
 ```
 
-Only one engine is live at a time — the other's canvas/parent is unmounted by
-React, so GPU resources are released by the dispose hooks.
+Only one engine is live at a time — the other's canvas/parent is unmounted by React, so GPU resources are released by the dispose hooks.
+
+**Auth-flip invariant in `GameCanvas`.** The Phaser-mount effect captures `handleMissionComplete` indirectly through a `completeRef` so that a sign-in event during combat (`useSession` flips `"loading"` → `"authenticated"`) doesn't leave Phaser holding a stale closure that skips `saveNow()` / `submitScore()` on completion. Re-instantiating Phaser on auth changes would tear down the active game, so the ref pattern is the correct fix. **Don't refactor the Phaser-mount effect to inline `handleMissionComplete` directly** — that re-introduces the bug.
+
+`GameCanvas` itself is now a thin orchestrator (~159 LOC). The galaxy chrome (`HudFrame`, `WarpPicker`, `LoadoutModal`) lives under [src/components/galaxy/](src/components/galaxy/). The lifecycle effects are extracted into hooks under [src/components/hooks/](src/components/hooks/): `useGalaxyScene`, `usePhaserGame`, `useCloudSaveSync`, `useNextMissionAutoSelect`.
+
+**Three.js scaffolding is shared.** `GalaxyScene` and `LandingScene` both call [src/game/three/SceneRig.ts](src/game/three/SceneRig.ts) `createSceneRig(canvas, opts)` for the renderer, scene+fog, ambient+rim light, starfield, sun, and planet add-loop. Each scene only owns its camera, controls, and per-scene specifics (raycaster + OrbitControls vs auto-orbit camera).
 
 ## 7. Asset pipeline
 
@@ -295,7 +315,7 @@ public/
 - Lowercase, dash-separated naming. Atlas JSON shares its PNG basename
   (`ship.png` ↔ `ship.json`). Mission music is `combat-<mission-id>.ogg`.
 - Planet textures use the same `id` as in
-  [missions.json](src/game/phaser/data/missions.json) (`MissionDefinition.texture`
+  [missions.json](src/game/data/missions.json) (`MissionDefinition.texture`
   is already a `/textures/planets/<id>.jpg` path).
 
 ### Referencing from code

@@ -51,17 +51,23 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 | Zone                                                      | Owner / responsibility                          |
 | --------------------------------------------------------- | ----------------------------------------------- |
 | [src/app/](src/app/)                                      | Next.js pages, layouts, API routes              |
-| [src/components/](src/components/)                        | React UI (HUD, shop, mission select, menus)     |
-| [src/game/phaser/](src/game/phaser/)                      | Phaser scenes, entities, systems                |
-| [src/game/phaser/data/](src/game/phaser/data/)            | Game balance JSON (weapons, enemies, waves)     |
-| [src/game/three/](src/game/three/)                        | Three.js galaxy overworld                       |
-| [src/game/state/](src/game/state/)                        | Shared in-memory game state (GameState, ShipConfig) |
-| [src/lib/](src/lib/)                                      | DB client, auth config, shared helpers          |
+| [src/components/](src/components/)                        | React UI orchestrators (LoadoutMenu, GameCanvas, ShopUI, etc.) |
+| [src/components/galaxy/](src/components/galaxy/)          | Galaxy-view chrome (HudFrame, WarpPicker, LoadoutModal) |
+| [src/components/loadout/](src/components/loadout/)        | LoadoutMenu sub-components (SlotGrid, WeaponCard, pickers) |
+| [src/components/hooks/](src/components/hooks/)            | Client-side React hooks (useGalaxyScene, usePhaserGame, useCloudSaveSync, useNextMissionAutoSelect) |
+| [src/game/phaser/](src/game/phaser/)                      | Phaser scenes, entities, systems, typed bus     |
+| [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/) | CombatScene helpers (CombatHud, CombatVfx, DropController, PerkController) |
+| [src/game/phaser/entities/player/](src/game/phaser/entities/player/) | Player helpers (SlotModResolver, PlayerCombatant, PlayerFireController) |
+| [src/game/data/](src/game/data/)                          | Game balance JSON + accessors (weapons, enemies, waves, missions, perks, augments, solarSystems) — **shared content registry** |
+| [src/game/three/](src/game/three/)                        | Three.js galaxy overworld + shared `SceneRig`   |
+| [src/game/state/](src/game/state/)                        | GameState barrel + slices (stateCore, shipMutators, persistence, pricing), ShipConfig, sync, useGameState |
+| [src/lib/](src/lib/)                                      | DB client, auth, leaderboard, players, handle, routes, useHandle |
+| [src/lib/schemas/](src/lib/schemas/)                      | Zod schemas validating every API boundary        |
 | [src/types/](src/types/)                                  | Shared TypeScript types                         |
-| [db/migrations/](db/migrations/)                          | SQL schema migrations (dbmate)                  |
+| [db/migrations/](db/migrations/)                          | SQL schema migrations (node-based runner; dbmate not required) |
 | [public/](public/)                                        | Static assets (sprites, audio, textures)        |
 
-**Shared files** (require coordination): `src/types/*.ts`, `src/lib/db.ts`, `src/game/state/GameState.ts`, JSON in `src/game/phaser/data/`.
+**Shared files** (require coordination): `src/types/*.ts`, `src/lib/db.ts`, `src/lib/schemas/*.ts`, `src/lib/routes.ts`, the `src/game/state/` cluster, JSON under `src/game/data/`.
 
 ## 5. Coding standards
 
@@ -82,11 +88,24 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 
 ### Game code (Phaser + Three.js)
 
-- One scene per file. Scenes live under [src/game/phaser/scenes/](src/game/phaser/scenes/).
-- Entities (Player, Enemy, Bullet, PowerUp) extend Phaser `GameObjects`. One class per file.
+- One scene per file. Scenes live under [src/game/phaser/scenes/](src/game/phaser/scenes/). Scene helpers (HUD, drop logic, perk handling, vfx) live in [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/).
+- Entities (Player, Enemy, Bullet, PowerUp) extend Phaser `GameObjects`. One class per file. Player composes helpers from [src/game/phaser/entities/player/](src/game/phaser/entities/player/) (SlotModResolver, PlayerCombatant, PlayerFireController).
 - Systems (wave spawning, collision, weapons, scoring) are stateless helpers or per-scene manager instances. No global singletons.
-- **Game balance data lives in JSON** under [src/game/phaser/data/](src/game/phaser/data/). Never hard-code damage numbers, HP, spawn counts, etc.
+- **Game balance data lives in JSON** under [src/game/data/](src/game/data/). Never hard-code damage numbers, HP, spawn counts, etc. Read it through the typed accessors (`getEnemy`, `getWeapon`, `getMission`, etc.), not raw `as readonly XDefinition[]` casts.
 - Use `readonly` for loaded JSON config — once parsed, it doesn't mutate.
+- **Cross-scene communication uses the typed bus.** Emit via `emit(scene, { type: "..." })` from [src/game/phaser/events.ts](src/game/phaser/events.ts); read shared scene-graph state via the typed accessors in [src/game/phaser/registry.ts](src/game/phaser/registry.ts). Never use `scene.events.emit("string-name")` or `game.registry.set("string-key", ...)` directly — those are compile-blind.
+
+### Modularity discipline
+
+These rules came out of the 2026-04-27 modularity audit. Folding them in to keep the cleanup from rotting.
+
+- **Module size limit.** Files over ~300 lines need a justification or get split. Split by concern (data/render/business/effects), not by line count alone.
+- **No cross-domain imports.** `game/phaser/` does not reach into `game/three/`. State changes flow through events or the GameState barrel. Shared data lives under `src/game/data/`.
+- **API boundaries get Zod schemas.** New API routes validate input via [src/lib/schemas/](src/lib/schemas/) and type their output through a derived `z.infer`. **No `as` casts at the network edge** — neither in `app/api/*/route.ts` (server input) nor in client `fetch` consumers like `src/game/state/sync.ts`.
+- **One concern per file.** Data fetching, rendering, business logic, and side effects don't share a file. Hooks under `src/components/hooks/` exist for exactly this reason.
+- **New public API gets a boundary test.** Adding an exported function to a module means adding a test in the matching `*.test.ts` that exercises its contract.
+- **Centralized constants.** Strings used in 2+ places (route paths, Phaser event names, registry keys, scene keys) live in a constants file. See [src/lib/routes.ts](src/lib/routes.ts), [src/game/phaser/events.ts](src/game/phaser/events.ts), [src/game/phaser/registry.ts](src/game/phaser/registry.ts), and `SCENE_KEYS` in [src/game/phaser/config.ts](src/game/phaser/config.ts).
+- **CI gates are blocking.** `typecheck`, `lint`, `test`, `build` all run on every push and PR (see [.github/workflows/ci.yml](.github/workflows/ci.yml)). Suppressing errors (`@ts-expect-error`, `eslint-disable`) requires an inline justification comment AND a strong reason — the audit deleted two such suppressions because they were hiding a real bug.
 
 ### Database / SQL
 
@@ -111,15 +130,18 @@ npm install
 cp .env.example .env.local
 # Edit .env.local — at minimum set DATABASE_URL
 
-# 3. Database (requires dbmate: `brew install dbmate`)
+# 3. Database — node-based migration runner (no dbmate install required)
 npm run db:migrate
 
 # 4. Dev server
 npm run dev
 # http://localhost:3000
 
-# 5. Type check (do this before any PR)
-npm run typecheck
+# 5. The same checks CI runs
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint . (flat config; not next lint)
+npm test             # vitest run — 397 tests
+npm run build        # next build (catches RSC/client-boundary errors)
 ```
 
 ### Working without a database
@@ -165,8 +187,9 @@ DATABASE_URL="<neon-direct-url>" npm run db:migrate
 - **No `output: "export"`** in `next.config.mjs` — it disables API routes. Use per-route `force-static` instead.
 - **No SSR for game pages.** Phaser/Three must be behind `next/dynamic({ ssr: false })`.
 - **No heavy server compute.** If a task requires server-side game logic, pause and ask.
-- **No game balance constants in code.** They belong in [src/game/phaser/data/](src/game/phaser/data/).
-- **No `any` types.** Full stop.
+- **No game balance constants in code.** They belong in [src/game/data/](src/game/data/).
+- **No `any` types.** Full stop. **No `as` casts at the network edge** — use Zod schemas in [src/lib/schemas/](src/lib/schemas/).
+- **No string-keyed Phaser events or registry access.** Use the typed wrappers in [src/game/phaser/events.ts](src/game/phaser/events.ts) and [src/game/phaser/registry.ts](src/game/phaser/registry.ts).
 - **MVP scope is capped.** See [TODO.md](TODO.md) "Out of scope for MVP".
 
 ## 10. Prefer skills for content tasks
@@ -185,7 +208,32 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 
 If the request maps to a skill, **invoke it before grepping or reading files** — the skill body already contains the file paths, field names, and invariants you'd otherwise have to derive. If the request *almost* maps to a skill but has an extra constraint, still invoke the skill and adapt; do not fall back to the long path.
 
-## 11. README.md is barney-style educational
+> **Note (post-2026-04-27):** the `.claude/skills/*/SKILL.md` files still reference the old `src/game/phaser/data/` path. The audit renamed it to `src/game/data/`. Skill bodies still work because the typed accessors (`getEnemy`, `getWeapon`, `getMission`, etc.) are imported from the new path, but if you edit a skill body, fix any stale `phaser/data/` reference you see.
+
+## 11. Where things live (post-audit map)
+
+The 2026-04-27 modularity audit broke up several god modules. Quick lookup of where each concern now lives:
+
+| Concern | Location |
+|---|---|
+| State singleton + listeners + `commit` | [src/game/state/stateCore.ts](src/game/state/stateCore.ts) |
+| Ship mutators (equip, buy, upgrade, augment) | [src/game/state/shipMutators.ts](src/game/state/shipMutators.ts) |
+| Snapshot / hydrate / migrateShip | [src/game/state/persistence.ts](src/game/state/persistence.ts) |
+| Sell pricing | [src/game/state/pricing.ts](src/game/state/pricing.ts) |
+| GameState public surface | [src/game/state/GameState.ts](src/game/state/GameState.ts) (barrel re-export) |
+| Wire-format Zod schemas | [src/lib/schemas/save.ts](src/lib/schemas/save.ts) |
+| Route constants | [src/lib/routes.ts](src/lib/routes.ts) |
+| Player handle hook | [src/lib/useHandle.ts](src/lib/useHandle.ts) |
+| Phaser event union + emit/on wrappers | [src/game/phaser/events.ts](src/game/phaser/events.ts) |
+| Phaser registry typed accessors | [src/game/phaser/registry.ts](src/game/phaser/registry.ts) |
+| Three.js scene scaffold (renderer, fog, lighting, starfield) | [src/game/three/SceneRig.ts](src/game/three/SceneRig.ts) |
+| Player helpers | [src/game/phaser/entities/player/{SlotModResolver,PlayerCombatant,PlayerFireController}.ts](src/game/phaser/entities/player/) |
+| Combat scene helpers | [src/game/phaser/scenes/combat/{CombatHud,CombatVfx,DropController,PerkController}.ts](src/game/phaser/scenes/combat/) |
+| Galaxy chrome | [src/components/galaxy/](src/components/galaxy/) + [src/components/hooks/](src/components/hooks/) |
+| Loadout chrome | [src/components/loadout/](src/components/loadout/) |
+| Phaser test harness (fake scene + time queue) | [src/game/phaser/__tests__/fakeScene.ts](src/game/phaser/__tests__/fakeScene.ts) |
+
+## 12. README.md is barney-style educational
 
 [README.md](README.md) is the public front door on GitHub. It must be written so a complete beginner — non-developer, non-gamer, never heard of Tyrian — can read it top-to-bottom and follow along without looking anything up.
 
@@ -198,7 +246,7 @@ If the request maps to a skill, **invoke it before grepping or reading files** �
 
 This rule applies ONLY to README.md. ARCHITECTURE.md, CLAUDE.md, and code comments stay developer-facing and concise.
 
-## 12. Vercel resource discipline (mandatory checklist)
+## 13. Vercel resource discipline (mandatory checklist)
 
 Section 3 covers the *principles*. This section is the **per-PR checklist**. Consult it BEFORE adding any new server-rendered route, middleware, image route, cron, or `public/` asset. Vercel Hobby tier limits are tight (100k function invocations / 100 GB-hours CPU / 100 GB transfer per month) and one careless route or asset can blow the budget overnight.
 
@@ -237,7 +285,7 @@ Section 3 covers the *principles*. This section is the **per-PR checklist**. Con
 
 If any answer above feels wrong but you can't articulate why, **stop and ask** — the cost surface is unforgiving. A single uncached endpoint that gets linked on social media can drain the month's budget in hours.
 
-## 13. When in doubt
+## 14. When in doubt
 
 1. Skim [ARCHITECTURE.md](ARCHITECTURE.md) for data flow and scene lifecycle.
 2. Check [TODO.md](TODO.md) to see if the task is already planned and which model is recommended.
