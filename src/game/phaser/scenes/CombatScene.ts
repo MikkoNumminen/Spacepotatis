@@ -10,13 +10,13 @@ import { on } from "../events";
 import { setSummary } from "../registry";
 import { sfx } from "@/game/audio/sfx";
 import { PowerUpPool } from "../entities/PowerUp";
-import { PERKS, type PerkId } from "../../data/perks";
 import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
 import { CombatVfx } from "./combat/CombatVfx";
 import { CombatHud } from "./combat/CombatHud";
 import { DropController } from "./combat/DropController";
+import { PerkController } from "./combat/PerkController";
 
 export class CombatScene extends Phaser.Scene {
   private bootData!: BootData;
@@ -30,14 +30,11 @@ export class CombatScene extends Phaser.Scene {
   private vfx!: CombatVfx;
   private hud!: CombatHud;
   private dropController!: DropController;
+  private perks!: PerkController;
 
   private startedAt = 0;
   private allWavesDone = false;
   private finished = false;
-
-  // Mission-only perk state. Reset on every CombatScene boot.
-  private empCharges = 0;
-  private activePerks: Set<PerkId> = new Set();
 
   constructor() {
     super(SCENE_KEYS.Combat);
@@ -47,8 +44,6 @@ export class CombatScene extends Phaser.Scene {
     this.bootData = data;
     this.allWavesDone = false;
     this.finished = false;
-    this.empCharges = 0;
-    this.activePerks = new Set();
   }
 
   create(): void {
@@ -77,13 +72,21 @@ export class CombatScene extends Phaser.Scene {
 
     this.score = new ScoreSystem();
 
+    this.perks = new PerkController(
+      this,
+      () => this.player,
+      () => this.enemyBullets,
+      (text, color, x, y) => this.dropController.flashPickup(text, color, x, y, "mission"),
+      () => this.hud.refreshPerkChips()
+    );
+
     this.dropController = new DropController(
       this,
       this.bootData.missionId,
       this.powerUps,
       () => this.player,
       () => this.score,
-      (perkId, x, y) => this.applyPerk(perkId, x, y)
+      (perkId, x, y) => this.perks.apply(perkId, x, y)
     );
 
     const getPlayerPos = () => (this.player.active ? { x: this.player.x, y: this.player.y } : null);
@@ -122,21 +125,24 @@ export class CombatScene extends Phaser.Scene {
 
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-ESC", () => this.togglePause());
-    this.input.keyboard?.on("keydown-CTRL", () => this.useActivePerk());
+    this.input.keyboard?.on("keydown-CTRL", () => this.perks.triggerActive());
 
-    this.hud = new CombatHud(this, () => ({
-      score: this.score.score,
-      combo: this.score.combo,
-      credits: this.score.credits,
-      shield: this.player.shield,
-      maxShield: this.player.maxShield,
-      armor: this.player.armor,
-      maxArmor: this.player.maxArmor,
-      energy: this.player.energy,
-      maxEnergy: this.player.maxEnergy,
-      activePerks: this.activePerks,
-      empCharges: this.empCharges
-    }));
+    this.hud = new CombatHud(this, () => {
+      const perkState = this.perks.getState();
+      return {
+        score: this.score.score,
+        combo: this.score.combo,
+        credits: this.score.credits,
+        shield: this.player.shield,
+        maxShield: this.player.maxShield,
+        armor: this.player.armor,
+        maxArmor: this.player.maxArmor,
+        energy: this.player.energy,
+        maxEnergy: this.player.maxEnergy,
+        activePerks: perkState.activePerks,
+        empCharges: perkState.empCharges
+      };
+    });
     this.hud.build();
 
     this.startedAt = this.time.now;
@@ -172,56 +178,6 @@ export class CombatScene extends Phaser.Scene {
     this.dropController.maybeDrop(enemy);
 
     this.vfx.emitExplosionParticles(enemy.x, enemy.y, def.behavior === "boss" ? 48 : 14);
-  }
-
-  private applyPerk(perkId: PerkId, x: number, y: number): void {
-    const def = PERKS[perkId];
-    switch (perkId) {
-      case "overdrive":
-        this.player.hasOverdrive = true;
-        break;
-      case "hardened":
-        this.player.hasHardened = true;
-        break;
-      case "emp":
-        this.empCharges += 1;
-        break;
-    }
-    this.activePerks.add(perkId);
-    this.dropController.flashPickup(`+ ${def.name.toUpperCase()}`, def.tint, x, y, "mission");
-    this.hud.refreshPerkChips();
-  }
-
-  private useActivePerk(): void {
-    if (this.empCharges <= 0) return;
-    this.empCharges -= 1;
-    this.detonateEmp();
-    if (this.empCharges <= 0) this.activePerks.delete("emp");
-    this.hud.refreshPerkChips();
-  }
-
-  private detonateEmp(): void {
-    // Clear every active enemy bullet on screen.
-    this.enemyBullets.children.iterate((child) => {
-      const b = child as Phaser.Physics.Arcade.Sprite;
-      if (b.active) b.disableBody(true, true);
-      return true;
-    });
-    // Visual flash centred on the player.
-    const flash = this.add.graphics();
-    flash.fillStyle(PERKS.emp.tint, 0.45);
-    flash.fillCircle(this.player.x, this.player.y, 24);
-    flash.setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({
-      targets: flash,
-      scale: 28,
-      alpha: 0,
-      duration: 480,
-      ease: "cubic.out",
-      onComplete: () => flash.destroy()
-    });
-    this.cameras.main.flash(120, 255, 200, 240, false);
-    sfx.explosion();
   }
 
   private togglePause(): void {
