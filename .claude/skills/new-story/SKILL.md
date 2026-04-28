@@ -31,7 +31,12 @@ Ask once, in a single message, for any missing fields:
 6. `voiceDelayMs` — milliseconds to wait after music starts before voice plays (so the bed establishes mood before narration). Default `3000` if the user does not say.
 7. `autoTrigger` — one of:
    - `null` — replay-only; appears in the Story log once unlocked but never auto-fires. Use this for retrospectives or chapter recaps.
-   - `{ kind: "first-time" }` — auto-fires on the player's first galaxy-view load if they haven't seen it. Currently only ONE entry can usefully carry this — the firing loop in `GameCanvas.tsx#useEffect` picks the first unseen `first-time` entry, so two such entries cascade across two consecutive sessions which is rarely the intended UX. If the user wants completion-gated firing (e.g. "after boss-1"), STOP and tell them the StoryEntry trigger union needs a new variant (`{ kind: "after-mission", missionId: ... }`) plus matching firing logic in GameCanvas — that is a feature, not a content addition, and out of scope for this skill.
+   - `{ kind: "first-time" }` — auto-fires on the player's first galaxy-view load if they haven't seen it. Currently only ONE entry can usefully carry this — the firing loop in `GameCanvas.tsx#useEffect` picks the first unseen `first-time` entry, so two such entries cascade across two consecutive sessions which is rarely the intended UX.
+   - `{ kind: "on-mission-select", missionId: <MissionId> }` — auto-fires once the first time that mission's quest card is opened (auto-expansion of the suggested card counts as a selection; the seen-set guards re-fires). Use for short briefings tied to a specific mission.
+   - If the user wants any OTHER trigger (e.g. "after boss-1 cleared", "on first dock at the Market"), STOP — it requires a new variant in the `StoryAutoTrigger` union plus matching firing logic in `GameCanvas.tsx`. Flag this to the user; do not silently invent a new kind.
+8. `mode` — one of:
+   - `"modal"` — cinematic popup, ducks the menu bed, plays its own music + voice. Default for big story beats with body text the player should read.
+   - `"overlay"` — voice plays on top of the menu bed, NO popup, no music change. Use for short briefings where the audio carries the narrative and a popup would be intrusive. Set `musicTrack: null` for overlay entries since the bed is already playing. Replay from the Story log still opens the modal so body text + voice are accessible.
 
 # Steps
 1. Read `src/game/data/story.ts` to confirm the new id is unique.
@@ -48,10 +53,11 @@ Ask once, in a single message, for any missing fields:
        id: "<storyId>",
        title: "<title>",
        body: ["<paragraph 1>", "<paragraph 2>"],
-       musicTrack: "/audio/story/<storyId>-music.ogg",
+       musicTrack: "/audio/story/<storyId>-music.ogg" | null, // null for overlay
        voiceTrack: "/audio/story/<storyId>-voice.mp3",
        voiceDelayMs: <voiceDelayMs>,
-       autoTrigger: <null or { kind: "first-time" }>
+       autoTrigger: null | { kind: "first-time" } | { kind: "on-mission-select", missionId: "<id>" },
+       mode: "modal" | "overlay"
      }
      ```
    - Order entries by intended narrative sequence (the Story log `StoryListModal` filters by seen-set but renders in array order).
