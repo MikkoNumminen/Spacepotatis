@@ -111,42 +111,65 @@ export default function GameCanvas() {
     setActiveStory({ id, firstSeen: false });
   }, []);
 
-  // Mission-select trigger: when a quest card opens, fire any unseen story
-  // tagged `{ kind: "on-mission-select", missionId: id }`. Overlay-mode
-  // entries play voice over the menu bed without opening the modal;
-  // modal-mode entries open the popup instead.
-  //
-  // Gated on `unlockedPlanets` — locked missions show as "?" and their
-  // briefing must not leak. Without this gate, opening the locked card
-  // (which IS expandable in QuestPanel) would auto-play the briefing
-  // and burn the once-only fire.
+  // Mission-select trigger. Behavior:
+  //   - Every click on an unlocked card schedules the matching overlay
+  //     briefing to play after SELECT_DELAY_MS. The delay lets the player
+  //     "shuffle" through cards without triggering audio they don't want;
+  //     each new selection cancels the previous pending or playing voice.
+  //   - Locked "?" cards never reveal their briefing. They DO cancel any
+  //     pending audio (the player has clearly moved attention away).
+  //   - Modal-mode on-mission-select entries still respect the seen-set
+  //     (they open a one-shot popup, not a re-playable utility briefing).
+  //   - First overlay play marks the entry seen so it appears in the
+  //     Story log; subsequent replays from the quest menu re-fire silently.
+  const pendingPlayTimer = useRef<number | null>(null);
+  const SELECT_DELAY_MS = 3500;
+
+  const cancelPendingBriefing = useCallback(() => {
+    if (pendingPlayTimer.current !== null) {
+      clearTimeout(pendingPlayTimer.current);
+      pendingPlayTimer.current = null;
+    }
+    storyAudio.stop();
+  }, []);
+
   const handleMissionSelect = useCallback(
     (missionId: MissionId) => {
       if (!saveLoaded || mode !== "galaxy") return;
+
+      cancelPendingBriefing();
+
       if (!unlockedPlanets.includes(missionId)) return;
-      const seen = new Set(seenStoryEntries);
+
       const entry = STORY_ENTRIES.find(
         (e) =>
           e.autoTrigger?.kind === "on-mission-select" &&
-          e.autoTrigger.missionId === missionId &&
-          !seen.has(e.id) &&
-          !autoFiredRef.current.has(e.id)
+          e.autoTrigger.missionId === missionId
       );
       if (!entry) return;
-      autoFiredRef.current.add(entry.id);
+
       if (entry.mode === "overlay") {
-        storyAudio.play({
-          musicSrc: entry.musicTrack,
-          voiceSrc: entry.voiceTrack,
-          voiceDelayMs: entry.voiceDelayMs
-        });
-        markStorySeen(entry.id);
-        void saveNow();
-      } else {
+        pendingPlayTimer.current = window.setTimeout(() => {
+          pendingPlayTimer.current = null;
+          storyAudio.play({
+            musicSrc: entry.musicTrack,
+            voiceSrc: entry.voiceTrack,
+            voiceDelayMs: 0
+          });
+          if (!seenStoryEntries.includes(entry.id)) {
+            markStorySeen(entry.id);
+            void saveNow();
+          }
+        }, SELECT_DELAY_MS);
+      } else if (
+        !seenStoryEntries.includes(entry.id) &&
+        !autoFiredRef.current.has(entry.id)
+      ) {
+        autoFiredRef.current.add(entry.id);
         setActiveStory({ id: entry.id, firstSeen: true });
       }
     },
-    [saveLoaded, mode, seenStoryEntries, unlockedPlanets]
+    [saveLoaded, mode, seenStoryEntries, unlockedPlanets, cancelPendingBriefing]
   );
 
   // Single source of truth for which bed plays: combat owns audio in combat
@@ -158,6 +181,9 @@ export default function GameCanvas() {
   useEffect(() => {
     if (mode === "combat") {
       menuMusic.duck();
+      // A mission briefing playing under combat would step on the combat
+      // bed — kill any pending or running overlay before combat takes over.
+      cancelPendingBriefing();
     } else {
       combatMusic.stop();
       menuMusic.unduck();
@@ -166,7 +192,14 @@ export default function GameCanvas() {
       combatMusic.stop();
       menuMusic.unduck();
     };
-  }, [mode]);
+  }, [mode, cancelPendingBriefing]);
+
+  // Final cleanup so a navigation away cancels any briefing in flight.
+  useEffect(() => {
+    return () => {
+      cancelPendingBriefing();
+    };
+  }, [cancelPendingBriefing]);
 
   // Planet click in the 3D scene flows into QuestPanel as a focus signal so
   // the matching entry expands inline. Clearing on null lets a click on
