@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import type { EnemyDefinition, EnemyId } from "@/types/game";
 import { BulletPool } from "./Bullet";
 import { getEnemy } from "../../data/enemies";
+import { computeMotionTilt } from "./motionTilt";
 
 export { getEnemy };
 
@@ -65,6 +66,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setActive(true);
     this.setVisible(true);
     this.clearTint();
+    // Reset cosmetic lean state — the previous occupant of this pool slot
+    // may have died mid-bank, and the recycle skips construction.
+    this.setAngle(0);
+    this.setScale(1, 1);
 
     const body = this.body as Phaser.Physics.Arcade.Body | null;
     if (body) {
@@ -120,8 +125,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       }
       case "boss":
         this.updateBoss(time);
+        this.applyMotionTilt(delta);
         return; // boss owns its own despawn rules
     }
+
+    this.applyMotionTilt(delta);
 
     if (this.y > this.scene.physics.world.bounds.bottom + 40) {
       this.disableBody(true, true);
@@ -131,6 +139,24 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.lastShotAt = time;
       this.enemyPool.spawn(this.x, this.y + 12, 0, 360, 8, false);
     }
+  }
+
+  // Reads body.velocity (which the behavior switch just wrote) and eases the
+  // sprite's angle / scale toward a "lean into motion" target. Cosmetic
+  // only — Arcade Physics bodies are AABB and ignore sprite rotation.
+  private applyMotionTilt(deltaMs: number): void {
+    const body = this.body as Phaser.Physics.Arcade.Body | null;
+    if (!body) return;
+    const next = computeMotionTilt(
+      { angle: this.angle, scaleX: this.scaleX, scaleY: this.scaleY },
+      body.velocity.x,
+      body.velocity.y,
+      this.definition.speed,
+      deltaMs
+    );
+    this.angle = next.angle;
+    this.scaleX = next.scaleX;
+    this.scaleY = next.scaleY;
   }
 
   // ---------- Boss phases (driven by HP ratio) ----------
