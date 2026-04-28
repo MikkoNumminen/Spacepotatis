@@ -43,6 +43,10 @@ export class BootScene extends Phaser.Scene {
     this.drawCaterpillar("enemy-caterpillar-army",     { segR: 8,  body: 0x4a5c1a, accent: 0x1f2810, segments: 5, stripeColor: 0xc0d050 });
     this.drawCaterpillar("enemy-caterpillar-monarch",  { segR: 18, body: 0xffd64a, accent: 0x1a1a1a, segments: 7, stripeColor: 0x1a1a1a });
 
+    this.drawSpider("enemy-spider-wolf",   { size: 18, body: 0x6b4a2a, accent: 0x2e1f10 });
+    this.drawSpider("enemy-spider-widow",  { size: 20, body: 0x141420, accent: 0x05050a, marking: { color: 0xd02020, kind: "hourglass" } });
+    this.drawSpider("enemy-spider-jumper", { size: 12, body: 0x4a6a5a, accent: 0x1e2c25, marking: { color: 0x4fd1ff, kind: "eyes-large" } });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -649,6 +653,118 @@ export class BootScene extends Phaser.Scene {
     g.lineStyle(1, accent, 0.75);
     for (const yc of segCenters) g.strokeCircle(cx, yc, segR);
     g.strokeCircle(cx, headCy, headR);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Spider — bulbous abdomen (top, rear) + smaller cephalothorax (bottom,
+  // leading the fall) with 4 multi-segment legs per side. The widow gets
+  // a red hourglass marking on the abdomen; the jumping spider gets a
+  // glowing accent ring around its big front eyes (jumping spiders are
+  // famous for their oversized forward-facing eyes).
+  private drawSpider(
+    key: string,
+    opts: {
+      size: number;
+      body: number;
+      accent: number;
+      marking?: { color: number; kind: "hourglass" | "eyes-large" };
+    }
+  ): void {
+    const { size, body, accent, marking } = opts;
+    const PAD = 5;
+    const legSpan = size * 1.05;
+    const cephR = size * 0.62;
+    const W = (size + legSpan) * 2 + PAD * 2;
+    const H = 2 * size + 2 * cephR + PAD * 2;
+    const cx = W / 2;
+    const g = this.add.graphics();
+
+    // Layout: abdomen on top (rear), cephalothorax overlaps below (front).
+    const abdomenCy = PAD + size;
+    const cephCy = abdomenCy + size * 0.7 + cephR * 0.45;
+
+    // 8 legs first so the body covers their roots. 4 per side, fanning
+    // outward and slightly forward (down-screen).
+    g.lineStyle(Math.max(1, size * 0.10), accent, 1);
+    for (let i = 0; i < 8; i++) {
+      const isLeft = i < 4;
+      const idx = isLeft ? i : i - 4;
+      const sign = isLeft ? -1 : 1;
+
+      const rootX = cx + sign * cephR * 0.7;
+      const rootY = cephCy - cephR * 0.55 + idx * cephR * 0.35;
+
+      // Knee: outward + slight up/down variation per leg pair.
+      const kneeX = rootX + sign * legSpan * 0.55;
+      const kneeY = rootY + (idx - 1.5) * cephR * 0.18;
+
+      // Foot tip: full leg span outward + slight forward bias.
+      const footX = rootX + sign * legSpan * 0.95;
+      const footY = rootY + cephR * 0.4 + idx * cephR * 0.18;
+
+      g.beginPath();
+      g.moveTo(rootX, rootY);
+      g.lineTo(kneeX, kneeY);
+      g.lineTo(footX, footY);
+      g.strokePath();
+    }
+
+    // Abdomen.
+    g.fillStyle(body, 1);
+    g.fillCircle(cx, abdomenCy, size);
+    g.fillStyle(accent, 0.45);
+    g.fillEllipse(cx + size * 0.2, abdomenCy + size * 0.15, size * 1.5, size * 1.5);
+    g.fillStyle(0xffffff, 0.18);
+    g.fillEllipse(cx - size * 0.3, abdomenCy - size * 0.3, size * 0.95, size * 0.5);
+
+    // Hourglass marking — two triangles meeting at a waist (widow).
+    if (marking?.kind === "hourglass") {
+      g.fillStyle(marking.color, 1);
+      g.fillTriangle(
+        cx - size * 0.28, abdomenCy - size * 0.30,
+        cx + size * 0.28, abdomenCy - size * 0.30,
+        cx, abdomenCy
+      );
+      g.fillTriangle(
+        cx - size * 0.28, abdomenCy + size * 0.30,
+        cx + size * 0.28, abdomenCy + size * 0.30,
+        cx, abdomenCy
+      );
+    }
+
+    // Cephalothorax (head segment).
+    g.fillStyle(body, 1);
+    g.fillCircle(cx, cephCy, cephR);
+    g.fillStyle(accent, 0.5);
+    g.fillEllipse(cx + cephR * 0.2, cephCy + cephR * 0.15, cephR * 1.4, cephR * 1.3);
+
+    // 4-eye cluster (2 large central + 2 smaller side eyes).
+    const eyeR = Math.max(1.0, cephR * 0.16);
+    const eyeY = cephCy + cephR * 0.25;
+    const eyeXBig = cephR * 0.25;
+    const eyeXSmall = cephR * 0.55;
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(cx - eyeXBig, eyeY, eyeR * 1.3);
+    g.fillCircle(cx + eyeXBig, eyeY, eyeR * 1.3);
+    g.fillCircle(cx - eyeXSmall, eyeY - eyeR * 0.3, eyeR * 0.7);
+    g.fillCircle(cx + eyeXSmall, eyeY - eyeR * 0.3, eyeR * 0.7);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(cx - eyeXBig - eyeR * 0.4, eyeY - eyeR * 0.4, Math.max(0.6, eyeR * 0.4));
+    g.fillCircle(cx + eyeXBig - eyeR * 0.4, eyeY - eyeR * 0.4, Math.max(0.6, eyeR * 0.4));
+
+    // Jumping-spider tell — glowing ring around the big eyes.
+    if (marking?.kind === "eyes-large") {
+      g.lineStyle(1.5, marking.color, 0.85);
+      g.strokeCircle(cx - eyeXBig, eyeY, eyeR * 1.7);
+      g.strokeCircle(cx + eyeXBig, eyeY, eyeR * 1.7);
+    }
+
+    // Outline last.
+    g.lineStyle(1, accent, 0.7);
+    g.strokeCircle(cx, abdomenCy, size);
+    g.strokeCircle(cx, cephCy, cephR);
 
     g.generateTexture(key, W, H);
     g.destroy();

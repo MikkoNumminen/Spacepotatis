@@ -30,20 +30,20 @@
           "id": "combat-1-wave-2",
           "durationMs": 28000,
           "spawns": [
-            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 1300, "formation": "column",  "xPercent": 0.2 },
-            { "enemy": "zigzag",    "count": 6, "delayMs": 0,     "intervalMs": 1300, "formation": "column",  "xPercent": 0.8 },
-            { "enemy": "kamikaze",  "count": 4, "delayMs": 12000, "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "zigzag",       "count": 6, "delayMs": 0,     "intervalMs": 1300, "formation": "column",  "xPercent": 0.2 },
+            { "enemy": "zigzag",       "count": 6, "delayMs": 0,     "intervalMs": 1300, "formation": "column",  "xPercent": 0.8 },
+            { "enemy": "spider-widow", "count": 2, "delayMs": 12000, "intervalMs": 2200, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "combat-1-wave-3",
           "durationMs": 32000,
           "spawns": [
-            { "enemy": "beetle-scarab", "count": 4, "delayMs": 0,     "intervalMs": 1400, "formation": "line",    "xPercent": 0.5 },
-            { "enemy": "beetle-rhino",  "count": 2, "delayMs": 5500,  "intervalMs": 2200, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "zigzag",        "count": 4, "delayMs": 8000,  "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "beetle-stag",   "count": 1, "delayMs": 14000, "intervalMs": 0,    "formation": "line",    "xPercent": 0.5 },
-            { "enemy": "kamikaze",      "count": 6, "delayMs": 16000, "intervalMs": 1300, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "beetle-scarab",  "count": 4, "delayMs": 0,     "intervalMs": 1400, "formation": "line",    "xPercent": 0.5 },
+            { "enemy": "beetle-rhino",   "count": 2, "delayMs": 5500,  "intervalMs": 2200, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "zigzag",         "count": 4, "delayMs": 8000,  "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "beetle-stag",    "count": 1, "delayMs": 14000, "intervalMs": 0,    "formation": "line",    "xPercent": 0.5 },
+            { "enemy": "spider-jumper",  "count": 6, "delayMs": 16000, "intervalMs": 1300, "formation": "scatter", "xPercent": 0.5 }
           ]
         }
       ]
@@ -99,26 +99,26 @@
           "id": "ember-run-wave-1",
           "durationMs": 28000,
           "spawns": [
-            { "enemy": "kamikaze", "count": 5, "delayMs": 1500,  "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "zigzag",   "count": 4, "delayMs": 11000, "intervalMs": 1600, "formation": "scatter", "xPercent": 0.3 }
+            { "enemy": "spider-jumper", "count": 5, "delayMs": 1500,  "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "zigzag",        "count": 4, "delayMs": 11000, "intervalMs": 1600, "formation": "scatter", "xPercent": 0.3 }
           ]
         },
         {
           "id": "ember-run-wave-2",
           "durationMs": 30000,
           "spawns": [
-            { "enemy": "zigzag",   "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.15 },
-            { "enemy": "zigzag",   "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.85 },
-            { "enemy": "kamikaze", "count": 6, "delayMs": 10000, "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "zigzag",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.15 },
+            { "enemy": "zigzag",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.85 },
+            { "enemy": "spider-wolf",   "count": 4, "delayMs": 10000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "ember-run-wave-3",
           "durationMs": 34000,
           "spawns": [
-            { "enemy": "kamikaze", "count": 8, "delayMs": 0,     "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "zigzag",   "count": 5, "delayMs": 9000,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "kamikaze", "count": 6, "delayMs": 19000, "intervalMs": 1300, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "spider-jumper", "count": 8, "delayMs": 0,     "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "zigzag",        "count": 5, "delayMs": 9000,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "spider-wolf",   "count": 4, "delayMs": 19000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 }
           ]
         }
       ]
@@ -130,8 +130,8 @@
           "id": "burnt-spud-intro",
           "durationMs": 18000,
           "spawns": [
-            { "enemy": "zigzag",   "count": 4, "delayMs": 1500,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "kamikaze", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "zigzag",        "count": 4, "delayMs": 1500,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "spider-jumper", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {

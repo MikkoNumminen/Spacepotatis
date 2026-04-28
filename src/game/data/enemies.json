@@ -156,6 +156,42 @@
       "spriteKey": "enemy-caterpillar-monarch",
       "fireRateMs": 1300,
       "collisionDamage": 30
+    },
+    {
+      "id": "spider-wolf",
+      "name": "Wolf Spider",
+      "hp": 25,
+      "speed": 110,
+      "behavior": "homing",
+      "scoreValue": 180,
+      "creditValue": 18,
+      "spriteKey": "enemy-spider-wolf",
+      "fireRateMs": 2400,
+      "collisionDamage": 16
+    },
+    {
+      "id": "spider-widow",
+      "name": "Black Widow",
+      "hp": 40,
+      "speed": 75,
+      "behavior": "straight",
+      "scoreValue": 280,
+      "creditValue": 28,
+      "spriteKey": "enemy-spider-widow",
+      "fireRateMs": 1500,
+      "collisionDamage": 20
+    },
+    {
+      "id": "spider-jumper",
+      "name": "Jumping Spider",
+      "hp": 12,
+      "speed": 220,
+      "behavior": "homing",
+      "scoreValue": 100,
+      "creditValue": 10,
+      "spriteKey": "enemy-spider-jumper",
+      "fireRateMs": null,
+      "collisionDamage": 25
     }
   ]
 }
