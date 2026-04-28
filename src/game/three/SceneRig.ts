@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { MissionDefinition, MissionId } from "@/types/game";
+import type { CelestialBody } from "./CelestialBody";
 import { Planet } from "./Planet";
+import { Station } from "./Station";
 import { Starfield } from "./Starfield";
 import { Sun } from "./Sun";
 
@@ -36,10 +38,13 @@ export interface SceneRig {
   readonly scene: THREE.Scene;
   readonly starfield: Starfield;
   readonly sun: Sun;
-  readonly planets: readonly Planet[];
-  // id → Planet lookup so child-orbit bodies (orbitParentId) can read their
+  // The array holds Planet AND Station instances; both implement
+  // CelestialBody. Stations render every kind: "shop" body, planets render
+  // everything else.
+  readonly planets: readonly CelestialBody[];
+  // id → body lookup so child-orbit bodies (orbitParentId) can read their
   // parent's current world position each frame.
-  readonly planetsById: ReadonlyMap<MissionId, Planet>;
+  readonly planetsById: ReadonlyMap<MissionId, CelestialBody>;
   readonly ambient: THREE.AmbientLight;
   readonly rimLight: THREE.DirectionalLight;
   dispose(): void;
@@ -70,13 +75,15 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
   rimLight.position.set(RIM_POSITION[0], RIM_POSITION[1], RIM_POSITION[2]);
   scene.add(ambient, rimLight);
 
-  const planets: Planet[] = [];
-  const planetsById = new Map<MissionId, Planet>();
+  const planets: CelestialBody[] = [];
+  const planetsById = new Map<MissionId, CelestialBody>();
   for (const def of opts.planets) {
-    const planet = new Planet(def);
-    planets.push(planet);
-    planetsById.set(def.id, planet);
-    scene.add(planet.object);
+    // Markets are mechanical structures, not worlds — render them as
+    // Stations. Everything else (combat planets, scenery planets) is a Planet.
+    const body: CelestialBody = def.kind === "shop" ? new Station(def) : new Planet(def);
+    planets.push(body);
+    planetsById.set(def.id, body);
+    scene.add(body.object);
   }
 
   return {
@@ -91,7 +98,7 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
     dispose(): void {
       starfield.dispose();
       sun.dispose();
-      for (const planet of planets) planet.dispose();
+      for (const body of planets) body.dispose();
       renderer.dispose();
     }
   };

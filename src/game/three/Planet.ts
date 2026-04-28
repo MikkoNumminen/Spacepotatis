@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { MissionDefinition, MissionId } from "@/types/game";
+import type { CelestialBody } from "./CelestialBody";
 import { generatePlanetSurface } from "./planetTexture";
 
 const BASE_RADIUS = 0.9;
@@ -183,7 +184,7 @@ function createLabelTexture(text: string): { texture: THREE.CanvasTexture; aspec
   return { texture, aspect: canvasW / LABEL_HEIGHT_PX };
 }
 
-export class Planet {
+export class Planet implements CelestialBody {
   readonly object: THREE.Group;
   private readonly mesh: THREE.Mesh;
   private readonly outline: THREE.Mesh;

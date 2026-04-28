@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
-import type { Planet } from "./Planet";
+import type { CelestialBody } from "./CelestialBody";
 import { createSceneRig, type SceneRig } from "./SceneRig";
 
 // Cinematic, non-interactive galaxy used as the landing-page backdrop.
@@ -133,11 +133,10 @@ export class LandingScene {
     }
   }
 
-  // Planet doesn't expose a label-toggle, but the label is the last child of
-  // its group (added after outline / mesh / optional ring in Planet.ts). Hide
-  // it by walking the group for any THREE.Sprite children.
-  private setPlanetLabelVisible(planet: Planet, visible: boolean): void {
-    planet.object.traverse((child) => {
+  // Neither Planet nor Station exposes a label-toggle, but the label is a
+  // THREE.Sprite child of body.object. Walk the group and hide every sprite.
+  private setPlanetLabelVisible(body: CelestialBody, visible: boolean): void {
+    body.object.traverse((child) => {
       if ((child as THREE.Sprite).isSprite) {
         child.visible = visible;
       }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
 import type { MissionDefinition, SolarSystemId } from "@/types/game";
-import type { Planet } from "./Planet";
+import type { CelestialBody } from "./CelestialBody";
 import { CameraController } from "./CameraController";
 import { createSceneRig, type SceneRig } from "./SceneRig";
 
@@ -27,7 +27,7 @@ export class GalaxyScene {
   private running = false;
   private rafId = 0;
   private lastMs = 0;
-  private hovered: Planet | null = null;
+  private hovered: CelestialBody | null = null;
 
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
   private readonly onPointerClick = (e: PointerEvent) => this.handlePointerClick(e);

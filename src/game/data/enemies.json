@@ -2,54 +2,6 @@
   "$schema": "./schema/enemies.schema.json",
   "enemies": [
     {
-      "id": "basic",
-      "name": "Drone",
-      "hp": 12,
-      "speed": 85,
-      "behavior": "straight",
-      "scoreValue": 50,
-      "creditValue": 5,
-      "spriteKey": "enemy-basic",
-      "fireRateMs": 3600,
-      "collisionDamage": 10
-    },
-    {
-      "id": "zigzag",
-      "name": "Weaver",
-      "hp": 20,
-      "speed": 125,
-      "behavior": "zigzag",
-      "scoreValue": 120,
-      "creditValue": 12,
-      "spriteKey": "enemy-zigzag",
-      "fireRateMs": 2700,
-      "collisionDamage": 15
-    },
-    {
-      "id": "kamikaze",
-      "name": "Diver",
-      "hp": 12,
-      "speed": 230,
-      "behavior": "homing",
-      "scoreValue": 80,
-      "creditValue": 8,
-      "spriteKey": "enemy-kamikaze",
-      "fireRateMs": null,
-      "collisionDamage": 35
-    },
-    {
-      "id": "boss-1",
-      "name": "Dreadfruit",
-      "hp": 800,
-      "speed": 50,
-      "behavior": "boss",
-      "scoreValue": 5000,
-      "creditValue": 500,
-      "spriteKey": "boss-1",
-      "fireRateMs": 1300,
-      "collisionDamage": 30
-    },
-    {
       "id": "aphid",
       "name": "Aphid",
       "hp": 8,
