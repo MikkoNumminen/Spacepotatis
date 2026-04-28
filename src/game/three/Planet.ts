@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { MissionDefinition, MissionId } from "@/types/game";
 import type { CelestialBody } from "./CelestialBody";
+import { createLabelTexture } from "./labelTexture";
 import { generatePlanetSurface } from "./planetTexture";
 
 const BASE_RADIUS = 0.9;
@@ -26,10 +27,6 @@ const MISSION_COLOR_OVERRIDE: Partial<Record<MissionId, number>> = {
   "burnt-spud": 0x4a2020,         // charred volcanic crust
   "tubernovae-outpost": 0x8aa8c8  // banded blue-grey ice giant
 };
-
-const LABEL_FONT = "600 56px ui-monospace, 'JetBrains Mono', Menlo, monospace";
-const LABEL_HEIGHT_PX = 128;
-const LABEL_PAD_PX = 56;
 
 const RING_TEX_W = 1024;
 const RING_TEX_H = 4;
@@ -154,36 +151,6 @@ function hashStringToInt(s: string): number {
   return h >>> 0;
 }
 
-function createLabelTexture(text: string): { texture: THREE.CanvasTexture; aspect: number } {
-  const measure = document.createElement("canvas").getContext("2d");
-  let width = 480;
-  if (measure) {
-    measure.font = LABEL_FONT;
-    width = measure.measureText(text).width;
-  }
-  const canvasW = Math.max(256, Math.ceil(width + LABEL_PAD_PX * 2));
-  const canvas = document.createElement("canvas");
-  canvas.width = canvasW;
-  canvas.height = LABEL_HEIGHT_PX;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.font = LABEL_FONT;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = "#dceaff";
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
-  return { texture, aspect: canvasW / LABEL_HEIGHT_PX };
-}
-
 export class Planet implements CelestialBody {
   readonly object: THREE.Group;
   private readonly mesh: THREE.Mesh;
@@ -192,7 +159,8 @@ export class Planet implements CelestialBody {
   private readonly material: THREE.MeshStandardMaterial;
   private readonly outlineMaterial: THREE.MeshBasicMaterial;
   private readonly labelMaterial: THREE.SpriteMaterial;
-  private readonly labelTexture: THREE.CanvasTexture;
+  private labelTexture: THREE.CanvasTexture;
+  private readonly labelHeight: number;
   private readonly surfaceMap: THREE.CanvasTexture;
   private readonly bumpMap: THREE.CanvasTexture;
   private readonly geometry: THREE.SphereGeometry;
@@ -283,7 +251,7 @@ export class Planet implements CelestialBody {
       this.ring = null;
     }
 
-    const { texture: labelTex, aspect: labelAspect } = createLabelTexture(definition.name);
+    const { texture: labelTex, aspect: labelAspect } = createLabelTexture(definition.name, null, "");
     this.labelTexture = labelTex;
     this.labelMaterial = new THREE.SpriteMaterial({
       map: this.labelTexture,
@@ -292,8 +260,8 @@ export class Planet implements CelestialBody {
       depthTest: false
     });
     this.label = new THREE.Sprite(this.labelMaterial);
-    const labelHeight = Math.max(0.55, radius * 0.6);
-    this.label.scale.set(labelHeight * labelAspect, labelHeight, 1);
+    this.labelHeight = Math.max(0.55, radius * 0.6);
+    this.label.scale.set(this.labelHeight * labelAspect, this.labelHeight, 1);
     this.label.position.set(0, -(radius + 0.55), 0);
     this.label.renderOrder = 10;
 
@@ -332,6 +300,15 @@ export class Planet implements CelestialBody {
 
   getMesh(): THREE.Mesh {
     return this.mesh;
+  }
+
+  setStatusLabel(status: string | null, color: string): void {
+    const { texture, aspect } = createLabelTexture(this.definition.name, status, color);
+    this.labelTexture.dispose();
+    this.labelTexture = texture;
+    this.labelMaterial.map = texture;
+    this.labelMaterial.needsUpdate = true;
+    this.label.scale.set(this.labelHeight * aspect, this.labelHeight, 1);
   }
 
   dispose(): void {

@@ -90,10 +90,14 @@ export default function GameCanvas() {
     setFocusedPlanetId(mission?.id ?? null);
   }, []);
 
+  const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
+
   const { ready: sceneReady } = useGalaxyScene({
     enabled: mode === "galaxy",
     canvasRef: galaxyCanvasRef,
     currentSolarSystemId,
+    completedMissions,
+    unlockedPlanets,
     onHover: setHovered,
     onSelect: handleSceneSelect
   });

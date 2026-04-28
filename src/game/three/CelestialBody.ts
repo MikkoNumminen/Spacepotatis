@@ -18,5 +18,7 @@ export interface CelestialBody {
   // to this body. For Station this is an invisible bounding sphere; for
   // Planet it's the surface sphere itself.
   getMesh(): THREE.Mesh;
+  // Updates the second line under the body's name. Pass null to clear it.
+  setStatusLabel(status: string | null, color: string): void;
   dispose(): void;
 }

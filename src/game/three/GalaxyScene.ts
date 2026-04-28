@@ -1,15 +1,23 @@
 import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
-import type { MissionDefinition, SolarSystemId } from "@/types/game";
+import type { MissionDefinition, MissionId, SolarSystemId } from "@/types/game";
 import type { CelestialBody } from "./CelestialBody";
 import { CameraController } from "./CameraController";
 import { createSceneRig, type SceneRig } from "./SceneRig";
+
+export interface MissionStatus {
+  readonly label: string | null;
+  readonly color: string;
+}
+
+export type MissionStatusMap = ReadonlyMap<MissionId, MissionStatus>;
 
 export interface GalaxyOptions {
   onPlanetHover?: (mission: MissionDefinition | null) => void;
   onPlanetSelect?: (mission: MissionDefinition) => void;
   activeSystemId?: SolarSystemId;
+  initialStatuses?: MissionStatusMap;
 }
 
 const MISSIONS = getAllMissions();
@@ -60,6 +68,15 @@ export class GalaxyScene {
     canvas.addEventListener("pointermove", this.onPointerMove);
     canvas.addEventListener("click", this.onPointerClick);
     window.addEventListener("resize", this.onResize);
+
+    if (opts.initialStatuses) this.applyStatuses(opts.initialStatuses);
+  }
+
+  applyStatuses(statuses: MissionStatusMap): void {
+    for (const body of this.rig.planets) {
+      const status = statuses.get(body.getMissionId());
+      if (status) body.setStatusLabel(status.label, status.color);
+    }
   }
 
   start(): void {

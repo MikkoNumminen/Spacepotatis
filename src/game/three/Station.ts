@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { MissionDefinition, MissionId } from "@/types/game";
 import type { CelestialBody } from "./CelestialBody";
+import { createLabelTexture } from "./labelTexture";
 
 // Visual signature of a market space station: a flat-laid torus hub, an
 // inner accent ring, a central spine, two solar-panel wings, and an antenna
@@ -18,44 +19,10 @@ const HULL_EMISSIVE = 0x4fd1ff;    // faint window glow
 const HULL_EMISSIVE_BASE = 0.08;
 const HULL_EMISSIVE_HOVER = 0.45;  // boost on hover (replaces sphere outline)
 
-const LABEL_FONT = "600 56px ui-monospace, 'JetBrains Mono', Menlo, monospace";
-const LABEL_HEIGHT_PX = 128;
-const LABEL_PAD_PX = 56;
-
 // Stations are smaller than planets. Bring the visible-size baseline in line
 // with how scale=1 used to read for planets so a "scale: 0.22" entry in
 // missions.json renders at a sensible size.
 const STATION_SCALE_BASE = 1.4;
-
-function createLabelTexture(text: string): { texture: THREE.CanvasTexture; aspect: number } {
-  const measure = document.createElement("canvas").getContext("2d");
-  let width = 480;
-  if (measure) {
-    measure.font = LABEL_FONT;
-    width = measure.measureText(text).width;
-  }
-  const canvasW = Math.max(256, Math.ceil(width + LABEL_PAD_PX * 2));
-  const canvas = document.createElement("canvas");
-  canvas.width = canvasW;
-  canvas.height = LABEL_HEIGHT_PX;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.font = LABEL_FONT;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = "#dceaff";
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
-  return { texture, aspect: canvasW / LABEL_HEIGHT_PX };
-}
 
 export class Station implements CelestialBody {
   readonly object: THREE.Group;
@@ -72,7 +39,8 @@ export class Station implements CelestialBody {
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly label: THREE.Sprite;
   private readonly labelMaterial: THREE.SpriteMaterial;
-  private readonly labelTexture: THREE.CanvasTexture;
+  private labelTexture: THREE.CanvasTexture;
+  private readonly labelHeight: number;
   private readonly tipLight: THREE.Mesh;
 
   private readonly orbitU: THREE.Vector3;
@@ -171,7 +139,7 @@ export class Station implements CelestialBody {
     this.hitbox.userData.missionId = definition.id;
     this.spinningRoot.add(this.hitbox);
 
-    const { texture: labelTex, aspect: labelAspect } = createLabelTexture(definition.name);
+    const { texture: labelTex, aspect: labelAspect } = createLabelTexture(definition.name, null, "");
     this.labelTexture = labelTex;
     this.labelMaterial = new THREE.SpriteMaterial({
       map: this.labelTexture,
@@ -180,8 +148,8 @@ export class Station implements CelestialBody {
       depthTest: false
     });
     this.label = new THREE.Sprite(this.labelMaterial);
-    const labelHeight = Math.max(0.45, s * 0.5);
-    this.label.scale.set(labelHeight * labelAspect, labelHeight, 1);
+    this.labelHeight = Math.max(0.45, s * 0.5);
+    this.label.scale.set(this.labelHeight * labelAspect, this.labelHeight, 1);
     this.label.position.set(0, -(s * 0.95 + 0.45), 0);
     this.label.renderOrder = 10;
 
@@ -227,6 +195,15 @@ export class Station implements CelestialBody {
 
   getMesh(): THREE.Mesh {
     return this.hitbox;
+  }
+
+  setStatusLabel(status: string | null, color: string): void {
+    const { texture, aspect } = createLabelTexture(this.definition.name, status, color);
+    this.labelTexture.dispose();
+    this.labelTexture = texture;
+    this.labelMaterial.map = texture;
+    this.labelMaterial.needsUpdate = true;
+    this.label.scale.set(this.labelHeight * aspect, this.labelHeight, 1);
   }
 
   dispose(): void {
