@@ -15,12 +15,14 @@ export default function QuestPanel({
   currentSolarSystemId,
   focusedPlanetId,
   onLaunch,
-  onWarpToNext
+  onWarpToNext,
+  onMissionSelect
 }: {
   currentSolarSystemId: SolarSystemId;
   focusedPlanetId: MissionId | null;
   onLaunch: (mission: MissionDefinition) => void;
   onWarpToNext: () => void;
+  onMissionSelect?: (missionId: MissionId) => void;
 }) {
   const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
   const completedMissions = useGameState((s) => s.completedMissions);
@@ -60,6 +62,15 @@ export default function QuestPanel({
   }, [focusedPlanetId, currentSolarSystemId]);
 
   const otherSystemsUnlocked = unlockedSystems.some((id) => id !== currentSolarSystemId);
+
+  // Notify the parent every time a mission becomes the expanded one — both
+  // explicit toggles and the auto-expansion of the suggested mission count
+  // as "selecting" it. The on-mission-select story trigger gates on the
+  // seen-set so an entry only fires once per save no matter how many times
+  // the same card is opened.
+  useEffect(() => {
+    if (expandedId) onMissionSelect?.(expandedId);
+  }, [expandedId, onMissionSelect]);
 
   const toggle = (id: MissionId) =>
     setExpandedId((prev) => (prev === id ? null : id));

@@ -26,7 +26,7 @@ class StoryAudio {
   private active = false;
 
   play(opts: {
-    musicSrc: string;
+    musicSrc: string | null;
     voiceSrc: string;
     voiceDelayMs: number;
   }): void {
@@ -36,11 +36,13 @@ class StoryAudio {
       this.muted = window.localStorage.getItem("spacepotatis:muted") === "1";
     }
 
-    const music = new Audio(opts.musicSrc);
-    music.loop = true;
-    music.volume = 0;
-    music.preload = "auto";
-    this.music = music;
+    if (opts.musicSrc !== null) {
+      const music = new Audio(opts.musicSrc);
+      music.loop = true;
+      music.volume = 0;
+      music.preload = "auto";
+      this.music = music;
+    }
 
     const voice = new Audio(opts.voiceSrc);
     voice.loop = false;
@@ -49,10 +51,12 @@ class StoryAudio {
     this.voice = voice;
 
     if (!this.muted) {
-      void music.play().catch(() => {
-        // Autoplay can fail if the user hasn't interacted yet — silently OK.
-      });
-      this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
+      if (this.music) {
+        void this.music.play().catch(() => {
+          // Autoplay can fail if the user hasn't interacted yet — silently OK.
+        });
+        this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
+      }
       this.voiceTimerId = window.setTimeout(() => {
         this.voiceTimerId = null;
         if (!this.active || !this.voice || this.muted) return;

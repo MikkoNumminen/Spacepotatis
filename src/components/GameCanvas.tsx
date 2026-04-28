@@ -22,6 +22,7 @@ import { markStorySeen, setSolarSystem } from "@/game/state/GameState";
 import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { STORY_ENTRIES, getStoryEntry, type StoryId } from "@/game/data/story";
+import { storyAudio } from "@/game/audio/story";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -108,6 +109,40 @@ export default function GameCanvas() {
     setStoryListOpen(false);
     setActiveStory({ id, firstSeen: false });
   }, []);
+
+  // Mission-select trigger: when a quest card opens, fire any unseen story
+  // tagged `{ kind: "on-mission-select", missionId: id }`. Overlay-mode
+  // entries play voice over the menu bed without opening the modal —
+  // exactly what the user asked for ("plays on top of the bed music once
+  // when the spud prime is selected"). Modal-mode entries with this
+  // trigger would open the popup instead.
+  const handleMissionSelect = useCallback(
+    (missionId: MissionId) => {
+      if (!saveLoaded || mode !== "galaxy") return;
+      const seen = new Set(seenStoryEntries);
+      const entry = STORY_ENTRIES.find(
+        (e) =>
+          e.autoTrigger?.kind === "on-mission-select" &&
+          e.autoTrigger.missionId === missionId &&
+          !seen.has(e.id) &&
+          !autoFiredRef.current.has(e.id)
+      );
+      if (!entry) return;
+      autoFiredRef.current.add(entry.id);
+      if (entry.mode === "overlay") {
+        storyAudio.play({
+          musicSrc: entry.musicTrack,
+          voiceSrc: entry.voiceTrack,
+          voiceDelayMs: entry.voiceDelayMs
+        });
+        markStorySeen(entry.id);
+        void saveNow();
+      } else {
+        setActiveStory({ id: entry.id, firstSeen: true });
+      }
+    },
+    [saveLoaded, mode, seenStoryEntries]
+  );
 
   // Single source of truth for which bed plays: combat owns audio in combat
   // mode, menu owns it everywhere else. Hard-stopping combat music on every
@@ -248,6 +283,7 @@ export default function GameCanvas() {
             focusedPlanetId={focusedPlanetId}
             onLaunch={handleLaunch}
             onWarpToNext={handleWarpToNextSystem}
+            onMissionSelect={handleMissionSelect}
           />
           {warpOpen && (
             <WarpPicker

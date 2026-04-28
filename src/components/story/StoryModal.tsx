@@ -26,7 +26,10 @@ export default function StoryModal({
 
   useEffect(() => {
     setReady(true);
-    menuMusic.duck();
+    // Only duck the menu bed when the entry brings its own music — otherwise
+    // the modal sits silent over the existing bed (overlay-mode replay).
+    const hasOwnMusic = entry.musicTrack !== null;
+    if (hasOwnMusic) menuMusic.duck();
     storyAudio.play({
       musicSrc: entry.musicTrack,
       voiceSrc: entry.voiceTrack,
@@ -35,7 +38,7 @@ export default function StoryModal({
     if (firstSeen && onMarkSeen) onMarkSeen();
     return () => {
       storyAudio.stop();
-      menuMusic.unduck();
+      if (hasOwnMusic) menuMusic.unduck();
     };
   }, [entry, firstSeen, onMarkSeen]);
 

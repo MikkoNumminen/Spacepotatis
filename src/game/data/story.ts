@@ -1,21 +1,39 @@
-// Story log — narrative beats shown as cinematic popups. The first entry
-// auto-fires on the player's first galaxy-view load; future entries can
-// gate on mission completions or other progression events.
-//
-// Each entry carries its own music + voice tracks (paths under /public/audio/story).
-// The voice is offset by `voiceDelayMs` so the music establishes the mood
-// before narration kicks in.
+import type { MissionId } from "@/types/game";
 
-export type StoryId = "great-potato-awakening";
+// Story log — narrative beats. Two presentation modes:
+//
+//   modal   (default): cinematic popup, ducks the menu bed, plays its own
+//                       music + voice. Use for big story beats with text.
+//   overlay:           voice plays on top of the menu bed, no popup, no
+//                       music change. Use for short briefings tied to a
+//                       specific in-game action (e.g. selecting a mission).
+//
+// Auto-fire kinds:
+//   { kind: "first-time" }                       — fires once on first galaxy load
+//   { kind: "on-mission-select", missionId: ... } — fires once when that mission's
+//                                                   quest card is opened
+//   null                                          — replay-only via Story log
+//
+// Each entry carries a voice track and (for modal mode) a music bed. The
+// voice is offset by `voiceDelayMs` so the music establishes the mood
+// before narration kicks in. Overlay-mode entries set musicTrack: null
+// since the menu bed is already playing.
+
+export type StoryId = "great-potato-awakening" | "spud-prime-arrival";
+
+export type StoryAutoTrigger =
+  | { readonly kind: "first-time" }
+  | { readonly kind: "on-mission-select"; readonly missionId: MissionId };
 
 export interface StoryEntry {
   readonly id: StoryId;
   readonly title: string;
   readonly body: readonly string[];
-  readonly musicTrack: string;
+  readonly musicTrack: string | null;
   readonly voiceTrack: string;
   readonly voiceDelayMs: number;
-  readonly autoTrigger: { readonly kind: "first-time" } | null;
+  readonly autoTrigger: StoryAutoTrigger | null;
+  readonly mode: "modal" | "overlay";
 }
 
 export const STORY_ENTRIES: readonly StoryEntry[] = [
@@ -29,7 +47,20 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     musicTrack: "/audio/story/great-potato-awakening-music.ogg",
     voiceTrack: "/audio/story/great-potato-awakening-voice.mp3",
     voiceDelayMs: 3000,
-    autoTrigger: { kind: "first-time" }
+    autoTrigger: { kind: "first-time" },
+    mode: "modal"
+  },
+  {
+    id: "spud-prime-arrival",
+    title: "Spud Prime Briefing",
+    body: [
+      "Mission Control breaks in over the comms as Spud Prime fills your viewscreen — first contact with the bug menace begins here."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/spud-prime-arrival-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-mission-select", missionId: "tutorial" },
+    mode: "overlay"
   }
 ];
 
