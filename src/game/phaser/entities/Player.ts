@@ -31,6 +31,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly combatant: PlayerCombatant;
   private readonly fire: PlayerFireController;
 
+  // Smoothed velocity. Set instantly when the input changes used to make the
+  // ship feel weightless and snappy in a way that hurt dodge feel — eased
+  // toward the input target so taps and direction changes carry a bit of
+  // mass. Matches the bank/squash easing constant below for cohesion.
+  private smoothedVx = 0;
+  private smoothedVy = 0;
+
   // Mission-only perk state — reset every CombatScene boot.
   hasOverdrive = false;
   hasHardened = false;
@@ -97,7 +104,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       vx *= inv;
       vy *= inv;
     }
-    this.setVelocity(vx * SPEED, vy * SPEED);
+
+    const t = Math.min(1, delta * 0.012);
+    this.smoothedVx += (vx * SPEED - this.smoothedVx) * t;
+    this.smoothedVy += (vy * SPEED - this.smoothedVy) * t;
+    this.setVelocity(this.smoothedVx, this.smoothedVy);
 
     // Bank into horizontal motion; fake pitch on vertical motion via squash/
     // stretch on Y plus a small narrowing on X when banking. Eased toward the
@@ -105,7 +116,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const targetAngle = ix * 18;
     const targetScaleY = 1 - iy * 0.10;
     const targetScaleX = 1 - Math.abs(ix) * 0.06;
-    const t = Math.min(1, delta * 0.012);
     this.angle += (targetAngle - this.angle) * t;
     this.scaleY += (targetScaleY - this.scaleY) * t;
     this.scaleX += (targetScaleX - this.scaleX) * t;
