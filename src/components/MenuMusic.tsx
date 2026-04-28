@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { music } from "@/game/audio/music";
+import { menuMusic, setAllMuted } from "@/game/audio/music";
 
 const MUTE_KEY = "spacepotatis:music-muted";
 
@@ -9,17 +9,17 @@ const MUTE_KEY = "spacepotatis:music-muted";
 // and the mute persistence. Does not render anything.
 export default function MenuMusic() {
   useEffect(() => {
-    music.init();
+    menuMusic.init();
     const stored = window.localStorage.getItem(MUTE_KEY);
-    if (stored === "1") music.setMuted(true);
+    if (stored === "1") setAllMuted(true);
 
     const onGesture = (): void => {
-      music.arm();
+      menuMusic.arm();
     };
     window.addEventListener("pointerdown", onGesture, { once: true });
     window.addEventListener("keydown", onGesture, { once: true });
 
-    const unsubscribe = music.subscribe(({ muted }) => {
+    const unsubscribe = menuMusic.subscribe(({ muted }) => {
       window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
     });
 

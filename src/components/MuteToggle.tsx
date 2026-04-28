@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { sfx } from "@/game/audio/sfx";
-import { music } from "@/game/audio/music";
+import { setAllMuted } from "@/game/audio/music";
 
 const STORAGE_KEY = "spacepotatis:muted";
 
@@ -13,7 +13,7 @@ export default function MuteToggle() {
     const stored = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
     const initial = stored === "1";
     sfx.setMuted(initial);
-    music.setMuted(initial);
+    setAllMuted(initial);
     setMuted(initial);
     return sfx.subscribe(setMuted);
   }, []);
@@ -21,7 +21,7 @@ export default function MuteToggle() {
   const toggle = () => {
     const next = !muted;
     sfx.setMuted(next);
-    music.setMuted(next);
+    setAllMuted(next);
     window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
   };
 

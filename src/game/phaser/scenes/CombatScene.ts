@@ -9,6 +9,8 @@ import * as GameState from "@/game/state/GameState";
 import { on } from "../events";
 import { setSummary } from "../registry";
 import { sfx } from "@/game/audio/sfx";
+import { combatMusic } from "@/game/audio/music";
+import { getMission } from "@/game/data/missions";
 import { PowerUpPool } from "../entities/PowerUp";
 import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
@@ -146,6 +148,15 @@ export class CombatScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-ESC", () => this.togglePause());
     this.input.keyboard?.on("keydown-CTRL", () => this.perks.triggerActive());
+
+    // Start the mission's music bed if one is declared. loadTrack() handles
+    // the cross-fade if the previous mission left a track loaded; missing
+    // audio files (mission has musicTrack but no asset shipped yet) fail
+    // silently in startPlayback().
+    const mission = getMission(this.bootData.missionId);
+    combatMusic.loadTrack(mission.musicTrack);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => combatMusic.stop());
 
     this.startedAt = this.time.now;
     this.waves.start();

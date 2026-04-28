@@ -1,41 +1,91 @@
 "use client";
 
-// Menu music controller. Owns a single HTMLAudioElement and runs a manual
-// loop with a fade-out → silence → fade-in seam so the track feels like a
-// long ambient bed rather than a hard cut every N minutes. The element is
-// shared across menu routes (root layout mount) and is "ducked" while the
-// player is in a combat scene.
+// Music controller. One HTMLAudioElement per engine, manual loop with a
+// fade-out → silence → fade-in seam so a long stay on one track sounds like
+// the music takes a breath rather than restarting on a hard cut.
 //
-// Autoplay note: browsers block .play() until a user gesture. The provider
-// component arms the controller on first pointerdown / keydown.
+// Two singletons are exported:
+//  - menuMusic: fixed src (the ambient menu bed). Survives client-side nav
+//    between root layout pages. Ducks when combat starts.
+//  - combatMusic: src is set per-mission via loadTrack(); calling stop()
+//    fades it out and unloads.
+//
+// Autoplay note: browsers block .play() until a user gesture. Menu engine is
+// armed once on first input by MenuMusic.tsx; combat engine inherits the
+// gesture (combat is always reached via a click).
 
-const SRC = "/audio/music/menu-theme.ogg";
 const TARGET_VOLUME = 0.45;
 const FADE_OUT_SEC = 2.5;
 const FADE_IN_SEC = 2.5;
 const SILENCE_MS = 800;
 
+interface EngineOptions {
+  readonly src?: string;
+  readonly targetVolume?: number;
+  readonly fadeInSec?: number;
+  readonly fadeOutSec?: number;
+  readonly silenceMs?: number;
+}
+
 type Listener = (state: { muted: boolean; armed: boolean }) => void;
 
 class MusicEngine {
   private el: HTMLAudioElement | null = null;
+  private src: string | null;
   private muted = false;
   private armed = false;
   private ducked = false;
   private fadeRaf: number | null = null;
   private silenceTimer: number | null = null;
+  private readonly targetVolume: number;
+  private readonly fadeInSec: number;
+  private readonly fadeOutSec: number;
+  private readonly silenceMs: number;
   private readonly listeners = new Set<Listener>();
+
+  constructor(opts: EngineOptions = {}) {
+    this.src = opts.src ?? null;
+    this.targetVolume = opts.targetVolume ?? TARGET_VOLUME;
+    this.fadeInSec = opts.fadeInSec ?? FADE_IN_SEC;
+    this.fadeOutSec = opts.fadeOutSec ?? FADE_OUT_SEC;
+    this.silenceMs = opts.silenceMs ?? SILENCE_MS;
+  }
 
   init(): void {
     if (typeof window === "undefined") return;
-    if (this.el) return;
-    const el = new Audio(SRC);
-    el.preload = "auto";
-    el.loop = false;
-    el.volume = 0;
-    el.addEventListener("timeupdate", this.onTimeUpdate);
-    el.addEventListener("ended", this.onEnded);
-    this.el = el;
+    if (this.el || !this.src) return;
+    this.attachElement(this.src);
+  }
+
+  // For the combat engine: hot-swap the track. Fades out the old, swaps src,
+  // and (if armed and not muted/ducked) fades the new one in.
+  loadTrack(src: string | null): void {
+    if (typeof window === "undefined") return;
+    if (this.src === src) return;
+    this.src = src;
+    if (!src) {
+      this.cancelFade();
+      this.cancelSilence();
+      if (this.el) {
+        this.el.pause();
+        this.el.removeAttribute("src");
+        this.el.load();
+      }
+      return;
+    }
+    if (!this.el) {
+      this.attachElement(src);
+    } else {
+      this.cancelFade();
+      this.cancelSilence();
+      this.el.pause();
+      this.el.src = src;
+      this.el.volume = 0;
+      this.el.load();
+    }
+    this.armed = true;
+    if (!this.muted && !this.ducked) void this.startPlayback();
+    this.notify();
   }
 
   // First user gesture unlocks autoplay. Idempotent.
@@ -51,7 +101,7 @@ class MusicEngine {
     this.muted = muted;
     if (muted) {
       this.fadeAndPause();
-    } else if (this.armed && !this.ducked) {
+    } else if (this.armed && !this.ducked && this.src) {
       void this.startPlayback();
     }
     this.notify();
@@ -61,8 +111,6 @@ class MusicEngine {
     return this.muted;
   }
 
-  // Combat scene calls duck() on enter and unduck() on exit so the menu bed
-  // doesn't fight the in-game SFX.
   duck(): void {
     if (this.ducked) return;
     this.ducked = true;
@@ -72,7 +120,14 @@ class MusicEngine {
   unduck(): void {
     if (!this.ducked) return;
     this.ducked = false;
-    if (this.armed && !this.muted) void this.startPlayback();
+    if (this.armed && !this.muted && this.src) void this.startPlayback();
+  }
+
+  // Fade out and pause. Combat scene calls this on shutdown so the next
+  // mission boot starts from a clean slate.
+  stop(): void {
+    this.cancelSilence();
+    this.fadeAndPause();
   }
 
   subscribe(cb: Listener): () => void {
@@ -88,6 +143,16 @@ class MusicEngine {
     for (const cb of this.listeners) cb(snap);
   }
 
+  private attachElement(src: string): void {
+    const el = new Audio(src);
+    el.preload = "auto";
+    el.loop = false;
+    el.volume = 0;
+    el.addEventListener("timeupdate", this.onTimeUpdate);
+    el.addEventListener("ended", this.onEnded);
+    this.el = el;
+  }
+
   private async startPlayback(): Promise<void> {
     const el = this.el;
     if (!el) return;
@@ -97,19 +162,20 @@ class MusicEngine {
       try {
         await el.play();
       } catch {
-        // Autoplay or load failure — stay armed; next gesture/unduck retries.
+        // Autoplay or load failure (eg. mission has no audio file yet).
+        // Stay armed; next gesture / unduck / loadTrack retries.
         return;
       }
     }
-    this.fadeTo(TARGET_VOLUME, FADE_IN_SEC);
+    this.fadeTo(this.targetVolume, this.fadeInSec);
   }
 
   private fadeAndPause(): void {
     const el = this.el;
     if (!el) return;
     this.cancelSilence();
-    this.fadeTo(0, FADE_OUT_SEC, () => {
-      if (this.muted || this.ducked) el.pause();
+    this.fadeTo(0, this.fadeOutSec, () => {
+      if (this.muted || this.ducked || !this.src) el.pause();
     });
   }
 
@@ -117,8 +183,7 @@ class MusicEngine {
     const el = this.el;
     if (!el || el.paused || this.muted || this.ducked) return;
     const remaining = el.duration - el.currentTime;
-    if (Number.isFinite(el.duration) && remaining > 0 && remaining < FADE_OUT_SEC) {
-      // Idempotent: fadeTo no-ops if we're already ramping toward the same target.
+    if (Number.isFinite(el.duration) && remaining > 0 && remaining < this.fadeOutSec) {
       this.fadeTo(0, remaining);
     }
   };
@@ -133,9 +198,9 @@ class MusicEngine {
     this.cancelSilence();
     this.silenceTimer = window.setTimeout(() => {
       this.silenceTimer = null;
-      if (this.muted || this.ducked) return;
+      if (this.muted || this.ducked || !this.src) return;
       void this.startPlayback();
-    }, SILENCE_MS);
+    }, this.silenceMs);
   };
 
   private fadeTo(target: number, seconds: number, done?: () => void): void {
@@ -173,4 +238,17 @@ class MusicEngine {
   }
 }
 
-export const music = new MusicEngine();
+export const menuMusic = new MusicEngine({ src: "/audio/music/menu-theme.ogg" });
+
+// Combat src is set via loadTrack() per mission. Slightly louder bed since
+// combat SFX are sparser than the menu's ambient layering.
+export const combatMusic = new MusicEngine({ targetVolume: 0.55 });
+
+export function setAllMuted(muted: boolean): void {
+  menuMusic.setMuted(muted);
+  combatMusic.setMuted(muted);
+}
+
+// Back-compat alias so existing imports of `music` keep working as the menu
+// engine. Remove after callers migrate to the named exports.
+export const music = menuMusic;
