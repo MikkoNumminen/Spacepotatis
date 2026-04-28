@@ -39,14 +39,12 @@ export default function HudFrame({
   hovered,
   lastSummary,
   onBackToMenu,
-  onOpenLoadout,
   onOpenWarp,
   warpAvailable
 }: {
   hovered: MissionDefinition | null;
   lastSummary: CombatSummary | null;
   onBackToMenu: () => void;
-  onOpenLoadout: () => void;
   onOpenWarp: () => void;
   warpAvailable: boolean;
 }) {
@@ -73,13 +71,6 @@ export default function HudFrame({
             className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
           >
             ← Menu
-          </button>
-          <button
-            type="button"
-            onClick={onOpenLoadout}
-            className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
-          >
-            Loadout
           </button>
           <button
             type="button"

@@ -7,7 +7,6 @@ import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition, MissionId } from "@/types/game";
 import { combatMusic, menuMusic } from "@/game/audio/music";
 import HudFrame from "@/components/galaxy/HudFrame";
-import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import WarpPicker from "@/components/galaxy/WarpPicker";
 import Splash, { type SplashStep } from "@/components/Splash";
@@ -36,7 +35,6 @@ export default function GameCanvas() {
   const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
-  const [loadoutOpen, setLoadoutOpen] = useState(false);
   const [warpOpen, setWarpOpen] = useState(false);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
@@ -162,7 +160,6 @@ export default function GameCanvas() {
             hovered={hovered}
             lastSummary={lastSummary}
             onBackToMenu={() => router.push(ROUTES.page.home)}
-            onOpenLoadout={() => setLoadoutOpen(true)}
             onOpenWarp={() => setWarpOpen(true)}
             warpAvailable={unlockedSolarSystems.length > 1}
           />
@@ -172,7 +169,6 @@ export default function GameCanvas() {
             onLaunch={handleLaunch}
             onOpenWarp={() => setWarpOpen(true)}
           />
-          {loadoutOpen && <LoadoutModal onClose={() => setLoadoutOpen(false)} />}
           {warpOpen && (
             <WarpPicker
               currentSystemId={currentSolarSystemId}
