@@ -192,6 +192,42 @@
       "spriteKey": "enemy-spider-jumper",
       "fireRateMs": null,
       "collisionDamage": 25
+    },
+    {
+      "id": "dragonfly-common",
+      "name": "Dragonfly",
+      "hp": 18,
+      "speed": 145,
+      "behavior": "zigzag",
+      "scoreValue": 130,
+      "creditValue": 13,
+      "spriteKey": "enemy-dragonfly-common",
+      "fireRateMs": 2400,
+      "collisionDamage": 12
+    },
+    {
+      "id": "dragonfly-heli",
+      "name": "Helicopter Dragonfly",
+      "hp": 30,
+      "speed": 100,
+      "behavior": "zigzag",
+      "scoreValue": 220,
+      "creditValue": 22,
+      "spriteKey": "enemy-dragonfly-heli",
+      "fireRateMs": 1700,
+      "collisionDamage": 16
+    },
+    {
+      "id": "dragonfly-damsel",
+      "name": "Damselfly",
+      "hp": 14,
+      "speed": 230,
+      "behavior": "homing",
+      "scoreValue": 150,
+      "creditValue": 15,
+      "spriteKey": "enemy-dragonfly-damsel",
+      "fireRateMs": 3500,
+      "collisionDamage": 18
     }
   ]
 }

@@ -65,7 +65,10 @@ export type EnemyId =
   | "caterpillar-monarch"
   | "spider-wolf"
   | "spider-widow"
-  | "spider-jumper";
+  | "spider-jumper"
+  | "dragonfly-common"
+  | "dragonfly-heli"
+  | "dragonfly-damsel";
 export type EnemyBehavior = "straight" | "zigzag" | "homing" | "boss";
 
 export interface EnemyDefinition {

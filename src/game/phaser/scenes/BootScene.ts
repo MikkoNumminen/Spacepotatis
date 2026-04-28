@@ -47,6 +47,10 @@ export class BootScene extends Phaser.Scene {
     this.drawSpider("enemy-spider-widow",  { size: 20, body: 0x141420, accent: 0x05050a, marking: { color: 0xd02020, kind: "hourglass" } });
     this.drawSpider("enemy-spider-jumper", { size: 12, body: 0x4a6a5a, accent: 0x1e2c25, marking: { color: 0x4fd1ff, kind: "eyes-large" } });
 
+    this.drawDragonfly("enemy-dragonfly-common", { size: 38, body: 0x4fc1cf, accent: 0x1f5560, wing: 0xb0f0ff, wings: 2 });
+    this.drawDragonfly("enemy-dragonfly-heli",   { size: 46, body: 0x2a8cb0, accent: 0x103040, wing: 0x80d8e8, wings: 4 });
+    this.drawDragonfly("enemy-dragonfly-damsel", { size: 36, body: 0xc060d0, accent: 0x4a1a55, wing: 0xf5c8ff, wings: 2, slim: true });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -765,6 +769,102 @@ export class BootScene extends Phaser.Scene {
     g.lineStyle(1, accent, 0.7);
     g.strokeCircle(cx, abdomenCy, size);
     g.strokeCircle(cx, cephCy, cephR);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Dragonfly — long thin body with the head pointing DOWN, large
+  // semi-transparent wings extending sideways from the upper third, and
+  // a pair of compound eyes on the head. `wings: 4` paints a second
+  // wing pair behind the first (helicopter dragonfly); `slim: true`
+  // narrows everything for the damselfly variant.
+  private drawDragonfly(
+    key: string,
+    opts: {
+      size: number;
+      body: number;
+      accent: number;
+      wing: number;
+      wings: 2 | 4;
+      slim?: boolean;
+    }
+  ): void {
+    const { size, body, accent, wing, wings, slim } = opts;
+    const PAD = 5;
+    const bodyLen = size;
+    const bodyHalfW = size * (slim ? 0.06 : 0.09);
+    const wingLen = size * (slim ? 0.55 : 0.72);
+    const wingHalfH = size * (slim ? 0.08 : 0.11);
+    const W = (bodyHalfW + wingLen) * 2 + PAD * 2;
+    const H = bodyLen + (wings === 4 ? wingHalfH * 0.8 : 0) + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Wings draw first so the body covers their roots. Wing center sits
+    // in the upper third of the body (toward the rear). For the
+    // 4-winged variant a second slightly-smaller pair sits behind.
+    const wingCy = cy - bodyLen * 0.20;
+    const drawWingPair = (yOffset: number, scale: number, alpha: number): void => {
+      g.fillStyle(wing, alpha);
+      g.fillEllipse(
+        cx - bodyHalfW - wingLen * 0.5 * scale,
+        wingCy + yOffset,
+        wingLen * scale,
+        wingHalfH * 2 * scale
+      );
+      g.fillEllipse(
+        cx + bodyHalfW + wingLen * 0.5 * scale,
+        wingCy + yOffset,
+        wingLen * scale,
+        wingHalfH * 2 * scale
+      );
+      // Wing veins — a thin accent stroke along the wing centerline.
+      g.lineStyle(Math.max(0.8, size * 0.012), accent, 0.5);
+      g.beginPath();
+      g.moveTo(cx - bodyHalfW, wingCy + yOffset);
+      g.lineTo(cx - bodyHalfW - wingLen * scale, wingCy + yOffset);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(cx + bodyHalfW, wingCy + yOffset);
+      g.lineTo(cx + bodyHalfW + wingLen * scale, wingCy + yOffset);
+      g.strokePath();
+    };
+    if (wings === 4) {
+      drawWingPair(wingHalfH * 1.3, 0.85, 0.55);
+    }
+    drawWingPair(0, 1, 0.7);
+
+    // Long thin body — three stacked ellipses (tail, thorax, head) that
+    // collectively read as one cigar-shape.
+    const tailCy = cy - bodyLen * 0.32;
+    const thoraxCy = cy;
+    const headCy = cy + bodyLen * 0.36;
+    g.fillStyle(body, 1);
+    g.fillEllipse(cx, tailCy, bodyHalfW * 1.6, bodyLen * 0.42);
+    g.fillEllipse(cx, thoraxCy, bodyHalfW * 2.4, bodyLen * 0.40);
+    g.fillEllipse(cx, headCy, bodyHalfW * 2.6, bodyLen * 0.20);
+
+    // Subtle body shadow (right side).
+    g.fillStyle(accent, 0.5);
+    g.fillEllipse(cx + bodyHalfW * 0.4, thoraxCy + bodyLen * 0.05, bodyHalfW * 1.8, bodyLen * 0.32);
+
+    // Compound eyes — two large dark domes on the head, dragonfly signature.
+    const eyeR = bodyHalfW * 1.6;
+    const eyeY = headCy + bodyLen * 0.05;
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(cx - bodyHalfW * 1.1, eyeY, eyeR);
+    g.fillCircle(cx + bodyHalfW * 1.1, eyeY, eyeR);
+    g.fillStyle(0xffffff, 0.85);
+    g.fillCircle(cx - bodyHalfW * 1.1 - eyeR * 0.3, eyeY - eyeR * 0.3, Math.max(0.7, eyeR * 0.3));
+    g.fillCircle(cx + bodyHalfW * 1.1 - eyeR * 0.3, eyeY - eyeR * 0.3, Math.max(0.7, eyeR * 0.3));
+
+    // Outline — re-stroke each body section.
+    g.lineStyle(1, accent, 0.7);
+    g.strokeEllipse(cx, tailCy, bodyHalfW * 1.6, bodyLen * 0.42);
+    g.strokeEllipse(cx, thoraxCy, bodyHalfW * 2.4, bodyLen * 0.40);
+    g.strokeEllipse(cx, headCy, bodyHalfW * 2.6, bodyLen * 0.20);
 
     g.generateTexture(key, W, H);
     g.destroy();
