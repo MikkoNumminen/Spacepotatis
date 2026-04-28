@@ -19,7 +19,10 @@ import type { MissionId } from "@/types/game";
 // before narration kicks in. Overlay-mode entries set musicTrack: null
 // since the menu bed is already playing.
 
-export type StoryId = "great-potato-awakening" | "spud-prime-arrival";
+export type StoryId =
+  | "great-potato-awakening"
+  | "spud-prime-arrival"
+  | "yamsteroid-belt-arrival";
 
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
@@ -60,6 +63,18 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     voiceTrack: "/audio/story/spud-prime-arrival-voice.mp3",
     voiceDelayMs: 0,
     autoTrigger: { kind: "on-mission-select", missionId: "tutorial" },
+    mode: "overlay"
+  },
+  {
+    id: "yamsteroid-belt-arrival",
+    title: "Yamsteroid Belt Briefing",
+    body: [
+      "The Yamsteroid Belt opens up ahead — a churning field of rocks and bug nests. Mission Control reads off the threat profile."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/yamsteroid-belt-arrival-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-mission-select", missionId: "combat-1" },
     mode: "overlay"
   }
 ];

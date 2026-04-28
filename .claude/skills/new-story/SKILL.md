@@ -32,7 +32,7 @@ Ask once, in a single message, for any missing fields:
 7. `autoTrigger` — one of:
    - `null` — replay-only; appears in the Story log once unlocked but never auto-fires. Use this for retrospectives or chapter recaps.
    - `{ kind: "first-time" }` — auto-fires on the player's first galaxy-view load if they haven't seen it. Currently only ONE entry can usefully carry this — the firing loop in `GameCanvas.tsx#useEffect` picks the first unseen `first-time` entry, so two such entries cascade across two consecutive sessions which is rarely the intended UX.
-   - `{ kind: "on-mission-select", missionId: <MissionId> }` — auto-fires once the first time that mission's quest card is opened (auto-expansion of the suggested card counts as a selection; the seen-set guards re-fires). Use for short briefings tied to a specific mission.
+   - `{ kind: "on-mission-select", missionId: <MissionId> }` — auto-fires once the first time that mission's quest card is opened, GATED ON THE MISSION BEING UNLOCKED (locked "?" cards never trigger their briefing — `GameCanvas#handleMissionSelect` checks `unlockedPlanets`). Auto-expansion of the suggested card counts as a selection; the seen-set guards re-fires. Use for short briefings tied to a specific mission.
    - If the user wants any OTHER trigger (e.g. "after boss-1 cleared", "on first dock at the Market"), STOP — it requires a new variant in the `StoryAutoTrigger` union plus matching firing logic in `GameCanvas.tsx`. Flag this to the user; do not silently invent a new kind.
 8. `mode` — one of:
    - `"modal"` — cinematic popup, ducks the menu bed, plays its own music + voice. Default for big story beats with body text the player should read.

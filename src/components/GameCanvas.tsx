@@ -48,6 +48,7 @@ export default function GameCanvas() {
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
   const completedMissions = useGameState((s) => s.completedMissions);
+  const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
 
   const handleWarpToNextSystem = useCallback(() => {
@@ -112,13 +113,17 @@ export default function GameCanvas() {
 
   // Mission-select trigger: when a quest card opens, fire any unseen story
   // tagged `{ kind: "on-mission-select", missionId: id }`. Overlay-mode
-  // entries play voice over the menu bed without opening the modal —
-  // exactly what the user asked for ("plays on top of the bed music once
-  // when the spud prime is selected"). Modal-mode entries with this
-  // trigger would open the popup instead.
+  // entries play voice over the menu bed without opening the modal;
+  // modal-mode entries open the popup instead.
+  //
+  // Gated on `unlockedPlanets` — locked missions show as "?" and their
+  // briefing must not leak. Without this gate, opening the locked card
+  // (which IS expandable in QuestPanel) would auto-play the briefing
+  // and burn the once-only fire.
   const handleMissionSelect = useCallback(
     (missionId: MissionId) => {
       if (!saveLoaded || mode !== "galaxy") return;
+      if (!unlockedPlanets.includes(missionId)) return;
       const seen = new Set(seenStoryEntries);
       const entry = STORY_ENTRIES.find(
         (e) =>
@@ -141,7 +146,7 @@ export default function GameCanvas() {
         setActiveStory({ id: entry.id, firstSeen: true });
       }
     },
-    [saveLoaded, mode, seenStoryEntries]
+    [saveLoaded, mode, seenStoryEntries, unlockedPlanets]
   );
 
   // Single source of truth for which bed plays: combat owns audio in combat
@@ -169,8 +174,6 @@ export default function GameCanvas() {
   const handleSceneSelect = useCallback((mission: MissionDefinition | null) => {
     setFocusedPlanetId(mission?.id ?? null);
   }, []);
-
-  const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
 
   const { ready: sceneReady } = useGalaxyScene({
     enabled: mode === "galaxy",
