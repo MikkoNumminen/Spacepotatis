@@ -120,6 +120,42 @@
       "spriteKey": "enemy-beetle-stag",
       "fireRateMs": 1800,
       "collisionDamage": 18
+    },
+    {
+      "id": "caterpillar-hornworm",
+      "name": "Hornworm",
+      "hp": 50,
+      "speed": 65,
+      "behavior": "straight",
+      "scoreValue": 220,
+      "creditValue": 22,
+      "spriteKey": "enemy-caterpillar-hornworm",
+      "fireRateMs": 2700,
+      "collisionDamage": 18
+    },
+    {
+      "id": "caterpillar-army",
+      "name": "Army Worm",
+      "hp": 35,
+      "speed": 90,
+      "behavior": "zigzag",
+      "scoreValue": 180,
+      "creditValue": 18,
+      "spriteKey": "enemy-caterpillar-army",
+      "fireRateMs": 2200,
+      "collisionDamage": 14
+    },
+    {
+      "id": "caterpillar-monarch",
+      "name": "Monarch Caterpillar",
+      "hp": 800,
+      "speed": 50,
+      "behavior": "boss",
+      "scoreValue": 5000,
+      "creditValue": 500,
+      "spriteKey": "enemy-caterpillar-monarch",
+      "fireRateMs": 1300,
+      "collisionDamage": 30
     }
   ]
 }

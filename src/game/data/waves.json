@@ -55,15 +55,16 @@
           "id": "boss-1-intro",
           "durationMs": 16000,
           "spawns": [
-            { "enemy": "basic",  "count": 6, "delayMs": 1500, "intervalMs": 1300, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "zigzag", "count": 2, "delayMs": 8500, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "caterpillar-hornworm", "count": 4, "delayMs": 1500, "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "caterpillar-army",     "count": 2, "delayMs": 6500, "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "zigzag",               "count": 2, "delayMs": 10000, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "boss-1-fight",
           "durationMs": 110000,
           "spawns": [
-            { "enemy": "boss-1", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
+            { "enemy": "caterpillar-monarch", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
           ]
         }
       ]
@@ -137,7 +138,7 @@
           "id": "burnt-spud-fight",
           "durationMs": 110000,
           "spawns": [
-            { "enemy": "boss-1", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
+            { "enemy": "caterpillar-monarch", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
           ]
         }
       ]

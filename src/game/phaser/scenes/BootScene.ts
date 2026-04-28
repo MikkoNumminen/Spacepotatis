@@ -39,6 +39,10 @@ export class BootScene extends Phaser.Scene {
     this.drawBeetle("enemy-beetle-rhino",  { size: 46, body: 0x8b3a2a, accent: 0x4d1f15, ornament: "horn",      ornamentColor: 0x1a1008 });
     this.drawBeetle("enemy-beetle-stag",   { size: 50, body: 0x4a3a6b, accent: 0x231a36, ornament: "mandibles", ornamentColor: 0x140a22 });
 
+    this.drawCaterpillar("enemy-caterpillar-hornworm", { segR: 9,  body: 0x6fb02a, accent: 0x2f4a14, segments: 6, hornColor: 0x2f4a14 });
+    this.drawCaterpillar("enemy-caterpillar-army",     { segR: 8,  body: 0x4a5c1a, accent: 0x1f2810, segments: 5, stripeColor: 0xc0d050 });
+    this.drawCaterpillar("enemy-caterpillar-monarch",  { segR: 18, body: 0xffd64a, accent: 0x1a1a1a, segments: 7, stripeColor: 0x1a1a1a });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -545,6 +549,106 @@ export class BootScene extends Phaser.Scene {
     g.lineStyle(1, accent, 0.75);
     g.strokeEllipse(cx, bodyCy, bodyRx * 2, bodyRy * 2);
     g.strokeEllipse(cx, headCy, headRx * 2, headRy * 2);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Segmented caterpillar — chain of overlapping circles with a smaller
+  // head segment at the front (down-screen). Optional posterior horn
+  // (hornworm) and per-segment horizontal stripes (army worm, monarch).
+  // The boss-tier monarch reuses this helper at large segR + segment count
+  // so the worm reads as a long undulating threat.
+  private drawCaterpillar(
+    key: string,
+    opts: {
+      segR: number;
+      body: number;
+      accent: number;
+      segments: number;
+      stripeColor?: number;
+      hornColor?: number;
+    }
+  ): void {
+    const { segR, body, accent, segments, stripeColor, hornColor } = opts;
+    const PAD = 4;
+    const headR = segR * 0.85;
+    const spacing = segR;
+
+    const W = segR * 2 + PAD * 2;
+    const totalLen = 2 * headR + (segments - 1) * spacing + segR;
+    const hornExtra = hornColor !== undefined ? segR * 0.7 : 0;
+    const H = totalLen + hornExtra + PAD * 2;
+
+    const cx = W / 2;
+    const g = this.add.graphics();
+
+    // Head sits at the BOTTOM of the texture (enemies fall toward player);
+    // segments stack upward away from the head. Center positions:
+    const headCy = H - PAD - headR;
+    const segCenters: number[] = [];
+    for (let i = 0; i < segments; i++) {
+      segCenters.push(headCy - headR - segR - i * spacing);
+    }
+
+    // Posterior horn — extends UP from the topmost segment.
+    if (hornColor !== undefined) {
+      const top = segCenters[segCenters.length - 1] ?? 0;
+      g.fillStyle(hornColor, 1);
+      g.fillTriangle(
+        cx, top - segR - segR * 0.7,
+        cx - segR * 0.4, top - segR + segR * 0.05,
+        cx + segR * 0.4, top - segR + segR * 0.05
+      );
+    }
+
+    // Body segments — back to front so the head sits visually on top.
+    g.fillStyle(body, 1);
+    for (const yc of segCenters) g.fillCircle(cx, yc, segR);
+
+    // Right-side shadow on each segment for volume.
+    g.fillStyle(accent, 0.4);
+    for (const yc of segCenters) {
+      g.fillEllipse(cx + segR * 0.22, yc + segR * 0.1, segR * 1.4, segR * 1.4);
+    }
+
+    // Top-left highlight on each segment.
+    g.fillStyle(0xffffff, 0.18);
+    for (const yc of segCenters) {
+      g.fillEllipse(cx - segR * 0.3, yc - segR * 0.32, segR * 0.95, segR * 0.5);
+    }
+
+    // Stripes — two thin horizontal bands per segment for army/monarch.
+    if (stripeColor !== undefined) {
+      g.fillStyle(stripeColor, 0.85);
+      for (const yc of segCenters) {
+        g.fillEllipse(cx, yc - segR * 0.32, segR * 1.65, segR * 0.20);
+        g.fillEllipse(cx, yc + segR * 0.32, segR * 1.65, segR * 0.20);
+      }
+    }
+
+    // Head — slightly smaller circle, drawn last so it overlaps the
+    // first body segment at the base of the chain.
+    g.fillStyle(body, 1);
+    g.fillCircle(cx, headCy, headR);
+    g.fillStyle(accent, 0.5);
+    g.fillEllipse(cx + headR * 0.22, headCy + headR * 0.15, headR * 1.4, headR * 1.3);
+
+    // Eyes — two black dots with white gleams on the head.
+    const eyeR = Math.max(1.2, segR * 0.18);
+    const eyeY = headCy + headR * 0.1;
+    const eyeX = headR * 0.45;
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(cx - eyeX, eyeY, eyeR);
+    g.fillCircle(cx + eyeX, eyeY, eyeR);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(cx - eyeX - eyeR * 0.3, eyeY - eyeR * 0.3, Math.max(0.6, eyeR * 0.32));
+    g.fillCircle(cx + eyeX - eyeR * 0.3, eyeY - eyeR * 0.3, Math.max(0.6, eyeR * 0.32));
+
+    // Outline last over re-stroked silhouettes.
+    g.lineStyle(1, accent, 0.75);
+    for (const yc of segCenters) g.strokeCircle(cx, yc, segR);
+    g.strokeCircle(cx, headCy, headR);
 
     g.generateTexture(key, W, H);
     g.destroy();
