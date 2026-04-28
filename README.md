@@ -157,7 +157,7 @@ None of this changes how the game looks or feels. It just means the next person 
 
 ## How AI helps build this game (Claude Code skills)
 
-This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains seven custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time.
+This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains eight custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time.
 
 Why does that matter? Every time Claude reads a file, it costs a small amount of money (paid in "tokens" — chunks of text Claude charges for). If a beginner asks "add a new enemy" and Claude has to grep around the codebase to find every file it needs to touch, that's a lot of tokens. A skill is basically a recipe: it lists the exact files to edit, the field names to use, and the invariants to keep, so Claude can go straight to the work.
 
@@ -170,6 +170,7 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 | `/new-weapon`        | Adds a new ship weapon (energy cost, optional homing) with the right unlock wiring. All weapons fire forward and can be equipped in any slot. |
 | `/new-perk`          | Adds a new mid-mission buff (a "perk") with its icon, HUD chip, and pickup logic.                  |
 | `/new-solar-system`  | Adds a new selectable star system to the galaxy overworld (sun color/size, unlock condition, etc).  |
+| `/new-story`         | Adds a new in-game story popup — a chunk of narrative text plus background music plus a voiceover — that either auto-plays once for new players (think opening cinematic) or sits in the Story log to be replayed later. |
 | `/balance-review`    | Compares your uncommitted JSON tweaks against the previous version and prints a balance report.    |
 | `/content-audit`     | Walks every cross-file invariant the unit tests don't cover. Run it before opening a pull request. |
 
@@ -186,7 +187,8 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 | `/new-perk`          |         ~8.5K |                      10 |               ~85K |
 | `/new-weapon`        |         ~5.6K |                      15 |               ~84K |
 | `/new-solar-system`  |         ~9.7K |                       5 |               ~49K |
-| **Total**            |               |             **185 uses** | **~1.77M tokens** |
+| `/new-story`         |         ~6.0K |                      10 |               ~60K |
+| **Total**            |               |             **195 uses** | **~1.83M tokens** |
 
 The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
 
@@ -199,7 +201,7 @@ If you want to understand the project deeper, here's the order to read things in
 1. **[CLAUDE.md](CLAUDE.md)** — the developer-facing rulebook for the project. Coding standards, hard rules ("no Prisma", "no `any`", "all game logic runs in the browser"), and the mapping from "what the user wants" → "which skill to invoke".
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** — a tour of how data flows through the app: how a click on a planet leads to a Phaser combat scene starting, how saves are written, how the database schema is laid out.
 3. **[TODO.md](TODO.md)** — the planned implementation phases and what's deliberately out of scope.
-4. **[.claude/skills/](.claude/skills/)** — the seven skills mentioned above. Each one is a short markdown file you can read on its own.
+4. **[.claude/skills/](.claude/skills/)** — the eight skills mentioned above. Each one is a short markdown file you can read on its own.
 5. **[src/game/phaser/data/](src/game/phaser/data/)** — the game's balance data (weapons, enemies, waves, missions, perks). All numbers live here as JSON, so you can re-tune the game without touching any code.
 
 ## License
