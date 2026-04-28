@@ -64,7 +64,7 @@
           "id": "boss-1-fight",
           "durationMs": 110000,
           "spawns": [
-            { "enemy": "caterpillar-monarch", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
+            { "enemy": "aphid-empress", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
           ]
         }
       ]
@@ -88,7 +88,7 @@
             { "enemy": "dragonfly-common", "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.25 },
             { "enemy": "dragonfly-heli",   "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.75 },
             { "enemy": "beetle-scarab",    "count": 4, "delayMs": 9000,  "intervalMs": 1700, "formation": "line",    "xPercent": 0.5 },
-            { "enemy": "dragonfly-damsel", "count": 2, "delayMs": 22000, "intervalMs": 2400, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "caterpillar-hornworm", "count": 2, "delayMs": 22000, "intervalMs": 2400, "formation": "scatter", "xPercent": 0.5 }
           ]
         }
       ]
@@ -119,7 +119,8 @@
           "spawns": [
             { "enemy": "spider-jumper", "count": 8, "delayMs": 0,     "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 },
             { "enemy": "dragonfly-common",        "count": 5, "delayMs": 9000,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "spider-wolf",   "count": 4, "delayMs": 19000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "spider-wolf",   "count": 4, "delayMs": 19000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "caterpillar-army", "count": 3, "delayMs": 6000, "intervalMs": 1800, "formation": "vee", "xPercent": 0.5 }
           ]
         }
       ]
@@ -132,7 +133,8 @@
           "durationMs": 18000,
           "spawns": [
             { "enemy": "dragonfly-common",        "count": 4, "delayMs": 1500,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "spider-jumper", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "spider-jumper", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "caterpillar-hornworm", "count": 2, "delayMs": 12000, "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {

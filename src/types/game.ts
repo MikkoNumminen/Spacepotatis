@@ -53,6 +53,7 @@ export type EnemyId =
   | "aphid"
   | "aphid-giant"
   | "aphid-queen"
+  | "aphid-empress"
   | "beetle-scarab"
   | "beetle-rhino"
   | "beetle-stag"

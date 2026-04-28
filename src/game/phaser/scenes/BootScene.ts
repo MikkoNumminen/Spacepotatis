@@ -29,6 +29,7 @@ export class BootScene extends Phaser.Scene {
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
     this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
     this.drawAphid("enemy-aphid-queen", { size: 60, body: 0x6fb320, accent: 0x3a4f0e, crown: 0xffcc33 });
+    this.drawAphid("enemy-aphid-empress", { size: 110, body: 0xc8e030, accent: 0x4a5e10, crown: 0xffd84a });
 
     this.drawBeetle("enemy-beetle-scarab", { size: 44, body: 0x4a6b3a, accent: 0x223018, ornament: "dome",      ornamentColor: 0xb8d488 });
     this.drawBeetle("enemy-beetle-rhino",  { size: 46, body: 0x8b3a2a, accent: 0x4d1f15, ornament: "horn",      ornamentColor: 0x1a1008 });

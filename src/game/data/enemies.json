@@ -38,6 +38,18 @@
       "collisionDamage": 20
     },
     {
+      "id": "aphid-empress",
+      "name": "Aphid Empress",
+      "hp": 800,
+      "speed": 45,
+      "behavior": "boss",
+      "scoreValue": 5000,
+      "creditValue": 500,
+      "spriteKey": "enemy-aphid-empress",
+      "fireRateMs": 1300,
+      "collisionDamage": 30
+    },
+    {
       "id": "beetle-scarab",
       "name": "Scarab Beetle",
       "hp": 40,
