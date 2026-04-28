@@ -75,13 +75,27 @@ export default function GameCanvas() {
   // `autoTrigger.kind === "first-time"` that they haven't seen yet and
   // open it. The check is gated on `mode === "galaxy"` so we don't
   // surface a story popup mid-combat.
+  //
+  // `autoFiredRef` is the in-session fire-once guard: once we've shown an
+  // entry this session, never re-show it even if the seenStoryEntries
+  // selector briefly returns a stale value (e.g. a later cloud sync that
+  // races with the local mark-seen). Combined with the localStorage backup
+  // in markStorySeen + the union read in hydrate, the popup can't appear
+  // a second time on the same device.
+  const autoFiredRef = useRef<Set<StoryId>>(new Set());
   useEffect(() => {
     if (!saveLoaded || mode !== "galaxy" || activeStory) return;
     const seen = new Set(seenStoryEntries);
     const next = STORY_ENTRIES.find(
-      (e) => e.autoTrigger?.kind === "first-time" && !seen.has(e.id)
+      (e) =>
+        e.autoTrigger?.kind === "first-time" &&
+        !seen.has(e.id) &&
+        !autoFiredRef.current.has(e.id)
     );
-    if (next) setActiveStory({ id: next.id, firstSeen: true });
+    if (next) {
+      autoFiredRef.current.add(next.id);
+      setActiveStory({ id: next.id, firstSeen: true });
+    }
   }, [saveLoaded, mode, seenStoryEntries, activeStory]);
 
   const handleMarkStorySeen = useCallback(() => {

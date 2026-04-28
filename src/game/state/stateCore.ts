@@ -4,7 +4,7 @@ import type {
   MissionId,
   SolarSystemId
 } from "@/types/game";
-import type { StoryId } from "@/game/data/story";
+import { isKnownStoryId, type StoryId } from "@/game/data/story";
 import { DEFAULT_SHIP, type ShipConfig } from "./ShipConfig";
 
 // Module-level singleton. Phaser and React both read/write here. Persistence
@@ -118,9 +118,41 @@ export function setSolarSystem(id: SolarSystemId): boolean {
   return true;
 }
 
+// Browser-local backup so the popup never re-fires on the same device,
+// even if the server save round-trip fails (network blip, missing DB
+// column pre-migration, etc.). Hydrate merges this set with whatever the
+// server returned so cross-device sync still works once persistence is
+// healthy.
+export const SEEN_STORIES_LOCAL_KEY = "spacepotatis:seenStoryEntries";
+
+export function readSeenStoriesLocal(): readonly StoryId[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SEEN_STORIES_LOCAL_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isKnownStoryId);
+  } catch {
+    return [];
+  }
+}
+
+function writeSeenStoriesLocal(ids: readonly StoryId[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SEEN_STORIES_LOCAL_KEY, JSON.stringify(ids));
+  } catch {
+    // localStorage may be disabled (private mode, quota); the in-memory
+    // session-level fire-once guard in GameCanvas covers this case.
+  }
+}
+
 export function markStorySeen(id: StoryId): void {
   if (state.seenStoryEntries.includes(id)) return;
-  commit({ ...state, seenStoryEntries: [...state.seenStoryEntries, id] });
+  const next = [...state.seenStoryEntries, id];
+  commit({ ...state, seenStoryEntries: next });
+  writeSeenStoriesLocal(next);
 }
 
 export function isMissionCompleted(id: MissionId): boolean {

@@ -18,7 +18,13 @@ import {
 } from "./ShipConfig";
 import { AUGMENT_IDS, MAX_AUGMENTS_PER_WEAPON } from "../data/augments";
 import { WEAPON_IDS } from "@/lib/schemas/save";
-import { INITIAL_STATE, SYSTEM_UNLOCK_GATES, commit, getState } from "./stateCore";
+import {
+  INITIAL_STATE,
+  SYSTEM_UNLOCK_GATES,
+  commit,
+  getState,
+  readSeenStoriesLocal
+} from "./stateCore";
 
 export interface StateSnapshot {
   credits: number;
@@ -84,9 +90,16 @@ export function hydrate(snapshot: Partial<StateSnapshot>): void {
       ? requestedCurrent
       : fallbackSystem;
 
-  const seenStoryEntries = Array.isArray(snapshot.seenStoryEntries)
+  // Union the server-side list with the browser-local backup. The local
+  // copy is the safety net for the case where the save POST never landed
+  // (network drop, missing DB column pre-migration, race on logout) — the
+  // popup must NEVER re-fire on the same device after the player has
+  // already watched it. Server-side stays authoritative for cross-device.
+  const serverSeen = Array.isArray(snapshot.seenStoryEntries)
     ? snapshot.seenStoryEntries.filter(isKnownStoryId)
-    : [...INITIAL_STATE.seenStoryEntries];
+    : [];
+  const localSeen = readSeenStoriesLocal();
+  const seenStoryEntries = Array.from(new Set<StoryId>([...serverSeen, ...localSeen]));
 
   commit({
     credits: snapshot.credits ?? INITIAL_STATE.credits,
