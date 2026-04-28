@@ -6,7 +6,7 @@ Served verbatim by Vercel. No build processing. Directory layout:
 public/
   sprites/
     player/         — ship.png + ship.json (atlas)
-    enemies/        — basic.png, zigzag.png, kamikaze.png, boss.png
+    enemies/        — bug roster (aphid*.png, beetle-*.png, caterpillar-*.png, spider-*.png, dragonfly-*.png). Procedural placeholders are in BootScene.ts today; PNG drops would replace them.
     bullets/        — player-laser.png, enemy-bullet.png
     powerups/       — weapon.png, shield.png, credit.png, invuln.png
     explosions/     — small.png, large.png

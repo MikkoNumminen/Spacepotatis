@@ -8,7 +8,7 @@ The user says "/new-perk", "add a perk", or asks for a new mid-mission buff drop
 
 # Inputs the user must provide
 Ask once, in a single message, for any missing fields:
-1. `perkId` — kebab-case, unique. Must NOT collide with existing ids in `src/game/phaser/data/perks.ts` (`overdrive`, `hardened`, `emp`).
+1. `perkId` — kebab-case, unique. Must NOT collide with existing ids in `src/game/data/perks.ts` (`overdrive`, `hardened`, `emp`).
 2. `displayName` — shown on the chip and pickup popup (e.g. "Shield Burst").
 3. `kind` — `"passive"` | `"active"`.
 4. `tint` — accent hex (e.g. `0x66ffaa`); used for chip border, popup color, icon.
@@ -18,7 +18,7 @@ Ask once, in a single message, for any missing fields:
 8. Icon hint — one of `"bolt" | "hex" | "pulse"` to reuse, or pick a new shape name (skill will add a new branch in `drawMissionPerk`).
 
 # Steps
-1. **`src/game/phaser/data/perks.ts`** — Extend the `PerkId` union to include the new id. Add an entry to `PERKS` with `id`, `name`, `type` (`"passive"` | `"active"`), `textureKey: "perk-<id>"`, `tint`, `hint` (short blurb shown on the pickup popup, e.g. `"CTRL: clear all enemy bullets"` for actives or `"+50% fire rate"` for passives). The exported `PERK_IDS` array is derived from `Object.keys(PERKS)`, so the new perk auto-joins the drop pool.
+1. **`src/game/data/perks.ts`** — Extend the `PerkId` union to include the new id. Add an entry to `PERKS` with `id`, `name`, `type` (`"passive"` | `"active"`), `textureKey: "perk-<id>"`, `tint`, `hint` (short blurb shown on the pickup popup, e.g. `"CTRL: clear all enemy bullets"` for actives or `"+50% fire rate"` for passives). The exported `PERK_IDS` array is derived from `Object.keys(PERKS)`, so the new perk auto-joins the drop pool.
 2. **`src/game/phaser/scenes/BootScene.ts`** — In `generateTextures()`, add `this.drawMissionPerk("perk-<id>", <tint>, "<icon>");`. If the icon name is new, extend the `icon` union parameter of `drawMissionPerk` and add a new `else if` branch with the procedural drawing. Keep the magenta star frame and "M" tab — they signal "mission only" to the player.
 3. **`src/game/phaser/scenes/CombatScene.ts`** — In `applyPerk()` (the switch on `perkId`), add a case that mutates per-mission scene state. For passives, set a flag/multiplier on the relevant entity (e.g. `this.player.hasShieldBurst = true`). For actives, increment a charge counter (mirror `this.empCharges += 1`).
 4. **For active perks only**: also extend `useActivePerk()` (same file) with a case that consumes a charge, runs the effect, and calls `this.refreshPerkChips()`. The `CTRL` keybind is already wired (`this.input.keyboard?.on("keydown-CTRL", () => this.useActivePerk())`). If multiple actives are added later, refactor `useActivePerk` to dispatch on the most-recently-acquired perk or add per-perk keybinds — flag this to the user.
@@ -37,7 +37,7 @@ Ask once, in a single message, for any missing fields:
 
 # Files this skill modifies
 Always:
-- `src/game/phaser/data/perks.ts` — add `PerkId` literal + `PERKS` entry.
+- `src/game/data/perks.ts` — add `PerkId` literal + `PERKS` entry.
 - `src/game/phaser/scenes/BootScene.ts` — add `drawMissionPerk` call (and possibly a new icon branch).
 - `src/game/phaser/scenes/CombatScene.ts` — add a case in `applyPerk()` (and `useActivePerk()` for actives).
 

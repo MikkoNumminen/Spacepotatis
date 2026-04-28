@@ -46,7 +46,7 @@ Player with WASD/arrows + shield/armor, bullet pools, three enemy behaviors, wav
 - Power-ups (shield, credit, weapon cycle), score + combo system, Phaser HUD (score, credits, shield/armor bars).
 - [PauseScene](src/game/phaser/scenes/PauseScene.ts) — P or ESC pauses combat; P resumes, ESC abandons.
 - Multi-phase boss (HP-gated): phase 1 single shot + slow drift, phase 2 triple spread, phase 3 aimed shot + 4-way fan. Stays in the top third of the arena.
-- [ResultScene](src/game/phaser/scenes/ResultScene.ts) with tween-driven score/credits/time count-up.
+- ResultScene with tween-driven score/credits/time count-up. (Later retired in the React-victory-modal pass; the post-mission summary is now [VictoryModal.tsx](src/components/galaxy/VictoryModal.tsx) mounted over the galaxy view, with first-clear loot rewards added on top.)
 
 ---
 

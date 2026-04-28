@@ -271,7 +271,7 @@ BootScene             CombatScene
 Cross-scene communication and shared scene-graph state both go through typed wrappers. **No string-keyed `scene.events.emit(...)` or `game.registry.set(...)` calls** — they're compile-blind and hide rename regressions.
 
 - [src/game/phaser/events.ts](src/game/phaser/events.ts) exports a discriminated `CombatEvent` union (`playerDied | allWavesComplete | abandon`) plus `emit<E>(scene, event)` and `on<T>(scene, type, handler)` wrappers. Adding a new event means extending the union; renaming one is a compile error in every consumer.
-- [src/game/phaser/registry.ts](src/game/phaser/registry.ts) exports `REGISTRY_KEYS` plus typed `getSummary` / `setSummary` / `getBootData` / `setBootData`. The `CombatSummary` and `BootData` shapes ride a typed channel between CombatScene → Phaser registry → ResultScene without any `as` casts.
+- [src/game/phaser/registry.ts](src/game/phaser/registry.ts) exports `REGISTRY_KEYS` plus typed `getSummary` / `setSummary` / `getBootData` / `setBootData`. The `CombatSummary` and `BootData` shapes ride a typed channel between CombatScene → Phaser registry → React VictoryModal (via `GameCanvas.handleMissionComplete` reading `getSummary(this.game)`) without any `as` casts.
 
 Two historical events (`enemyKilled`, `waveComplete`) were emitted but had no listeners; the audit deleted both. The kill path now flows through the `wireCollisions(...)` callback (`onEnemyHit(enemy, _bullet, killed)`) rather than a separate event.
 

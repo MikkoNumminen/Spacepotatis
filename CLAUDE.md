@@ -207,8 +207,6 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 
 If the request maps to a skill, **invoke it before grepping or reading files** — the skill body already contains the file paths, field names, and invariants you'd otherwise have to derive. If the request *almost* maps to a skill but has an extra constraint, still invoke the skill and adapt; do not fall back to the long path.
 
-> **Note (post-2026-04-27):** the `.claude/skills/*/SKILL.md` files still reference the old `src/game/phaser/data/` path. The audit renamed it to `src/game/data/`. Skill bodies still work because the typed accessors (`getEnemy`, `getWeapon`, `getMission`, etc.) are imported from the new path, but if you edit a skill body, fix any stale `phaser/data/` reference you see.
-
 ## 11. Where things live (post-audit map)
 
 The 2026-04-27 modularity audit broke up several god modules. Quick lookup of where each concern now lives:

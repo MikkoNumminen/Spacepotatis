@@ -8,22 +8,28 @@ The user says "/new-mission", "add a mission", "scaffold a planet", or otherwise
 
 # Inputs the user must provide
 Ask once, in a single message, for any missing fields:
-1. `missionId` — kebab-case, unique. Must NOT collide with existing ids in `src/game/phaser/data/missions.json`.
+1. `missionId` — kebab-case, unique. Must NOT collide with existing ids in `src/game/data/missions.json`.
 2. `displayName` — shown on the planet label and mission panel.
 3. `kind` — `"mission"` | `"shop"` (treat "hub" as `"shop"` until a hub kind exists).
 4. `difficulty` — `1` | `2` | `3` (drives planet color, used as a fallback when no per-mission color override exists; ignored for shops).
-5. `solarSystemId` — required. Must be one of the ids in `src/game/phaser/data/solarSystems.json`. Default to `"tutorial"` if the user is adding to the starting cluster; use `"tubernovae"` for the second cluster. If the user wants a brand-new system, run `/new-solar-system` first.
-6. Wave count and rough enemy mix (e.g. "3 waves, mostly zigzag + one boss"). Only required when `kind === "mission"`.
+5. `solarSystemId` — required. Must be one of the ids in `src/game/data/solarSystems.json`. Default to `"tutorial"` if the user is adding to the starting cluster; use `"tubernovae"` for the second cluster. If the user wants a brand-new system, run `/new-solar-system` first.
+6. Wave count and rough enemy mix (e.g. "3 waves, mostly dragonflies + one Monarch Caterpillar boss"). Only required when `kind === "mission"`.
 
 # Steps
-1. Read `src/game/phaser/data/missions.json` to confirm the new id is unique and to pick non-overlapping `orbitRadius` / `startAngle` / `orbitNode` values **within the same `solarSystemId`** (planets in different systems can't collide).
-2. Read `src/game/phaser/data/enemies.json` to confirm every enemy id you plan to spawn exists. Valid ids today: `basic`, `zigzag`, `kamikaze`, `boss-1`. If the user wants a new enemy type, stop and tell them to define it in `enemies.json` first (this skill does not add enemies).
+1. Read `src/game/data/missions.json` to confirm the new id is unique and to pick non-overlapping `orbitRadius` / `startAngle` / `orbitNode` values **within the same `solarSystemId`** (planets in different systems can't collide).
+2. Read `src/game/data/enemies.json` to confirm every enemy id you plan to spawn exists. Valid ids today (post bug-themed redesign):
+   - **Aphids:** `aphid`, `aphid-giant`, `aphid-queen`
+   - **Beetles:** `beetle-scarab`, `beetle-rhino`, `beetle-stag`
+   - **Caterpillars:** `caterpillar-hornworm`, `caterpillar-army`, `caterpillar-monarch` (boss)
+   - **Spiders:** `spider-wolf`, `spider-widow`, `spider-jumper`
+   - **Dragonflies:** `dragonfly-common`, `dragonfly-heli`, `dragonfly-damsel`
+   If the user wants a new enemy type, stop and tell them to run `/new-enemy` first (this skill does not add enemies).
 3. Append a new entry to `missions.json` `missions` array using the canonical `MissionDefinition` shape from `src/types/game.ts`. Required fields: `id`, `kind`, `name`, `description`, `difficulty` (1|2|3), `solarSystemId` (SolarSystemId literal), `texture` (`/textures/planets/<id>.jpg`), `orbitRadius`, `orbitSpeed`, `startAngle`, `scale`, `requires` (array of existing mission ids), `musicTrack` (`/audio/music/<id>.ogg` or `null` for shops). Optional: `orbitTilt`, `orbitNode`, `ring: { innerRadius, outerRadius, tilt }`, `perksAllowed`.
 4. Update the `MissionId` union in `src/types/game.ts` to include the new id literal. Keep the union sorted by appearance in `missions.json`.
-5. If `kind === "mission"`, append a `{ missionId, waves: [...] }` entry to `src/game/phaser/data/waves.json`. Each wave needs `id` (string, conventionally `"<missionId>-wave-N"`), `durationMs`, and `spawns: [{ enemy, count, delayMs, intervalMs, formation, xPercent }]`. Formation is `"line" | "vee" | "scatter" | "column"`. `xPercent` is `0..1`. The data test enforces `delayMs + (count-1)*intervalMs <= durationMs` per spawn — keep waves within their own duration budget.
+5. If `kind === "mission"`, append a `{ missionId, waves: [...] }` entry to `src/game/data/waves.json`. Each wave needs `id` (string, conventionally `"<missionId>-wave-N"`), `durationMs`, and `spawns: [{ enemy, count, delayMs, intervalMs, formation, xPercent }]`. Formation is `"line" | "vee" | "scatter" | "column"`. `xPercent` is `0..1`. The data test enforces `delayMs + (count-1)*intervalMs <= durationMs` per spawn — keep waves within their own duration budget.
 6. Galaxy planet binding is automatic: `src/game/three/GalaxyScene.ts` filters `MISSIONS` by the active `solarSystemId` and constructs a `Planet` per match. No manual wiring required. The planet texture path in `texture` should resolve under `public/`; if no file is committed there yet, the planet still renders via procedural fallback in `src/game/three/planetTexture.ts`. If you want a distinct color identity (not just the difficulty palette), also add an entry to `MISSION_COLOR_OVERRIDE` in `src/game/three/Planet.ts` and a hand-tuned preset case in `planetTexture.ts#styleFor`. Mention to the user that they can drop a JPG at `public/textures/planets/<id>.jpg` later to replace the procedural surface.
-7. If the new mission should unlock a different solar system on completion, add a `[missionId, solarSystemId]` entry to `SYSTEM_UNLOCK_GATES` in `src/game/state/GameState.ts`. (Currently `boss-1` unlocks `tubernovae`.)
-8. Run `npm run typecheck && npm test` and fix any failures. The integrity tests in `src/game/phaser/data/data.test.ts` enforce: unique mission ids, every `requires` entry exists, every `kind === "mission"` mission has at least one wave, every wave references a known mission id, every spawn references a known enemy id, every `solarSystemId` resolves to a known system, and the wave duration budget rule above.
+7. If the new mission should unlock a different solar system on completion, add a `[missionId, solarSystemId]` entry to `SYSTEM_UNLOCK_GATES` in `src/game/state/stateCore.ts`. (Currently `boss-1` unlocks `tubernovae`.) Note: the GameState barrel re-exports this, so old `import * as GameState from "@/game/state/GameState"` callers still resolve.
+8. Run `npm run typecheck && npm test` and fix any failures. The integrity tests in `src/game/data/data.test.ts` enforce: unique mission ids, every `requires` entry exists, every `kind === "mission"` mission has at least one wave, every wave references a known mission id, every spawn references a known enemy id, every `solarSystemId` resolves to a known system, and the wave duration budget rule above.
 9. Report back: the new mission id, the files modified, and any planet-texture asset still owed.
 
 # Invariants this skill enforces
@@ -40,12 +46,12 @@ Ask once, in a single message, for any missing fields:
 
 # Files this skill modifies / creates
 Modifies:
-- `src/game/phaser/data/missions.json` — append new mission entry.
-- `src/game/phaser/data/waves.json` — append new mission waves block (only when `kind === "mission"`).
+- `src/game/data/missions.json` — append new mission entry.
+- `src/game/data/waves.json` — append new mission waves block (only when `kind === "mission"`).
 - `src/types/game.ts` — extend the `MissionId` union literal.
 
 Modifies (only if the new mission unlocks a different system):
-- `src/game/state/GameState.ts` — add a `SYSTEM_UNLOCK_GATES` entry.
+- `src/game/state/stateCore.ts` — add a `SYSTEM_UNLOCK_GATES` entry.
 
 Modifies (only if you want a per-mission color identity):
 - `src/game/three/Planet.ts` — `MISSION_COLOR_OVERRIDE` entry.

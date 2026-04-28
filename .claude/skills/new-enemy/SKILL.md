@@ -11,16 +11,16 @@ Run `/new-enemy` to add a new enemy end-to-end. The skill writes JSON balance da
 - `displayName` — human-readable `name`.
 - `hp` (>0), `speed` (>0, px/s), `scoreValue` (>=0), `creditValue` (>=0), `collisionDamage` (>=0).
 - `behavior` — must be one of: `straight`, `zigzag`, `homing`, `boss`. (See "Invariants".)
-- `fireRateMs` — positive number, or `null` for non-shooters (kamikaze pattern).
+- `fireRateMs` — positive number, or `null` for non-shooters (collision-only enemies like Jumping Spider).
 - `addTestWave` — default yes. Appends one spawn line to the `tutorial-1` wave in `waves.json` for fast playtest. Ask which mission if the user prefers another.
 
 # Steps
-1. Add the entry to `src/game/phaser/data/enemies.json` under `enemies[]`. Required fields: `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`. Sprite-key convention: `spriteKey = "enemy-<enemyId>"` for regular enemies; for bosses the `id` should itself start with `boss-` and `spriteKey` equals the id (e.g. id `boss-1` → spriteKey `boss-1`). Do NOT prefix `boss-` to an existing id.
+1. Add the entry to `src/game/data/enemies.json` under `enemies[]`. Required fields: `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`. Sprite-key convention: `spriteKey = "enemy-<enemyId>"` for regular enemies; for bosses the `id` should itself start with `boss-` and `spriteKey` equals the id (e.g. id `boss-1` → spriteKey `boss-1`). Do NOT prefix `boss-` to an existing id.
 2. Extend the `EnemyId` union in `src/types/game.ts` with the new id literal so `getEnemy` stays type-safe.
 3. Behavior gate: if the requested `behavior` is not in `{straight, zigzag, homing, boss}`, STOP and tell the user — `Enemy.ts#preUpdate` switch will silently skip it at runtime. Adding a new behavior requires editing `src/game/phaser/entities/Enemy.ts`; that is out of scope for this skill.
-4. Add a placeholder sprite for the new `spriteKey` in `src/game/phaser/scenes/BootScene.ts#generateTextures` by calling one of the existing helpers: `drawEnemyBasic`, `drawEnemyDiamond`, `drawTriangleDown`, or `drawBoss`. Pick the helper closest to the new behavior (e.g. `drawTriangleDown` for kamikaze-style, `drawBoss` for `behavior === "boss"`). Do NOT add new asset files.
-5. If `addTestWave`: append one `WaveSpawn` to the chosen mission's wave in `src/game/phaser/data/waves.json`. Ensure `delayMs + (count - 1) * intervalMs <= durationMs` (the test enforces this). For `tutorial-1` (`durationMs: 30000`), a safe default is `{ "enemy": "<enemyId>", "count": 3, "delayMs": 16000, "intervalMs": 2400, "formation": "scatter", "xPercent": 0.5 }`.
-6. Run `npm test` (vitest). The `enemies.json` and `waves.json referential integrity` suites in `src/game/phaser/data/data.test.ts` will fail loudly if `behavior` is unknown, ids collide, numeric fields are non-positive, `spriteKey` is empty, or any wave references a missing enemy.
+4. Add a placeholder sprite for the new `spriteKey` in `src/game/phaser/scenes/BootScene.ts#generateTextures` by calling one of the existing bug-themed helpers: `drawAphid`, `drawBeetle`, `drawCaterpillar`, `drawSpider`, or `drawDragonfly`. Pick the helper whose silhouette best fits the new enemy (e.g. `drawDragonfly` for fast aerial, `drawCaterpillar` with `segments: 7+` and a large `segR` for a `behavior === "boss"` worm). Each helper takes an `opts` object — see the existing call sites in `generateTextures()` for the parameter shape (size, body color, accent color, plus per-helper extras like `crown` / `ornament` / `wings` / `marking`). Do NOT add new asset files. If no existing helper fits, ask the user before introducing a new one — adds a permanent visual primitive to the project.
+5. If `addTestWave`: append one `WaveSpawn` to the chosen mission's wave in `src/game/data/waves.json`. Ensure `delayMs + (count - 1) * intervalMs <= durationMs` (the test enforces this). For `tutorial-1` (`durationMs: 30000`), a safe default is `{ "enemy": "<enemyId>", "count": 3, "delayMs": 16000, "intervalMs": 2400, "formation": "scatter", "xPercent": 0.5 }`.
+6. Run `npm test` (vitest). The `enemies.json` and `waves.json referential integrity` suites in `src/game/data/data.test.ts` will fail loudly if `behavior` is unknown, ids collide, numeric fields are non-positive, `spriteKey` is empty, or any wave references a missing enemy.
 7. Run `npm run typecheck` to confirm the `EnemyId` union update compiles.
 
 # Invariants this skill enforces
@@ -32,7 +32,7 @@ Run `/new-enemy` to add a new enemy end-to-end. The skill writes JSON balance da
 - No `any` types introduced. The `EnemyId` literal union update is the only TS edit.
 
 # Files this skill modifies
-- `src/game/phaser/data/enemies.json` — new entry appended.
+- `src/game/data/enemies.json` — new entry appended.
 - `src/types/game.ts` — `EnemyId` union extended.
 - `src/game/phaser/scenes/BootScene.ts` — one new draw call inside `generateTextures`.
-- `src/game/phaser/data/waves.json` — one new spawn appended (only if `addTestWave`).
+- `src/game/data/waves.json` — one new spawn appended (only if `addTestWave`).
