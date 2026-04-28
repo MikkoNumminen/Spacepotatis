@@ -18,6 +18,12 @@ const TARGET_VOLUME = 0.45;
 const FADE_OUT_SEC = 4;
 const FADE_IN_SEC = 2.5;
 const SILENCE_MS = 800;
+// Watchdog cadence. Cheap (one boolean check per tick + maybe a play call) so
+// tight is fine; the point is "any silent failure heals within ~2 s".
+const WATCHDOG_MS = 2000;
+// Delay before re-trying play() after a rejection (autoplay block, audio
+// session interrupt, etc.). Short enough that the user perceives no gap.
+const RETRY_DELAY_MS = 250;
 
 interface EngineOptions {
   readonly src?: string;
@@ -48,6 +54,15 @@ class MusicEngine {
   // event fires only every ~250ms, which used to make the end feel like a
   // hard cut whenever the last tick landed too close to the natural end.
   private fadeOutTimer: number | null = null;
+  // Self-healing scaffolding. The watchdog is a periodic "if I should be
+  // playing and I'm not, kick myself"; retry handles play() rejections;
+  // pause-event handles browser-induced pauses (visibility change on mobile,
+  // audio session interrupts, OS audio focus loss). These together guarantee
+  // that whatever knocks the music off, it comes back within a couple seconds
+  // without requiring a user gesture.
+  private watchdogInterval: number | null = null;
+  private retryTimer: number | null = null;
+  private visibilityAttached = false;
   private readonly targetVolume: number;
   private readonly fadeInSec: number;
   private readonly fadeOutSec: number;
@@ -68,6 +83,8 @@ class MusicEngine {
     if (typeof window === "undefined") return;
     if (this.el || !this.src) return;
     this.attachElement(this.src);
+    this.startWatchdog();
+    this.attachVisibilityListener();
   }
 
   // For the combat engine: hot-swap the track. Fades out the old, swaps src,
@@ -89,6 +106,8 @@ class MusicEngine {
     }
     if (!this.el) {
       this.attachElement(src);
+      this.startWatchdog();
+      this.attachVisibilityListener();
     } else {
       this.cancelFade();
       this.cancelSilence();
@@ -175,8 +194,63 @@ class MusicEngine {
     if (!this.loop) {
       el.addEventListener("ended", this.onEnded);
     }
+    // Catch unintended pauses (browser-induced visibility/audio interrupt,
+    // any external code calling .pause()). Intentional pauses always set one
+    // of muted/ducked/!src/silenceTimer first, so the handler sees those and
+    // bails — only the surprise pauses leak through to scheduleRetry().
+    el.addEventListener("pause", this.onPause);
     this.el = el;
   }
+
+  private onPause = (): void => {
+    if (this.shouldBePlaying() && this.silenceTimer === null) {
+      this.scheduleRetry();
+    }
+  };
+
+  private shouldBePlaying(): boolean {
+    return this.armed && !this.muted && !this.ducked && this.src !== null;
+  }
+
+  // The audio element should be actively playing right now AND it isn't.
+  // Used by the watchdog and by visibility/retry handlers to decide whether
+  // to kick startPlayback.
+  private kickIfShouldBePlaying(): void {
+    if (!this.shouldBePlaying()) return;
+    if (this.silenceTimer !== null) return;  // intentional silence between loops
+    const el = this.el;
+    if (!el || !el.paused) return;
+    void this.startPlayback();
+  }
+
+  private scheduleRetry(): void {
+    if (this.retryTimer !== null) return;
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = null;
+      this.kickIfShouldBePlaying();
+    }, RETRY_DELAY_MS);
+  }
+
+  private startWatchdog(): void {
+    if (this.watchdogInterval !== null) return;
+    if (typeof window === "undefined") return;
+    this.watchdogInterval = window.setInterval(
+      () => this.kickIfShouldBePlaying(),
+      WATCHDOG_MS
+    );
+  }
+
+  private attachVisibilityListener(): void {
+    if (this.visibilityAttached) return;
+    if (typeof document === "undefined") return;
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    this.visibilityAttached = true;
+  }
+
+  private onVisibilityChange = (): void => {
+    if (typeof document === "undefined") return;
+    if (document.visibilityState === "visible") this.kickIfShouldBePlaying();
+  };
 
   private async startPlayback(): Promise<void> {
     const el = this.el;
@@ -188,8 +262,11 @@ class MusicEngine {
       try {
         await el.play();
       } catch {
-        // Autoplay or load failure (eg. mission has no audio file yet).
-        // Stay armed; next gesture / unduck / loadTrack retries.
+        // Autoplay block, audio session interrupt, or load failure. Stay
+        // armed and schedule a retry — the watchdog and the next user
+        // gesture will both back this up, but the explicit retry handles
+        // transient failures within a frame or two.
+        this.scheduleRetry();
         return;
       }
     }
