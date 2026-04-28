@@ -86,6 +86,10 @@ export default function GameCanvas() {
 
   const handleLaunch = useCallback(
     async (mission: MissionDefinition) => {
+      // Defensive: scenery bodies have no action and shouldn't reach here
+      // (QuestPanel and the raycaster filter them out), but if a click
+      // sneaks through, do nothing rather than launching a no-op combat.
+      if (mission.kind === "scenery") return;
       if (mission.kind === "shop") {
         // Client-side nav preserves in-memory GameState (credits etc.).
         router.push(ROUTES.page.shop);

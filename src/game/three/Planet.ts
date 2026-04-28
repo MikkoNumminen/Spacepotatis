@@ -11,6 +11,9 @@ const DIFFICULTY_COLOR: Record<1 | 2 | 3, number> = {
 };
 
 const SHOP_COLOR = 0x4fd1ff;
+// Scenery bodies aren't interactive, so they read as just-a-planet using the
+// neutral easy-difficulty hue rather than the cyan reserved for shops.
+const SCENERY_COLOR = 0x8a9bb8;
 
 // Per-mission base color overrides. Without these, planets are colored only
 // by difficulty (red/amber/green) which makes a difficulty-2 jungle moon
@@ -224,7 +227,11 @@ export class Planet {
 
     const baseColor =
       MISSION_COLOR_OVERRIDE[definition.id] ??
-      (definition.kind === "shop" ? SHOP_COLOR : DIFFICULTY_COLOR[definition.difficulty]);
+      (definition.kind === "shop"
+        ? SHOP_COLOR
+        : definition.kind === "scenery"
+          ? SCENERY_COLOR
+          : DIFFICULTY_COLOR[definition.difficulty]);
 
     const surface = generatePlanetSurface(definition.id satisfies MissionId, baseColor);
     this.surfaceMap = surface.map;
@@ -297,9 +304,13 @@ export class Planet {
     this.positionOnOrbit();
   }
 
-  update(dt: number): void {
+  // `parentPosition` shifts the orbit's center: when a body declares
+  // `orbitParentId`, the caller passes that parent's current world position
+  // so the local-orbit math runs in the parent's frame (e.g. a station
+  // orbiting a planet). Null means orbit the system origin as before.
+  update(dt: number, parentPosition: THREE.Vector3 | null = null): void {
     this.angle += this.definition.orbitSpeed * dt;
-    this.positionOnOrbit();
+    this.positionOnOrbit(parentPosition);
     this.mesh.rotation.y += dt * 0.25;
 
     const targetOpacity = this.hovered ? 0.55 : 0.0;
@@ -336,14 +347,17 @@ export class Planet {
     this.ringTexture?.dispose();
   }
 
-  private positionOnOrbit(): void {
+  private positionOnOrbit(parentPosition: THREE.Vector3 | null = null): void {
     const r = this.definition.orbitRadius;
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
+    const px = parentPosition?.x ?? 0;
+    const py = parentPosition?.y ?? 0;
+    const pz = parentPosition?.z ?? 0;
     this.object.position.set(
-      (this.orbitU.x * c + this.orbitV.x * s) * r,
-      (this.orbitU.y * c + this.orbitV.y * s) * r,
-      (this.orbitU.z * c + this.orbitV.z * s) * r
+      px + (this.orbitU.x * c + this.orbitV.x * s) * r,
+      py + (this.orbitU.y * c + this.orbitV.y * s) * r,
+      pz + (this.orbitU.z * c + this.orbitV.z * s) * r
     );
   }
 }

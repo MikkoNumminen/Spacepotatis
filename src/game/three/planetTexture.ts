@@ -68,7 +68,7 @@ function styleFor(id: MissionId): SurfaceStyle {
         craterSizeRange: [4, 9]
       };
     case "shop":
-      // Tutorial Market — cool banded ice giant.
+      // Spurdospärdersi — cool banded ice giant.
       return {
         noiseScale: 2.4,
         octaves: 4,
@@ -76,6 +76,18 @@ function styleFor(id: MissionId): SurfaceStyle {
         featureColor: [240, 250, 255],
         featureThreshold: 0.72,
         featureMix: 0.7,
+        craters: 0,
+        craterSizeRange: [0, 0]
+      };
+    case "market":
+      // Market station — small metallic body. Plate-like banding, no craters.
+      return {
+        noiseScale: 6.0,
+        octaves: 3,
+        bandStrength: 0.55,
+        featureColor: [200, 210, 220],
+        featureThreshold: 0.55,
+        featureMix: 0.6,
         craters: 0,
         craterSizeRange: [0, 0]
       };

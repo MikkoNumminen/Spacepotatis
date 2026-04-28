@@ -92,7 +92,9 @@ export default function HudFrame({
             <div className="text-[11px] text-hud-amber">
               {hovered.kind === "shop"
                 ? "shop"
-                : `difficulty ${"★".repeat(hovered.difficulty)}`}
+                : hovered.kind === "scenery"
+                  ? null
+                  : `difficulty ${"★".repeat(hovered.difficulty)}`}
             </div>
           </div>
         )}

@@ -98,6 +98,7 @@ export type MissionId =
   | "combat-1"
   | "boss-1"
   | "shop"
+  | "market"
   | "pirate-beacon"
   | "ember-run"
   | "burnt-spud"
@@ -114,7 +115,7 @@ export interface SolarSystemDefinition {
   readonly ambientHue: string;        // "#RRGGBB" — informational; ambient palette hint
 }
 
-export type PlanetKind = "mission" | "shop";
+export type PlanetKind = "mission" | "shop" | "scenery";
 
 export interface PlanetRing {
   readonly innerRadius: number;       // multiplier of planet radius
@@ -135,6 +136,9 @@ export interface MissionDefinition {
   readonly startAngle: number;        // radians
   readonly orbitTilt?: number;        // radians, inclination off the reference plane
   readonly orbitNode?: number;        // radians, longitude of ascending node
+  readonly orbitParentId?: MissionId; // when set, orbit is centered on this body's
+                                      // current world position rather than the system origin
+                                      // (parent must share solarSystemId)
   readonly scale: number;             // planet size multiplier
   readonly requires: readonly MissionId[]; // missions that must be completed to unlock this one
   readonly musicTrack: string | null; // path under /public/audio/music/

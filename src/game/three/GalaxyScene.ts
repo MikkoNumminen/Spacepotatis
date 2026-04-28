@@ -50,7 +50,10 @@ export class GalaxyScene {
 
     this.cameraCtl = new CameraController(canvas, canvas.clientWidth / canvas.clientHeight);
 
+    // Scenery bodies aren't interactive — skip them so the cursor doesn't
+    // flag them and clicks pass through to whatever's behind.
     for (const planet of this.rig.planets) {
+      if (planet.getDefinition().kind === "scenery") continue;
       this.pickables.push(planet.getMesh());
     }
 
@@ -87,7 +90,20 @@ export class GalaxyScene {
   private update(dt: number): void {
     this.rig.starfield.update(dt);
     this.rig.sun.update(dt);
-    for (const planet of this.rig.planets) planet.update(dt);
+    // Two-pass update so child-orbit bodies (orbitParentId) read the parent's
+    // up-to-date position rather than its previous-frame position. Roots
+    // first, children second — children look their parent up via
+    // rig.planetsById.
+    for (const planet of this.rig.planets) {
+      if (planet.getDefinition().orbitParentId) continue;
+      planet.update(dt);
+    }
+    for (const planet of this.rig.planets) {
+      const parentId = planet.getDefinition().orbitParentId;
+      if (!parentId) continue;
+      const parent = this.rig.planetsById.get(parentId);
+      planet.update(dt, parent ? parent.object.position : null);
+    }
     this.cameraCtl.update(dt);
     this.updateHover();
   }

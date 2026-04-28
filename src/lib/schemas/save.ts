@@ -56,6 +56,7 @@ export const MISSION_IDS = [
   "combat-1",
   "boss-1",
   "shop",
+  "market",
   "pirate-beacon",
   "ember-run",
   "burnt-spud",

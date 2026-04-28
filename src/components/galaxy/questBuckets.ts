@@ -21,7 +21,11 @@ export function bucketMissions(
   unlocked: readonly string[],
   completed: readonly string[]
 ): QuestBuckets {
-  const inSystem = missions.filter((m) => m.solarSystemId === systemId);
+  // Scenery bodies (e.g. a backdrop planet) never appear in any bucket — they
+  // exist only as 3D scene atmosphere and have no docking action.
+  const inSystem = missions.filter(
+    (m) => m.solarSystemId === systemId && m.kind !== "scenery"
+  );
   const shop = inSystem.find((m) => m.kind === "shop") ?? null;
   const combat = inSystem.filter((m) => m.kind === "mission");
 

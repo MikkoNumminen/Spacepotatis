@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { MissionDefinition } from "@/types/game";
+import type { MissionDefinition, MissionId } from "@/types/game";
 import { Planet } from "./Planet";
 import { Starfield } from "./Starfield";
 import { Sun } from "./Sun";
@@ -37,6 +37,9 @@ export interface SceneRig {
   readonly starfield: Starfield;
   readonly sun: Sun;
   readonly planets: readonly Planet[];
+  // id → Planet lookup so child-orbit bodies (orbitParentId) can read their
+  // parent's current world position each frame.
+  readonly planetsById: ReadonlyMap<MissionId, Planet>;
   readonly ambient: THREE.AmbientLight;
   readonly rimLight: THREE.DirectionalLight;
   dispose(): void;
@@ -68,9 +71,11 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
   scene.add(ambient, rimLight);
 
   const planets: Planet[] = [];
+  const planetsById = new Map<MissionId, Planet>();
   for (const def of opts.planets) {
     const planet = new Planet(def);
     planets.push(planet);
+    planetsById.set(def.id, planet);
     scene.add(planet.object);
   }
 
@@ -80,6 +85,7 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
     starfield,
     sun,
     planets,
+    planetsById,
     ambient,
     rimLight,
     dispose(): void {

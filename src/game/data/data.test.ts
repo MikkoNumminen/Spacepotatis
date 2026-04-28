@@ -17,7 +17,7 @@ import type {
 
 const KNOWN_FORMATIONS = new Set(["line", "vee", "scatter", "column"]);
 const KNOWN_BEHAVIORS = new Set(["straight", "zigzag", "homing", "boss"]);
-const KNOWN_KINDS = new Set(["mission", "shop"]);
+const KNOWN_KINDS = new Set(["mission", "shop", "scenery"]);
 
 describe("enemies.json", () => {
   const enemies = enemiesJson.enemies as readonly EnemyDefinition[];

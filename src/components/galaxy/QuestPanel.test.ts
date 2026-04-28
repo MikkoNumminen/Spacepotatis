@@ -41,6 +41,10 @@ function fakeShop(overrides: Partial<MissionDefinition>): MissionDefinition {
   return fakeMission({ ...overrides, kind: "shop" });
 }
 
+function fakeScenery(overrides: Partial<MissionDefinition>): MissionDefinition {
+  return fakeMission({ ...overrides, kind: "scenery" });
+}
+
 describe("bucketMissions", () => {
   it("first unlocked uncleared mission becomes the suggestion", () => {
     const buckets = bucketMissions(fixture, TUTORIAL_SYSTEM, ["tutorial"], []);
@@ -107,5 +111,33 @@ describe("bucketMissions", () => {
     const buckets = bucketMissions(ALL, TUTORIAL_SYSTEM, ["tutorial"], []);
     expect(buckets.suggested?.id).toBe("tutorial");
     expect(buckets.shop?.kind).toBe("shop");
+    // After splitting Market into a scenery planet (Spurdospärdersi) plus an
+    // orbiting station, the station IS the shop bucket entry.
+    expect(buckets.shop?.id).toBe("market");
+  });
+
+  it("scenery bodies never appear in any bucket", () => {
+    // Build a fresh tutorial-system fixture WITHOUT the synthetic shop so the
+    // scenery body is the only entry whose id we're tracking.
+    const fixtureWithScenery: readonly MissionDefinition[] = [
+      fakeMission({ id: "tutorial", solarSystemId: TUTORIAL_SYSTEM, requires: [] }),
+      fakeScenery({ id: "burnt-spud", solarSystemId: TUTORIAL_SYSTEM })
+    ];
+    const buckets = bucketMissions(
+      fixtureWithScenery,
+      TUTORIAL_SYSTEM,
+      ["tutorial"],
+      ["tutorial"]
+    );
+    const everyId = [
+      ...(buckets.suggested ? [buckets.suggested.id] : []),
+      ...(buckets.shop ? [buckets.shop.id] : []),
+      ...buckets.available.map((m) => m.id),
+      ...buckets.locked.map((m) => m.id),
+      ...buckets.cleared.map((m) => m.id)
+    ];
+    expect(everyId).not.toContain("burnt-spud");
+    expect(buckets.shop).toBeNull();
+    expect(buckets.cleared.map((m) => m.id)).toEqual(["tutorial"]);
   });
 });
