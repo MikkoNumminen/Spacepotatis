@@ -15,7 +15,7 @@
 // gesture (combat is always reached via a click).
 
 const TARGET_VOLUME = 0.45;
-const FADE_OUT_SEC = 2.5;
+const FADE_OUT_SEC = 4;
 const FADE_IN_SEC = 2.5;
 const SILENCE_MS = 800;
 
@@ -37,6 +37,10 @@ class MusicEngine {
   private ducked = false;
   private fadeRaf: number | null = null;
   private silenceTimer: number | null = null;
+  // Deterministic schedule for the loop-end fade. The browser's `timeupdate`
+  // event fires only every ~250ms, which used to make the end feel like a
+  // hard cut whenever the last tick landed too close to the natural end.
+  private fadeOutTimer: number | null = null;
   private readonly targetVolume: number;
   private readonly fadeInSec: number;
   private readonly fadeOutSec: number;
@@ -66,6 +70,7 @@ class MusicEngine {
     if (!src) {
       this.cancelFade();
       this.cancelSilence();
+      this.cancelFadeOutTimer();
       if (this.el) {
         this.el.pause();
         this.el.removeAttribute("src");
@@ -78,6 +83,7 @@ class MusicEngine {
     } else {
       this.cancelFade();
       this.cancelSilence();
+      this.cancelFadeOutTimer();
       this.el.pause();
       this.el.src = src;
       this.el.volume = 0;
@@ -129,6 +135,7 @@ class MusicEngine {
   // happily restart the track during or right after the fade.
   stop(): void {
     this.cancelSilence();
+    this.cancelFadeOutTimer();
     this.src = null;
     const el = this.el;
     if (!el) return;
@@ -153,7 +160,6 @@ class MusicEngine {
     el.preload = "auto";
     el.loop = false;
     el.volume = 0;
-    el.addEventListener("timeupdate", this.onTimeUpdate);
     el.addEventListener("ended", this.onEnded);
     this.el = el;
   }
@@ -163,6 +169,7 @@ class MusicEngine {
     if (!el) return;
     this.cancelFade();
     this.cancelSilence();
+    this.cancelFadeOutTimer();
     if (el.paused) {
       try {
         await el.play();
@@ -173,30 +180,48 @@ class MusicEngine {
       }
     }
     this.fadeTo(this.targetVolume, this.fadeInSec);
+    this.scheduleEndFade();
   }
 
   private fadeAndPause(): void {
     const el = this.el;
     if (!el) return;
     this.cancelSilence();
+    this.cancelFadeOutTimer();
     this.fadeTo(0, this.fadeOutSec, () => {
       if (this.muted || this.ducked || !this.src) el.pause();
     });
   }
 
-  private onTimeUpdate = (): void => {
+  // Set a precise timer for "when to start fading toward the end". Falls back
+  // to a one-shot loadedmetadata listener if the duration isn't known yet
+  // (common for OGG that hasn't fully buffered when play() resolves).
+  private scheduleEndFade(): void {
     const el = this.el;
-    if (!el || el.paused || this.muted || this.ducked || !this.src) return;
-    const remaining = el.duration - el.currentTime;
-    if (Number.isFinite(el.duration) && remaining > 0 && remaining < this.fadeOutSec) {
-      this.fadeTo(0, remaining);
+    if (!el) return;
+    this.cancelFadeOutTimer();
+    if (!Number.isFinite(el.duration) || el.duration <= 0) {
+      const onMeta = (): void => {
+        el.removeEventListener("loadedmetadata", onMeta);
+        if (el === this.el && !el.paused) this.scheduleEndFade();
+      };
+      el.addEventListener("loadedmetadata", onMeta);
+      return;
     }
-  };
+    const msUntilFade = Math.max(0, (el.duration - el.currentTime - this.fadeOutSec) * 1000);
+    this.fadeOutTimer = window.setTimeout(() => {
+      this.fadeOutTimer = null;
+      const cur = this.el;
+      if (!cur || cur.paused || this.muted || this.ducked || !this.src) return;
+      this.fadeTo(0, this.fadeOutSec);
+    }, msUntilFade);
+  }
 
   private onEnded = (): void => {
     const el = this.el;
     if (!el) return;
     this.cancelFade();
+    this.cancelFadeOutTimer();
     el.pause();
     el.currentTime = 0;
     el.volume = 0;
@@ -239,6 +264,13 @@ class MusicEngine {
     if (this.silenceTimer !== null) {
       window.clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
+    }
+  }
+
+  private cancelFadeOutTimer(): void {
+    if (this.fadeOutTimer !== null) {
+      window.clearTimeout(this.fadeOutTimer);
+      this.fadeOutTimer = null;
     }
   }
 }
