@@ -48,8 +48,8 @@ describe("enemies.json", () => {
   );
 
   it("getEnemy returns the matching definition", () => {
-    expect(getEnemy("basic").id).toBe("basic");
-    expect(getEnemy("boss-1").behavior).toBe("boss");
+    expect(getEnemy("aphid").id).toBe("aphid");
+    expect(getEnemy("caterpillar-monarch").behavior).toBe("boss");
   });
 
   it("getAllEnemies exposes the same set as the JSON", () => {

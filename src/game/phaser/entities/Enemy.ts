@@ -6,7 +6,7 @@ import { getEnemy } from "../../data/enemies";
 export { getEnemy };
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
-  definition: EnemyDefinition = getEnemy("basic");
+  definition: EnemyDefinition = getEnemy("aphid");
   hp = 0;
   private spawnX = 0;
   private elapsedMs = 0;
@@ -15,7 +15,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private enemyPool?: BulletPool;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, "enemy-basic");
+    super(scene, x, y, "enemy-aphid");
   }
 
   spawn(
