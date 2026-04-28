@@ -124,10 +124,15 @@ class MusicEngine {
   }
 
   // Fade out and pause. Combat scene calls this on shutdown so the next
-  // mission boot starts from a clean slate.
+  // mission boot starts from a clean slate. Clearing src first is what makes
+  // it actually stay stopped — otherwise the natural-end loop logic would
+  // happily restart the track during or right after the fade.
   stop(): void {
     this.cancelSilence();
-    this.fadeAndPause();
+    this.src = null;
+    const el = this.el;
+    if (!el) return;
+    this.fadeTo(0, this.fadeOutSec, () => el.pause());
   }
 
   subscribe(cb: Listener): () => void {
@@ -181,7 +186,7 @@ class MusicEngine {
 
   private onTimeUpdate = (): void => {
     const el = this.el;
-    if (!el || el.paused || this.muted || this.ducked) return;
+    if (!el || el.paused || this.muted || this.ducked || !this.src) return;
     const remaining = el.duration - el.currentTime;
     if (Number.isFinite(el.duration) && remaining > 0 && remaining < this.fadeOutSec) {
       this.fadeTo(0, remaining);

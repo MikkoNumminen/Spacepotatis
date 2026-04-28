@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition, MissionId } from "@/types/game";
-import { menuMusic } from "@/game/audio/music";
+import { combatMusic, menuMusic } from "@/game/audio/music";
 import HudFrame from "@/components/galaxy/HudFrame";
 import LoadoutModal from "@/components/galaxy/LoadoutModal";
 import QuestPanel from "@/components/galaxy/QuestPanel";
@@ -43,14 +43,21 @@ export default function GameCanvas() {
 
   const { loaded: saveLoaded } = useCloudSaveSync();
 
-  // Fade the menu bed out for the duration of a combat scene; resume on
-  // return to the galaxy. Unmount cleanup also unducks so a hard nav back
-  // to "/" picks the music up again. The combat scene starts/stops its own
-  // per-mission track on top of this duck.
+  // Single source of truth for which bed plays: combat owns audio in combat
+  // mode, menu owns it everywhere else. Hard-stopping combat music on every
+  // non-combat transition is what prevents the two beds from layering on
+  // top of each other during the fade-cross. The combat scene also calls
+  // combatMusic.loadTrack on its own create(), so this effect is the
+  // teardown half of the contract.
   useEffect(() => {
-    if (mode === "combat") menuMusic.duck();
-    else menuMusic.unduck();
+    if (mode === "combat") {
+      menuMusic.duck();
+    } else {
+      combatMusic.stop();
+      menuMusic.unduck();
+    }
     return () => {
+      combatMusic.stop();
       menuMusic.unduck();
     };
   }, [mode]);
