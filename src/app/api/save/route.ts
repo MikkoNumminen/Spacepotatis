@@ -4,7 +4,11 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { upsertPlayerId } from "@/lib/players";
 import { SavePayloadSchema } from "@/lib/schemas/save";
-import { validateCreditsDelta, validateMissionGraph } from "@/lib/saveValidation";
+import {
+  validateCreditsDelta,
+  validateMissionGraph,
+  validatePlaytimeDelta
+} from "@/lib/saveValidation";
 import type { MissionId } from "@/types/game";
 
 // Edge runtime — db.ts uses Neon's serverless WebSocket Pool (Edge-compatible)
@@ -104,12 +108,13 @@ export async function POST(request: Request): Promise<Response> {
     const db = getDb();
     const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
 
-    // Read the previous save to bound the credits delta. A first save (no
-    // prior row) is allowed to claim only what the player's playtime +
-    // completion count budgets — the bound is recomputed against zero.
+    // Read the previous save to bound the credits + playtime deltas. A
+    // first save (no prior row) is allowed to claim only what the player's
+    // playtime + completion count budgets — the credits bound is recomputed
+    // against zero, and the playtime check is skipped.
     const prevRow = await db
       .selectFrom("spacepotatis.save_games")
-      .select(["credits", "played_time_seconds", "completed_missions"])
+      .select(["credits", "played_time_seconds", "completed_missions", "updated_at"])
       .where("player_id", "=", playerId)
       .where("slot", "=", 1)
       .executeTakeFirst();
@@ -123,6 +128,28 @@ export async function POST(request: Request): Promise<Response> {
             : 0
         }
       : null;
+
+    // Playtime first: the credits cap depends on `playedTimeSeconds`, so
+    // catching an inflated playtime here prevents the inflated value from
+    // unlocking a bigger credits budget downstream.
+    const playtimeResult = validatePlaytimeDelta({
+      prev: prevRow
+        ? { playedTimeSeconds: prevRow.played_time_seconds, updatedAt: prevRow.updated_at }
+        : null,
+      next: { playedTimeSeconds },
+      nowMs: Date.now()
+    });
+    if (!playtimeResult.ok) {
+      console.warn(
+        "[/api/save] playtime delta violation",
+        session.user.email,
+        playtimeResult.error
+      );
+      return NextResponse.json(
+        { error: "playtime_delta_invalid", message: playtimeResult.error },
+        { status: 422 }
+      );
+    }
 
     const creditsResult = validateCreditsDelta({
       prev,

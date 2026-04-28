@@ -3,8 +3,10 @@ import {
   CREDITS_DELTA_SLACK,
   MAX_CREDITS_PER_FIRST_CLEAR,
   MAX_CREDITS_PER_SECOND,
+  PLAYTIME_DELTA_SLACK_SECONDS,
   validateCreditsDelta,
-  validateMissionGraph
+  validateMissionGraph,
+  validatePlaytimeDelta
 } from "./saveValidation";
 
 describe("validateMissionGraph", () => {
@@ -147,6 +149,95 @@ describe("validateCreditsDelta", () => {
       validateCreditsDelta({
         prev: { credits: 0, playedTimeSeconds: 0, completedMissionsCount: 0 },
         next: { credits: allowed, playedTimeSeconds: 0, completedMissionsCount: 3 }
+      }).ok
+    ).toBe(true);
+  });
+});
+
+describe("validatePlaytimeDelta", () => {
+  // Fixed reference point so all wall-clock math is deterministic.
+  const T0 = new Date("2026-04-28T12:00:00.000Z");
+  const T0_MS = T0.getTime();
+
+  it("allows the first save (no prev row)", () => {
+    expect(
+      validatePlaytimeDelta({
+        prev: null,
+        next: { playedTimeSeconds: 99_999 },
+        nowMs: T0_MS
+      }).ok
+    ).toBe(true);
+  });
+
+  it("allows playtime growing within real wall-clock seconds (plus slack)", () => {
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 100, updatedAt: T0 },
+        // 5 minutes later, claimed 4 minutes of new play. Plausible.
+        next: { playedTimeSeconds: 100 + 240 },
+        nowMs: T0_MS + 5 * 60 * 1000
+      }).ok
+    ).toBe(true);
+  });
+
+  it("allows the boundary case: delta exactly equal to elapsed + slack", () => {
+    const elapsed = 600; // 10 minutes
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 0, updatedAt: T0 },
+        next: { playedTimeSeconds: elapsed + PLAYTIME_DELTA_SLACK_SECONDS },
+        nowMs: T0_MS + elapsed * 1000
+      }).ok
+    ).toBe(true);
+  });
+
+  it("rejects playtime jumping farther than wall-clock allows (closes credits-cap escape hatch)", () => {
+    const result = validatePlaytimeDelta({
+      prev: { playedTimeSeconds: 60, updatedAt: T0 },
+      // Cheater claims +100k playtime to inflate the credits-delta cap,
+      // but only 30 seconds of real time have passed.
+      next: { playedTimeSeconds: 60 + 100_000 },
+      nowMs: T0_MS + 30 * 1000
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("100000");
+  });
+
+  it("allows zero or negative delta (post-reset, double-save races)", () => {
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 1000, updatedAt: T0 },
+        next: { playedTimeSeconds: 1000 },
+        nowMs: T0_MS + 1_000_000
+      }).ok
+    ).toBe(true);
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 1000, updatedAt: T0 },
+        next: { playedTimeSeconds: 0 },
+        nowMs: T0_MS + 1_000_000
+      }).ok
+    ).toBe(true);
+  });
+
+  it("accepts updatedAt as an ISO string (Neon Edge driver returns strings)", () => {
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 0, updatedAt: T0.toISOString() },
+        next: { playedTimeSeconds: 30 },
+        nowMs: T0_MS + 60 * 1000
+      }).ok
+    ).toBe(true);
+  });
+
+  it("fails open if the prev timestamp is unparseable", () => {
+    // Defensive: bad DB data shouldn't lock anyone out of saving. The
+    // credits cap is still in effect via validateCreditsDelta.
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 0, updatedAt: "not-a-date" },
+        next: { playedTimeSeconds: 99_999 },
+        nowMs: T0_MS
       }).ok
     ).toBe(true);
   });

@@ -183,6 +183,42 @@ describe("POST /api/save", () => {
     expect(insertSpy).not.toHaveBeenCalled();
   });
 
+  it("rejects an inflated playedTimeSeconds claim (closes credits-cap escape hatch)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    // Pretend the player saved 60s ago with 100s of playtime. A POST that
+    // claims 100_000s of new playtime in 60s of wall-clock is the workaround
+    // for the credits-delta cap — the playtime guard rejects it before the
+    // credits validator even runs.
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 100,
+      current_planet: null,
+      ship_config: {},
+      completed_missions: ["tutorial"],
+      unlocked_planets: ["tutorial"],
+      played_time_seconds: 100,
+      updated_at: new Date(Date.now() - 60_000)
+    };
+    const insertSpy = vi.fn();
+    dbStub.insertSpy = insertSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 100,
+        playedTimeSeconds: 100_000,
+        completedMissions: ["tutorial"],
+        unlockedPlanets: ["tutorial"]
+      })
+    });
+    const res = await POST(req);
+    warnSpy.mockRestore();
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("playtime_delta_invalid");
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+
   it("returns 500 when the DB write fails", async () => {
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
     dbStub.insertImpl = async () => {

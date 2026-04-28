@@ -25,6 +25,11 @@ export const MAX_CREDITS_PER_FIRST_CLEAR = 2000;
 // save boundary.
 export const CREDITS_DELTA_SLACK = 100;
 
+// Wall-clock slack on the playtime guard. 60s covers client/server clock
+// skew, the time between snapshot serialization and the POST landing,
+// and the rare double-save during a network retry.
+export const PLAYTIME_DELTA_SLACK_SECONDS = 60;
+
 export interface ValidationResult {
   readonly ok: boolean;
   readonly error?: string;
@@ -114,6 +119,59 @@ export function validateCreditsDelta(input: CreditsDeltaInput): ValidationResult
     return {
       ok: false,
       error: `credits delta ${deltaCredits} exceeds max ${maxDelta} (delta_time=${deltaTime}s, delta_completed=${deltaCompleted})`
+    };
+  }
+  return { ok: true };
+}
+
+// Wall-clock guard on playedTimeSeconds growth. Closes the credits-cap
+// escape hatch where a cheater POSTs an inflated `playedTimeSeconds`
+// alongside inflated credits — without this, the credits-delta cap
+// would happily allow `playtime * 100` extra credits for whatever
+// playtime the body claimed. Here we tie the playtime delta to real
+// seconds elapsed since the last save's updated_at.
+//
+// Skipped on the first save (no prior row to compare against). The
+// credits cap still constrains first saves via `prev=null` defaulting
+// previous values to zero.
+export interface PlaytimeDeltaInput {
+  readonly prev: {
+    readonly playedTimeSeconds: number;
+    // Accept Date OR string — Neon's Edge driver sometimes returns
+    // TIMESTAMPTZ as a string and the route shouldn't have to coerce
+    // before calling the validator.
+    readonly updatedAt: Date | string;
+  } | null;
+  readonly next: {
+    readonly playedTimeSeconds: number;
+  };
+  // Injected for test determinism. Production callers pass Date.now().
+  readonly nowMs: number;
+}
+
+export function validatePlaytimeDelta(input: PlaytimeDeltaInput): ValidationResult {
+  const { prev, next, nowMs } = input;
+  if (!prev) return { ok: true };
+
+  const deltaPlayed = next.playedTimeSeconds - prev.playedTimeSeconds;
+  if (deltaPlayed <= 0) return { ok: true };
+
+  const prevUpdatedMs =
+    prev.updatedAt instanceof Date
+      ? prev.updatedAt.getTime()
+      : new Date(prev.updatedAt).getTime();
+  // Defensive: an unparseable timestamp shouldn't lock the player out;
+  // this only happens if the DB row has bogus data, which is its own
+  // problem to debug. Fail open so legitimate saves still go through.
+  if (!Number.isFinite(prevUpdatedMs)) return { ok: true };
+
+  const wallClockSeconds = Math.max(0, (nowMs - prevUpdatedMs) / 1000);
+  const allowedDelta = wallClockSeconds + PLAYTIME_DELTA_SLACK_SECONDS;
+
+  if (deltaPlayed > allowedDelta) {
+    return {
+      ok: false,
+      error: `playtime delta ${deltaPlayed}s exceeds wall-clock ${allowedDelta.toFixed(1)}s since last save`
     };
   }
   return { ok: true };
