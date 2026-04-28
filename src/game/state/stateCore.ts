@@ -36,6 +36,36 @@ export const SYSTEM_UNLOCK_GATES: ReadonlyMap<MissionId, SolarSystemId> = new Ma
   ["boss-1", "tubernovae"]
 ]);
 
+// Browser-local backup of the seen-story list. Read at module init so
+// INITIAL_STATE has the right value before any cloud-save logic runs —
+// the popup must NEVER re-fire on the same device after the player has
+// already watched it. Hydrate merges this with the server list too, so
+// cross-device sync still works once persistence is healthy.
+export const SEEN_STORIES_LOCAL_KEY = "spacepotatis:seenStoryEntries";
+
+export function readSeenStoriesLocal(): readonly StoryId[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SEEN_STORIES_LOCAL_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isKnownStoryId);
+  } catch {
+    return [];
+  }
+}
+
+function writeSeenStoriesLocal(ids: readonly StoryId[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SEEN_STORIES_LOCAL_KEY, JSON.stringify(ids));
+  } catch {
+    // localStorage may be disabled (private mode, quota); the in-memory
+    // session-level fire-once guard in GameCanvas covers this case.
+  }
+}
+
 export const INITIAL_STATE: GameStateShape = {
   credits: 0,
   completedMissions: [],
@@ -45,7 +75,10 @@ export const INITIAL_STATE: GameStateShape = {
   saveSlot: 1,
   currentSolarSystemId: "tutorial",
   unlockedSolarSystems: ["tutorial"],
-  seenStoryEntries: []
+  // Without this seed, /api/save → null (brand-new save row, or a 500
+  // from the missing seen_story_entries column pre-migration) would skip
+  // hydrate entirely and leave seenStoryEntries at [].
+  seenStoryEntries: [...readSeenStoriesLocal()]
 };
 
 let state: GameStateShape = INITIAL_STATE;
@@ -116,36 +149,6 @@ export function setSolarSystem(id: SolarSystemId): boolean {
   if (state.currentSolarSystemId === id) return true;
   commit({ ...state, currentSolarSystemId: id });
   return true;
-}
-
-// Browser-local backup so the popup never re-fires on the same device,
-// even if the server save round-trip fails (network blip, missing DB
-// column pre-migration, etc.). Hydrate merges this set with whatever the
-// server returned so cross-device sync still works once persistence is
-// healthy.
-export const SEEN_STORIES_LOCAL_KEY = "spacepotatis:seenStoryEntries";
-
-export function readSeenStoriesLocal(): readonly StoryId[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SEEN_STORIES_LOCAL_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isKnownStoryId);
-  } catch {
-    return [];
-  }
-}
-
-function writeSeenStoriesLocal(ids: readonly StoryId[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(SEEN_STORIES_LOCAL_KEY, JSON.stringify(ids));
-  } catch {
-    // localStorage may be disabled (private mode, quota); the in-memory
-    // session-level fire-once guard in GameCanvas covers this case.
-  }
 }
 
 export function markStorySeen(id: StoryId): void {
