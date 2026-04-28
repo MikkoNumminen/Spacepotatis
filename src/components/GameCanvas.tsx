@@ -8,6 +8,7 @@ import type { MissionDefinition, MissionId } from "@/types/game";
 import { combatMusic, menuMusic } from "@/game/audio/music";
 import HudFrame from "@/components/galaxy/HudFrame";
 import QuestPanel from "@/components/galaxy/QuestPanel";
+import VictoryModal from "@/components/galaxy/VictoryModal";
 import WarpPicker from "@/components/galaxy/WarpPicker";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
@@ -16,6 +17,7 @@ import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
+import { getMission } from "@/game/data/missions";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -158,7 +160,6 @@ export default function GameCanvas() {
         <div className="pointer-events-none absolute inset-0">
           <HudFrame
             hovered={hovered}
-            lastSummary={lastSummary}
             onBackToMenu={() => router.push(ROUTES.page.home)}
             onOpenWarp={() => setWarpOpen(true)}
             warpAvailable={unlockedSolarSystems.length > 1}
@@ -178,6 +179,13 @@ export default function GameCanvas() {
                 setSolarSystem(id);
                 setWarpOpen(false);
               }}
+            />
+          )}
+          {lastSummary && (
+            <VictoryModal
+              summary={lastSummary}
+              missionName={getMission(lastSummary.missionId).name}
+              onClose={() => setLastSummary(null)}
             />
           )}
         </div>

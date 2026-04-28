@@ -234,8 +234,8 @@ export class CombatScene extends Phaser.Scene {
     }
     setSummary(this.game, summary);
 
-    this.time.delayedCall(500, () => {
-      this.scene.start(SCENE_KEYS.Result, this.bootData);
+    this.time.delayedCall(350, () => {
+      this.bootData.onComplete();
     });
   }
 }

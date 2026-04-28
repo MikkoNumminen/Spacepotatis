@@ -9,7 +9,6 @@ export const SCENE_KEYS = {
   Boot: "BootScene",
   Combat: "CombatScene",
   Boss: "BossScene",
-  Result: "ResultScene",
   Pause: "PauseScene"
 } as const;
 
@@ -39,7 +38,6 @@ export async function createPhaserGame(
   const Phaser = await import("phaser");
   const { BootScene } = await import("./scenes/BootScene");
   const { CombatScene } = await import("./scenes/CombatScene");
-  const { ResultScene } = await import("./scenes/ResultScene");
   const { PauseScene } = await import("./scenes/PauseScene");
 
   const game = new Phaser.Game({
@@ -58,13 +56,13 @@ export async function createPhaserGame(
       arcade: { debug: false, gravity: { x: 0, y: 0 } }
     },
     banner: false,
-    scene: [BootScene, CombatScene, ResultScene, PauseScene]
+    scene: [BootScene, CombatScene, PauseScene]
   });
 
   const data: BootData = {
     missionId: opts.missionId,
     onComplete: () => {
-      // Summary populated by ResultScene before calling onComplete via registry.
+      // Summary populated by CombatScene.finish() before calling onComplete via registry.
       const summary = getSummary(game);
       opts.onComplete(
         summary ?? {
