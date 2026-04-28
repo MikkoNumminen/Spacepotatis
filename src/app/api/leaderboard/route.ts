@@ -59,6 +59,32 @@ export async function POST(request: Request): Promise<Response> {
     const db = getDb();
     const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
 
+    // Mission-completion guard: only accept a score for a mission the
+    // player has actually completed. The save POST runs before
+    // submitScore (handleMissionComplete awaits saveNow first), so by
+    // the time this lands the new mission is in completed_missions.
+    const saveRow = await db
+      .selectFrom("spacepotatis.save_games")
+      .select("completed_missions")
+      .where("player_id", "=", playerId)
+      .where("slot", "=", 1)
+      .executeTakeFirst();
+
+    const completed = Array.isArray(saveRow?.completed_missions)
+      ? (saveRow.completed_missions as readonly string[])
+      : [];
+    if (!completed.includes(missionId)) {
+      console.warn(
+        "[/api/leaderboard] score for uncompleted mission",
+        session.user.email,
+        missionId
+      );
+      return NextResponse.json(
+        { error: "mission_not_completed" },
+        { status: 422 }
+      );
+    }
+
     await db
       .insertInto("spacepotatis.leaderboard")
       .values({

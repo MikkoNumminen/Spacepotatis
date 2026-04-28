@@ -247,14 +247,15 @@ export const RemoteSaveSchema = z.object({
 export type RemoteSave = z.infer<typeof RemoteSaveSchema>;
 
 // ---------------------------------------------------------------------------
-// Leaderboard score submission — body of POST /api/leaderboard. Mission ids
-// are intentionally permissive (z.string) to match the route's existing
-// behavior: legacy mission ids from older deploys still need to be accepted
-// because the leaderboard table itself is the source of truth.
+// Leaderboard score submission — body of POST /api/leaderboard. Tightened
+// to the MissionId enum (was z.string) so a hand-crafted POST can't seed
+// the leaderboard with arbitrary strings. Legacy ids in the table itself
+// are still readable on GET because that path doesn't parse via this
+// schema; only writes are gated.
 // ---------------------------------------------------------------------------
 
 export const ScorePayloadSchema = z.object({
-  missionId: z.string().min(1),
+  missionId: MissionIdSchema,
   score: z.number().int(),
   timeSeconds: z.number().int().nonnegative().optional()
 });

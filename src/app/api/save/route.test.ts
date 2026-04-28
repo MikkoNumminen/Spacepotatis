@@ -26,6 +26,10 @@ const dbStub: {
 function selectChain() {
   return {
     selectAll: () => selectChain(),
+    // POST now reads the prior save row via .select([...]) before writing,
+    // to bound the credits delta. Reuses the same dbStub.selectRow so a
+    // test can stub the "previous credits" by setting it.
+    select: () => selectChain(),
     where: () => selectChain(),
     executeTakeFirst: async () => dbStub.selectRow
   };

@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { upsertPlayerId } from "@/lib/players";
 import { SavePayloadSchema } from "@/lib/schemas/save";
+import { validateCreditsDelta, validateMissionGraph } from "@/lib/saveValidation";
+import type { MissionId } from "@/types/game";
 
 // Edge runtime — db.ts uses Neon's serverless WebSocket Pool (Edge-compatible)
 // and NextAuth v5 `auth()` is JWT-cookie based here, so no Node primitives
@@ -77,9 +79,70 @@ export async function POST(request: Request): Promise<Response> {
   }
   const body = parsed.data;
 
+  const completedMissions = body.completedMissions ?? [];
+  const unlockedPlanets = body.unlockedPlanets ?? [];
+  const credits = body.credits ?? 0;
+  const playedTimeSeconds = body.playedTimeSeconds ?? 0;
+
+  const graphResult = validateMissionGraph({
+    completedMissions,
+    unlockedPlanets
+  });
+  if (!graphResult.ok) {
+    console.warn(
+      "[/api/save] mission graph violation",
+      session.user.email,
+      graphResult.error
+    );
+    return NextResponse.json(
+      { error: "mission_graph_invalid", message: graphResult.error },
+      { status: 422 }
+    );
+  }
+
   try {
     const db = getDb();
     const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
+
+    // Read the previous save to bound the credits delta. A first save (no
+    // prior row) is allowed to claim only what the player's playtime +
+    // completion count budgets — the bound is recomputed against zero.
+    const prevRow = await db
+      .selectFrom("spacepotatis.save_games")
+      .select(["credits", "played_time_seconds", "completed_missions"])
+      .where("player_id", "=", playerId)
+      .where("slot", "=", 1)
+      .executeTakeFirst();
+
+    const prev = prevRow
+      ? {
+          credits: prevRow.credits,
+          playedTimeSeconds: prevRow.played_time_seconds,
+          completedMissionsCount: Array.isArray(prevRow.completed_missions)
+            ? (prevRow.completed_missions as MissionId[]).length
+            : 0
+        }
+      : null;
+
+    const creditsResult = validateCreditsDelta({
+      prev,
+      next: {
+        credits,
+        playedTimeSeconds,
+        completedMissionsCount: completedMissions.length
+      }
+    });
+    if (!creditsResult.ok) {
+      console.warn(
+        "[/api/save] credits delta violation",
+        session.user.email,
+        creditsResult.error
+      );
+      return NextResponse.json(
+        { error: "credits_delta_invalid", message: creditsResult.error },
+        { status: 422 }
+      );
+    }
 
     // Snapshot serialization sends the ship under `ship`; the legacy /api
     // contract calls it `shipConfig`. Accept both, prefer the explicit one.
@@ -92,12 +155,12 @@ export async function POST(request: Request): Promise<Response> {
       .values({
         player_id: playerId,
         slot: 1,
-        credits: body.credits ?? 0,
+        credits,
         current_planet: body.currentPlanet ?? null,
         ship_config: shipConfig,
-        completed_missions: body.completedMissions ?? [],
-        unlocked_planets: body.unlockedPlanets ?? [],
-        played_time_seconds: body.playedTimeSeconds ?? 0,
+        completed_missions: completedMissions,
+        unlocked_planets: unlockedPlanets,
+        played_time_seconds: playedTimeSeconds,
         updated_at: new Date()
       })
       .onConflict((oc) =>

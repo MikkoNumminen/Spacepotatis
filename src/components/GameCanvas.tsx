@@ -114,7 +114,11 @@ export default function GameCanvas() {
     async (summary: CombatSummary) => {
       setLastSummary(summary);
       if (authStatus === "authenticated") {
-        void saveNow();
+        // Order matters: saveNow() must commit before submitScore() so the
+        // /api/leaderboard mission-completion guard sees the new mission in
+        // the player's save row. Both are best-effort and never throw, so
+        // awaiting saveNow doesn't risk blocking the UI on a network hang.
+        await saveNow();
         void submitScore(summary);
       }
       await fadeOverlay(1);

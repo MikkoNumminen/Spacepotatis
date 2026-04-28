@@ -21,9 +21,17 @@ vi.mock("next/cache", () => ({
   revalidateTag: (tag: string) => revalidateTagMock(tag)
 }));
 
-const dbStub: { insertSpy: (v: Record<string, unknown>) => void; insertImpl: () => Promise<unknown> } = {
+const dbStub: {
+  insertSpy: (v: Record<string, unknown>) => void;
+  insertImpl: () => Promise<unknown>;
+  // The leaderboard POST now reads save_games to enforce the mission-
+  // completion guard. Tests stub the completed_missions array via this
+  // promise; default is ["tutorial"] so existing happy paths keep working.
+  selectImpl: () => Promise<{ completed_missions: readonly string[] } | undefined>;
+} = {
   insertSpy: () => undefined,
-  insertImpl: async () => undefined
+  insertImpl: async () => undefined,
+  selectImpl: async () => ({ completed_missions: ["tutorial"] })
 };
 
 function insertChain() {
@@ -36,8 +44,19 @@ function insertChain() {
   };
 }
 
+function selectChain() {
+  return {
+    select: () => selectChain(),
+    where: () => selectChain(),
+    executeTakeFirst: () => dbStub.selectImpl()
+  };
+}
+
 vi.mock("@/lib/db", () => ({
-  getDb: () => ({ insertInto: () => insertChain() })
+  getDb: () => ({
+    insertInto: () => insertChain(),
+    selectFrom: () => selectChain()
+  })
 }));
 
 beforeEach(() => {
@@ -48,6 +67,7 @@ beforeEach(() => {
   revalidateTagMock.mockReset();
   dbStub.insertSpy = vi.fn();
   dbStub.insertImpl = async () => undefined;
+  dbStub.selectImpl = async () => ({ completed_missions: ["tutorial"] });
 });
 
 afterEach(() => {
@@ -187,6 +207,41 @@ describe("POST /api/leaderboard", () => {
     expect(res.status).toBe(201);
     const passed = insertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(passed.time_seconds).toBeNull();
+  });
+
+  it("rejects a score for a mission the player hasn't completed (cheat guard)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.selectImpl = async () => ({ completed_missions: ["tutorial"] });
+    const insertSpy = vi.fn();
+    dbStub.insertSpy = insertSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/leaderboard", {
+        method: "POST",
+        // burnt-spud is in the enum so passes schema, but completed_missions
+        // only has tutorial — the route must reject before insert.
+        body: JSON.stringify({ missionId: "burnt-spud", score: 9999, timeSeconds: 1 })
+      })
+    );
+    warnSpy.mockRestore();
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: "mission_not_completed" });
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mission id not in the MissionId enum (closes string POST hole)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/leaderboard", {
+        method: "POST",
+        body: JSON.stringify({ missionId: "evil-mission", score: 1 })
+      })
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("validation_failed");
   });
 
   it("returns 500 when the insert fails", async () => {

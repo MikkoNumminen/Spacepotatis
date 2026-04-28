@@ -563,4 +563,11 @@ describe("ScorePayloadSchema", () => {
       ScorePayloadSchema.safeParse({ missionId: "combat-1", score: 1.5 }).success
     ).toBe(false);
   });
+
+  it("rejects mission ids not in the enum (closes hand-crafted POST hole)", () => {
+    expect(
+      ScorePayloadSchema.safeParse({ missionId: "evil-cheat-mission", score: 1 })
+        .success
+    ).toBe(false);
+  });
 });
