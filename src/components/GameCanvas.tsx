@@ -10,15 +10,18 @@ import HudFrame from "@/components/galaxy/HudFrame";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import VictoryModal from "@/components/galaxy/VictoryModal";
 import WarpPicker from "@/components/galaxy/WarpPicker";
+import StoryModal from "@/components/story/StoryModal";
+import StoryListModal from "@/components/story/StoryListModal";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useGameState } from "@/game/state/useGameState";
-import { setSolarSystem } from "@/game/state/GameState";
+import { markStorySeen, setSolarSystem } from "@/game/state/GameState";
 import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
+import { STORY_ENTRIES, getStoryEntry, type StoryId } from "@/game/data/story";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -39,9 +42,12 @@ export default function GameCanvas() {
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
   const [warpOpen, setWarpOpen] = useState(false);
+  const [storyListOpen, setStoryListOpen] = useState(false);
+  const [activeStory, setActiveStory] = useState<{ id: StoryId; firstSeen: boolean } | null>(null);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
   const completedMissions = useGameState((s) => s.completedMissions);
+  const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
 
   const handleWarpToNextSystem = useCallback(() => {
     const completed = new Set(completedMissions);
@@ -63,6 +69,31 @@ export default function GameCanvas() {
   }, [completedMissions, currentSolarSystemId, unlockedSolarSystems]);
 
   const { loaded: saveLoaded } = useCloudSaveSync();
+
+  // First-time auto-fire: once the cloud save is loaded and the player
+  // is on the galaxy view, find the first story entry tagged
+  // `autoTrigger.kind === "first-time"` that they haven't seen yet and
+  // open it. The check is gated on `mode === "galaxy"` so we don't
+  // surface a story popup mid-combat.
+  useEffect(() => {
+    if (!saveLoaded || mode !== "galaxy" || activeStory) return;
+    const seen = new Set(seenStoryEntries);
+    const next = STORY_ENTRIES.find(
+      (e) => e.autoTrigger?.kind === "first-time" && !seen.has(e.id)
+    );
+    if (next) setActiveStory({ id: next.id, firstSeen: true });
+  }, [saveLoaded, mode, seenStoryEntries, activeStory]);
+
+  const handleMarkStorySeen = useCallback(() => {
+    if (!activeStory) return;
+    markStorySeen(activeStory.id);
+    void saveNow();
+  }, [activeStory]);
+
+  const handleReplayStory = useCallback((id: StoryId) => {
+    setStoryListOpen(false);
+    setActiveStory({ id, firstSeen: false });
+  }, []);
 
   // Single source of truth for which bed plays: combat owns audio in combat
   // mode, menu owns it everywhere else. Hard-stopping combat music on every
@@ -196,6 +227,7 @@ export default function GameCanvas() {
             onBackToMenu={() => router.push(ROUTES.page.home)}
             onOpenWarp={() => setWarpOpen(true)}
             warpAvailable={unlockedSolarSystems.length > 1}
+            onOpenStoryList={() => setStoryListOpen(true)}
           />
           <QuestPanel
             currentSolarSystemId={currentSolarSystemId}
@@ -219,6 +251,21 @@ export default function GameCanvas() {
               summary={lastSummary}
               missionName={getMission(lastSummary.missionId).name}
               onClose={() => setLastSummary(null)}
+            />
+          )}
+          {storyListOpen && (
+            <StoryListModal
+              seenStoryEntries={seenStoryEntries}
+              onReplay={handleReplayStory}
+              onClose={() => setStoryListOpen(false)}
+            />
+          )}
+          {activeStory && (
+            <StoryModal
+              entry={getStoryEntry(activeStory.id)}
+              firstSeen={activeStory.firstSeen}
+              onClose={() => setActiveStory(null)}
+              onMarkSeen={handleMarkStorySeen}
             />
           )}
         </div>

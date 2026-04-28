@@ -38,12 +38,14 @@ export default function HudFrame({
   hovered,
   onBackToMenu,
   onOpenWarp,
-  warpAvailable
+  warpAvailable,
+  onOpenStoryList
 }: {
   hovered: MissionDefinition | null;
   onBackToMenu: () => void;
   onOpenWarp: () => void;
   warpAvailable: boolean;
+  onOpenStoryList: () => void;
 }) {
   const credits = useGameState((s) => s.credits);
   const cleared = useGameState((s) => s.completedMissions.length);
@@ -83,7 +85,7 @@ export default function HudFrame({
       </div>
       <div className="pointer-events-auto absolute right-6 top-6 flex items-center gap-3 font-mono text-[11px]">
         <MuteToggle />
-        <UserMenu />
+        <UserMenu onOpenStoryList={onOpenStoryList} />
       </div>
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-center">
         {hovered && (

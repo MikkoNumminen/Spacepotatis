@@ -88,7 +88,8 @@ async function doLoadSave(): Promise<boolean> {
       // ShipConfig. The cast through unknown is the standard "trust runtime
       // validation" pattern at this boundary.
       ship: body.shipConfig as unknown as StateSnapshot["ship"],
-      saveSlot: body.slot
+      saveSlot: body.slot,
+      seenStoryEntries: (body.seenStoryEntries ?? []) as StateSnapshot["seenStoryEntries"]
     };
     hydrate(snapshot);
     return true;

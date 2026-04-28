@@ -51,6 +51,7 @@ export async function GET(): Promise<Response> {
       completedMissions: row.completed_missions,
       unlockedPlanets: row.unlocked_planets,
       playedTimeSeconds: row.played_time_seconds,
+      seenStoryEntries: row.seen_story_entries ?? [],
       updatedAt
     });
   } catch (err) {
@@ -186,6 +187,8 @@ export async function POST(request: Request): Promise<Response> {
     const shipConfig =
       shipPayload && typeof shipPayload === "object" ? (shipPayload as Record<string, unknown>) : {};
 
+    const seenStoryEntries = Array.isArray(body.seenStoryEntries) ? body.seenStoryEntries : [];
+
     await db
       .insertInto("spacepotatis.save_games")
       .values({
@@ -197,6 +200,7 @@ export async function POST(request: Request): Promise<Response> {
         completed_missions: completedMissions,
         unlocked_planets: unlockedPlanets,
         played_time_seconds: playedTimeSeconds,
+        seen_story_entries: seenStoryEntries,
         updated_at: new Date()
       })
       .onConflict((oc) =>
@@ -207,6 +211,7 @@ export async function POST(request: Request): Promise<Response> {
           completed_missions: sql`EXCLUDED.completed_missions`,
           unlocked_planets: sql`EXCLUDED.unlocked_planets`,
           played_time_seconds: sql`EXCLUDED.played_time_seconds`,
+          seen_story_entries: sql`EXCLUDED.seen_story_entries`,
           updated_at: sql`EXCLUDED.updated_at`
         })
       )

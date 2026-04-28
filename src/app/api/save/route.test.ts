@@ -99,6 +99,7 @@ describe("GET /api/save", () => {
       completed_missions: ["tutorial"],
       unlocked_planets: ["tutorial", "combat-1"],
       played_time_seconds: 60,
+      seen_story_entries: ["great-potato-awakening"],
       updated_at: updatedAt
     };
     const { GET } = await loadRoute();
@@ -112,6 +113,7 @@ describe("GET /api/save", () => {
       completedMissions: ["tutorial"],
       unlockedPlanets: ["tutorial", "combat-1"],
       playedTimeSeconds: 60,
+      seenStoryEntries: ["great-potato-awakening"],
       updatedAt: updatedAt.toISOString()
     });
   });

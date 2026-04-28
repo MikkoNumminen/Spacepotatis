@@ -221,7 +221,12 @@ export const SavePayloadSchema = z.object({
   playedTimeSeconds: z.number().int().nonnegative().optional(),
   saveSlot: z.number().int().positive().optional(),
   currentSolarSystemId: SolarSystemIdSchema.optional(),
-  unlockedSolarSystems: z.array(SolarSystemIdSchema).optional()
+  unlockedSolarSystems: z.array(SolarSystemIdSchema).optional(),
+  // Free-form string list — story IDs are validated against the actual
+  // catalog inside hydrate() (isKnownStoryId), so the schema only checks
+  // the array shape. Unknown ids fall out client-side and never reach
+  // the live state.
+  seenStoryEntries: z.array(z.string()).optional()
 });
 
 export type SavePayload = z.infer<typeof SavePayloadSchema>;
@@ -241,6 +246,7 @@ export const RemoteSaveSchema = z.object({
   completedMissions: z.array(MissionIdSchema),
   unlockedPlanets: z.array(MissionIdSchema),
   playedTimeSeconds: z.number().int().nonnegative(),
+  seenStoryEntries: z.array(z.string()).optional(),
   updatedAt: z.string()
 });
 

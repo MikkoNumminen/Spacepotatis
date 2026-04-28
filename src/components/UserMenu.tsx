@@ -15,11 +15,13 @@ import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 //   unauthenticated → "Sign in with Google" button
 //   authenticated   → handle button that opens an empty menu
 //
-// The dropdown is empty for now — future profile actions (avatar,
-// GDPR export/delete, etc.) will land here as <button role="menuitem">
-// children. The "more options coming soon" footer is the only content
-// until then.
-export default function UserMenu() {
+// The dropdown lists profile actions as <button role="menuitem"> children.
+// Currently: Story (opens the narrative log).
+export default function UserMenu({
+  onOpenStoryList
+}: {
+  onOpenStoryList?: () => void;
+} = {}) {
   const { status, handle, firstVisit } = useOptimisticAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -84,9 +86,23 @@ export default function UserMenu() {
           role="menu"
           className="absolute right-0 z-50 mt-2 w-48 rounded border border-hud-amber/40 bg-space-bg shadow-[0_0_20px_rgba(255,204,51,0.15)]"
         >
-          <p className="px-3 py-2 text-[11px] text-hud-amber/50">
-            More options coming soon.
-          </p>
+          {onOpenStoryList ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOpenStoryList();
+              }}
+              className="block w-full px-3 py-2 text-left text-xs text-hud-green/90 hover:bg-hud-amber/10"
+            >
+              Story
+            </button>
+          ) : (
+            <p className="px-3 py-2 text-[11px] text-hud-amber/50">
+              More options coming soon.
+            </p>
+          )}
         </div>
       )}
     </div>

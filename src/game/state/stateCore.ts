@@ -4,6 +4,7 @@ import type {
   MissionId,
   SolarSystemId
 } from "@/types/game";
+import type { StoryId } from "@/game/data/story";
 import { DEFAULT_SHIP, type ShipConfig } from "./ShipConfig";
 
 // Module-level singleton. Phaser and React both read/write here. Persistence
@@ -19,6 +20,7 @@ export interface GameStateShape {
   readonly saveSlot: number;
   readonly currentSolarSystemId: SolarSystemId;
   readonly unlockedSolarSystems: readonly SolarSystemId[];
+  readonly seenStoryEntries: readonly StoryId[];
 }
 
 export const MISSIONS: readonly MissionDefinition[] = getAllMissions();
@@ -42,7 +44,8 @@ export const INITIAL_STATE: GameStateShape = {
   ship: DEFAULT_SHIP,
   saveSlot: 1,
   currentSolarSystemId: "tutorial",
-  unlockedSolarSystems: ["tutorial"]
+  unlockedSolarSystems: ["tutorial"],
+  seenStoryEntries: []
 };
 
 let state: GameStateShape = INITIAL_STATE;
@@ -113,6 +116,11 @@ export function setSolarSystem(id: SolarSystemId): boolean {
   if (state.currentSolarSystemId === id) return true;
   commit({ ...state, currentSolarSystemId: id });
   return true;
+}
+
+export function markStorySeen(id: StoryId): void {
+  if (state.seenStoryEntries.includes(id)) return;
+  commit({ ...state, seenStoryEntries: [...state.seenStoryEntries, id] });
 }
 
 export function isMissionCompleted(id: MissionId): boolean {

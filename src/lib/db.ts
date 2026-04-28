@@ -45,6 +45,7 @@ export interface SaveGamesTable {
   completed_missions: Generated<string[]>;
   unlocked_planets: Generated<string[]>;
   played_time_seconds: Generated<number>;
+  seen_story_entries: Generated<string[]>;
   updated_at: Generated<Date>;
 }
 

@@ -1,4 +1,5 @@
 import { getAllSolarSystems } from "@/game/data/solarSystems";
+import { isKnownStoryId, type StoryId } from "@/game/data/story";
 import type {
   AugmentId,
   MissionId,
@@ -28,6 +29,7 @@ export interface StateSnapshot {
   saveSlot: number;
   currentSolarSystemId: SolarSystemId;
   unlockedSolarSystems: SolarSystemId[];
+  seenStoryEntries: StoryId[];
 }
 
 export function toSnapshot(): StateSnapshot {
@@ -40,7 +42,8 @@ export function toSnapshot(): StateSnapshot {
     ship: cloneShip(state.ship),
     saveSlot: state.saveSlot,
     currentSolarSystemId: state.currentSolarSystemId,
-    unlockedSolarSystems: [...state.unlockedSolarSystems]
+    unlockedSolarSystems: [...state.unlockedSolarSystems],
+    seenStoryEntries: [...state.seenStoryEntries]
   };
 }
 
@@ -81,6 +84,10 @@ export function hydrate(snapshot: Partial<StateSnapshot>): void {
       ? requestedCurrent
       : fallbackSystem;
 
+  const seenStoryEntries = Array.isArray(snapshot.seenStoryEntries)
+    ? snapshot.seenStoryEntries.filter(isKnownStoryId)
+    : [...INITIAL_STATE.seenStoryEntries];
+
   commit({
     credits: snapshot.credits ?? INITIAL_STATE.credits,
     completedMissions: snapshot.completedMissions ?? [...INITIAL_STATE.completedMissions],
@@ -89,7 +96,8 @@ export function hydrate(snapshot: Partial<StateSnapshot>): void {
     ship: snapshot.ship ? migrateShip(snapshot.ship) : cloneShip(INITIAL_STATE.ship),
     saveSlot: snapshot.saveSlot ?? INITIAL_STATE.saveSlot,
     currentSolarSystemId: currentSystem,
-    unlockedSolarSystems: unlockedSystems
+    unlockedSolarSystems: unlockedSystems,
+    seenStoryEntries
   });
 }
 
