@@ -52,3 +52,7 @@ export function getLootPool(id: SolarSystemId): LootPool {
   if (!pool) throw new Error(`Unknown loot pool: ${id}`);
   return pool;
 }
+
+export function getAllLootPools(): readonly LootPool[] {
+  return Array.from(POOLS.values());
+}

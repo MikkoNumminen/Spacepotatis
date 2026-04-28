@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { upsertPlayerId } from "@/lib/players";
 import { SavePayloadSchema } from "@/lib/schemas/save";
 import {
+  computeCreditCapsForPlayer,
   validateCreditsDelta,
   validateMissionGraph,
   validatePlaytimeDelta
@@ -151,13 +152,21 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    // Per-player cap based on the trusted server-side completedMissions
+    // (the post-mission-graph-validation list, so unlock-chain cheats
+    // can't expand the cap). A brand-new player gets tutorial-only caps;
+    // a tubernovae unlocker gets tutorial+tubernovae caps; future systems
+    // light up the moment their gating mission is in completedMissions.
+    const caps = computeCreditCapsForPlayer(completedMissions);
+
     const creditsResult = validateCreditsDelta({
       prev,
       next: {
         credits,
         playedTimeSeconds,
         completedMissionsCount: completedMissions.length
-      }
+      },
+      caps
     });
     if (!creditsResult.ok) {
       console.warn(

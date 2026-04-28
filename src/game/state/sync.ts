@@ -100,14 +100,25 @@ async function doLoadSave(): Promise<boolean> {
 export async function saveNow(): Promise<void> {
   const snap = toSnapshot();
   try {
-    await fetch(ROUTES.api.save, {
+    const res = await fetch(ROUTES.api.save, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(snap)
     });
     // After a successful POST, the server now definitely has a save row,
     // so any future loadSave() should report hasSave=true without re-fetching.
-    cached = true;
+    if (res.ok) {
+      cached = true;
+      return;
+    }
+    // Surface server rejections (422 cheat-guard, 400 schema) to the
+    // console so a legitimate player who somehow trips a guard has SOME
+    // breadcrumb to follow — silent failure used to make "my progress
+    // isn't saving" undebuggable. Cheat attempts also show up here, but
+    // that's fine: a determined cheater can read network responses
+    // anyway, this just keeps honest players informed.
+    const detail = await res.text().catch(() => "");
+    console.warn("saveNow: server rejected save", res.status, detail);
   } catch {
     // ignore — snapshot stays in memory
   }
@@ -116,7 +127,7 @@ export async function saveNow(): Promise<void> {
 export async function submitScore(summary: CombatSummary): Promise<void> {
   if (!summary.victory) return;
   try {
-    await fetch(ROUTES.api.leaderboard, {
+    const res = await fetch(ROUTES.api.leaderboard, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -125,6 +136,10 @@ export async function submitScore(summary: CombatSummary): Promise<void> {
         timeSeconds: summary.timeSeconds
       })
     });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.warn("submitScore: server rejected score", res.status, detail);
+    }
   } catch {
     // ignore
   }

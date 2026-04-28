@@ -78,17 +78,18 @@ mount Phaser via createPhaserGame(parent, { missionId, onComplete })
 │  Waves → bosses inline       │
 │  Pickups, perks, scoring     │
 │  PauseScene launched on P/ESC│
+│  finish(victory) → setSummary│
 └──────────┬───────────────────┘
-           ▼
-┌── Phaser ResultScene ──┐
-│  Score tally, credits  │
-└──────────┬─────────────┘
            │ onComplete callback fires:
-           │  POST /api/save  (autosave; signed-in only)
-           │  POST /api/leaderboard (victory only; signed-in only)
+           │  await saveNow()         (autosave; signed-in only — sequenced
+           │                           BEFORE submitScore so the leaderboard
+           │                           mission-completion guard sees the new
+           │                           clear in the player's save row)
+           │  void submitScore()      (victory only; signed-in only)
            ▼
 GameCanvas: setMode("galaxy"), destroy Phaser game,
-remount GalaxyScene
+remount GalaxyScene, then mount React VictoryModal showing
+score / credits / first-clear loot rewards.
            │
            ▼
        Shop planet? → router.push("/shop")
@@ -156,6 +157,32 @@ All routes live under [src/app/api/](src/app/api/). Keep the list short — ever
 
 **Every request and response is validated by Zod schemas** in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — the source of truth for the wire format. The save and leaderboard routes both `safeParse()` request bodies and reject malformed input with `{ error: "validation_failed", issues: [...] }` at status 400. The client (`sync.ts`) parses server responses through `RemoteSaveSchema` so a server-side schema drift can't corrupt local state. Path strings are centralized in [src/lib/routes.ts](src/lib/routes.ts) (`ROUTES.api.save`, etc.) — never hard-code `"/api/..."` strings in components.
 
+### 4.1 Server-side cheat guards
+
+On top of Zod schema validation, both write routes enforce **gameplay invariants** in [src/lib/saveValidation.ts](src/lib/saveValidation.ts) — pure functions, separately tested. A 422 status carries a specific `error` code so client logging surfaces *which* guard fired, not just "rejected". `sync.ts` calls `console.warn` on any non-OK response so a legitimate player who somehow trips a guard has a breadcrumb to follow.
+
+| Guard | Where | Trigger | Response code |
+|---|---|---|---|
+| `validateMissionGraph` | `/api/save` POST | `completedMissions` or combat-mission `unlockedPlanets` entries whose `requires` chain isn't satisfied | 422 `mission_graph_invalid` |
+| `validatePlaytimeDelta` | `/api/save` POST | claimed `playedTimeSeconds` grew by more than wall-clock seconds since last save's `updated_at` (+60s slack) | 422 `playtime_delta_invalid` |
+| `validateCreditsDelta` | `/api/save` POST | `credits` jumped by more than `delta_time × maxPerSecond + delta_completed × maxPerFirstClear + 100` | 422 `credits_delta_invalid` |
+| Mission-completion check | `/api/leaderboard` POST | submitted `missionId` not in player's stored `completed_missions` | 422 `mission_not_completed` |
+| Strict `MissionId` enum | `/api/leaderboard` POST schema | submitted `missionId` not in the `MissionId` union | 400 `validation_failed` |
+
+**Per-player progression-aware caps.** `MAX_CREDITS_PER_SECOND` and `MAX_CREDITS_PER_FIRST_CLEAR` aren't single constants — they're computed per request from the player's *server-stored* `completedMissions`:
+
+1. `getReachableSolarSystems(completedMissions)` walks `SYSTEM_UNLOCK_GATES` and the missions' `solarSystemId` to derive which systems the player can play. Tutorial is always reachable.
+2. `computeCreditCapsForSystems(reachableSystems)` walks every wave of every combat mission in those systems, takes the peak non-boss `creditValue` (drives `maxPerSecond`), and unions in loot-pool `credits.max` + max boss `creditValue` (drives `maxPerFirstClear`).
+3. Caps multiply by `KILL_CADENCE_CEILING (5) × PER_SECOND_SAFETY_FACTOR (3)` and `× PER_CLEAR_SAFETY_FACTOR (1.5)` respectively.
+
+A new player gets tutorial-only caps; clearing `boss-1` lights up tubernovae caps automatically; new systems lift caps only for players who've cleared their gating mission. **A 10× balance change to enemy creditValues or loot-pool maxes scales the caps 10× with no code edits.** The tutorial-only baseline is logged on cold start (`[saveValidation] tutorial-only caps (floor)`) so a regression after rebalance shows up in Vercel function logs.
+
+**Debugging a 422 in production:**
+1. Check the browser console for `saveNow: server rejected save 422 ...` — gives the specific error code.
+2. Check Vercel function logs for `[/api/save] <guard> violation <email> <message>` — gives the player + reason.
+3. Check `[saveValidation] tutorial-only caps (floor)` to see what the current derived baseline is.
+4. If the cap looks wrong: someone changed enemy `creditValue` or loot-pool `credits.max` without realizing the cap auto-derives from those.
+
 ### Request / response shapes
 
 ```ts
@@ -196,23 +223,32 @@ type SubmitScore = {
 ## 5. Phaser scene lifecycle
 
 Registered scenes (see [src/game/phaser/config.ts](src/game/phaser/config.ts)):
-`BootScene`, `CombatScene`, `ResultScene`, `PauseScene`. `BossScene` exists as
-a stub but is **not** in the scene list yet — boss encounters currently route
-through `CombatScene` with an enemy whose `behavior === "boss"`.
+`BootScene`, `CombatScene`, `PauseScene`. ResultScene was retired — the
+post-mission summary is now a React component ([VictoryModal](src/components/galaxy/VictoryModal.tsx))
+mounted over the galaxy view, which gives us full Tailwind styling and
+React state for showing first-clear loot rewards. `BossScene` exists as
+a stub but is **not** in the scene list yet — boss encounters currently
+route through `CombatScene` with an enemy whose `behavior === "boss"`
+(today: the Monarch Caterpillar).
 
 ```
-BootScene             CombatScene                       ResultScene
-  │                        │                                  │
-  │ generate placeholder   │ start waves (WaveManager)        │ tally score
-  │ textures programmat-   │ spawn enemies, bullets, perks    │ award credits
-  │ ically (no preload)    │ handle pickups & collisions      │ display summary
-  │                        │ all waves clear  ─► finish(true) │ wait for input
-  └──► CombatScene  ───────┤ player dies      ─► finish(false)│
-                           │ ESC/P            ─► PauseScene   └──► onComplete()
-                           │                                       (back to Galaxy)
-                           ▼
-                     PauseScene (overlay; pauses CombatScene;
-                       P resume · ESC abandon)
+BootScene             CombatScene
+  │                        │
+  │ generate placeholder   │ start waves (WaveManager)
+  │ textures programmat-   │ spawn enemies, bullets, perks
+  │ ically (no preload)    │ handle pickups & collisions
+  │                        │ all waves clear  ─► finish(true)  ┐
+  └──► CombatScene  ───────┤ player dies      ─► finish(false) │
+                           │ ESC/P            ─► PauseScene    │
+                           │                                   ▼
+                           │                          setSummary(this.game,...)
+                           │                          bootData.onComplete()
+                           ▼                                   │
+                     PauseScene (overlay; pauses CombatScene;  │
+                       P resume · ESC abandon)                 ▼
+                                                  React: VictoryModal opens,
+                                                  reads summary via getSummary,
+                                                  await saveNow() then submitScore.
 ```
 
 - **BootScene** does **not** preload any disk assets. Every sprite is drawn
@@ -226,7 +262,7 @@ BootScene             CombatScene                       ResultScene
   - **`PerkController`** — `applyPerk` (gain), `useActivePerk` (consume), `detonateEmp`. Holds `activePerks` + `empCharges`.
   Collisions are wired by `wireCollisions(...)` from [systems/CollisionSystem.ts](src/game/phaser/systems/CollisionSystem.ts).
 - **`Player`** is also an orchestrator that composes helpers from [src/game/phaser/entities/player/](src/game/phaser/entities/player/): `SlotModResolver` (pure mod resolution per slot), `PlayerCombatant` (shield/armor/energy/regen/`takeDamage`), `PlayerFireController` (`tryFireSlot`). CombatScene's reads (`player.shield`, `player.takeDamage(...)`) flow through unchanged passthroughs.
-- **ResultScene** reads `summary` from the Phaser registry via the typed accessor `getSummary(this.game)` (see §5.5), animates a count-up, and on input fires `bootData.onComplete()`. The `/api/save` and `/api/leaderboard` writes happen back in `GameCanvas.handleMissionComplete`, not inside the scene itself.
+- **VictoryModal** (React, not Phaser) reads `summary` from the Phaser registry via `getSummary(this.game)` in `GameCanvas.handleMissionComplete`, then opens a Tailwind-styled modal over the galaxy view showing the count-up and any first-clear loot rewards (see [DropController.firstClearReward](src/game/phaser/scenes/combat/DropController.ts) for the loot-pool roll). The `/api/save` and `/api/leaderboard` writes happen in `handleMissionComplete` — `await saveNow()` before `submitScore()` so the leaderboard mission-completion guard sees the new clear in the player's save row.
 - **PauseScene** is launched on top of a paused `CombatScene` and owns its own input (`P` resume, `ESC` abandon → `emit(combat, { type: "abandon" })` via the typed bus).
 - **BossScene** (planned). Currently a no-op placeholder reserved for scripted phase logic in a later phase.
 
@@ -282,10 +318,14 @@ audible is generated procedurally at runtime:
 - **Phaser sprites** — drawn programmatically in
   [BootScene.generateTextures()](src/game/phaser/scenes/BootScene.ts) using
   `Phaser.GameObjects.Graphics` and registered with `generateTexture(key, …)`.
-  Active texture keys: `player-ship`, `bullet-friendly`, `bullet-hostile`,
-  `enemy-basic`, `enemy-zigzag`, `enemy-kamikaze`, `boss-1`,
-  `powerup-shield`, `powerup-credit`, `powerup-weapon`,
-  `perk-overdrive`, `perk-hardened`, `perk-emp`, `particle-spark`.
+  Active texture keys (post-2026-04-28 bug-themed redesign):
+  - `player-ship`, `bullet-friendly`, `bullet-hostile`, `particle-spark`
+  - **Aphids** (drawAphid): `enemy-aphid`, `enemy-aphid-giant`, `enemy-aphid-queen`
+  - **Beetles** (drawBeetle): `enemy-beetle-scarab`, `enemy-beetle-rhino`, `enemy-beetle-stag`
+  - **Caterpillars** (drawCaterpillar): `enemy-caterpillar-hornworm`, `enemy-caterpillar-army`, `enemy-caterpillar-monarch` (boss)
+  - **Spiders** (drawSpider): `enemy-spider-wolf`, `enemy-spider-widow`, `enemy-spider-jumper`
+  - **Dragonflies** (drawDragonfly): `enemy-dragonfly-common`, `enemy-dragonfly-heli`, `enemy-dragonfly-damsel`
+  - Pickups / perks: `powerup-shield`, `powerup-credit`, `powerup-weapon`, `perk-overdrive`, `perk-hardened`, `perk-emp`
 - **Galaxy planets / sun / starfield** — built procedurally in
   [src/game/three/](src/game/three/) (`Sun.ts`, `Starfield.ts`, `Planet.ts`,
   `planetTexture.ts`). `planetTexture.ts` paints surface noise onto a canvas;

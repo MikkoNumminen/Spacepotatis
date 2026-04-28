@@ -187,6 +187,7 @@ DATABASE_URL="<neon-direct-url>" npm run db:migrate
 - **No heavy server compute.** If a task requires server-side game logic, pause and ask.
 - **No game balance constants in code.** They belong in [src/game/data/](src/game/data/).
 - **No `any` types.** Full stop. **No `as` casts at the network edge** — use Zod schemas in [src/lib/schemas/](src/lib/schemas/).
+- **Don't bypass the cheat guards.** `/api/save` and `/api/leaderboard` enforce mission-graph + credits-delta + playtime-delta + leaderboard-completion checks via [src/lib/saveValidation.ts](src/lib/saveValidation.ts). The credit caps auto-derive from `enemies.json` + `lootPools.ts` + the player's stored `completedMissions` — a 10× balance change scales the caps 10× automatically. **Don't replace the derivation with hard-coded constants** "for simplicity" — that's exactly the rake we already stepped on once.
 - **No string-keyed Phaser events or registry access.** Use the typed wrappers in [src/game/phaser/events.ts](src/game/phaser/events.ts) and [src/game/phaser/registry.ts](src/game/phaser/registry.ts).
 - **MVP scope is capped.** See [TODO.md](TODO.md) "Out of scope for MVP".
 
@@ -220,6 +221,7 @@ The 2026-04-27 modularity audit broke up several god modules. Quick lookup of wh
 | Sell pricing | [src/game/state/pricing.ts](src/game/state/pricing.ts) |
 | GameState public surface | [src/game/state/GameState.ts](src/game/state/GameState.ts) (barrel re-export) |
 | Wire-format Zod schemas | [src/lib/schemas/save.ts](src/lib/schemas/save.ts) |
+| Server-side cheat guards (mission graph, credits delta, playtime delta, per-player progression-aware caps) | [src/lib/saveValidation.ts](src/lib/saveValidation.ts) |
 | Route constants | [src/lib/routes.ts](src/lib/routes.ts) |
 | Player handle hook | [src/lib/useHandle.ts](src/lib/useHandle.ts) |
 | Phaser event union + emit/on wrappers | [src/game/phaser/events.ts](src/game/phaser/events.ts) |

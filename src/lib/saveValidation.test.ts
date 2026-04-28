@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   CREDITS_DELTA_SLACK,
+  GLOBAL_CREDIT_CAPS,
   MAX_CREDITS_PER_FIRST_CLEAR,
   MAX_CREDITS_PER_SECOND,
   PLAYTIME_DELTA_SLACK_SECONDS,
+  computeCreditCapsForPlayer,
+  computeCreditCapsForSystems,
+  getReachableSolarSystems,
   validateCreditsDelta,
   validateMissionGraph,
   validatePlaytimeDelta
@@ -238,6 +242,103 @@ describe("validatePlaytimeDelta", () => {
         prev: { playedTimeSeconds: 0, updatedAt: "not-a-date" },
         next: { playedTimeSeconds: 99_999 },
         nowMs: T0_MS
+      }).ok
+    ).toBe(true);
+  });
+});
+
+describe("getReachableSolarSystems", () => {
+  it("includes the tutorial system for a brand-new player", () => {
+    const reachable = getReachableSolarSystems([]);
+    expect(reachable.has("tutorial")).toBe(true);
+    expect(reachable.has("tubernovae")).toBe(false);
+  });
+
+  it("includes tubernovae once boss-1 is completed (gate fired)", () => {
+    const reachable = getReachableSolarSystems(["tutorial", "combat-1", "boss-1"]);
+    expect(reachable.has("tutorial")).toBe(true);
+    expect(reachable.has("tubernovae")).toBe(true);
+  });
+
+  it("includes a system the moment the player completes any mission in it", () => {
+    // Even without the formal unlock gate, completing a mission proves
+    // the player has been in that system — counts toward their reach.
+    const reachable = getReachableSolarSystems(["pirate-beacon"]);
+    expect(reachable.has("tutorial")).toBe(true);
+    expect(reachable.has("tubernovae")).toBe(true);
+  });
+
+  it("ignores unknown mission ids defensively", () => {
+    // safeGetMission swallows the throw — schema-layer rejects already
+    // catch unknown ids, this is just defensive against future drift.
+    const reachable = getReachableSolarSystems(["totally-not-a-real-mission" as never]);
+    expect(reachable.has("tutorial")).toBe(true);
+  });
+});
+
+describe("computeCreditCapsForSystems / computeCreditCapsForPlayer", () => {
+  it("tutorial-only caps are strictly LESS THAN OR EQUAL TO global caps", () => {
+    const tutorialCaps = computeCreditCapsForSystems(new Set(["tutorial"]));
+    expect(tutorialCaps.maxPerSecond).toBeLessThanOrEqual(GLOBAL_CREDIT_CAPS.maxPerSecond);
+    expect(tutorialCaps.maxPerFirstClear).toBeLessThanOrEqual(GLOBAL_CREDIT_CAPS.maxPerFirstClear);
+  });
+
+  it("unlocking tubernovae cannot LOWER the player's caps (monotonic)", () => {
+    const tutorialCaps = computeCreditCapsForPlayer(["tutorial", "combat-1"]);
+    const tubernovaeCaps = computeCreditCapsForPlayer(["tutorial", "combat-1", "boss-1"]);
+    expect(tubernovaeCaps.maxPerSecond).toBeGreaterThanOrEqual(tutorialCaps.maxPerSecond);
+    expect(tubernovaeCaps.maxPerFirstClear).toBeGreaterThanOrEqual(tutorialCaps.maxPerFirstClear);
+  });
+
+  it("a brand-new player's caps are derived purely from the tutorial system", () => {
+    const newPlayerCaps = computeCreditCapsForPlayer([]);
+    const tutorialCaps = computeCreditCapsForSystems(new Set(["tutorial"]));
+    expect(newPlayerCaps).toEqual(tutorialCaps);
+  });
+
+  it("caps are positive numbers (the data isn't degenerate)", () => {
+    const caps = computeCreditCapsForPlayer([]);
+    expect(caps.maxPerSecond).toBeGreaterThan(0);
+    expect(caps.maxPerFirstClear).toBeGreaterThan(0);
+  });
+});
+
+describe("validateCreditsDelta with per-player caps", () => {
+  it("a new player's small credit delta passes against tutorial caps", () => {
+    const caps = computeCreditCapsForPlayer([]);
+    expect(
+      validateCreditsDelta({
+        prev: null,
+        next: { credits: 200, playedTimeSeconds: 60, completedMissionsCount: 1 },
+        caps
+      }).ok
+    ).toBe(true);
+  });
+
+  it("rejects a tubernovae-tier credit jump for a player still in tutorial", () => {
+    // A player who's only completed tutorial missions tries to claim
+    // credits that would only be plausible with tubernovae loot rewards.
+    // Their per-clear cap (tutorial only, max 500 from loot pool + 500
+    // from boss kill) shouldn't admit a 5000-credit single-clear bonus.
+    const tutorialCaps = computeCreditCapsForPlayer(["tutorial"]);
+    const result = validateCreditsDelta({
+      prev: { credits: 0, playedTimeSeconds: 60, completedMissionsCount: 1 },
+      next: { credits: 5000, playedTimeSeconds: 60, completedMissionsCount: 2 },
+      caps: tutorialCaps
+    });
+    // Cap is roughly: 0 (no playtime delta) + 1 * tutorialCaps.maxPerFirstClear + 100 slack.
+    // Tutorial maxPerFirstClear ≈ ceil((500 + 500) * 1.5) = 1500.
+    // 5000 - 0 = 5000 > 1500 + 100 = 1600 → rejected.
+    expect(result.ok).toBe(false);
+  });
+
+  it("the same delta passes for a tubernovae-unlocked player (cap expanded)", () => {
+    const tubernovaeCaps = computeCreditCapsForPlayer(["tutorial", "combat-1", "boss-1"]);
+    expect(
+      validateCreditsDelta({
+        prev: { credits: 0, playedTimeSeconds: 60, completedMissionsCount: 3 },
+        next: { credits: 2000, playedTimeSeconds: 60, completedMissionsCount: 4 },
+        caps: tubernovaeCaps
       }).ok
     ).toBe(true);
   });
