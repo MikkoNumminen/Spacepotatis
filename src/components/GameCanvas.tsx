@@ -17,7 +17,8 @@ import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useGameState } from "@/game/state/useGameState";
 import { setSolarSystem } from "@/game/state/GameState";
-import { getMission } from "@/game/data/missions";
+import { getAllMissions, getMission } from "@/game/data/missions";
+import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -40,6 +41,26 @@ export default function GameCanvas() {
   const [warpOpen, setWarpOpen] = useState(false);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
+  const completedMissions = useGameState((s) => s.completedMissions);
+
+  const handleWarpToNextSystem = useCallback(() => {
+    const completed = new Set(completedMissions);
+    const systemIds = getAllSolarSystems().map((s) => s.id);
+    const currentIdx = systemIds.indexOf(currentSolarSystemId);
+    for (let step = 1; step <= systemIds.length; step++) {
+      const candidateId = systemIds[(currentIdx + step) % systemIds.length];
+      if (!candidateId || candidateId === currentSolarSystemId) continue;
+      if (!unlockedSolarSystems.includes(candidateId)) continue;
+      const hasUnfinished = getAllMissions().some(
+        (m) => m.solarSystemId === candidateId && m.kind === "mission" && !completed.has(m.id)
+      );
+      if (hasUnfinished) {
+        setSolarSystem(candidateId);
+        return;
+      }
+    }
+    setWarpOpen(true);
+  }, [completedMissions, currentSolarSystemId, unlockedSolarSystems]);
 
   const { loaded: saveLoaded } = useCloudSaveSync();
 
@@ -176,7 +197,7 @@ export default function GameCanvas() {
             currentSolarSystemId={currentSolarSystemId}
             focusedPlanetId={focusedPlanetId}
             onLaunch={handleLaunch}
-            onOpenWarp={() => setWarpOpen(true)}
+            onWarpToNext={handleWarpToNextSystem}
           />
           {warpOpen && (
             <WarpPicker

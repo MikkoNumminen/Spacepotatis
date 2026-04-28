@@ -15,12 +15,12 @@ export default function QuestPanel({
   currentSolarSystemId,
   focusedPlanetId,
   onLaunch,
-  onOpenWarp
+  onWarpToNext
 }: {
   currentSolarSystemId: SolarSystemId;
   focusedPlanetId: MissionId | null;
   onLaunch: (mission: MissionDefinition) => void;
-  onOpenWarp: () => void;
+  onWarpToNext: () => void;
 }) {
   const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
   const completedMissions = useGameState((s) => s.completedMissions);
@@ -84,7 +84,7 @@ export default function QuestPanel({
         <Section label="suggested">
           <SystemClearCta
             warpAvailable={otherSystemsUnlocked}
-            onOpenWarp={onOpenWarp}
+            onWarp={onWarpToNext}
           />
         </Section>
       )}
@@ -301,10 +301,10 @@ function ShopRow({
 
 function SystemClearCta({
   warpAvailable,
-  onOpenWarp
+  onWarp
 }: {
   warpAvailable: boolean;
-  onOpenWarp: () => void;
+  onWarp: () => void;
 }) {
   return (
     <div className="rounded border border-hud-amber/30 bg-space-bg/30 p-3 text-center">
@@ -317,7 +317,7 @@ function SystemClearCta({
       {warpAvailable ? (
         <button
           type="button"
-          onClick={onOpenWarp}
+          onClick={onWarp}
           className="mt-3 w-full rounded border border-hud-amber/60 px-3 py-2 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10"
         >
           WARP TO NEXT SYSTEM
