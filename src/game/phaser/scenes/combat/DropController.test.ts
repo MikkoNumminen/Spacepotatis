@@ -19,6 +19,7 @@ vi.mock("phaser", () => {
 import { DropController, DROP_CHANCE, PERK_DROP_SHARE } from "./DropController";
 import { createFakeScene } from "../../__tests__/fakeScene";
 import * as GameState from "@/game/state/GameState";
+import { ownsAnyOfType } from "@/game/state/ShipConfig";
 import { isPerkKind, type PowerUp, type PowerUpPool } from "../../entities/PowerUp";
 import type { Player } from "../../entities/Player";
 import type { ScoreSystem } from "../../systems/ScoreSystem";
@@ -169,7 +170,7 @@ describe("DropController.applyPowerUp — weapon", () => {
     controller.applyPowerUp(power);
     // Default ship only owns rapid-fire; the next in the upgrade ladder is rapid-fire→spread-shot→heavy-cannon.
     // rapid-fire is owned, so the next pickup grants spread-shot.
-    expect(GameState.getState().ship.unlockedWeapons).toContain("spread-shot");
+    expect(ownsAnyOfType(GameState.getState().ship, "spread-shot")).toBe(true);
     // The default ship has only one slot (occupied by rapid-fire), so the
     // new weapon lands in inventory and the live Player has nothing to
     // mirror — setSlotWeapon stays uncalled.
@@ -184,8 +185,11 @@ describe("DropController.applyPowerUp — weapon", () => {
     const power = { kind: "weapon" as const, x: 0, y: 0 } as unknown as PowerUp;
     controller.applyPowerUp(power);
     // spread-shot got auto-equipped into slot 1 (the first empty one).
-    expect(GameState.getState().ship.slots).toEqual(["rapid-fire", "spread-shot"]);
-    expect(player.setSlotWeapon).toHaveBeenCalledWith(1, "spread-shot");
+    const slots = GameState.getState().ship.slots;
+    expect(slots[0]?.id).toBe("rapid-fire");
+    expect(slots[1]?.id).toBe("spread-shot");
+    // The mirror call passes the freshly-minted instance, not the raw id.
+    expect(player.setSlotWeapon).toHaveBeenCalledWith(1, slots[1]);
   });
 
   it("converts to credits (50) once the weapon ladder is exhausted", () => {

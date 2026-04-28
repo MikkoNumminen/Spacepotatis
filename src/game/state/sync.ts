@@ -83,7 +83,11 @@ async function doLoadSave(): Promise<boolean> {
       completedMissions: [...body.completedMissions],
       unlockedPlanets: [...body.unlockedPlanets],
       playedTimeSeconds: body.playedTimeSeconds,
-      ship: body.shipConfig as StateSnapshot["ship"],
+      // The schema accepts both new and legacy ship shapes via union; hydrate
+      // → migrateShip handles the runtime narrowing into the strict
+      // ShipConfig. The cast through unknown is the standard "trust runtime
+      // validation" pattern at this boundary.
+      ship: body.shipConfig as unknown as StateSnapshot["ship"],
       saveSlot: body.slot
     };
     hydrate(snapshot);

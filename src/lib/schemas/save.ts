@@ -19,9 +19,11 @@ import type {
 import type {
   ReactorConfig,
   ShipConfig,
+  WeaponInstance,
+  WeaponInventory,
   WeaponSlots
 } from "@/game/state/ShipConfig";
-import { MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
+import { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
 
 // ---------------------------------------------------------------------------
 // ID enums — mirror the literal unions in src/types/game.ts. If you add a new
@@ -74,37 +76,34 @@ export const SolarSystemIdSchema = z.enum(SOLAR_SYSTEM_IDS);
 // Ship sub-schemas — strict shape for a fully-migrated ShipConfig.
 // ---------------------------------------------------------------------------
 
-// New strict shape: variable-length array of (WeaponId | null) entries.
-// One slot at minimum (slot 0); the player buys more via buyWeaponSlot(),
-// capped at MAX_WEAPON_SLOTS so a tampered save can't trash the loadout UI.
+// One owned weapon = one instance with its own level + augments. Two of the
+// same weapon id are two independent instances.
+export const WeaponInstanceSchema = z.object({
+  id: WeaponIdSchema,
+  level: z.number().int().min(1).max(MAX_LEVEL),
+  augments: z.array(AugmentIdSchema)
+});
+
+// Variable-length array of slots. Each entry is either an equipped instance
+// or null (slot owned but empty). One slot at minimum (slot 0); the player
+// buys more via buyWeaponSlot(), capped at MAX_WEAPON_SLOTS so a tampered
+// save can't trash the loadout UI.
 export const WeaponSlotsSchema = z
-  .array(WeaponIdSchema.nullable())
+  .array(WeaponInstanceSchema.nullable())
   .min(1)
   .max(MAX_WEAPON_SLOTS);
+
+// Unequipped instances. Order is acquisition order so picker UIs stay stable.
+export const WeaponInventorySchema = z.array(WeaponInstanceSchema);
 
 export const ReactorConfigSchema = z.object({
   capacityLevel: z.number().int().nonnegative(),
   rechargeLevel: z.number().int().nonnegative()
 });
 
-// Sparse maps keyed by WeaponId — z.partialRecord keeps the key set
-// constrained to known weapons without requiring every weapon be present
-// (z.record on an enum is exhaustive in Zod 4).
-export const WeaponLevelsSchema = z.partialRecord(
-  WeaponIdSchema,
-  z.number().int().positive()
-);
-
-export const WeaponAugmentsSchema = z.partialRecord(
-  WeaponIdSchema,
-  z.array(AugmentIdSchema)
-);
-
 export const ShipConfigSchema = z.object({
   slots: WeaponSlotsSchema,
-  unlockedWeapons: z.array(WeaponIdSchema),
-  weaponLevels: WeaponLevelsSchema,
-  weaponAugments: WeaponAugmentsSchema,
+  inventory: WeaponInventorySchema,
   augmentInventory: z.array(AugmentIdSchema),
   shieldLevel: z.number().int().nonnegative(),
   armorLevel: z.number().int().nonnegative(),
@@ -115,24 +114,44 @@ export const ShipConfigSchema = z.object({
 // schema drifts out of structural sync with the canonical TS type. We can't
 // use `satisfies z.ZodType<T>` directly on a z.object() because Zod's input
 // vs output types make that assertion too narrow on optional/nullable fields.
+type _WeaponInstance = z.infer<typeof WeaponInstanceSchema>;
 type _WeaponSlots = z.infer<typeof WeaponSlotsSchema>;
+type _WeaponInventory = z.infer<typeof WeaponInventorySchema>;
 type _ReactorConfig = z.infer<typeof ReactorConfigSchema>;
 type _ShipConfig = z.infer<typeof ShipConfigSchema>;
+const _weaponInstanceCheck = (x: _WeaponInstance): WeaponInstance => x;
 const _weaponSlotsCheck = (x: _WeaponSlots): WeaponSlots => x;
+const _weaponInventoryCheck = (x: _WeaponInventory): WeaponInventory => x;
 const _reactorCheck = (x: _ReactorConfig): ReactorConfig => x;
 const _shipCheck = (x: _ShipConfig): ShipConfig => x;
+void _weaponInstanceCheck;
 void _weaponSlotsCheck;
+void _weaponInventoryCheck;
 void _reactorCheck;
 void _shipCheck;
 
 // ---------------------------------------------------------------------------
-// Legacy ship snapshot — the loadout refactor introduced `slots` + `reactor`
-// in place of `primaryWeapon`. Old saves still living in Postgres look like
-// `{ primaryWeapon, unlockedWeapons, shieldLevel, armorLevel }` with no
-// reactor and no slots. They flow through GameState.migrateShip on hydrate,
-// which does the strict cleanup (drops unknown ids, clamps levels). The
+// Legacy ship snapshot — historic shapes still living in Postgres rows. The
+// loadout refactor introduced `slots` + `reactor`; the instance refactor then
+// replaced unlockedWeapons + weaponLevels + weaponAugments with per-instance
+// state. Old saves can look like any of:
+//   - new instance shape: { slots: WeaponInstance[], inventory: WeaponInstance[], ... }
+//   - id-array slots: { slots: (WeaponId | null)[], unlockedWeapons, weaponLevels, weaponAugments, ... }
+//   - named slots: { slots: { front, rear, sidekickLeft, sidekickRight }, ... }
+//   - pre-loadout: { primaryWeapon, ... }
+// They all flow through migrateShip on hydrate, which does the strict cleanup
+// (drops unknown ids, clamps levels, hoists per-id state into instances). The
 // schema only needs to accept the loose shape so migration can run.
 // ---------------------------------------------------------------------------
+
+// Permissive instance shape used inside legacy snapshots. id/level/augments
+// are all optional because some persisted rows had partial writes; migrateShip
+// fills the gaps with newWeaponInstance defaults.
+const LegacyWeaponInstanceSchema = z.object({
+  id: z.string().optional(),
+  level: z.number().optional(),
+  augments: z.array(z.string()).optional()
+});
 
 // Every field is optional — the schema's job here is just to pass the data
 // through to migrateShip, which fills in DEFAULT_SHIP defaults for anything
@@ -146,7 +165,10 @@ export const LegacyShipSchema = z.object({
   primaryWeapon: z.string().optional(),
   slots: z
     .union([
-      z.array(z.string().nullable()),
+      // New instance-shape slots OR legacy id-string slots — accept both as
+      // a single union of nullable entries. migrateShip distinguishes by
+      // checking typeof at runtime.
+      z.array(z.union([z.string(), LegacyWeaponInstanceSchema, z.null()])),
       z.object({
         front: z.string().nullable().optional(),
         rear: z.string().nullable().optional(),
@@ -155,6 +177,7 @@ export const LegacyShipSchema = z.object({
       })
     ])
     .optional(),
+  inventory: z.array(LegacyWeaponInstanceSchema).optional(),
   unlockedWeapons: z.array(z.string()).optional(),
   weaponLevels: z.record(z.string(), z.number().finite()).optional(),
   // Legacy snapshots may carry unknown augment ids; migrateShip filters

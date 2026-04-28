@@ -1,28 +1,51 @@
-import {
-  isWeaponEquipped,
-  isWeaponUnlocked,
-  type ShipConfig
-} from "@/game/state/ShipConfig";
-import { getAllWeapons, getWeapon } from "@/game/data/weapons";
+import type { ShipConfig, WeaponInstance, WeaponPosition } from "@/game/state/ShipConfig";
+import type { WeaponDefinition } from "@/types/game";
+import { getWeapon } from "@/game/data/weapons";
 import { slotLabel } from "./SlotGrid";
-import type { WeaponListEntry } from "./WeaponList";
 
-export function getOwnedWeapons(ship: ShipConfig) {
-  return getAllWeapons().filter((w) => isWeaponUnlocked(ship, w.id));
+export interface EquippedEntry {
+  readonly position: { readonly kind: "slot"; readonly index: number };
+  readonly instance: WeaponInstance;
+  readonly weapon: WeaponDefinition;
+  readonly key: string;
+  readonly slotBadge: string;
 }
 
-export function getEquippedEntries(ship: ShipConfig): WeaponListEntry[] {
-  return ship.slots
-    .map((wid, slot): WeaponListEntry | null => {
-      if (!wid) return null;
-      const weapon = getWeapon(wid);
-      return { weapon, key: `equipped-${slot}-${weapon.id}`, slotBadge: slotLabel(slot) };
-    })
-    .filter((e): e is WeaponListEntry => e !== null);
+export interface InventoryEntry {
+  readonly position: { readonly kind: "inventory"; readonly index: number };
+  readonly instance: WeaponInstance;
+  readonly weapon: WeaponDefinition;
+  readonly key: string;
 }
 
-export function getInventoryEntries(ship: ShipConfig): WeaponListEntry[] {
-  return getOwnedWeapons(ship)
-    .filter((w) => !isWeaponEquipped(ship, w.id))
-    .map((weapon) => ({ weapon, key: weapon.id }));
+export type WeaponEntry = EquippedEntry | InventoryEntry;
+
+export function entryPosition(entry: WeaponEntry): WeaponPosition {
+  return entry.position;
+}
+
+export function getEquippedEntries(ship: ShipConfig): EquippedEntry[] {
+  const out: EquippedEntry[] = [];
+  for (let i = 0; i < ship.slots.length; i++) {
+    const instance = ship.slots[i];
+    if (!instance) continue;
+    const weapon = getWeapon(instance.id);
+    out.push({
+      position: { kind: "slot", index: i },
+      instance,
+      weapon,
+      key: `equipped-${i}-${instance.id}-${instance.level}`,
+      slotBadge: slotLabel(i)
+    });
+  }
+  return out;
+}
+
+export function getInventoryEntries(ship: ShipConfig): InventoryEntry[] {
+  return ship.inventory.map((instance, i) => ({
+    position: { kind: "inventory", index: i },
+    instance,
+    weapon: getWeapon(instance.id),
+    key: `inv-${i}-${instance.id}-${instance.level}`
+  }));
 }

@@ -3,7 +3,7 @@ import type { WeaponId } from "@/types/game";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
-import { type ShipConfig } from "@/game/state/ShipConfig";
+import { type ShipConfig, type WeaponInstance } from "@/game/state/ShipConfig";
 import {
   resolveSlotMods,
   slotModsForGrantedWeapon,
@@ -21,7 +21,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // One WeaponSystem per slot index keeps each weapon fireRate cooldown
   // isolated. Indexed by position in the ShipConfig.slots array.
   private readonly weaponsBySlot: WeaponSystem[];
-  private readonly slotWeapons: (WeaponId | null)[];
+  // Snapshot of equipped weapon instances at construction. Mid-mission grants
+  // replace entries in place via setSlotWeapon; the array reference is shared
+  // with PlayerFireController so updates are visible at fire time.
+  private readonly slotInstances: (WeaponInstance | null)[];
   // Per-slot modifier cache resolved at boot (and on slot swap). Mid-mission
   // pickups always reset to neutral mods because freshly granted weapons are
   // level 1 and have no augments — upgrades and augment installs only happen
@@ -54,12 +57,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setSize(this.width * 0.55, this.height * 0.55);
 
     this.controls = createKeyboardControls(scene);
-    this.slotWeapons = [...ship.slots];
+    this.slotInstances = [...ship.slots];
     this.weaponsBySlot = ship.slots.map(() => new WeaponSystem(pool));
-    this.slotMods = ship.slots.map((wid, i) => resolveSlotMods(i, ship, wid));
+    this.slotMods = ship.slots.map((inst) => resolveSlotMods(inst));
 
     this.combatant = new PlayerCombatant(ship);
-    this.fire = new PlayerFireController(this.weaponsBySlot, this.slotWeapons, this.slotMods);
+    this.fire = new PlayerFireController(this.weaponsBySlot, this.slotInstances, this.slotMods);
   }
 
   get maxShield(): number { return this.combatant.maxShield; }
@@ -74,14 +77,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   get energy(): number { return this.combatant.energy; }
   set energy(value: number) { this.combatant.energy = value; }
 
-  setSlotWeapon(slotIndex: number, id: WeaponId | null): void {
-    if (slotIndex < 0 || slotIndex >= this.slotWeapons.length) return;
-    this.slotWeapons[slotIndex] = id;
-    this.slotMods[slotIndex] = slotModsForGrantedWeapon(id);
+  setSlotWeapon(slotIndex: number, instance: WeaponInstance | null): void {
+    if (slotIndex < 0 || slotIndex >= this.slotInstances.length) return;
+    this.slotInstances[slotIndex] = instance;
+    // Mid-mission swaps are always level-1 picks with no augments, so we use
+    // the granted-weapon mod path rather than re-resolving from instance data.
+    this.slotMods[slotIndex] = slotModsForGrantedWeapon(instance?.id ?? null);
   }
 
   getSlotWeapon(slotIndex: number): WeaponId | null {
-    return this.slotWeapons[slotIndex] ?? null;
+    return this.slotInstances[slotIndex]?.id ?? null;
   }
 
   takeDamage(amount: number): void {

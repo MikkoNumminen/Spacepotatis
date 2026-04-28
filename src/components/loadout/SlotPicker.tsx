@@ -1,24 +1,21 @@
-import type { WeaponDefinition, WeaponId } from "@/types/game";
-import { slotLabel, type WeaponLevels } from "./SlotGrid";
+import type { WeaponInstance } from "@/game/state/ShipConfig";
+import { slotLabel } from "./SlotGrid";
 import { WeaponDot } from "./dots";
+import type { InventoryEntry } from "./selectors";
 
 export function SlotPicker({
   slotIndex,
-  owned,
-  weaponLevels,
+  inventoryEntries,
   equippedInThisSlot,
   onPick,
   onClose
 }: {
   slotIndex: number;
-  owned: readonly WeaponDefinition[];
-  weaponLevels: WeaponLevels;
-  equippedInThisSlot: WeaponId | null;
-  onPick: (id: WeaponId | null) => void;
+  inventoryEntries: readonly InventoryEntry[];
+  equippedInThisSlot: WeaponInstance | null;
+  onPick: (inventoryIndex: number | null) => void;
   onClose: () => void;
 }) {
-  // Every owned weapon fits every slot — there are no slot kinds any more.
-  const candidates = owned;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
@@ -41,9 +38,9 @@ export function SlotPicker({
           </button>
         </header>
 
-        {candidates.length === 0 ? (
+        {inventoryEntries.length === 0 && equippedInThisSlot === null ? (
           <p className="text-[11px] text-hud-green/60">
-            No owned weapons. Buy one in the shop.
+            No weapons in inventory. Buy one in the shop.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -58,30 +55,24 @@ export function SlotPicker({
                 </button>
               </li>
             )}
-            {candidates.map((w) => {
-              const isHere = w.id === equippedInThisSlot;
-              const lvl = weaponLevels[w.id] ?? 1;
+            {inventoryEntries.map((entry) => {
+              const lvl = entry.instance.level;
               return (
-                <li key={w.id}>
+                <li key={entry.key}>
                   <button
                     type="button"
-                    disabled={isHere}
-                    onClick={() => onPick(w.id)}
-                    className={`flex w-full items-center justify-between rounded border px-3 py-2 text-left text-xs ${
-                      isHere
-                        ? "cursor-default border-hud-green/60 bg-hud-green/5 text-hud-green"
-                        : "border-space-border hover:border-hud-amber/60"
-                    }`}
+                    onClick={() => onPick(entry.position.index)}
+                    className="flex w-full items-center justify-between rounded border border-space-border px-3 py-2 text-left text-xs hover:border-hud-amber/60"
                   >
                     <span className="flex items-baseline gap-2">
-                      <WeaponDot tint={w.tint} />
-                      {w.name}
+                      <WeaponDot tint={entry.weapon.tint} />
+                      {entry.weapon.name}
                       {lvl > 1 && (
                         <span className="font-mono text-[10px] text-hud-green/60">Mk {lvl}</span>
                       )}
                     </span>
                     <span className="font-mono text-[10px] text-hud-amber">
-                      ⚡ {w.energyCost}
+                      ⚡ {entry.weapon.energyCost}
                     </span>
                   </button>
                 </li>

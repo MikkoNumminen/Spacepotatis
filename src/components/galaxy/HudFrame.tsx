@@ -5,6 +5,7 @@ import type { MissionDefinition } from "@/types/game";
 import MuteToggle from "@/components/MuteToggle";
 import UserMenu from "@/components/UserMenu";
 import { useGameState } from "@/game/state/useGameState";
+import { describeMissionReward } from "@/game/state/rewards";
 import { getSolarSystem } from "@/game/data/solarSystems";
 
 function StatRow({
@@ -90,11 +91,18 @@ export default function HudFrame({
       </div>
       {lastSummary && (
         <div className="absolute left-1/2 top-20 -translate-x-1/2 rounded border border-space-border bg-space-panel/70 px-4 py-2 text-center text-xs backdrop-blur-sm">
-          <span className={lastSummary.victory ? "text-hud-green" : "text-hud-red"}>
-            {lastSummary.victory ? "MISSION COMPLETE" : "MISSION FAILED"}
-          </span>
-          <span className="ml-3 text-hud-amber">¢ {lastSummary.credits}</span>
-          <span className="ml-3 text-hud-green/70">score {lastSummary.score}</span>
+          <div>
+            <span className={lastSummary.victory ? "text-hud-green" : "text-hud-red"}>
+              {lastSummary.victory ? "MISSION COMPLETE" : "MISSION FAILED"}
+            </span>
+            <span className="ml-3 text-hud-amber">¢ {lastSummary.credits}</span>
+            <span className="ml-3 text-hud-green/70">score {lastSummary.score}</span>
+          </div>
+          {lastSummary.firstClearReward && (
+            <div className="mt-1 text-[11px] text-hud-amber/90">
+              FIRST CLEAR · {describeMissionReward(lastSummary.firstClearReward)}
+            </div>
+          )}
         </div>
       )}
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-center">

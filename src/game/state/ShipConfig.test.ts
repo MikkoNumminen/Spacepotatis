@@ -4,16 +4,12 @@ import {
   MAX_LEVEL,
   MAX_WEAPON_SLOTS,
   armorUpgradeCost,
-  findEquippedSlot,
   firstEmptySlot,
-  getInstalledAugments,
   getMaxArmor,
   getMaxShield,
   getReactorCapacity,
   getReactorRecharge,
-  getWeaponLevel,
-  isWeaponEquipped,
-  isWeaponUnlocked,
+  ownsAnyOfType,
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost,
@@ -29,8 +25,9 @@ import {
 
 describe("DEFAULT_SHIP", () => {
   it("starts with one slot containing the free starter weapon", () => {
-    expect(DEFAULT_SHIP.slots).toEqual(["rapid-fire"]);
-    expect(DEFAULT_SHIP.unlockedWeapons).toEqual(["rapid-fire"]);
+    expect(DEFAULT_SHIP.slots.length).toBe(1);
+    expect(DEFAULT_SHIP.slots[0]?.id).toBe("rapid-fire");
+    expect(ownsAnyOfType(DEFAULT_SHIP, "rapid-fire")).toBe(true);
     expect(DEFAULT_SHIP.shieldLevel).toBe(0);
     expect(DEFAULT_SHIP.armorLevel).toBe(0);
     expect(DEFAULT_SHIP.reactor.capacityLevel).toBe(0);
@@ -107,40 +104,47 @@ describe("upgrade costs", () => {
   });
 });
 
-describe("isWeaponUnlocked", () => {
+describe("ownsAnyOfType (weapon ownership)", () => {
   it("recognizes the unlocked starter weapon", () => {
-    expect(isWeaponUnlocked(DEFAULT_SHIP, "rapid-fire")).toBe(true);
+    expect(ownsAnyOfType(DEFAULT_SHIP, "rapid-fire")).toBe(true);
   });
 
-  it("rejects weapons not present in unlockedWeapons", () => {
-    expect(isWeaponUnlocked(DEFAULT_SHIP, "spread-shot")).toBe(false);
-    expect(isWeaponUnlocked(DEFAULT_SHIP, "heavy-cannon")).toBe(false);
+  it("rejects weapons not owned in slots or inventory", () => {
+    expect(ownsAnyOfType(DEFAULT_SHIP, "spread-shot")).toBe(false);
+    expect(ownsAnyOfType(DEFAULT_SHIP, "heavy-cannon")).toBe(false);
   });
 
-  it("recognizes additional unlocked weapons", () => {
+  it("recognizes additional owned weapons", () => {
     const ship: ShipConfig = {
       ...DEFAULT_SHIP,
-      unlockedWeapons: ["rapid-fire", "heavy-cannon"]
+      inventory: [{ id: "heavy-cannon", level: 1, augments: [] }]
     };
-    expect(isWeaponUnlocked(ship, "heavy-cannon")).toBe(true);
-    expect(isWeaponUnlocked(ship, "spread-shot")).toBe(false);
+    expect(ownsAnyOfType(ship, "heavy-cannon")).toBe(true);
+    expect(ownsAnyOfType(ship, "spread-shot")).toBe(false);
   });
 });
 
 describe("slot helpers", () => {
-  it("isWeaponEquipped reports true when the weapon is in any slot", () => {
-    expect(isWeaponEquipped(DEFAULT_SHIP, "rapid-fire")).toBe(true);
-    expect(isWeaponEquipped(DEFAULT_SHIP, "heavy-cannon")).toBe(false);
+  it("ship.slots.some reports true when the weapon is in any slot", () => {
+    expect(DEFAULT_SHIP.slots.some(s => s?.id === "rapid-fire")).toBe(true);
+    expect(DEFAULT_SHIP.slots.some(s => s?.id === "heavy-cannon")).toBe(false);
   });
 
-  it("findEquippedSlot returns the slot index or -1", () => {
-    expect(findEquippedSlot(DEFAULT_SHIP, "rapid-fire")).toBe(0);
-    expect(findEquippedSlot(DEFAULT_SHIP, "heavy-cannon")).toBe(-1);
+  it("ship.slots.findIndex returns the slot index or -1", () => {
+    expect(DEFAULT_SHIP.slots.findIndex(s => s?.id === "rapid-fire")).toBe(0);
+    expect(DEFAULT_SHIP.slots.findIndex(s => s?.id === "heavy-cannon")).toBe(-1);
   });
 
   it("firstEmptySlot finds the leftmost null", () => {
     expect(firstEmptySlot(DEFAULT_SHIP)).toBe(-1);
-    const ship: ShipConfig = { ...DEFAULT_SHIP, slots: ["rapid-fire", null, "spread-shot"] };
+    const ship: ShipConfig = {
+      ...DEFAULT_SHIP,
+      slots: [
+        { id: "rapid-fire", level: 1, augments: [] },
+        null,
+        { id: "spread-shot", level: 1, augments: [] }
+      ]
+    };
     expect(firstEmptySlot(ship)).toBe(1);
   });
 });
@@ -165,20 +169,27 @@ describe("slotPurchaseCost", () => {
 });
 
 describe("weapon mark levels", () => {
-  it("default ship has an empty weaponLevels map; getWeaponLevel falls back to 1", () => {
-    expect(DEFAULT_SHIP.weaponLevels).toEqual({});
-    expect(getWeaponLevel(DEFAULT_SHIP, "rapid-fire")).toBe(1);
-    expect(getWeaponLevel(DEFAULT_SHIP, "spread-shot")).toBe(1);
+  it("default ship's starter weapon is at level 1; unowned weapons fall back to 1", () => {
+    const starter = DEFAULT_SHIP.slots.find(s => s?.id === "rapid-fire");
+    expect(starter?.level ?? 1).toBe(1);
+    const spread =
+      DEFAULT_SHIP.slots.find(s => s?.id === "spread-shot") ??
+      DEFAULT_SHIP.inventory.find(i => i.id === "spread-shot");
+    expect(spread?.level ?? 1).toBe(1);
   });
 
-  it("getWeaponLevel reads explicit entries when present", () => {
+  it("a weapon instance carries its own explicit level", () => {
     const ship: ShipConfig = {
       ...DEFAULT_SHIP,
-      weaponLevels: { "rapid-fire": 4 }
+      slots: [{ id: "rapid-fire", level: 4, augments: [] }]
     };
-    expect(getWeaponLevel(ship, "rapid-fire")).toBe(4);
-    // Other weapons still default to 1 because they're not in the map.
-    expect(getWeaponLevel(ship, "spread-shot")).toBe(1);
+    const rapid = ship.slots.find(s => s?.id === "rapid-fire");
+    expect(rapid?.level).toBe(4);
+    // Other weapons aren't present; readers default to 1.
+    const spread =
+      ship.slots.find(s => s?.id === "spread-shot") ??
+      ship.inventory.find(i => i.id === "spread-shot");
+    expect(spread?.level ?? 1).toBe(1);
   });
 
   it("weaponDamageMultiplier scales linearly: level 1 = 1.0, level 5 = 1.60", () => {
@@ -198,25 +209,30 @@ describe("weapon mark levels", () => {
 });
 
 describe("installed augments", () => {
-  it("getInstalledAugments returns [] for the default ship", () => {
-    expect(getInstalledAugments(DEFAULT_SHIP, "rapid-fire")).toEqual([]);
+  it("default ship's starter weapon has no augments installed", () => {
+    const starter = DEFAULT_SHIP.slots.find(s => s?.id === "rapid-fire");
+    expect(starter?.augments ?? []).toEqual([]);
   });
 
-  it("reads back the array stored under weaponAugments[id]", () => {
+  it("reads back the augments stored on a weapon instance", () => {
     const ship: ShipConfig = {
       ...DEFAULT_SHIP,
-      weaponAugments: { "rapid-fire": ["damage-up", "fire-rate-up"] }
+      slots: [{ id: "rapid-fire", level: 1, augments: ["damage-up", "fire-rate-up"] }]
     };
-    expect(getInstalledAugments(ship, "rapid-fire")).toEqual(["damage-up", "fire-rate-up"]);
+    const rapid = ship.slots.find(s => s?.id === "rapid-fire");
+    expect(rapid?.augments).toEqual(["damage-up", "fire-rate-up"]);
   });
 
-  it("returns [] for an owned weapon with no entry in weaponAugments", () => {
+  it("returns [] for an owned weapon with no augments installed", () => {
     const ship: ShipConfig = {
       ...DEFAULT_SHIP,
-      unlockedWeapons: ["rapid-fire", "spread-shot"],
-      weaponAugments: { "rapid-fire": ["damage-up"] }
+      slots: [{ id: "rapid-fire", level: 1, augments: ["damage-up"] }],
+      inventory: [{ id: "spread-shot", level: 1, augments: [] }]
     };
-    expect(getInstalledAugments(ship, "spread-shot")).toEqual([]);
+    const spread =
+      ship.slots.find(s => s?.id === "spread-shot") ??
+      ship.inventory.find(i => i.id === "spread-shot");
+    expect(spread?.augments ?? []).toEqual([]);
   });
 });
 

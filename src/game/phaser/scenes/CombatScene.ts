@@ -11,6 +11,7 @@ import { setSummary } from "../registry";
 import { sfx } from "@/game/audio/sfx";
 import { combatMusic } from "@/game/audio/music";
 import { getMission } from "@/game/data/missions";
+import { applyMissionReward, rollMissionReward } from "@/game/state/rewards";
 import { PowerUpPool } from "../entities/PowerUp";
 import { WaveManager } from "../systems/WaveManager";
 import { wireCollisions } from "../systems/CollisionSystem";
@@ -212,13 +213,26 @@ export class CombatScene extends Phaser.Scene {
       timeSeconds,
       victory
     };
-    setSummary(this.game, summary);
 
     GameState.addPlayedTime(timeSeconds);
     if (victory) {
       GameState.addCredits(this.score.credits);
+      // First clear pulls a random reward from the mission's solar-system
+      // loot pool; replays still earn the kill credits above but no bonus.
+      // Order matters: roll BEFORE completeMission so the freshness check
+      // sees the pre-completion state.
+      if (!GameState.isMissionCompleted(this.bootData.missionId)) {
+        const mission = getMission(this.bootData.missionId);
+        const reward = rollMissionReward(
+          mission.solarSystemId,
+          GameState.getState().ship
+        );
+        applyMissionReward(reward);
+        summary.firstClearReward = reward;
+      }
       GameState.completeMission(this.bootData.missionId);
     }
+    setSummary(this.game, summary);
 
     this.time.delayedCall(500, () => {
       this.scene.start(SCENE_KEYS.Result, this.bootData);

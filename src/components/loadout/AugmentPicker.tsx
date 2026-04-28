@@ -1,26 +1,27 @@
-import { getWeapon } from "@/game/data/weapons";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "@/game/data/augments";
-import type { AugmentId, WeaponId } from "@/types/game";
+import type { WeaponPosition } from "@/game/state/ShipConfig";
+import type { AugmentId, WeaponDefinition } from "@/types/game";
 import { AugmentDot } from "./dots";
 
 export function AugmentPicker({
-  weaponId,
+  position: _position,
+  weapon,
   installed,
   augmentInventory,
   onPick,
   onClose
 }: {
-  weaponId: WeaponId;
+  position: WeaponPosition;
+  weapon: WeaponDefinition;
   installed: readonly AugmentId[];
   augmentInventory: readonly AugmentId[];
   onPick: (augmentId: AugmentId) => void;
   onClose: () => void;
 }) {
-  const weapon = getWeapon(weaponId);
-  // Only offer augments the weapon doesn't already hold. Duplicates of the
-  // same augment id can sit in inventory if the player bought multiple
-  // copies — show all such entries so the count adds up, but disable the
-  // duplicates of an already-installed augment.
+  // Only offer augments the instance doesn't already hold. Duplicates of the
+  // same augment id can sit in inventory if the player bought multiple copies;
+  // those are filtered out once that augment is installed on this instance.
+  void _position;
   const eligible = augmentInventory
     .map((id, idx) => ({ id, idx }))
     .filter(({ id }) => !installed.includes(id));

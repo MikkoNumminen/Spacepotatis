@@ -68,8 +68,9 @@ describe("loadSave", () => {
       credits: 4242,
       currentPlanet: null,
       shipConfig: {
-        slots: { front: "rapid-fire", rear: null, sidekickLeft: null, sidekickRight: null },
-        unlockedWeapons: ["rapid-fire"],
+        slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+        inventory: [],
+        augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 0, rechargeLevel: 0 }
@@ -116,7 +117,13 @@ describe("loadSave", () => {
     const s = getState();
     expect(s.credits).toBe(1170);
     expect(s.completedMissions).toEqual(["tutorial"]);
-    expect(s.ship.slots[0]).toBe("rapid-fire");
+    // migrateShip falls back to DEFAULT_SHIP, which is one slot holding a
+    // fresh rapid-fire WeaponInstance and an empty inventory.
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[0]?.level).toBe(1);
+    expect(s.ship.slots[0]?.augments).toEqual([]);
+    expect(s.ship.inventory).toEqual([]);
   });
 
   it("dedupes concurrent calls into a single /api/save fetch", async () => {

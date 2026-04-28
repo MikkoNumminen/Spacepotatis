@@ -3,40 +3,40 @@ import type { AugmentId, WeaponId } from "@/types/game";
 // Indices into ShipConfig.slots. Slot 0 is the ship's main weapon mount
 // (always present); higher indices are expansion mounts purchased from
 // the shop. All slots fire forward — there is no left/right/rear kind
-// any more. Use `number` directly at call sites; this alias is just here
-// for readability when a function clearly takes "the index of a slot".
+// any more.
 export type SlotIndex = number;
 
-// Variable-length array of weapons. Each entry is either a WeaponId
-// (equipped) or null (slot owned but empty). A new save starts with one
-// slot containing the starter weapon; the player buys additional slots
-// at the shop via buyWeaponSlot().
-export type WeaponSlots = readonly (WeaponId | null)[];
+// One physical weapon the player owns. Each instance has its OWN level
+// and augment list — owning two Pulse Cannons means each one is upgraded
+// independently. Instances live in exactly one place at a time: either a
+// slot (equipped) or the inventory (unequipped). The same instance is
+// never duplicated across both.
+export interface WeaponInstance {
+  readonly id: WeaponId;
+  readonly level: number;
+  readonly augments: readonly AugmentId[];
+}
+
+// Variable-length array of weapon slots. Each entry is either an equipped
+// WeaponInstance or null (slot owned but empty). A new save starts with
+// slot 0 holding the starter weapon; the player buys more via buyWeaponSlot().
+export type WeaponSlots = readonly (WeaponInstance | null)[];
+
+// Unequipped weapon instances. Order is the order they were acquired —
+// pickers iterate it directly so the UI is stable.
+export type WeaponInventory = readonly WeaponInstance[];
 
 export interface ReactorConfig {
   capacityLevel: number;
   rechargeLevel: number;
 }
 
-// Per-weapon mark levels. Sparse map keyed by WeaponId — missing entries
-// default to level 1 (base). Each level adds WEAPON_DAMAGE_PER_LEVEL to the
-// damage multiplier; nothing else (fire rate, projectile count, spread) ever
-// scales with level. Augments stack on top via WeaponAugments.
-export type WeaponLevels = Readonly<Partial<Record<WeaponId, number>>>;
-
-// Per-weapon installed augments. Each weapon can hold up to
-// MAX_AUGMENTS_PER_WEAPON (see src/game/data/augments.ts). Augments
-// are permanently bound — sellWeapon() destroys both the weapon and its
-// augment list together.
-export type WeaponAugments = Readonly<Partial<Record<WeaponId, readonly AugmentId[]>>>;
-
 export interface ShipConfig {
   slots: WeaponSlots;
-  unlockedWeapons: readonly WeaponId[];
-  weaponLevels: WeaponLevels;
-  weaponAugments: WeaponAugments;
+  inventory: WeaponInventory;
   // Augments the player owns but has not yet bound to a weapon. Once an
-  // augment is installed it leaves this list and joins weaponAugments[wid].
+  // augment is installed it leaves this list and joins the target
+  // instance's `augments` array.
   augmentInventory: readonly AugmentId[];
   shieldLevel: number;
   armorLevel: number;
@@ -63,11 +63,13 @@ const REACTOR_CAPACITY_PER_LEVEL = 30;
 const BASE_REACTOR_RECHARGE = 25;
 const REACTOR_RECHARGE_PER_LEVEL = 8;
 
+export function newWeaponInstance(id: WeaponId): WeaponInstance {
+  return { id, level: 1, augments: [] };
+}
+
 export const DEFAULT_SHIP: ShipConfig = {
-  slots: ["rapid-fire"],
-  unlockedWeapons: ["rapid-fire"],
-  weaponLevels: {},
-  weaponAugments: {},
+  slots: [newWeaponInstance("rapid-fire")],
+  inventory: [],
   augmentInventory: [],
   shieldLevel: 0,
   armorLevel: 0,
@@ -118,13 +120,6 @@ export function slotPurchaseCost(currentSlotCount: number): number {
   return 4000 * Math.pow(2, currentSlotCount - 3);
 }
 
-// Per-weapon level helpers. The level lives in the ShipConfig, not on the
-// weapon definition — different players can hold different levels of the
-// same weapon, and the JSON catalog stays the canonical "base" stats.
-export function getWeaponLevel(config: ShipConfig, id: WeaponId): number {
-  return config.weaponLevels[id] ?? 1;
-}
-
 export function weaponDamageMultiplier(level: number): number {
   return 1 + WEAPON_DAMAGE_PER_LEVEL * (level - 1);
 }
@@ -135,30 +130,38 @@ export function weaponUpgradeCost(currentLevel: number): number {
   return 200 * Math.pow(2, currentLevel - 1);
 }
 
-// Augment helpers. The actual augment definitions live in
-// src/game/data/augments.ts; these helpers just read the per-ship
-// installed list, which is the only ShipConfig-coupled piece.
-export function getInstalledAugments(config: ShipConfig, id: WeaponId): readonly AugmentId[] {
-  return config.weaponAugments[id] ?? [];
-}
+// Position references for mutators. Each instance lives in exactly one
+// place, so picker UIs and mutators address it via this discriminated union.
+export type WeaponPosition =
+  | { readonly kind: "slot"; readonly index: number }
+  | { readonly kind: "inventory"; readonly index: number };
 
-export function isWeaponUnlocked(config: ShipConfig, id: WeaponId): boolean {
-  return config.unlockedWeapons.includes(id);
-}
-
-export function isWeaponEquipped(config: ShipConfig, id: WeaponId): boolean {
-  return config.slots.includes(id);
-}
-
-// Returns the slot index that currently holds `id`, or -1 if it isn't
-// equipped. Indices are stable for a given save (slots only grow at the
-// tail when buyWeaponSlot pushes a null on).
-export function findEquippedSlot(config: ShipConfig, id: WeaponId): number {
-  return config.slots.indexOf(id);
+// Returns the instance at the given position, or null if the position is
+// out of range / points at an empty slot. Pure helper; does not mutate.
+export function getInstanceAt(ship: ShipConfig, pos: WeaponPosition): WeaponInstance | null {
+  if (pos.kind === "slot") {
+    return ship.slots[pos.index] ?? null;
+  }
+  return ship.inventory[pos.index] ?? null;
 }
 
 // Index of the first empty slot, or -1 if every slot is occupied. Used by
-// grantWeapon / buyWeapon to auto-equip the next purchase if there's room.
-export function firstEmptySlot(config: ShipConfig): number {
-  return config.slots.indexOf(null);
+// grantWeapon / buyWeapon to auto-equip the next acquisition if there's room.
+export function firstEmptySlot(ship: ShipConfig): number {
+  for (let i = 0; i < ship.slots.length; i++) {
+    if (ship.slots[i] === null) return i;
+  }
+  return -1;
+}
+
+// "Has the player ever owned a weapon of this type?" — derived rather than
+// stored. Used by content/UI hints; not load-bearing for any gameplay rule.
+export function ownsAnyOfType(ship: ShipConfig, id: WeaponId): boolean {
+  for (const s of ship.slots) {
+    if (s && s.id === id) return true;
+  }
+  for (const inv of ship.inventory) {
+    if (inv.id === id) return true;
+  }
+  return false;
 }

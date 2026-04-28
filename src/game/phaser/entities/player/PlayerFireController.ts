@@ -1,4 +1,4 @@
-import type { WeaponId } from "@/types/game";
+import type { WeaponInstance } from "@/game/state/ShipConfig";
 import { WeaponSystem } from "../../systems/WeaponSystem";
 import { sfx } from "@/game/audio/sfx";
 import type { SlotMods } from "./SlotModResolver";
@@ -17,13 +17,13 @@ interface SpritePosition {
 }
 
 // Owns the per-slot fire-attempt path. Holds the per-slot WeaponSystem
-// cooldowns plus references to the orchestrator's slot weapon and mod
+// cooldowns plus references to the orchestrator's slot instance and mod
 // arrays; when Player.setSlotWeapon mutates an entry the controller sees it
 // through the shared array reference.
 export class PlayerFireController {
   constructor(
     private readonly weaponsBySlot: WeaponSystem[],
-    private readonly slotWeapons: (WeaponId | null)[],
+    private readonly slotInstances: (WeaponInstance | null)[],
     private readonly slotMods: SlotMods[]
   ) {}
 
@@ -36,8 +36,8 @@ export class PlayerFireController {
     sprite: SpritePosition,
     combatant: PlayerCombatant
   ): boolean {
-    const weaponId = this.slotWeapons[slotIndex];
-    if (!weaponId) return false;
+    const instance = this.slotInstances[slotIndex];
+    if (!instance) return false;
     const mods = this.slotMods[slotIndex];
     if (!mods) return false;
     if (combatant.energy < mods.energyCost) return false;
@@ -47,7 +47,7 @@ export class PlayerFireController {
     // augment fire-rate modifier — both are "cooldown multipliers", so the
     // effective cooldown is base × augment × overdrive.
     const fired = this.weaponsBySlot[slotIndex]?.tryFire(
-      weaponId,
+      instance.id,
       sprite.x + xOffset,
       sprite.y + SPAWN_Y_OFFSET,
       now,
@@ -74,7 +74,7 @@ export class PlayerFireController {
     combatant: PlayerCombatant
   ): void {
     let firedAny = false;
-    for (let i = 0; i < this.slotWeapons.length; i++) {
+    for (let i = 0; i < this.slotInstances.length; i++) {
       if (this.tryFireSlot(i, now, overdriveMul, sprite, combatant)) firedAny = true;
     }
     if (firedAny) sfx.laser();

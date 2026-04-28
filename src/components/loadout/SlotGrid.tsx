@@ -1,5 +1,5 @@
 import { getWeapon } from "@/game/data/weapons";
-import type { WeaponDefinition, WeaponId } from "@/types/game";
+import type { WeaponSlots } from "@/game/state/ShipConfig";
 import { WeaponDot } from "./dots";
 
 // Friendly label for an array index: slot 0 is "MAIN", subsequent slots
@@ -8,27 +8,17 @@ export function slotLabel(slotIndex: number): string {
   return slotIndex === 0 ? "MAIN" : `SLOT ${slotIndex + 1}`;
 }
 
-export type WeaponLevels = Readonly<Partial<Record<WeaponId, number>>>;
-
 export function SlotGrid({
   slots,
-  weaponLevels,
   onPick
 }: {
-  slots: readonly (WeaponId | null)[];
-  weaponLevels: WeaponLevels;
+  slots: WeaponSlots;
   onPick: (slotIndex: number) => void;
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-3">
-      {slots.map((wid, i) => (
-        <SlotCard
-          key={i}
-          slotIndex={i}
-          weaponId={wid}
-          weaponLevels={weaponLevels}
-          onPick={onPick}
-        />
+      {slots.map((instance, i) => (
+        <SlotCard key={i} slotIndex={i} instance={instance} onPick={onPick} />
       ))}
     </div>
   );
@@ -36,17 +26,15 @@ export function SlotGrid({
 
 function SlotCard({
   slotIndex,
-  weaponId,
-  weaponLevels,
+  instance,
   onPick
 }: {
   slotIndex: number;
-  weaponId: WeaponDefinition["id"] | null;
-  weaponLevels: WeaponLevels;
+  instance: WeaponSlots[number];
   onPick: (slotIndex: number) => void;
 }) {
-  const weapon = weaponId ? getWeapon(weaponId) : null;
-  const level = weaponId ? weaponLevels[weaponId] ?? 1 : 1;
+  const weapon = instance ? getWeapon(instance.id) : null;
+  const level = instance ? instance.level : 1;
   return (
     <button
       type="button"

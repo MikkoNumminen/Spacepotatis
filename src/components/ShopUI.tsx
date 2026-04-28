@@ -16,7 +16,6 @@ import {
   getMaxShield,
   getReactorCapacity,
   getReactorRecharge,
-  isWeaponUnlocked,
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost
@@ -94,37 +93,25 @@ export default function ShopUI() {
           <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
         </header>
 
-        {(() => {
-          const forSale = getAllWeapons().filter((w) => !isWeaponUnlocked(ship, w.id));
-          if (forSale.length === 0) {
-            return (
-              <p className="text-[11px] text-hud-green/60">
-                All weapons unlocked. Manage them in the loadout above.
-              </p>
-            );
-          }
-          return (
-            <ul className="flex flex-col gap-3">
-              {forSale.map((weapon) => (
-                <li key={weapon.id} className="rounded border border-space-border p-3">
-                  <div className="font-display tracking-wider">{weapon.name}</div>
-                  <WeaponStats weapon={weapon} />
-                  <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
-                  <div className="mt-2 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      disabled={credits < weapon.cost}
-                      onClick={() => void buyWeapon(weapon.id)}
-                      className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                    >
-                      BUY · ¢ {weapon.cost}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          );
-        })()}
+        <ul className="flex flex-col gap-3">
+          {getAllWeapons().map((weapon) => (
+            <li key={weapon.id} className="rounded border border-space-border p-3">
+              <div className="font-display tracking-wider">{weapon.name}</div>
+              <WeaponStats weapon={weapon} />
+              <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={credits < weapon.cost}
+                  onClick={() => void buyWeapon(weapon.id)}
+                  className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                >
+                  BUY · ¢ {weapon.cost}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="rounded border border-space-border bg-space-panel/70 p-5 md:col-span-2">

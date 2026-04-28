@@ -3,7 +3,12 @@ import {
   getSellPrice,
   sellWeapon
 } from "@/game/state/GameState";
-import { MAX_LEVEL, weaponUpgradeCost } from "@/game/state/ShipConfig";
+import {
+  MAX_LEVEL,
+  weaponUpgradeCost,
+  type WeaponInstance,
+  type WeaponPosition
+} from "@/game/state/ShipConfig";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "@/game/data/augments";
 import { WeaponStats } from "@/components/WeaponStats";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
@@ -11,27 +16,29 @@ import { AugmentDot, WeaponDot } from "./dots";
 
 export function WeaponCard({
   weapon,
-  level,
+  instance,
+  position,
   credits,
   showSellButton,
   showUpgradeButton,
   showInstallButton,
-  installedAugments,
   augmentInventory,
   onOpenInstaller,
   slotBadge
 }: {
   weapon: WeaponDefinition;
-  level: number;
+  instance: WeaponInstance;
+  position: WeaponPosition;
   credits: number;
   showSellButton: boolean;
   showUpgradeButton: boolean;
   showInstallButton: boolean;
-  installedAugments: readonly AugmentId[];
   augmentInventory: readonly AugmentId[];
   onOpenInstaller: () => void;
   slotBadge?: string;
 }) {
+  const level = instance.level;
+  const installedAugments = instance.augments;
   const sellPrice = getSellPrice(weapon);
   const sellable = showSellButton && sellPrice > 0;
   const atMaxLevel = level >= MAX_LEVEL;
@@ -77,16 +84,16 @@ export function WeaponCard({
               <button
                 type="button"
                 disabled={!canAffordUpgrade}
-                onClick={() => void buyWeaponUpgrade(weapon.id)}
+                onClick={() => void buyWeaponUpgrade(position)}
                 className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
               >
                 UPGRADE Mk{level + 1} · ¢ {upgradeCost}
               </button>
             ))}
-          {sellable && (
+          {sellable && position.kind === "inventory" && (
             <button
               type="button"
-              onClick={() => void sellWeapon(weapon.id)}
+              onClick={() => void sellWeapon(position.index)}
               className="rounded border border-hud-red/60 px-3 py-1 text-xs text-hud-red hover:bg-hud-red/10"
             >
               SELL · ¢ {sellPrice}

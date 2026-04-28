@@ -10,6 +10,7 @@ import {
   buyWeapon,
   buyWeaponSlot,
   buyWeaponUpgrade,
+  commit,
   completeMission,
   equipWeapon,
   getState,
@@ -26,7 +27,7 @@ import {
   subscribe,
   toSnapshot
 } from "./GameState";
-import { MAX_AUGMENTS_PER_WEAPON } from "@/game/data/augments";
+import { newWeaponInstance } from "./ShipConfig";
 
 beforeEach(() => {
   resetForTests();
@@ -45,9 +46,13 @@ describe("initial state", () => {
     expect(s.saveSlot).toBe(1);
   });
 
-  it("ship boots with one slot containing rapid-fire", () => {
+  it("ship boots with one slot containing a fresh rapid-fire instance", () => {
     const ship = getState().ship;
-    expect(ship.slots).toEqual(["rapid-fire"]);
+    expect(ship.slots).toHaveLength(1);
+    expect(ship.slots[0]?.id).toBe("rapid-fire");
+    expect(ship.slots[0]?.level).toBe(1);
+    expect(ship.slots[0]?.augments).toEqual([]);
+    expect(ship.inventory).toEqual([]);
     expect(ship.reactor.capacityLevel).toBe(0);
     expect(ship.reactor.rechargeLevel).toBe(0);
   });
@@ -167,23 +172,38 @@ describe("setSolarSystem", () => {
 describe("ship purchases", () => {
   it("buyWeapon refuses when the player cannot afford it", () => {
     expect(buyWeapon("heavy-cannon")).toBe(false);
-    expect(getState().ship.unlockedWeapons).toEqual(["rapid-fire"]);
+    // Inventory and slots are unchanged: only the starter is owned.
+    const s = getState();
+    expect(s.ship.inventory).toEqual([]);
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
   });
 
-  it("buyWeapon spends credits, unlocks, and leaves slot 0 occupied by the starter weapon", () => {
+  it("buyWeapon spends credits and lands the new instance in inventory when slots are full", () => {
     addCredits(450);
     expect(buyWeapon("spread-shot")).toBe(true);
     const s = getState();
     expect(s.credits).toBe(0);
-    expect(s.ship.unlockedWeapons).toContain("spread-shot");
-    expect(s.ship.slots[0]).toBe("rapid-fire");
-    // Default ship has only one slot — the new weapon lands in inventory
-    // until the player buys an expansion slot.
+    // Default ship has only one slot, occupied by the starter, so the
+    // new instance lands in inventory.
     expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("spread-shot");
+    expect(s.ship.inventory[0]?.level).toBe(1);
   });
 
-  it("buyWeapon refuses to re-purchase a weapon already owned", () => {
-    expect(buyWeapon("rapid-fire")).toBe(false);
+  it("buyWeapon allows duplicate purchases (each call creates a new instance)", () => {
+    addCredits(900);
+    expect(buyWeapon("spread-shot")).toBe(true);
+    expect(buyWeapon("spread-shot")).toBe(true);
+    const s = getState();
+    expect(s.credits).toBe(0);
+    expect(s.ship.inventory).toHaveLength(2);
+    expect(s.ship.inventory[0]?.id).toBe("spread-shot");
+    expect(s.ship.inventory[1]?.id).toBe("spread-shot");
+    // Independent objects — upgrading one shouldn't touch the other.
+    expect(s.ship.inventory[0]).not.toBe(s.ship.inventory[1]);
   });
 
   it("buyShieldUpgrade increments the level and spends credits", () => {
@@ -224,53 +244,49 @@ describe("ship purchases", () => {
 });
 
 describe("equipWeapon", () => {
-  it("refuses to equip a weapon the player does not own", () => {
-    expect(equipWeapon(0, "heavy-cannon")).toBe(false);
-    expect(getState().ship.slots[0]).toBe("rapid-fire");
+  it("refuses to equip from an out-of-range inventory index", () => {
+    addCredits(450);
+    buyWeapon("spread-shot");
+    expect(equipWeapon(0, 99)).toBe(false);
+    // Slot 0 still holds the starter; nothing was disturbed.
+    expect(getState().ship.slots[0]?.id).toBe("rapid-fire");
   });
 
   it("refuses to equip into an out-of-range slot index", () => {
     addCredits(450);
     buyWeapon("spread-shot");
-    expect(equipWeapon(5, "spread-shot")).toBe(false);
+    expect(equipWeapon(5, 0)).toBe(false);
     expect(getState().ship.slots).toHaveLength(1);
   });
 
-  it("equips an owned weapon into the requested slot", () => {
+  it("equips an inventory weapon into a slot, displacing the previous occupant to the inventory tail", () => {
     addCredits(450);
     buyWeapon("spread-shot");
-    expect(equipWeapon(0, "spread-shot")).toBe(true);
-    expect(getState().ship.slots[0]).toBe("spread-shot");
+    // Pre: slot 0 = rapid-fire, inventory = [spread-shot].
+    expect(equipWeapon(0, 0)).toBe(true);
+    const s = getState();
+    expect(s.ship.slots[0]?.id).toBe("spread-shot");
+    // The displaced starter is now at the END of inventory.
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("rapid-fire");
   });
 
-  it("equipping a different weapon into a slot replaces what was there", () => {
-    addCredits(900);
-    buyWeapon("heavy-cannon");
-    expect(equipWeapon(0, "heavy-cannon")).toBe(true);
-    expect(getState().ship.slots[0]).toBe("heavy-cannon");
-    expect(equipWeapon(0, "rapid-fire")).toBe(true);
-    expect(getState().ship.slots[0]).toBe("rapid-fire");
-  });
-
-  it("equipping null clears the slot", () => {
+  it("equipping null clears the slot and pushes the displaced instance to inventory", () => {
     expect(equipWeapon(0, null)).toBe(true);
-    expect(getState().ship.slots[0]).toBeNull();
+    const s = getState();
+    expect(s.ship.slots[0]).toBeNull();
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("rapid-fire");
   });
 
-  it("equipping a weapon that was in another slot vacates that other slot (no duplication)", () => {
-    // Need an extra slot first so the "move from slot A to slot B" path
-    // actually has somewhere to move to.
-    addCredits(450 + 500);
-    buyWeapon("spread-shot");
-    expect(buyWeaponSlot()).toBe(true);
-    expect(equipWeapon(1, "spread-shot")).toBe(true);
-    expect(getState().ship.slots).toEqual(["rapid-fire", "spread-shot"]);
-    // Move spread-shot back into slot 0; slot 1 must vacate.
-    expect(equipWeapon(0, "spread-shot")).toBe(true);
-    const slots = getState().ship.slots;
-    expect(slots[0]).toBe("spread-shot");
-    expect(slots.filter((s) => s === "spread-shot")).toHaveLength(1);
-    expect(slots[1]).toBeNull();
+  it("equipping null on an already-empty slot is a no-op success", () => {
+    equipWeapon(0, null);
+    // Now slot 0 is null, inventory has the starter.
+    const before = getState().ship;
+    expect(equipWeapon(0, null)).toBe(true);
+    const after = getState().ship;
+    // Inventory length unchanged — no spurious push.
+    expect(after.inventory).toHaveLength(before.inventory.length);
   });
 });
 
@@ -278,8 +294,11 @@ describe("buyWeaponSlot", () => {
   it("first expansion costs 500 credits and appends a null slot at the tail", () => {
     addCredits(500);
     expect(buyWeaponSlot()).toBe(true);
-    expect(getState().ship.slots).toEqual(["rapid-fire", null]);
-    expect(getState().credits).toBe(0);
+    const s = getState();
+    expect(s.ship.slots).toHaveLength(2);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[1]).toBeNull();
+    expect(s.credits).toBe(0);
   });
 
   it("refuses when the player can't afford the next slot", () => {
@@ -291,60 +310,78 @@ describe("buyWeaponSlot", () => {
     addCredits(500 + 450);
     expect(buyWeaponSlot()).toBe(true);
     expect(buyWeapon("spread-shot")).toBe(true);
-    expect(getState().ship.slots).toEqual(["rapid-fire", "spread-shot"]);
+    const s = getState();
+    expect(s.ship.slots).toHaveLength(2);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[1]?.id).toBe("spread-shot");
+    expect(s.ship.inventory).toEqual([]);
   });
 });
 
 describe("grantWeapon (mission pickup)", () => {
-  it("unlocks a new weapon and lands it in inventory when every slot is occupied", () => {
+  it("lands in inventory when every slot is occupied", () => {
     // Default ship has only one slot, occupied by the starter. The new
-    // weapon unlocks but stays in inventory until the player buys a slot.
+    // instance lands in inventory.
     grantWeapon("heavy-cannon");
     const s = getState();
-    expect(s.ship.unlockedWeapons).toContain("heavy-cannon");
-    expect(s.ship.slots).toEqual(["rapid-fire"]);
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("heavy-cannon");
   });
 
   it("auto-equips the new weapon into the first empty slot", () => {
     addCredits(500);
     expect(buyWeaponSlot()).toBe(true);
     grantWeapon("heavy-cannon");
-    expect(getState().ship.slots).toEqual(["rapid-fire", "heavy-cannon"]);
+    const s = getState();
+    expect(s.ship.slots).toHaveLength(2);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[1]?.id).toBe("heavy-cannon");
+    expect(s.ship.inventory).toEqual([]);
   });
 
-  it("re-granting an already-equipped weapon is a no-op (no commit fires)", () => {
-    let calls = 0;
-    const unsub = subscribe(() => {
-      calls += 1;
-    });
+  it("re-granting an already-owned weapon ADDS a duplicate instance", () => {
     grantWeapon("rapid-fire");
-    unsub();
-    expect(calls).toBe(0);
+    grantWeapon("rapid-fire");
+    const s = getState();
+    // Slot still holds the starter; the two extra grants land in inventory
+    // (one per call) because no slot is empty.
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.inventory).toHaveLength(2);
+    expect(s.ship.inventory.every((inst) => inst.id === "rapid-fire")).toBe(true);
+    // Distinct instances even though they share an id.
+    expect(s.ship.inventory[0]).not.toBe(s.ship.inventory[1]);
   });
 });
 
 describe("sellWeapon", () => {
-  it("refuses to sell a weapon equipped in any slot", () => {
-    addCredits(450);
-    buyWeapon("spread-shot");
-    equipWeapon(0, "spread-shot");
-    expect(sellWeapon("spread-shot")).toBe(false);
-    expect(getState().ship.unlockedWeapons).toContain("spread-shot");
+  it("refuses when the inventory index is out of range", () => {
+    expect(sellWeapon(99)).toBe(false);
+    expect(sellWeapon(0)).toBe(false); // empty inventory
+    expect(getState().credits).toBe(0);
   });
 
-  it("sells an owned, unequipped weapon for half its purchase price", () => {
+  it("sells an inventory weapon for half its purchase price", () => {
     addCredits(450);
     expect(buyWeapon("spread-shot")).toBe(true);
-    // Default ship has only one slot occupied by the starter, so spread-shot
-    // is unequipped and free to sell.
-    expect(sellWeapon("spread-shot")).toBe(true);
-    expect(getState().ship.unlockedWeapons).not.toContain("spread-shot");
-    expect(getState().credits).toBe(225);
+    // spread-shot landed in inventory because slot 0 was full.
+    expect(getState().ship.inventory).toHaveLength(1);
+    expect(sellWeapon(0)).toBe(true);
+    const s = getState();
+    expect(s.ship.inventory).toEqual([]);
+    expect(s.credits).toBe(225);
   });
 
-  it("refuses to sell the starter weapon (cost 0 → no refund)", () => {
+  it("refuses to sell an instance whose weapon has cost 0 (no refund possible)", () => {
+    // Place the starter into inventory by clearing slot 0.
     equipWeapon(0, null);
-    expect(sellWeapon("rapid-fire")).toBe(false);
+    expect(getState().ship.inventory).toHaveLength(1);
+    expect(getState().ship.inventory[0]?.id).toBe("rapid-fire");
+    expect(sellWeapon(0)).toBe(false);
+    // Inventory is unchanged.
+    expect(getState().ship.inventory).toHaveLength(1);
   });
 });
 
@@ -357,8 +394,20 @@ describe("snapshot / hydrate", () => {
     completeMission("combat-1");
     expect(snap.credits).toBe(123);
     expect(snap.completedMissions).toEqual(["tutorial"]);
-    expect(snap.ship.slots).toEqual(["rapid-fire"]);
+    expect(snap.ship.slots).toHaveLength(1);
+    expect(snap.ship.slots[0]?.id).toBe("rapid-fire");
     expect(snap.ship.reactor).toEqual({ capacityLevel: 0, rechargeLevel: 0 });
+  });
+
+  it("toSnapshot's ship slots/inventory are independent of the live state", () => {
+    addCredits(450);
+    buyWeapon("spread-shot");
+    const snap = toSnapshot();
+    // Mutate the snapshot's arrays — the live state must not be touched.
+    (snap.ship.slots as (typeof snap.ship.slots[number])[]).pop();
+    (snap.ship.inventory as typeof snap.ship.inventory[number][]).pop();
+    expect(getState().ship.slots).toHaveLength(1);
+    expect(getState().ship.inventory).toHaveLength(1);
   });
 
   it("hydrate restores from a partial snapshot using INITIAL defaults for missing fields", () => {
@@ -366,7 +415,8 @@ describe("snapshot / hydrate", () => {
     const s = getState();
     expect(s.credits).toBe(999);
     expect(s.completedMissions).toEqual(["tutorial"]);
-    expect(s.ship.slots).toEqual(["rapid-fire"]);
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
   });
 
   it("hydrate migrates a legacy snapshot (primaryWeapon, no slots, no reactor)", () => {
@@ -382,8 +432,11 @@ describe("snapshot / hydrate", () => {
     hydrate(legacy);
     const s = getState();
     expect(s.credits).toBe(500);
-    expect(s.ship.unlockedWeapons).toEqual(["rapid-fire", "heavy-cannon"]);
-    expect(s.ship.slots).toEqual(["heavy-cannon"]);
+    // primaryWeapon "heavy-cannon" lands in slot 0; the leftover unlocked
+    // weapon (rapid-fire) becomes an inventory instance.
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("heavy-cannon");
+    expect(s.ship.inventory.map((i) => i.id)).toContain("rapid-fire");
     expect(s.ship.shieldLevel).toBe(2);
     expect(s.ship.armorLevel).toBe(1);
     expect(s.ship.reactor).toEqual({ capacityLevel: 0, rechargeLevel: 0 });
@@ -407,26 +460,34 @@ describe("snapshot / hydrate", () => {
     } as unknown as Parameters<typeof hydrate>[0];
     hydrate(named);
     const s = getState();
-    // front weapon survives in slot 0; rear/sidekick weapons stay unlocked
-    // (still in inventory) but are no longer equipped.
-    expect(s.ship.slots).toEqual(["rapid-fire"]);
-    expect(s.ship.unlockedWeapons).toEqual(["rapid-fire", "tail-gunner", "side-spitter"]);
+    // front weapon survives in slot 0; the other unlocked weapons land in
+    // inventory (one instance per unique unlocked id).
+    expect(s.ship.slots).toHaveLength(1);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    const invIds = s.ship.inventory.map((i) => i.id).sort();
+    expect(invIds).toEqual(["side-spitter", "tail-gunner"]);
   });
 
   it("hydrate accepts a new-format array snapshot directly", () => {
     const snap = {
       credits: 10,
       ship: {
-        slots: ["rapid-fire", null],
-        unlockedWeapons: ["rapid-fire"],
+        slots: [newWeaponInstance("rapid-fire"), null],
+        inventory: [newWeaponInstance("spread-shot")],
+        augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 3, rechargeLevel: 2 }
       }
     } as unknown as Parameters<typeof hydrate>[0];
     hydrate(snap);
-    expect(getState().ship.reactor).toEqual({ capacityLevel: 3, rechargeLevel: 2 });
-    expect(getState().ship.slots).toEqual(["rapid-fire", null]);
+    const s = getState();
+    expect(s.ship.reactor).toEqual({ capacityLevel: 3, rechargeLevel: 2 });
+    expect(s.ship.slots).toHaveLength(2);
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[1]).toBeNull();
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("spread-shot");
   });
 
   it("hydrate defaults solar-system fields when the snapshot predates them", () => {
@@ -473,95 +534,92 @@ describe("snapshot / hydrate", () => {
 });
 
 describe("buyWeaponUpgrade", () => {
-  it("refuses to upgrade a weapon the player does not own", () => {
+  it("refuses to upgrade an out-of-range position (no instance present)", () => {
     addCredits(10000);
-    expect(buyWeaponUpgrade("heavy-cannon")).toBe(false);
+    expect(buyWeaponUpgrade({ kind: "slot", index: 5 })).toBe(false);
+    expect(buyWeaponUpgrade({ kind: "inventory", index: 0 })).toBe(false);
     expect(getState().credits).toBe(10000);
   });
 
   it("upgrades the starter weapon from level 1 to 2 for 200 credits", () => {
     addCredits(500);
-    expect(buyWeaponUpgrade("rapid-fire")).toBe(true);
+    expect(buyWeaponUpgrade({ kind: "slot", index: 0 })).toBe(true);
     const s = getState();
     expect(s.credits).toBe(300);
-    expect(s.ship.weaponLevels["rapid-fire"]).toBe(2);
+    expect(s.ship.slots[0]?.level).toBe(2);
   });
 
   it("doubles cost per current level (200, 400, 800, 1600)", () => {
     addCredits(10000);
-    buyWeaponUpgrade("rapid-fire"); // 1 -> 2  cost 200
-    buyWeaponUpgrade("rapid-fire"); // 2 -> 3  cost 400
-    buyWeaponUpgrade("rapid-fire"); // 3 -> 4  cost 800
-    buyWeaponUpgrade("rapid-fire"); // 4 -> 5  cost 1600
+    buyWeaponUpgrade({ kind: "slot", index: 0 }); // 1 -> 2  cost 200
+    buyWeaponUpgrade({ kind: "slot", index: 0 }); // 2 -> 3  cost 400
+    buyWeaponUpgrade({ kind: "slot", index: 0 }); // 3 -> 4  cost 800
+    buyWeaponUpgrade({ kind: "slot", index: 0 }); // 4 -> 5  cost 1600
     const s = getState();
-    expect(s.ship.weaponLevels["rapid-fire"]).toBe(5);
+    expect(s.ship.slots[0]?.level).toBe(5);
     expect(s.credits).toBe(10000 - 200 - 400 - 800 - 1600);
   });
 
   it("refuses past MAX_LEVEL", () => {
     addCredits(10000);
-    for (let i = 0; i < 4; i++) buyWeaponUpgrade("rapid-fire");
+    for (let i = 0; i < 4; i++) buyWeaponUpgrade({ kind: "slot", index: 0 });
     const before = getState().credits;
-    expect(buyWeaponUpgrade("rapid-fire")).toBe(false);
+    expect(buyWeaponUpgrade({ kind: "slot", index: 0 })).toBe(false);
     expect(getState().credits).toBe(before);
   });
 
   it("refuses when the player can't afford the next upgrade", () => {
     addCredits(199);
-    expect(buyWeaponUpgrade("rapid-fire")).toBe(false);
+    expect(buyWeaponUpgrade({ kind: "slot", index: 0 })).toBe(false);
     expect(getState().credits).toBe(199);
-    expect(getState().ship.weaponLevels["rapid-fire"]).toBeUndefined();
+    expect(getState().ship.slots[0]?.level).toBe(1);
+  });
+
+  it("upgrades a slot instance without touching another instance of the same id", () => {
+    // Two rapid-fire instances: one in slot 0 (the starter), one in inventory
+    // via a duplicate buyWeapon. Upgrading the slot must NOT bump the
+    // inventory entry's level.
+    addCredits(10000);
+    grantWeapon("rapid-fire"); // duplicate instance lands in inventory
+    expect(buyWeaponUpgrade({ kind: "slot", index: 0 })).toBe(true);
+    const s = getState();
+    expect(s.ship.slots[0]?.level).toBe(2);
+    expect(s.ship.inventory[0]?.level).toBe(1);
   });
 });
 
-describe("hydrate", () => {
-  it("defaults weaponLevels to {} when snapshot omits it (legacy save)", () => {
-    hydrate({
-      ship: {
-        slots: ["rapid-fire"],
-        unlockedWeapons: ["rapid-fire"],
-        // No weaponLevels here — simulates a pre-Phase-A save
-        shieldLevel: 0,
-        armorLevel: 0,
-        reactor: { capacityLevel: 0, rechargeLevel: 0 }
-      } as unknown as ReturnType<typeof toSnapshot>["ship"]
-    });
-    expect(getState().ship.weaponLevels).toEqual({});
-  });
-
+describe("hydrate (legacy weapon level/augment migration)", () => {
   it("clamps levels to [1, MAX_LEVEL] and drops levels for un-owned weapons", () => {
     hydrate({
       ship: {
         slots: ["rapid-fire"],
         unlockedWeapons: ["rapid-fire", "spread-shot"],
         weaponLevels: {
-          "rapid-fire": 99,           // clamp down to 5
-          "spread-shot": 0,            // clamp up to 1
-          "heavy-cannon": 3            // dropped — not owned
+          "rapid-fire": 99, // clamp down to 5
+          "spread-shot": 0, // clamp up to 1
+          "heavy-cannon": 3 // dropped — not owned
         },
         weaponAugments: {},
         augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 0, rechargeLevel: 0 }
-      }
+      } as unknown as ReturnType<typeof toSnapshot>["ship"]
     });
-    const lvls = getState().ship.weaponLevels;
-    expect(lvls["rapid-fire"]).toBe(5);
-    expect(lvls["spread-shot"]).toBe(1);
-    expect(lvls["heavy-cannon"]).toBeUndefined();
-  });
-
-  it("round-trips weaponLevels through toSnapshot/hydrate", () => {
-    addCredits(10000);
-    buyWeaponUpgrade("rapid-fire");
-    buyWeaponUpgrade("rapid-fire");
-    const snap = toSnapshot();
-    expect(snap.ship.weaponLevels["rapid-fire"]).toBe(3);
-    resetForTests();
-    expect(getState().ship.weaponLevels["rapid-fire"]).toBeUndefined();
-    hydrate(snap);
-    expect(getState().ship.weaponLevels["rapid-fire"]).toBe(3);
+    const s = getState();
+    // rapid-fire claims the slot (first match wins) at clamped level 5.
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[0]?.level).toBe(5);
+    // spread-shot is the leftover instance; it lands in inventory at level 1.
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("spread-shot");
+    expect(s.ship.inventory[0]?.level).toBe(1);
+    // heavy-cannon was never owned: no instance for it anywhere.
+    const allIds = [
+      ...s.ship.slots.flatMap((slot) => (slot ? [slot.id] : [])),
+      ...s.ship.inventory.map((i) => i.id)
+    ];
+    expect(allIds).not.toContain("heavy-cannon");
   });
 
   it("weaponAugments: drops unknown ids, drops entries for un-owned weapons, caps and dedupes", () => {
@@ -571,7 +629,7 @@ describe("hydrate", () => {
         unlockedWeapons: ["rapid-fire", "spread-shot"],
         weaponLevels: {},
         weaponAugments: {
-          // Unknown ids filtered, dupes deduped, capped at MAX_AUGMENTS_PER_WEAPON
+          // Unknown ids filtered, dupes deduped, capped at MAX_AUGMENTS_PER_WEAPON.
           "rapid-fire": [
             "damage-up",
             "damage-up",
@@ -579,7 +637,7 @@ describe("hydrate", () => {
             "fire-rate-up",
             "extra-projectile"
           ],
-          // Dropped — heavy-cannon is not owned
+          // Dropped — heavy-cannon is not owned.
           "heavy-cannon": ["damage-up"]
         },
         augmentInventory: [],
@@ -588,11 +646,16 @@ describe("hydrate", () => {
         reactor: { capacityLevel: 0, rechargeLevel: 0 }
       } as unknown as ReturnType<typeof toSnapshot>["ship"]
     });
-    const aug = getState().ship.weaponAugments;
-    expect(aug["rapid-fire"]).toEqual(["damage-up", "fire-rate-up"]);
-    expect(aug["rapid-fire"]?.length).toBe(MAX_AUGMENTS_PER_WEAPON);
-    expect(aug["heavy-cannon"]).toBeUndefined();
-    expect(aug["spread-shot"]).toBeUndefined();
+    const s = getState();
+    // The rapid-fire instance is in slot 0 with the cleaned augment list.
+    expect(s.ship.slots[0]?.id).toBe("rapid-fire");
+    expect(s.ship.slots[0]?.augments).toEqual(["damage-up", "fire-rate-up"]);
+    expect(s.ship.slots[0]?.augments.length).toBe(2);
+    // spread-shot lives in inventory with no augments (none were specified
+    // for it under the legacy map).
+    expect(s.ship.inventory).toHaveLength(1);
+    expect(s.ship.inventory[0]?.id).toBe("spread-shot");
+    expect(s.ship.inventory[0]?.augments).toEqual([]);
   });
 
   it("augmentInventory: keeps only known ids and preserves order", () => {
@@ -621,22 +684,56 @@ describe("hydrate", () => {
     ]);
   });
 
-  it("round-trips weaponAugments + augmentInventory through toSnapshot/hydrate", () => {
-    addCredits(10000);
+  it("instance level defaults to 1 when missing in legacy snapshot", () => {
+    hydrate({
+      ship: {
+        slots: ["rapid-fire"],
+        unlockedWeapons: ["rapid-fire"],
+        // No weaponLevels — pre-Phase-A save.
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      } as unknown as ReturnType<typeof toSnapshot>["ship"]
+    });
+    expect(getState().ship.slots[0]?.id).toBe("rapid-fire");
+    expect(getState().ship.slots[0]?.level).toBe(1);
+  });
+
+  it("round-trips an instance level through toSnapshot/hydrate", () => {
+    // Set up a slot 0 instance with level 4 using commit directly (avoids
+    // having to save up the credits for three upgrades).
+    const state = getState();
+    commit({
+      ...state,
+      ship: {
+        ...state.ship,
+        slots: [{ id: "rapid-fire", level: 4, augments: [] }]
+      }
+    });
+    const snap = toSnapshot();
+    expect(snap.ship.slots[0]?.level).toBe(4);
+    resetForTests();
+    expect(getState().ship.slots[0]?.level).toBe(1);
+    hydrate(snap);
+    expect(getState().ship.slots[0]?.id).toBe("rapid-fire");
+    expect(getState().ship.slots[0]?.level).toBe(4);
+  });
+
+  it("round-trips per-instance augments + augmentInventory through toSnapshot/hydrate", () => {
     grantAugment("damage-up");
     grantAugment("fire-rate-up");
-    expect(installAugment("rapid-fire", "damage-up")).toBe(true);
-    // One augment installed on rapid-fire, one still in inventory.
-    expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+    expect(installAugment({ kind: "slot", index: 0 }, "damage-up")).toBe(true);
+    // One augment installed on slot 0, one still in inventory.
+    expect(getState().ship.slots[0]?.augments).toEqual(["damage-up"]);
     expect(getState().ship.augmentInventory).toEqual(["fire-rate-up"]);
 
     const snap = toSnapshot();
     resetForTests();
-    expect(getState().ship.weaponAugments).toEqual({});
+    expect(getState().ship.slots[0]?.augments).toEqual([]);
     expect(getState().ship.augmentInventory).toEqual([]);
 
     hydrate(snap);
-    expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+    expect(getState().ship.slots[0]?.augments).toEqual(["damage-up"]);
     expect(getState().ship.augmentInventory).toEqual(["fire-rate-up"]);
   });
 });
@@ -675,78 +772,89 @@ describe("augment mutators", () => {
   });
 
   describe("installAugment", () => {
-    it("refuses when the weapon is not owned", () => {
+    it("refuses when the position has no instance", () => {
       grantAugment("damage-up");
-      expect(installAugment("heavy-cannon", "damage-up")).toBe(false);
+      expect(installAugment({ kind: "slot", index: 5 }, "damage-up")).toBe(false);
+      expect(installAugment({ kind: "inventory", index: 0 }, "damage-up")).toBe(false);
       // Inventory copy is preserved on failure.
       expect(getState().ship.augmentInventory).toEqual(["damage-up"]);
     });
 
     it("refuses when the augment is not in inventory", () => {
       grantAugment("fire-rate-up");
-      expect(installAugment("rapid-fire", "damage-up")).toBe(false);
-      expect(getState().ship.weaponAugments["rapid-fire"]).toBeUndefined();
+      expect(installAugment({ kind: "slot", index: 0 }, "damage-up")).toBe(false);
+      expect(getState().ship.slots[0]?.augments).toEqual([]);
     });
 
     it("refuses past MAX_AUGMENTS_PER_WEAPON", () => {
       grantAugment("damage-up");
       grantAugment("fire-rate-up");
       grantAugment("extra-projectile");
-      expect(installAugment("rapid-fire", "damage-up")).toBe(true);
-      expect(installAugment("rapid-fire", "fire-rate-up")).toBe(true);
-      expect(installAugment("rapid-fire", "extra-projectile")).toBe(false);
-      expect(getState().ship.weaponAugments["rapid-fire"]).toEqual([
-        "damage-up",
-        "fire-rate-up"
-      ]);
-      // The extra-projectile copy is still sitting in inventory because the
-      // install was rejected before mutation.
+      expect(installAugment({ kind: "slot", index: 0 }, "damage-up")).toBe(true);
+      expect(installAugment({ kind: "slot", index: 0 }, "fire-rate-up")).toBe(true);
+      expect(installAugment({ kind: "slot", index: 0 }, "extra-projectile")).toBe(false);
+      expect(getState().ship.slots[0]?.augments).toEqual(["damage-up", "fire-rate-up"]);
+      // The extra-projectile copy is still sitting in inventory.
       expect(getState().ship.augmentInventory).toEqual(["extra-projectile"]);
     });
 
-    it("refuses when the same augment is already installed on that weapon", () => {
+    it("refuses when the same augment is already installed on that instance", () => {
       grantAugment("damage-up");
       grantAugment("damage-up");
-      expect(installAugment("rapid-fire", "damage-up")).toBe(true);
-      expect(installAugment("rapid-fire", "damage-up")).toBe(false);
-      expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+      expect(installAugment({ kind: "slot", index: 0 }, "damage-up")).toBe(true);
+      expect(installAugment({ kind: "slot", index: 0 }, "damage-up")).toBe(false);
+      expect(getState().ship.slots[0]?.augments).toEqual(["damage-up"]);
       // The second copy stayed in inventory.
       expect(getState().ship.augmentInventory).toEqual(["damage-up"]);
     });
 
-    it("on success removes ONE copy from inventory and appends to weaponAugments", () => {
+    it("on success removes ONE copy from inventory and appends to instance.augments", () => {
       grantAugment("damage-up");
       grantAugment("damage-up");
       grantAugment("fire-rate-up");
-      expect(installAugment("rapid-fire", "damage-up")).toBe(true);
+      expect(installAugment({ kind: "slot", index: 0 }, "damage-up")).toBe(true);
       // Only one of the two damage-up copies should leave inventory.
       expect(getState().ship.augmentInventory).toEqual(["damage-up", "fire-rate-up"]);
-      expect(getState().ship.weaponAugments["rapid-fire"]).toEqual(["damage-up"]);
+      expect(getState().ship.slots[0]?.augments).toEqual(["damage-up"]);
+    });
+
+    it("targets an inventory instance independently of any same-id instance in slots", () => {
+      // Slot 0 = rapid-fire (starter); inventory[0] = a second rapid-fire.
+      grantWeapon("rapid-fire");
+      grantAugment("damage-up");
+      expect(installAugment({ kind: "inventory", index: 0 }, "damage-up")).toBe(true);
+      const s = getState();
+      // Only the inventory instance got the augment.
+      expect(s.ship.slots[0]?.augments).toEqual([]);
+      expect(s.ship.inventory[0]?.augments).toEqual(["damage-up"]);
     });
   });
 
   describe("sellWeapon drops augments", () => {
-    it("destroys the weapon's augment list and does NOT refund augments back to inventory", () => {
+    it("destroys the inventory instance's augments and does NOT refund them", () => {
+      // Place a non-starter instance into inventory and install two augments.
       addCredits(450);
       expect(buyWeapon("spread-shot")).toBe(true);
+      expect(getState().ship.inventory).toHaveLength(1);
+      expect(getState().ship.inventory[0]?.id).toBe("spread-shot");
+
       grantAugment("damage-up");
       grantAugment("fire-rate-up");
-      expect(installAugment("spread-shot", "damage-up")).toBe(true);
-      expect(installAugment("spread-shot", "fire-rate-up")).toBe(true);
-      expect(getState().ship.weaponAugments["spread-shot"]).toEqual([
+      expect(installAugment({ kind: "inventory", index: 0 }, "damage-up")).toBe(true);
+      expect(installAugment({ kind: "inventory", index: 0 }, "fire-rate-up")).toBe(true);
+      expect(getState().ship.inventory[0]?.augments).toEqual([
         "damage-up",
         "fire-rate-up"
       ]);
       expect(getState().ship.augmentInventory).toEqual([]);
 
-      // sellWeapon refuses equipped weapons. buyWeapon left spread-shot
-      // unequipped (front slot was already occupied by rapid-fire), so we can
-      // sell it directly.
-      expect(sellWeapon("spread-shot")).toBe(true);
+      expect(sellWeapon(0)).toBe(true);
 
-      expect(getState().ship.weaponAugments["spread-shot"]).toBeUndefined();
-      expect(getState().ship.augmentInventory).toEqual([]);
-      expect(getState().ship.unlockedWeapons).not.toContain("spread-shot");
+      const s = getState();
+      // The instance is gone — no spread-shot anywhere.
+      expect(s.ship.inventory).toEqual([]);
+      // augmentInventory is unchanged: augments were destroyed, not refunded.
+      expect(s.ship.augmentInventory).toEqual([]);
     });
   });
 });

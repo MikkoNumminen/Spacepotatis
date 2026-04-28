@@ -11,6 +11,8 @@ import {
   ScorePayloadSchema,
   ShipConfigSchema,
   WEAPON_IDS,
+  WeaponInstanceSchema,
+  WeaponInventorySchema,
   WeaponSlotsSchema
 } from "./save";
 import type { AugmentId, MissionId, SolarSystemId, WeaponId } from "@/types/game";
@@ -29,14 +31,115 @@ void _augmentIds;
 void _missionIds;
 void _systemIds;
 
+describe("WeaponInstanceSchema", () => {
+  it("accepts a well-formed instance", () => {
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "rapid-fire",
+        level: 1,
+        augments: []
+      }).success
+    ).toBe(true);
+  });
+
+  it("accepts an instance with augments", () => {
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "pulse-cannon",
+        level: 3,
+        augments: ["damage-up", "fire-rate-up"]
+      }).success
+    ).toBe(false); // pulse-cannon isn't a known id
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "rapid-fire",
+        level: 3,
+        augments: ["damage-up", "fire-rate-up"]
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects level 0 (below minimum)", () => {
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "rapid-fire",
+        level: 0,
+        augments: []
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects level above MAX_LEVEL (6 > 5)", () => {
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "rapid-fire",
+        level: 6,
+        augments: []
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects unknown weapon id", () => {
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "death-laser",
+        level: 1,
+        augments: []
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects unknown augment id", () => {
+    expect(
+      WeaponInstanceSchema.safeParse({
+        id: "rapid-fire",
+        level: 1,
+        augments: ["bogus-augment"]
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("WeaponInventorySchema", () => {
+  it("accepts an empty inventory", () => {
+    expect(WeaponInventorySchema.safeParse([]).success).toBe(true);
+  });
+
+  it("accepts an inventory with multiple instances", () => {
+    expect(
+      WeaponInventorySchema.safeParse([
+        { id: "rapid-fire", level: 1, augments: [] },
+        { id: "spread-shot", level: 2, augments: ["damage-up"] }
+      ]).success
+    ).toBe(true);
+  });
+
+  it("rejects an inventory containing a malformed instance", () => {
+    expect(
+      WeaponInventorySchema.safeParse([
+        { id: "rapid-fire", level: 1, augments: [] },
+        { id: "rapid-fire", level: 99, augments: [] }
+      ]).success
+    ).toBe(false);
+  });
+});
+
 describe("WeaponSlotsSchema", () => {
   it("accepts a single-slot array (the default ship)", () => {
-    expect(WeaponSlotsSchema.safeParse(["rapid-fire"]).success).toBe(true);
+    expect(
+      WeaponSlotsSchema.safeParse([
+        { id: "rapid-fire", level: 1, augments: [] }
+      ]).success
+    ).toBe(true);
   });
 
   it("accepts a multi-slot array with empty slots", () => {
     expect(
-      WeaponSlotsSchema.safeParse(["rapid-fire", null, "spread-shot"]).success
+      WeaponSlotsSchema.safeParse([
+        { id: "rapid-fire", level: 1, augments: [] },
+        null,
+        { id: "spread-shot", level: 3, augments: ["damage-up"] }
+      ]).success
     ).toBe(true);
   });
 
@@ -45,11 +148,19 @@ describe("WeaponSlotsSchema", () => {
   });
 
   it("rejects an unknown weapon id", () => {
-    expect(WeaponSlotsSchema.safeParse(["death-laser"]).success).toBe(false);
+    expect(
+      WeaponSlotsSchema.safeParse([
+        { id: "death-laser", level: 1, augments: [] }
+      ]).success
+    ).toBe(false);
   });
 
   it("rejects a numeric slot value", () => {
     expect(WeaponSlotsSchema.safeParse([42]).success).toBe(false);
+  });
+
+  it("rejects a bare string slot value (must be an instance object now)", () => {
+    expect(WeaponSlotsSchema.safeParse(["rapid-fire"]).success).toBe(false);
   });
 
   it("rejects an array longer than MAX_WEAPON_SLOTS", () => {
@@ -85,10 +196,11 @@ describe("ShipConfigSchema", () => {
   it("accepts a well-formed new-shape ship (array slots)", () => {
     expect(
       ShipConfigSchema.safeParse({
-        slots: ["rapid-fire", null],
-        unlockedWeapons: ["rapid-fire"],
-        weaponLevels: { "rapid-fire": 3 },
-        weaponAugments: { "rapid-fire": ["damage-up"] },
+        slots: [
+          { id: "rapid-fire", level: 3, augments: ["damage-up"] },
+          null
+        ],
+        inventory: [],
         augmentInventory: ["fire-rate-up"],
         shieldLevel: 0,
         armorLevel: 0,
@@ -97,13 +209,27 @@ describe("ShipConfigSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a config with a non-empty inventory", () => {
+    expect(
+      ShipConfigSchema.safeParse({
+        slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+        inventory: [
+          { id: "spread-shot", level: 2, augments: [] },
+          { id: "rapid-fire", level: 4, augments: ["damage-up"] }
+        ],
+        augmentInventory: [],
+        shieldLevel: 1,
+        armorLevel: 2,
+        reactor: { capacityLevel: 1, rechargeLevel: 1 }
+      }).success
+    ).toBe(true);
+  });
+
   it("rejects an empty slots array (must always have at least one slot)", () => {
     expect(
       ShipConfigSchema.safeParse({
         slots: [],
-        unlockedWeapons: ["rapid-fire"],
-        weaponLevels: {},
-        weaponAugments: {},
+        inventory: [],
         augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
@@ -115,10 +241,8 @@ describe("ShipConfigSchema", () => {
   it("rejects unknown weapon ids inside slots", () => {
     expect(
       ShipConfigSchema.safeParse({
-        slots: ["death-laser"],
-        unlockedWeapons: [],
-        weaponLevels: {},
-        weaponAugments: {},
+        slots: [{ id: "death-laser", level: 1, augments: [] }],
+        inventory: [],
         augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
@@ -130,11 +254,21 @@ describe("ShipConfigSchema", () => {
   it("rejects unknown augment ids inside augmentInventory", () => {
     expect(
       ShipConfigSchema.safeParse({
-        slots: ["rapid-fire"],
-        unlockedWeapons: ["rapid-fire"],
-        weaponLevels: {},
-        weaponAugments: {},
+        slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+        inventory: [],
         augmentInventory: ["bogus-augment"],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects when inventory is missing", () => {
+    expect(
+      ShipConfigSchema.safeParse({
+        slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+        augmentInventory: [],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 0, rechargeLevel: 0 }
@@ -151,6 +285,24 @@ describe("LegacyShipSchema", () => {
         unlockedWeapons: ["rapid-fire"],
         shieldLevel: 0,
         armorLevel: 0
+      }).success
+    ).toBe(true);
+  });
+
+  it("accepts the OLD id-array slots + unlockedWeapons + weaponLevels + weaponAugments shape", () => {
+    // This shape pre-dates the instance refactor. The schema accepts it as
+    // legacy data; migrateShip in persistence.ts hoists the per-id state
+    // into per-instance state.
+    expect(
+      LegacyShipSchema.safeParse({
+        slots: ["rapid-fire", null],
+        unlockedWeapons: ["rapid-fire"],
+        weaponLevels: { "rapid-fire": 3 },
+        weaponAugments: { "rapid-fire": ["damage-up"] },
+        augmentInventory: ["fire-rate-up"],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
       }).success
     ).toBe(true);
   });
@@ -178,15 +330,40 @@ describe("LegacyShipSchema", () => {
       }).success
     ).toBe(true);
   });
+
+  it("accepts the NEW instance shape too (legacy schema is permissive)", () => {
+    expect(
+      LegacyShipSchema.safeParse({
+        slots: [{ id: "rapid-fire", level: 1, augments: [] }, null],
+        inventory: [{ id: "spread-shot", level: 2, augments: [] }],
+        augmentInventory: ["fire-rate-up"],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      }).success
+    ).toBe(true);
+  });
 });
 
 describe("LegacyOrShipConfigSchema (used for shipConfig round-trip)", () => {
-  it("accepts a strict ShipConfig (array slots)", () => {
+  it("accepts a strict new-shape ShipConfig (instance array slots)", () => {
     const r = LegacyOrShipConfigSchema.safeParse({
-      slots: ["rapid-fire"],
+      slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+      inventory: [],
+      augmentInventory: [],
+      shieldLevel: 0,
+      armorLevel: 0,
+      reactor: { capacityLevel: 0, rechargeLevel: 0 }
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts the OLD id-array slots + unlockedWeapons shape", () => {
+    const r = LegacyOrShipConfigSchema.safeParse({
+      slots: ["rapid-fire", null],
       unlockedWeapons: ["rapid-fire"],
-      weaponLevels: {},
-      weaponAugments: {},
+      weaponLevels: { "rapid-fire": 3 },
+      weaponAugments: { "rapid-fire": ["damage-up"] },
       augmentInventory: [],
       shieldLevel: 0,
       armorLevel: 0,
@@ -247,7 +424,7 @@ describe("LegacyOrShipConfigSchema (used for shipConfig round-trip)", () => {
 });
 
 describe("SavePayloadSchema", () => {
-  it("accepts a full toSnapshot()-style payload", () => {
+  it("accepts a full toSnapshot()-style payload (new instance shape)", () => {
     expect(
       SavePayloadSchema.safeParse({
         credits: 0,
@@ -255,15 +432,8 @@ describe("SavePayloadSchema", () => {
         unlockedPlanets: ["tutorial", "shop"],
         playedTimeSeconds: 0,
         ship: {
-          slots: {
-            front: "rapid-fire",
-            rear: null,
-            sidekickLeft: null,
-            sidekickRight: null
-          },
-          unlockedWeapons: ["rapid-fire"],
-          weaponLevels: {},
-          weaponAugments: {},
+          slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+          inventory: [],
           augmentInventory: [],
           shieldLevel: 0,
           armorLevel: 0,
@@ -290,22 +460,39 @@ describe("SavePayloadSchema", () => {
 });
 
 describe("RemoteSaveSchema", () => {
-  it("accepts the canonical shape from GET /api/save", () => {
+  it("accepts the canonical shape from GET /api/save (new instance shape)", () => {
     expect(
       RemoteSaveSchema.safeParse({
         slot: 1,
         credits: 100,
         currentPlanet: "tutorial",
         shipConfig: {
-          slots: {
-            front: "rapid-fire",
-            rear: null,
-            sidekickLeft: null,
-            sidekickRight: null
-          },
+          slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+          inventory: [],
+          augmentInventory: [],
+          shieldLevel: 0,
+          armorLevel: 0,
+          reactor: { capacityLevel: 0, rechargeLevel: 0 }
+        },
+        completedMissions: [],
+        unlockedPlanets: ["tutorial"],
+        playedTimeSeconds: 0,
+        updatedAt: "2026-04-26T00:00:00.000Z"
+      }).success
+    ).toBe(true);
+  });
+
+  it("accepts a row whose shipConfig is still in the OLD id-array + per-id-state shape", () => {
+    expect(
+      RemoteSaveSchema.safeParse({
+        slot: 1,
+        credits: 0,
+        currentPlanet: null,
+        shipConfig: {
+          slots: ["rapid-fire", null],
           unlockedWeapons: ["rapid-fire"],
-          weaponLevels: {},
-          weaponAugments: {},
+          weaponLevels: { "rapid-fire": 2 },
+          weaponAugments: { "rapid-fire": ["damage-up"] },
           augmentInventory: [],
           shieldLevel: 0,
           armorLevel: 0,

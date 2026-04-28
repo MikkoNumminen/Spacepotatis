@@ -1,16 +1,6 @@
-import {
-  getInstalledAugments,
-  getWeaponLevel,
-  type ShipConfig
-} from "@/game/state/ShipConfig";
-import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
+import type { ShipConfig, WeaponPosition } from "@/game/state/ShipConfig";
 import { WeaponCard } from "./WeaponCard";
-
-export type WeaponListEntry = {
-  weapon: WeaponDefinition;
-  key: string;
-  slotBadge?: string;
-};
+import type { WeaponEntry } from "./selectors";
 
 export function WeaponList({
   ship,
@@ -24,12 +14,12 @@ export function WeaponList({
 }: {
   ship: ShipConfig;
   credits: number;
-  entries: readonly WeaponListEntry[];
+  entries: readonly WeaponEntry[];
   heading?: string;
   showSellButton: boolean;
   showUpgradeButton: boolean;
   showInstallButton: boolean;
-  onOpenInstaller: (weaponId: WeaponId) => void;
+  onOpenInstaller: (position: WeaponPosition) => void;
 }) {
   if (entries.length === 0) return null;
   return (
@@ -40,25 +30,21 @@ export function WeaponList({
         </h3>
       )}
       <ul className="flex flex-col gap-3">
-      {entries.map(({ weapon, key, slotBadge }) => {
-        const level = getWeaponLevel(ship, weapon.id);
-        const installed: readonly AugmentId[] = getInstalledAugments(ship, weapon.id);
-        return (
+        {entries.map((entry) => (
           <WeaponCard
-            key={key}
-            weapon={weapon}
-            level={level}
+            key={entry.key}
+            weapon={entry.weapon}
+            instance={entry.instance}
+            position={entry.position}
             credits={credits}
-            showSellButton={showSellButton}
+            showSellButton={showSellButton && entry.position.kind === "inventory"}
             showUpgradeButton={showUpgradeButton}
             showInstallButton={showInstallButton}
-            installedAugments={installed}
             augmentInventory={ship.augmentInventory}
-            onOpenInstaller={() => onOpenInstaller(weapon.id)}
-            slotBadge={slotBadge}
+            onOpenInstaller={() => onOpenInstaller(entry.position)}
+            slotBadge={"slotBadge" in entry ? entry.slotBadge : undefined}
           />
-        );
-      })}
+        ))}
       </ul>
     </>
   );

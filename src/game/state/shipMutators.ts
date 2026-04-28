@@ -4,15 +4,16 @@ import {
   MAX_WEAPON_SLOTS,
   armorUpgradeCost,
   firstEmptySlot,
-  getInstalledAugments,
-  getWeaponLevel,
-  isWeaponEquipped,
-  isWeaponUnlocked,
+  getInstanceAt,
+  newWeaponInstance,
   reactorCapacityCost,
   reactorRechargeCost,
   shieldUpgradeCost,
   slotPurchaseCost,
   weaponUpgradeCost,
+  type WeaponInstance,
+  type WeaponInventory,
+  type WeaponPosition,
   type WeaponSlots
 } from "./ShipConfig";
 import { getWeapon } from "../data/weapons";
@@ -20,131 +21,128 @@ import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "../data/augments";
 import { getSellPrice } from "./pricing";
 import { commit, getState, spendCredits } from "./stateCore";
 
-// Equip an owned weapon into a slot by index. Single-instance ownership —
-// if the weapon is already equipped in some other slot, that slot is
-// vacated first so we never end up with the same weapon in two places.
-// Passing null clears the target slot. Returns false if the slot index is
-// out of range or the weapon isn't unlocked.
-export function equipWeapon(slotIndex: number, id: WeaponId | null): boolean {
+// Move an inventory weapon into a slot. The slot's previous occupant (if any)
+// goes back to inventory at the END of the inventory array. Pass
+// inventoryIndex = null to vacate the slot — its instance, if any, falls back
+// to inventory so it isn't lost. Returns false on out-of-range indices.
+export function equipWeapon(slotIndex: number, inventoryIndex: number | null): boolean {
   const state = getState();
-  if (slotIndex < 0 || slotIndex >= state.ship.slots.length) return false;
+  const ship = state.ship;
+  if (slotIndex < 0 || slotIndex >= ship.slots.length) return false;
 
-  if (id === null) {
-    if (state.ship.slots[slotIndex] === null) return true;
-    const cleared = [...state.ship.slots];
-    cleared[slotIndex] = null;
-    commit({ ...state, ship: { ...state.ship, slots: cleared } });
+  if (inventoryIndex === null) {
+    const displaced = ship.slots[slotIndex] ?? null;
+    if (displaced === null) return true;
+    const nextSlots: WeaponSlots = ship.slots.map((entry, i) =>
+      i === slotIndex ? null : entry
+    );
+    const nextInventory: WeaponInventory = [...ship.inventory, displaced];
+    commit({
+      ...state,
+      ship: { ...ship, slots: nextSlots, inventory: nextInventory }
+    });
     return true;
   }
 
-  if (!isWeaponUnlocked(state.ship, id)) return false;
-  if (state.ship.slots[slotIndex] === id) return true;
+  if (inventoryIndex < 0 || inventoryIndex >= ship.inventory.length) return false;
 
-  const next: (WeaponId | null)[] = state.ship.slots.map((entry) =>
-    entry === id ? null : entry
+  const incoming = ship.inventory[inventoryIndex];
+  if (!incoming) return false;
+  const displaced = ship.slots[slotIndex] ?? null;
+
+  const nextSlots: WeaponSlots = ship.slots.map((entry, i) =>
+    i === slotIndex ? incoming : entry
   );
-  next[slotIndex] = id;
-  commit({ ...state, ship: { ...state.ship, slots: next } });
-  return true;
-}
-
-// Mid-mission weapon pickup: unlock the weapon (no cost) and equip it
-// into the first empty slot if there is one. If every slot is occupied the
-// weapon just lands in inventory and the player can rearrange later.
-export function grantWeapon(id: WeaponId): void {
-  const state = getState();
-  const alreadyUnlocked = state.ship.unlockedWeapons.includes(id);
-
-  const nextUnlocked = alreadyUnlocked
-    ? state.ship.unlockedWeapons
-    : [...state.ship.unlockedWeapons, id];
-
-  // If the weapon is already equipped somewhere, this is a no-op for slots —
-  // the player picked up a duplicate of a weapon they already use.
-  if (state.ship.slots.includes(id)) {
-    if (alreadyUnlocked) return;
-    commit({
-      ...state,
-      ship: { ...state.ship, unlockedWeapons: nextUnlocked }
-    });
-    return;
-  }
-
-  const target = firstEmptySlot(state.ship);
-  const nextSlots: WeaponSlots =
-    target >= 0
-      ? state.ship.slots.map((entry, i) => (i === target ? id : entry))
-      : state.ship.slots;
+  const trimmedInventory: WeaponInstance[] = [
+    ...ship.inventory.slice(0, inventoryIndex),
+    ...ship.inventory.slice(inventoryIndex + 1)
+  ];
+  const nextInventory: WeaponInventory = displaced
+    ? [...trimmedInventory, displaced]
+    : trimmedInventory;
 
   commit({
     ...state,
-    ship: {
-      ...state.ship,
-      unlockedWeapons: nextUnlocked,
-      slots: nextSlots
-    }
+    ship: { ...ship, slots: nextSlots, inventory: nextInventory }
+  });
+  return true;
+}
+
+// Mid-mission weapon pickup. Creates a fresh level-1 instance of `id` and
+// auto-equips it into the first empty slot if there is one; otherwise the
+// fresh instance lands in inventory. Duplicates of an already-owned weapon
+// type are allowed — each instance has its own level + augments.
+export function grantWeapon(id: WeaponId): void {
+  const state = getState();
+  const ship = state.ship;
+  const fresh = newWeaponInstance(id);
+  const target = firstEmptySlot(ship);
+  if (target >= 0) {
+    const nextSlots: WeaponSlots = ship.slots.map((entry, i) =>
+      i === target ? fresh : entry
+    );
+    commit({ ...state, ship: { ...ship, slots: nextSlots } });
+    return;
+  }
+  commit({
+    ...state,
+    ship: { ...ship, inventory: [...ship.inventory, fresh] }
   });
 }
 
-// Sell an owned, non-equipped weapon back for SELL_RATE × original cost.
-// Refuses to sell currently-equipped weapons (would silently unarm a slot)
-// or the starter weapon (cost 0 → no refund anyway, and it is the safety net).
-// Any augments installed on the weapon are destroyed with it — augments are
-// permanently bound and cannot be salvaged.
-export function sellWeapon(id: WeaponId): boolean {
+// Sell the inventory weapon at the given index. Refunds via getSellPrice
+// against the weapon's definition. Refuses on out-of-range. Augments
+// installed on the destroyed instance vanish with it — augments cannot be
+// salvaged from a sold weapon.
+export function sellWeapon(inventoryIndex: number): boolean {
   const state = getState();
-  if (!isWeaponUnlocked(state.ship, id)) return false;
-  if (isWeaponEquipped(state.ship, id)) return false;
-  const weapon = getWeapon(id);
+  const ship = state.ship;
+  if (inventoryIndex < 0 || inventoryIndex >= ship.inventory.length) return false;
+  const target = ship.inventory[inventoryIndex];
+  if (!target) return false;
+  const weapon = getWeapon(target.id);
   const refund = getSellPrice(weapon);
   if (refund <= 0) return false;
-  const nextAugments: Record<string, readonly AugmentId[]> = { ...state.ship.weaponAugments };
-  delete nextAugments[id];
+  const nextInventory: WeaponInventory = [
+    ...ship.inventory.slice(0, inventoryIndex),
+    ...ship.inventory.slice(inventoryIndex + 1)
+  ];
   commit({
     ...state,
     credits: state.credits + refund,
-    ship: {
-      ...state.ship,
-      unlockedWeapons: state.ship.unlockedWeapons.filter((w) => w !== id),
-      weaponAugments: nextAugments
-    }
+    ship: { ...ship, inventory: nextInventory }
   });
   return true;
 }
 
+// Spend credits to acquire a fresh level-1 instance of `id`. Duplicates are
+// legal — buying a second Pulse Cannon gives you a second independent
+// instance. Auto-equips into the first empty slot if any, else inventory.
 export function buyWeapon(id: WeaponId): boolean {
-  const state = getState();
-  if (isWeaponUnlocked(state.ship, id)) return false;
   const weapon = getWeapon(id);
   if (!spendCredits(weapon.cost)) return false;
 
-  // Auto-equip into the first empty slot if there is one; otherwise leave
-  // unequipped in inventory. Players who haven't bought any expansions yet
-  // won't see anything change here — the new weapon shows up in the
-  // loadout's INVENTORY section and they can swap it into slot 0 manually.
-  const post = getState();
-  const target = firstEmptySlot(post.ship);
-  const nextSlots: WeaponSlots =
-    target >= 0
-      ? post.ship.slots.map((entry, i) => (i === target ? id : entry))
-      : post.ship.slots;
-
+  const state = getState();
+  const ship = state.ship;
+  const fresh = newWeaponInstance(id);
+  const target = firstEmptySlot(ship);
+  if (target >= 0) {
+    const nextSlots: WeaponSlots = ship.slots.map((entry, i) =>
+      i === target ? fresh : entry
+    );
+    commit({ ...state, ship: { ...ship, slots: nextSlots } });
+    return true;
+  }
   commit({
-    ...post,
-    ship: {
-      ...post.ship,
-      unlockedWeapons: [...post.ship.unlockedWeapons, id],
-      slots: nextSlots
-    }
+    ...state,
+    ship: { ...ship, inventory: [...ship.inventory, fresh] }
   });
   return true;
 }
 
 // Buy an additional weapon slot. Refuses at MAX_WEAPON_SLOTS or if the
-// player can't afford the next-slot cost. The new slot is appended at the
-// tail so existing slot indices stay stable for everything else (in-flight
-// references in the loadout UI, the Player entity's per-slot WeaponSystem
-// instances, etc.).
+// player can't afford the next-slot cost. New slot is appended at the tail
+// so existing slot indices stay stable.
 export function buyWeaponSlot(): boolean {
   const state = getState();
   if (state.ship.slots.length >= MAX_WEAPON_SLOTS) return false;
@@ -219,24 +217,71 @@ export function buyReactorRechargeUpgrade(): boolean {
   return true;
 }
 
-// Spend credits to bump a single weapon's mark level by one. Refuses on
-// non-owned weapons (you can't upgrade something you don't own) and at the
-// MAX_LEVEL cap. Cost scales 200, 400, 800, 1600 — same family as shield/armor.
-export function buyWeaponUpgrade(id: WeaponId): boolean {
+// Free-grant variants used by mission-clear rewards. Same MAX_LEVEL caps
+// as the buy-* counterparts; no credit cost. Returns false when already
+// maxed so the reward roller can avoid handing out no-op rewards.
+export function grantShieldUpgrade(): boolean {
   const state = getState();
-  if (!isWeaponUnlocked(state.ship, id)) return false;
-  const current = getWeaponLevel(state.ship, id);
-  if (current >= MAX_LEVEL) return false;
-  const cost = weaponUpgradeCost(current);
-  if (!spendCredits(cost)) return false;
-  const post = getState();
+  if (state.ship.shieldLevel >= MAX_LEVEL) return false;
   commit({
-    ...post,
+    ...state,
+    ship: { ...state.ship, shieldLevel: state.ship.shieldLevel + 1 }
+  });
+  return true;
+}
+
+export function grantArmorUpgrade(): boolean {
+  const state = getState();
+  if (state.ship.armorLevel >= MAX_LEVEL) return false;
+  commit({
+    ...state,
+    ship: { ...state.ship, armorLevel: state.ship.armorLevel + 1 }
+  });
+  return true;
+}
+
+export function grantReactorCapacityUpgrade(): boolean {
+  const state = getState();
+  if (state.ship.reactor.capacityLevel >= MAX_LEVEL) return false;
+  commit({
+    ...state,
     ship: {
-      ...post.ship,
-      weaponLevels: { ...post.ship.weaponLevels, [id]: current + 1 }
+      ...state.ship,
+      reactor: { ...state.ship.reactor, capacityLevel: state.ship.reactor.capacityLevel + 1 }
     }
   });
+  return true;
+}
+
+export function grantReactorRechargeUpgrade(): boolean {
+  const state = getState();
+  if (state.ship.reactor.rechargeLevel >= MAX_LEVEL) return false;
+  commit({
+    ...state,
+    ship: {
+      ...state.ship,
+      reactor: { ...state.ship.reactor, rechargeLevel: state.ship.reactor.rechargeLevel + 1 }
+    }
+  });
+  return true;
+}
+
+// Bump the targeted instance's level by one. Cost scales via
+// weaponUpgradeCost(currentLevel). Refuses at MAX_LEVEL or out-of-range.
+// Instances are immutable; we replace the instance at the position with a
+// fresh object that has level+1.
+export function buyWeaponUpgrade(position: WeaponPosition): boolean {
+  const state = getState();
+  const target = getInstanceAt(state.ship, position);
+  if (!target) return false;
+  if (target.level >= MAX_LEVEL) return false;
+  const cost = weaponUpgradeCost(target.level);
+  if (!spendCredits(cost)) return false;
+
+  const post = getState();
+  const upgraded: WeaponInstance = { ...target, level: target.level + 1 };
+  const nextShip = replaceInstanceAt(post.ship, position, upgraded);
+  commit({ ...post, ship: nextShip });
   return true;
 }
 
@@ -270,39 +315,56 @@ export function grantAugment(id: AugmentId): void {
   });
 }
 
-// Install an inventory augment onto a specific owned weapon. Refuses when:
-//   - weapon is not owned
-//   - augment is not in inventory
-//   - weapon already holds the same augment (no double-stacking)
-//   - weapon is at MAX_AUGMENTS_PER_WEAPON capacity
-// On success the augment leaves inventory and is permanently bound to the
-// weapon. There is no uninstall — the design is "commit carefully" by intent.
-export function installAugment(weaponId: WeaponId, augmentId: AugmentId): boolean {
+// Move one copy of `augmentId` from augmentInventory onto the targeted
+// instance's `augments` list. Refuses on:
+//   - position out of range (no instance there)
+//   - augment not in inventory
+//   - instance already has this augment (no double-stacking)
+//   - instance at MAX_AUGMENTS_PER_WEAPON capacity
+// On success, the augment leaves inventory and is permanently bound to the
+// instance. There is no uninstall — "commit carefully" by design.
+export function installAugment(position: WeaponPosition, augmentId: AugmentId): boolean {
   const state = getState();
-  if (!isWeaponUnlocked(state.ship, weaponId)) return false;
+  const target = getInstanceAt(state.ship, position);
+  if (!target) return false;
   const invIndex = state.ship.augmentInventory.indexOf(augmentId);
   if (invIndex < 0) return false;
+  if (target.augments.includes(augmentId)) return false;
+  if (target.augments.length >= MAX_AUGMENTS_PER_WEAPON) return false;
 
-  const installed = getInstalledAugments(state.ship, weaponId);
-  if (installed.length >= MAX_AUGMENTS_PER_WEAPON) return false;
-  if (installed.includes(augmentId)) return false;
-
-  // Drop one copy of the augment from the inventory (a player could
-  // theoretically own multiple copies of the same augment if drops repeat).
-  const nextInventory = [
+  const nextAugmentInventory = [
     ...state.ship.augmentInventory.slice(0, invIndex),
     ...state.ship.augmentInventory.slice(invIndex + 1)
   ];
-  const nextAugments: Record<string, readonly AugmentId[]> = { ...state.ship.weaponAugments };
-  nextAugments[weaponId] = [...installed, augmentId];
-
+  const upgraded: WeaponInstance = {
+    ...target,
+    augments: [...target.augments, augmentId]
+  };
+  const shipWithReplaced = replaceInstanceAt(state.ship, position, upgraded);
   commit({
     ...state,
-    ship: {
-      ...state.ship,
-      augmentInventory: nextInventory,
-      weaponAugments: nextAugments
-    }
+    ship: { ...shipWithReplaced, augmentInventory: nextAugmentInventory }
   });
   return true;
+}
+
+// Internal: produce a new ShipConfig with the instance at `position` swapped
+// for `next`. Caller is responsible for ensuring the position points at an
+// existing instance — buyWeaponUpgrade / installAugment both check via
+// getInstanceAt before calling this.
+function replaceInstanceAt(
+  ship: ReturnType<typeof getState>["ship"],
+  position: WeaponPosition,
+  next: WeaponInstance
+): ReturnType<typeof getState>["ship"] {
+  if (position.kind === "slot") {
+    const nextSlots: WeaponSlots = ship.slots.map((entry, i) =>
+      i === position.index ? next : entry
+    );
+    return { ...ship, slots: nextSlots };
+  }
+  const nextInventory: WeaponInventory = ship.inventory.map((entry, i) =>
+    i === position.index ? next : entry
+  );
+  return { ...ship, inventory: nextInventory };
 }

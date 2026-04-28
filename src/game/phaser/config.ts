@@ -1,4 +1,5 @@
 import type { MissionId } from "@/types/game";
+import type { MissionReward } from "@/game/state/rewards";
 import { getSummary, setBootData } from "./registry";
 
 export const VIRTUAL_WIDTH = 960;
@@ -25,6 +26,10 @@ export interface CombatSummary {
   credits: number;
   timeSeconds: number;
   victory: boolean;
+  // Set only when this run was the player's first clear of the mission. The
+  // banner shows it as an extra "+ first clear" line; replays leave it
+  // undefined so they read as standard mission completes.
+  firstClearReward?: MissionReward;
 }
 
 export async function createPhaserGame(

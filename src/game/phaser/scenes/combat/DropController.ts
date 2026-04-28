@@ -15,6 +15,7 @@ import type { ScoreSystem } from "../../systems/ScoreSystem";
 import { randomPerkId, type PerkId } from "../../../data/perks";
 import { getMission } from "../../../data/missions";
 import { getWeapon } from "../../../data/weapons";
+import { ownsAnyOfType } from "@/game/state/ShipConfig";
 
 export const DROP_CHANCE = 0.18;
 // Of any drop, 25% is a mission perk (rare). Remaining 75% splits across
@@ -75,13 +76,21 @@ export class DropController {
       case "weapon": {
         const upgrade = this.nextWeaponUpgrade();
         if (upgrade) {
-          // grantWeapon equips the new weapon into the first empty slot in
-          // GameState. Mirror that onto the live Player by re-reading where
-          // the weapon landed; if every slot was already full the weapon
-          // sits in inventory and the live Player has nothing to update.
+          // grantWeapon mints a fresh instance and equips it into the first
+          // empty slot in GameState. Mirror that onto the live Player by
+          // searching slot instances for the matching id; if every slot was
+          // already full the instance sits in inventory and the live Player
+          // has nothing to update.
           GameState.grantWeapon(upgrade.id);
-          const slotIndex = GameState.getState().ship.slots.indexOf(upgrade.id);
-          if (slotIndex >= 0) player.setSlotWeapon(slotIndex, upgrade.id);
+          const slots = GameState.getState().ship.slots;
+          let landedSlot = -1;
+          for (let i = 0; i < slots.length; i++) {
+            const s = slots[i];
+            if (s && s.id === upgrade.id) { landedSlot = i; break; }
+          }
+          if (landedSlot >= 0) {
+            player.setSlotWeapon(landedSlot, slots[landedSlot] ?? null);
+          }
           this.flashPickup(
             `+ ${upgrade.name.toUpperCase()}`,
             hexToInt(upgrade.tint),
@@ -140,17 +149,20 @@ export class DropController {
   }
 
   // Walks the fixed weapon-pickup ladder (rapid-fire → spread-shot →
-  // heavy-cannon) and returns the first weapon the player doesn't yet own,
-  // or null when the ladder is exhausted.
+  // heavy-cannon) and returns the first weapon the player doesn't yet own
+  // ANY copy of, or null when the ladder is exhausted. Uses ownsAnyOfType
+  // because a weapon "type" can have multiple independent instances now,
+  // but the pickup ladder still gates on whether the player has touched
+  // this kind at all.
   private nextWeaponUpgrade() {
     const order: Array<"rapid-fire" | "spread-shot" | "heavy-cannon"> = [
       "rapid-fire",
       "spread-shot",
       "heavy-cannon"
     ];
-    const owned = new Set(GameState.getState().ship.unlockedWeapons);
+    const ship = GameState.getState().ship;
     for (const id of order) {
-      if (!owned.has(id)) return getWeapon(id);
+      if (!ownsAnyOfType(ship, id)) return getWeapon(id);
     }
     return null;
   }

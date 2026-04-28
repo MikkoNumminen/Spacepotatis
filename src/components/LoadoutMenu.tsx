@@ -3,7 +3,7 @@
 import { buyWeaponSlot } from "@/game/state/GameState";
 import {
   MAX_WEAPON_SLOTS,
-  getInstalledAugments,
+  getInstanceAt,
   slotPurchaseCost
 } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
@@ -13,20 +13,25 @@ import { AugmentPicker } from "@/components/loadout/AugmentPicker";
 import { AugmentInventoryList } from "@/components/loadout/AugmentInventoryList";
 import { WeaponList } from "@/components/loadout/WeaponList";
 import { useLoadoutSelection } from "@/components/loadout/useLoadoutSelection";
-import { getEquippedEntries, getInventoryEntries, getOwnedWeapons } from "@/components/loadout/selectors";
+import {
+  getEquippedEntries,
+  getInventoryEntries
+} from "@/components/loadout/selectors";
+import { getWeapon } from "@/game/data/weapons";
 
-// "market" enables Sell + Upgrade buttons on owned weapons. "equip" hides both —
-// used in the galaxy-view loadout modal where the player is just shuffling.
+// `mode` is retained for the shop page call site but no longer branches —
+// LoadoutMenu is mounted only by the shop now (the galaxy-view loadout
+// modal was removed). Sell + upgrade + install are always available.
 interface Props {
-  mode: "equip" | "market";
+  mode?: "equip" | "market";
 }
 
-export default function LoadoutMenu({ mode }: Props) {
+export default function LoadoutMenu(_props: Props) {
+  void _props;
   const credits = useGameState((s) => s.credits);
   const ship = useGameState((s) => s.ship);
   const sel = useLoadoutSelection();
 
-  const owned = getOwnedWeapons(ship);
   const equippedEntries = getEquippedEntries(ship);
   const inventoryEntries = getInventoryEntries(ship);
 
@@ -35,6 +40,10 @@ export default function LoadoutMenu({ mode }: Props) {
   const nextSlotCost = canBuySlot ? slotPurchaseCost(slotCount) : null;
   const canAffordSlot = nextSlotCost !== null && credits >= nextSlotCost;
 
+  const augPickerInstance =
+    sel.augPickerPos !== null ? getInstanceAt(ship, sel.augPickerPos) : null;
+  const augPickerWeapon = augPickerInstance ? getWeapon(augPickerInstance.id) : null;
+
   return (
     <section className="rounded border border-space-border bg-space-panel/70 p-5">
       <header className="mb-4 flex items-baseline justify-between">
@@ -42,47 +51,44 @@ export default function LoadoutMenu({ mode }: Props) {
         <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
       </header>
 
-      <SlotGrid slots={ship.slots} weaponLevels={ship.weaponLevels} onPick={sel.openPicker} />
+      <SlotGrid slots={ship.slots} onPick={sel.openPicker} />
 
-      {mode === "market" && (
-        <div className="mt-3 flex items-center justify-between rounded border border-dashed border-space-border p-3">
-          <div>
-            <div className="font-display text-sm tracking-widest text-hud-green/80">
-              ADD WEAPON SLOT
-            </div>
-            <div className="text-[11px] text-hud-green/60">
-              {slotCount}/{MAX_WEAPON_SLOTS} mounted · expansions append at the right
-            </div>
+      <div className="mt-3 flex items-center justify-between rounded border border-dashed border-space-border p-3">
+        <div>
+          <div className="font-display text-sm tracking-widest text-hud-green/80">
+            ADD WEAPON SLOT
           </div>
-          {canBuySlot ? (
-            <button
-              type="button"
-              disabled={!canAffordSlot}
-              onClick={() => void buyWeaponSlot()}
-              className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-            >
-              BUY · ¢ {nextSlotCost}
-            </button>
-          ) : (
-            <span className="font-mono text-[11px] text-hud-green/50">slots maxed</span>
-          )}
+          <div className="text-[11px] text-hud-green/60">
+            {slotCount}/{MAX_WEAPON_SLOTS} mounted · expansions append at the right
+          </div>
         </div>
-      )}
+        {canBuySlot ? (
+          <button
+            type="button"
+            disabled={!canAffordSlot}
+            onClick={() => void buyWeaponSlot()}
+            className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+          >
+            BUY · ¢ {nextSlotCost}
+          </button>
+        ) : (
+          <span className="font-mono text-[11px] text-hud-green/50">slots maxed</span>
+        )}
+      </div>
 
-      {/* In market mode, surface equipped weapons so the player can upgrade
-          without unequipping. INVENTORY below covers owned-but-unequipped. */}
-      {mode === "market" && (
-        <WeaponList
-          ship={ship}
-          credits={credits}
-          entries={equippedEntries}
-          heading="EQUIPPED"
-          showSellButton={false}
-          showUpgradeButton={true}
-          showInstallButton={true}
-          onOpenInstaller={sel.openAugPicker}
-        />
-      )}
+      {/* Surface equipped weapons so the player can upgrade / install
+          augments without unequipping. INVENTORY below covers
+          owned-but-unequipped instances. */}
+      <WeaponList
+        ship={ship}
+        credits={credits}
+        entries={equippedEntries}
+        heading="EQUIPPED"
+        showSellButton={false}
+        showUpgradeButton={true}
+        showInstallButton={true}
+        onOpenInstaller={sel.openAugPicker}
+      />
 
       {inventoryEntries.length === 0 ? (
         <>
@@ -99,30 +105,30 @@ export default function LoadoutMenu({ mode }: Props) {
           credits={credits}
           entries={inventoryEntries}
           heading="INVENTORY"
-          showSellButton={mode === "market"}
-          showUpgradeButton={mode === "market"}
-          showInstallButton={mode === "market"}
+          showSellButton={true}
+          showUpgradeButton={true}
+          showInstallButton={true}
           onOpenInstaller={sel.openAugPicker}
         />
       )}
 
-      {mode === "market" && <AugmentInventoryList inventory={ship.augmentInventory} />}
+      <AugmentInventoryList inventory={ship.augmentInventory} />
 
       {sel.picker !== null && (
         <SlotPicker
           slotIndex={sel.picker}
-          owned={owned}
-          weaponLevels={ship.weaponLevels}
+          inventoryEntries={inventoryEntries}
           equippedInThisSlot={ship.slots[sel.picker] ?? null}
           onPick={sel.selectForPicker}
           onClose={sel.closePicker}
         />
       )}
 
-      {sel.augPickerWeapon !== null && (
+      {sel.augPickerPos !== null && augPickerInstance && augPickerWeapon && (
         <AugmentPicker
-          weaponId={sel.augPickerWeapon}
-          installed={getInstalledAugments(ship, sel.augPickerWeapon)}
+          position={sel.augPickerPos}
+          weapon={augPickerWeapon}
+          installed={augPickerInstance.augments}
           augmentInventory={ship.augmentInventory}
           onPick={sel.installForAugPicker}
           onClose={sel.closeAugPicker}

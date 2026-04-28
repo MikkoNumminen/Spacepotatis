@@ -8,6 +8,7 @@ import { PlayerFireController } from "./PlayerFireController";
 import type { WeaponSystem } from "../../systems/WeaponSystem";
 import type { SlotMods } from "./SlotModResolver";
 import type { WeaponId } from "@/types/game";
+import { newWeaponInstance, type WeaponInstance } from "@/game/state/ShipConfig";
 import type { PlayerCombatant } from "./PlayerCombatant";
 
 interface StubWeaponSystem {
@@ -44,12 +45,14 @@ function makeRig(opts: {
   const weapons = opts.weapons ?? ["rapid-fire"];
   const stubs: StubWeaponSystem[] = weapons.map(() => makeStub(opts.fireResult ?? true));
   const slotMods = opts.mods ?? weapons.map(() => makeMods());
-  const slotWeapons: (WeaponId | null)[] = [...weapons];
+  const slotInstances: (WeaponInstance | null)[] = weapons.map((w) =>
+    w === null ? null : newWeaponInstance(w)
+  );
 
   return {
     controller: new PlayerFireController(
       stubs as unknown as WeaponSystem[],
-      slotWeapons,
+      slotInstances,
       slotMods
     ),
     stubs
@@ -57,7 +60,7 @@ function makeRig(opts: {
 }
 
 describe("PlayerFireController.tryFireSlot", () => {
-  it("does nothing when the slot is empty (weapon id is null)", () => {
+  it("does nothing when the slot is empty (instance is null)", () => {
     const rig = makeRig({ weapons: [null] });
     const combatant = makeCombatant(100);
     rig.controller.tryFireSlot(0, 1000, 1, { x: 0, y: 0 }, combatant);
@@ -96,7 +99,7 @@ describe("PlayerFireController.tryFireSlot", () => {
     expect(combatant.energy).toBe(0);
   });
 
-  it("forwards the weapon id and damage/fire-rate/projectile/turn mods to WeaponSystem", () => {
+  it("forwards the instance's weapon id and damage/fire-rate/projectile/turn mods to WeaponSystem", () => {
     const rig = makeRig({
       mods: [
         makeMods({

@@ -1,9 +1,7 @@
 import type { WeaponId } from "@/types/game";
 import {
-  getInstalledAugments,
-  getWeaponLevel,
   weaponDamageMultiplier,
-  type ShipConfig
+  type WeaponInstance
 } from "@/game/state/ShipConfig";
 import { getWeapon } from "../../../data/weapons";
 import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../../../data/augments";
@@ -28,20 +26,16 @@ export const NEUTRAL_SLOT_MODS: SlotMods = {
   turnRateMul: 1
 };
 
-// Slot index doesn't influence mod resolution — the mods are entirely a
-// function of the weapon and the ship's per-weapon level/augment data —
-// but we keep the parameter so call-site code reads "resolve mods for THIS
-// slot" rather than passing the weapon id around bare.
-export function resolveSlotMods(
-  _slotIndex: number,
-  ship: ShipConfig,
-  currentWeaponId: WeaponId | null
-): SlotMods {
-  if (!currentWeaponId) return NEUTRAL_SLOT_MODS;
-  const def = getWeapon(currentWeaponId);
-  const installed = getInstalledAugments(ship, currentWeaponId);
-  const effects = installed.length === 0 ? NEUTRAL_AUGMENT_EFFECTS : foldAugmentEffects(installed);
-  const levelMul = weaponDamageMultiplier(getWeaponLevel(ship, currentWeaponId));
+// Resolves slot modifiers from a single weapon instance. Each instance carries
+// its own level and augment list, so resolution is purely a function of the
+// instance — no need to consult the rest of the ship.
+export function resolveSlotMods(instance: WeaponInstance | null): SlotMods {
+  if (!instance) return NEUTRAL_SLOT_MODS;
+  const def = getWeapon(instance.id);
+  const effects = instance.augments.length === 0
+    ? NEUTRAL_AUGMENT_EFFECTS
+    : foldAugmentEffects(instance.augments);
+  const levelMul = weaponDamageMultiplier(instance.level);
   return {
     damageMul: levelMul * effects.damageMul,
     fireRateMul: effects.fireRateMul,
