@@ -31,6 +31,10 @@ export class BootScene extends Phaser.Scene {
     this.drawTriangleDown("enemy-kamikaze", 0xffa040, 36, 44);
     this.drawBoss("boss-1", 0xff4d6d, 140, 100);
 
+    this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
+    this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
+    this.drawAphid("enemy-aphid-queen", { size: 60, body: 0x6fb320, accent: 0x3a4f0e, crown: 0xffcc33 });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -314,6 +318,103 @@ export class BootScene extends Phaser.Scene {
     g.lineStyle(3, 0xffffff, 0.8);
     g.strokeRoundedRect(0, 0, w, h, 14);
     g.generateTexture(key, w, h);
+    g.destroy();
+  }
+
+  // Pear-shaped sap-sucker. Head points DOWN since enemies fall toward
+  // the player. Same layered-ellipse + accent dots + outline language as
+  // drawPotatoShip so player and bug feel like the same biome. The
+  // optional `crown` paints 5 amber spikes fanning from the rear of the
+  // abdomen (queen variant only).
+  private drawAphid(
+    key: string,
+    opts: { size: number; body: number; accent: number; crown?: number }
+  ): void {
+    const { size, body, accent, crown } = opts;
+    const PAD = 4;
+    const W = size + PAD * 2;
+    const H = size + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    const bodyRx = size * 0.42;
+    const bodyRy = size * 0.40;
+    const bodyCy = cy - size * 0.06;
+    const headRx = size * 0.28;
+    const headRy = size * 0.22;
+    const headCy = cy + size * 0.22;
+
+    g.fillStyle(body, 1);
+    g.fillEllipse(cx, bodyCy, bodyRx * 2, bodyRy * 2);
+    g.fillEllipse(cx, headCy, headRx * 2, headRy * 2);
+
+    g.fillStyle(accent, 0.45);
+    g.fillEllipse(cx + size * 0.06, bodyCy + size * 0.07, bodyRx * 1.55, bodyRy * 1.45);
+
+    g.fillStyle(0xeaffd0, 0.35);
+    g.fillEllipse(cx - size * 0.12, bodyCy - size * 0.13, bodyRx * 1.05, bodyRy * 0.85);
+    g.fillStyle(0xffffff, 0.55);
+    g.fillEllipse(cx - size * 0.16, bodyCy - size * 0.18, size * 0.14, size * 0.07);
+
+    const legR = Math.max(1, size * 0.045);
+    const legXOffset = bodyRx * 0.92;
+    const legYs = [bodyCy - bodyRy * 0.45, bodyCy, bodyCy + bodyRy * 0.5];
+    g.fillStyle(accent, 1);
+    for (const ly of legYs) {
+      g.fillCircle(cx - legXOffset, ly, legR);
+      g.fillCircle(cx + legXOffset, ly, legR);
+    }
+
+    // Phaser Graphics has no quadraticCurveTo here, so antennae are 3-segment polylines.
+    const antLen = size * 0.22;
+    const antBaseY = headCy + headRy * 0.55;
+    const antBaseX = headRx * 0.55;
+    g.lineStyle(Math.max(1, size * 0.035), accent, 0.95);
+    g.beginPath();
+    g.moveTo(cx - antBaseX, antBaseY);
+    g.lineTo(cx - antBaseX - antLen * 0.35, antBaseY + antLen * 0.45);
+    g.lineTo(cx - antBaseX - antLen * 0.85, antBaseY + antLen * 0.95);
+    g.strokePath();
+    g.beginPath();
+    g.moveTo(cx + antBaseX, antBaseY);
+    g.lineTo(cx + antBaseX + antLen * 0.35, antBaseY + antLen * 0.45);
+    g.lineTo(cx + antBaseX + antLen * 0.85, antBaseY + antLen * 0.95);
+    g.strokePath();
+
+    const eyeR = Math.max(1.5, size * 0.085);
+    const eyeY = headCy + headRy * 0.15;
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(cx, eyeY, eyeR);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(cx - eyeR * 0.35, eyeY - eyeR * 0.35, Math.max(0.8, eyeR * 0.32));
+
+    if (crown !== undefined) {
+      const crownBaseY = bodyCy - bodyRy * 0.92;
+      const spikes = 5;
+      const spread = Math.PI * 0.55;
+      const spikeLen = size * 0.15;
+      const spikeHalfBase = Math.max(1.2, size * 0.04);
+      g.fillStyle(crown, 1);
+      for (let i = 0; i < spikes; i++) {
+        const t = i / (spikes - 1);
+        const a = -Math.PI / 2 + (t - 0.5) * spread;
+        const baseR = bodyRy * 0.95;
+        const bx = cx + Math.cos(a) * bodyRx * 0.7;
+        const by = crownBaseY + (Math.sin(a) + 1) * baseR * 0.05;
+        const tx = bx + Math.cos(a) * spikeLen;
+        const ty = by + Math.sin(a) * spikeLen;
+        const px = -Math.sin(a) * spikeHalfBase;
+        const py = Math.cos(a) * spikeHalfBase;
+        g.fillTriangle(tx, ty, bx + px, by + py, bx - px, by - py);
+      }
+    }
+
+    g.lineStyle(1, accent, 0.7);
+    g.strokeEllipse(cx, bodyCy, bodyRx * 2, bodyRy * 2);
+    g.strokeEllipse(cx, headCy, headRx * 2, headRy * 2);
+
+    g.generateTexture(key, W, H);
     g.destroy();
   }
 

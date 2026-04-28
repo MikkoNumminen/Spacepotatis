@@ -8,8 +8,9 @@
           "id": "tutorial-1",
           "durationMs": 30000,
           "spawns": [
-            { "enemy": "basic", "count": 4, "delayMs": 2000,  "intervalMs": 2400, "formation": "line",   "xPercent": 0.3 },
-            { "enemy": "basic", "count": 4, "delayMs": 9000,  "intervalMs": 2400, "formation": "line",   "xPercent": 0.7 }
+            { "enemy": "aphid",       "count": 5, "delayMs": 2000,  "intervalMs": 2200, "formation": "line", "xPercent": 0.3 },
+            { "enemy": "aphid",       "count": 5, "delayMs": 9000,  "intervalMs": 2200, "formation": "line", "xPercent": 0.7 },
+            { "enemy": "aphid-giant", "count": 1, "delayMs": 22000, "intervalMs": 0,    "formation": "line", "xPercent": 0.5 }
           ]
         }
       ]

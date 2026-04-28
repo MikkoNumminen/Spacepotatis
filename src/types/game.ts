@@ -49,7 +49,14 @@ export interface WeaponDefinition {
 // Enemies
 // ---------------------------------------------------------------------------
 
-export type EnemyId = "basic" | "zigzag" | "kamikaze" | "boss-1";
+export type EnemyId =
+  | "basic"
+  | "zigzag"
+  | "kamikaze"
+  | "boss-1"
+  | "aphid"
+  | "aphid-giant"
+  | "aphid-queen";
 export type EnemyBehavior = "straight" | "zigzag" | "homing" | "boss";
 
 export interface EnemyDefinition {

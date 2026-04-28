@@ -48,6 +48,42 @@
       "spriteKey": "boss-1",
       "fireRateMs": 1300,
       "collisionDamage": 30
+    },
+    {
+      "id": "aphid",
+      "name": "Aphid",
+      "hp": 8,
+      "speed": 70,
+      "behavior": "straight",
+      "scoreValue": 30,
+      "creditValue": 3,
+      "spriteKey": "enemy-aphid",
+      "fireRateMs": null,
+      "collisionDamage": 5
+    },
+    {
+      "id": "aphid-giant",
+      "name": "Bloated Aphid",
+      "hp": 30,
+      "speed": 50,
+      "behavior": "straight",
+      "scoreValue": 100,
+      "creditValue": 10,
+      "spriteKey": "enemy-aphid-giant",
+      "fireRateMs": 4500,
+      "collisionDamage": 15
+    },
+    {
+      "id": "aphid-queen",
+      "name": "Aphid Matriarch",
+      "hp": 80,
+      "speed": 60,
+      "behavior": "zigzag",
+      "scoreValue": 400,
+      "creditValue": 40,
+      "spriteKey": "enemy-aphid-queen",
+      "fireRateMs": 2200,
+      "collisionDamage": 20
     }
   ]
 }
