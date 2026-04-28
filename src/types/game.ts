@@ -56,7 +56,10 @@ export type EnemyId =
   | "boss-1"
   | "aphid"
   | "aphid-giant"
-  | "aphid-queen";
+  | "aphid-queen"
+  | "beetle-scarab"
+  | "beetle-rhino"
+  | "beetle-stag";
 export type EnemyBehavior = "straight" | "zigzag" | "homing" | "boss";
 
 export interface EnemyDefinition {

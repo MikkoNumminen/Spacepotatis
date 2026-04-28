@@ -84,6 +84,42 @@
       "spriteKey": "enemy-aphid-queen",
       "fireRateMs": 2200,
       "collisionDamage": 20
+    },
+    {
+      "id": "beetle-scarab",
+      "name": "Scarab Beetle",
+      "hp": 40,
+      "speed": 60,
+      "behavior": "straight",
+      "scoreValue": 150,
+      "creditValue": 15,
+      "spriteKey": "enemy-beetle-scarab",
+      "fireRateMs": 3000,
+      "collisionDamage": 12
+    },
+    {
+      "id": "beetle-rhino",
+      "name": "Rhino Beetle",
+      "hp": 35,
+      "speed": 140,
+      "behavior": "homing",
+      "scoreValue": 200,
+      "creditValue": 20,
+      "spriteKey": "enemy-beetle-rhino",
+      "fireRateMs": null,
+      "collisionDamage": 30
+    },
+    {
+      "id": "beetle-stag",
+      "name": "Stag Beetle",
+      "hp": 60,
+      "speed": 50,
+      "behavior": "straight",
+      "scoreValue": 280,
+      "creditValue": 28,
+      "spriteKey": "enemy-beetle-stag",
+      "fireRateMs": 1800,
+      "collisionDamage": 18
     }
   ]
 }

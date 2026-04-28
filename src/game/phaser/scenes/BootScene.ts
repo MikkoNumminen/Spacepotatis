@@ -35,6 +35,10 @@ export class BootScene extends Phaser.Scene {
     this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
     this.drawAphid("enemy-aphid-queen", { size: 60, body: 0x6fb320, accent: 0x3a4f0e, crown: 0xffcc33 });
 
+    this.drawBeetle("enemy-beetle-scarab", { size: 44, body: 0x4a6b3a, accent: 0x223018, ornament: "dome",      ornamentColor: 0xb8d488 });
+    this.drawBeetle("enemy-beetle-rhino",  { size: 46, body: 0x8b3a2a, accent: 0x4d1f15, ornament: "horn",      ornamentColor: 0x1a1008 });
+    this.drawBeetle("enemy-beetle-stag",   { size: 50, body: 0x4a3a6b, accent: 0x231a36, ornament: "mandibles", ornamentColor: 0x140a22 });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -411,6 +415,134 @@ export class BootScene extends Phaser.Scene {
     }
 
     g.lineStyle(1, accent, 0.7);
+    g.strokeEllipse(cx, bodyCy, bodyRx * 2, bodyRy * 2);
+    g.strokeEllipse(cx, headCy, headRx * 2, headRy * 2);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Armored beetle. Wide oval carapace with a center elytra split line,
+  // a small head segment at the front (down-screen), 6 legs along the
+  // sides, and a variant ornament at the head: scarab gets a dome boss
+  // on the carapace, rhino gets a forward-pointing horn, stag gets two
+  // forking mandibles. Outline + carapace shine sell the "armored" read.
+  private drawBeetle(
+    key: string,
+    opts: {
+      size: number;
+      body: number;
+      accent: number;
+      ornament: "dome" | "horn" | "mandibles";
+      ornamentColor: number;
+    }
+  ): void {
+    const { size, body, accent, ornament, ornamentColor } = opts;
+    const PAD = 5;
+    const W = size + PAD * 2;
+    const H = size + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    const bodyRx = size * 0.46;
+    const bodyRy = size * 0.40;
+    const bodyCy = cy - size * 0.05;
+    const headRx = size * 0.22;
+    const headRy = size * 0.13;
+    const headCy = cy + size * 0.32;
+
+    // Carapace + head silhouette.
+    g.fillStyle(body, 1);
+    g.fillEllipse(cx, bodyCy, bodyRx * 2, bodyRy * 2);
+    g.fillEllipse(cx, headCy, headRx * 2, headRy * 2);
+
+    // Right-side shadow wash for volume.
+    g.fillStyle(accent, 0.55);
+    g.fillEllipse(cx + size * 0.10, bodyCy + size * 0.04, bodyRx * 1.4, bodyRy * 1.55);
+
+    // Carapace shine — bright crescent on the upper-left, sells "polished armor".
+    g.fillStyle(0xffffff, 0.22);
+    g.fillEllipse(cx - size * 0.16, bodyCy - size * 0.16, bodyRx * 1.0, bodyRy * 0.55);
+    g.fillStyle(0xffffff, 0.45);
+    g.fillEllipse(cx - size * 0.18, bodyCy - size * 0.20, size * 0.10, size * 0.05);
+
+    // Elytra split — vertical seam down the carapace, the signature beetle tell.
+    g.lineStyle(Math.max(1, size * 0.04), accent, 0.85);
+    g.beginPath();
+    g.moveTo(cx, bodyCy - bodyRy * 0.95);
+    g.lineTo(cx, bodyCy + bodyRy * 0.95);
+    g.strokePath();
+
+    // 6 legs as short angled slashes outside the carapace.
+    const legLen = size * 0.13;
+    const legXOffset = bodyRx * 0.95;
+    const legYs = [bodyCy - bodyRy * 0.55, bodyCy - bodyRy * 0.05, bodyCy + bodyRy * 0.45];
+    g.lineStyle(Math.max(1, size * 0.045), accent, 0.95);
+    for (const ly of legYs) {
+      g.beginPath();
+      g.moveTo(cx - legXOffset, ly);
+      g.lineTo(cx - legXOffset - legLen, ly + legLen * 0.4);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(cx + legXOffset, ly);
+      g.lineTo(cx + legXOffset + legLen, ly + legLen * 0.4);
+      g.strokePath();
+    }
+
+    // Small black eye dots on the head with a 1px white gleam each.
+    const eyeR = Math.max(1.2, size * 0.055);
+    const eyeY = headCy + headRy * 0.05;
+    const eyeX = headRx * 0.55;
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(cx - eyeX, eyeY, eyeR);
+    g.fillCircle(cx + eyeX, eyeY, eyeR);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(cx - eyeX - eyeR * 0.3, eyeY - eyeR * 0.3, Math.max(0.6, eyeR * 0.32));
+    g.fillCircle(cx + eyeX - eyeR * 0.3, eyeY - eyeR * 0.3, Math.max(0.6, eyeR * 0.32));
+
+    // Variant ornament.
+    if (ornament === "dome") {
+      // Scarab: a domed boss in the center of the carapace.
+      g.fillStyle(ornamentColor, 0.9);
+      g.fillCircle(cx, bodyCy, size * 0.11);
+      g.fillStyle(0xffffff, 0.4);
+      g.fillCircle(cx - size * 0.04, bodyCy - size * 0.04, size * 0.04);
+    } else if (ornament === "horn") {
+      // Rhino: single forward horn extending from the head.
+      const hornBaseY = headCy + headRy * 0.6;
+      const hornTipY = hornBaseY + size * 0.22;
+      const hornHalfBase = size * 0.07;
+      g.fillStyle(ornamentColor, 1);
+      g.fillTriangle(cx, hornTipY, cx - hornHalfBase, hornBaseY, cx + hornHalfBase, hornBaseY);
+      // Tiny upward kink at the base for "rhino horn" character.
+      g.fillTriangle(
+        cx, hornBaseY - size * 0.04,
+        cx - hornHalfBase * 0.6, hornBaseY,
+        cx + hornHalfBase * 0.6, hornBaseY
+      );
+    } else {
+      // Stag: two forking mandibles diverging from the head.
+      const mandBaseY = headCy + headRy * 0.55;
+      const mandBaseX = headRx * 0.45;
+      const mandTipY = mandBaseY + size * 0.18;
+      const mandTipX = headRx * 1.4;
+      const mandHalfBase = size * 0.04;
+      g.fillStyle(ornamentColor, 1);
+      g.fillTriangle(
+        cx - mandTipX, mandTipY,
+        cx - mandBaseX - mandHalfBase, mandBaseY,
+        cx - mandBaseX + mandHalfBase, mandBaseY
+      );
+      g.fillTriangle(
+        cx + mandTipX, mandTipY,
+        cx + mandBaseX - mandHalfBase, mandBaseY,
+        cx + mandBaseX + mandHalfBase, mandBaseY
+      );
+    }
+
+    // Outline last over re-stroked silhouettes.
+    g.lineStyle(1, accent, 0.75);
     g.strokeEllipse(cx, bodyCy, bodyRx * 2, bodyRy * 2);
     g.strokeEllipse(cx, headCy, headRx * 2, headRy * 2);
 
