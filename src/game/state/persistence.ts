@@ -17,7 +17,7 @@ import {
 } from "./ShipConfig";
 import { AUGMENT_IDS, MAX_AUGMENTS_PER_WEAPON } from "../data/augments";
 import { WEAPON_IDS } from "@/lib/schemas/save";
-import { INITIAL_STATE, commit, getState } from "./stateCore";
+import { INITIAL_STATE, SYSTEM_UNLOCK_GATES, commit, getState } from "./stateCore";
 
 export interface StateSnapshot {
   credits: number;
@@ -53,10 +53,27 @@ export function toSnapshot(): StateSnapshot {
 // `inventory` of WeaponInstance here.
 export function hydrate(snapshot: Partial<StateSnapshot>): void {
   const knownSystemIds = new Set(getAllSolarSystems().map((s) => s.id));
-  const unlockedSystems =
+  const baseUnlockedSystems =
     snapshot.unlockedSolarSystems && snapshot.unlockedSolarSystems.length > 0
       ? snapshot.unlockedSolarSystems.filter((id) => knownSystemIds.has(id))
       : [...INITIAL_STATE.unlockedSolarSystems];
+
+  // Retroactive system-unlock backfill. SYSTEM_UNLOCK_GATES is consulted
+  // when completeMission() runs, but a player who cleared the gating
+  // mission BEFORE that gate code shipped never got the unlock written
+  // to their save. Re-derive from completedMissions on every load so old
+  // saves catch up to the current gate map without needing a one-shot
+  // migration. Idempotent — already-unlocked systems are deduped via Set.
+  const unlockedSystemsSet = new Set(baseUnlockedSystems);
+  const completedMissions = snapshot.completedMissions ?? [];
+  for (const [gateMissionId, gatedSystemId] of SYSTEM_UNLOCK_GATES) {
+    if (!knownSystemIds.has(gatedSystemId)) continue;
+    if (completedMissions.includes(gateMissionId)) {
+      unlockedSystemsSet.add(gatedSystemId);
+    }
+  }
+  const unlockedSystems = Array.from(unlockedSystemsSet);
+
   const fallbackSystem = unlockedSystems[0] ?? INITIAL_STATE.currentSolarSystemId;
   const requestedCurrent = snapshot.currentSolarSystemId;
   const currentSystem =

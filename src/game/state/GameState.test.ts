@@ -519,6 +519,26 @@ describe("snapshot / hydrate", () => {
     expect(s.unlockedSolarSystems).toEqual(["tutorial", "tubernovae"]);
   });
 
+  it("hydrate retroactively unlocks gated systems from completedMissions", () => {
+    // The unlock gate fires inside completeMission(), but a player who
+    // cleared boss-1 BEFORE that gate code shipped never got tubernovae
+    // written to their save. Hydrate must derive it from completedMissions
+    // so the warp UI catches up automatically on the next load.
+    hydrate({
+      completedMissions: ["tutorial", "combat-1", "boss-1"],
+      unlockedSolarSystems: ["tutorial"]
+    });
+    expect(getState().unlockedSolarSystems).toEqual(["tutorial", "tubernovae"]);
+  });
+
+  it("hydrate backfill is idempotent (already-unlocked systems aren't duplicated)", () => {
+    hydrate({
+      completedMissions: ["boss-1"],
+      unlockedSolarSystems: ["tutorial", "tubernovae"]
+    });
+    expect(getState().unlockedSolarSystems).toEqual(["tutorial", "tubernovae"]);
+  });
+
   it("subscribe fires on commit and unsubscribe stops it", () => {
     let count = 0;
     const unsub = subscribe(() => {
