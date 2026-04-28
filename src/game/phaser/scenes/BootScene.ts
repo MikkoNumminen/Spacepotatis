@@ -172,6 +172,25 @@ export class BootScene extends Phaser.Scene {
     g.destroy();
   }
 
+  // Attach hitbox metadata to a generated enemy texture so Enemy.ts can
+  // size its physics body from the texture's `customData` field instead of
+  // hard-coding a per-key match. Stored as plain numbers in pixels relative
+  // to the texture's top-left.
+  private setEnemyHitbox(
+    key: string,
+    hitboxWidth: number,
+    hitboxHeight: number,
+    hitboxOffsetX: number,
+    hitboxOffsetY: number
+  ): void {
+    this.textures.get(key).customData = {
+      hitboxWidth,
+      hitboxHeight,
+      hitboxOffsetX,
+      hitboxOffsetY,
+    };
+  }
+
   // The player ship is a Spacepotato — a slightly lumpy tuber with a tiny
   // green sprout pointing forward (up-screen) and a faint cyan space-rim glow.
   // Drawn into a padded canvas so the rim glow is captured by generateTexture.
@@ -357,6 +376,14 @@ export class BootScene extends Phaser.Scene {
 
     g.generateTexture(key, W, H);
     g.destroy();
+
+    // Hitbox covers the body+head silhouette. Antennae, crown spikes, and
+    // legs are all too thin to count as fair targets, so they're excluded.
+    const hitboxWidth = size * 0.84;
+    const hitboxHeight = size * 0.90;
+    const hitboxOffsetX = (W - hitboxWidth) / 2;
+    const hitboxOffsetY = bodyCy - bodyRy;
+    this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
   }
 
   // Armored beetle. Wide oval carapace with a center elytra split line,
@@ -485,6 +512,14 @@ export class BootScene extends Phaser.Scene {
 
     g.generateTexture(key, W, H);
     g.destroy();
+
+    // Hitbox covers the carapace+head mass. Short leg slashes and small
+    // ornaments (dome/horn/mandibles) are excluded as cosmetic detail.
+    const hitboxWidth = size * 0.92;
+    const hitboxHeight = size * 0.90;
+    const hitboxOffsetX = (W - hitboxWidth) / 2;
+    const hitboxOffsetY = bodyCy - bodyRy;
+    this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
   }
 
   // Segmented caterpillar — chain of overlapping circles with a smaller
@@ -509,7 +544,11 @@ export class BootScene extends Phaser.Scene {
     const spacing = segR;
 
     const W = segR * 2 + PAD * 2;
-    const totalLen = 2 * headR + (segments - 1) * spacing + segR;
+    // Length spans the head (2*headR) plus the chain of body segments.
+    // Each segment is one diameter (2*segR) and successive centers sit
+    // `spacing` apart (= segR), so N segments take (N+1)*segR of vertical
+    // run from the bottom of the chain to the top of the topmost segment.
+    const totalLen = 2 * headR + (segments + 1) * segR;
     const hornExtra = hornColor !== undefined ? segR * 0.7 : 0;
     const H = totalLen + hornExtra + PAD * 2;
 
@@ -585,6 +624,16 @@ export class BootScene extends Phaser.Scene {
 
     g.generateTexture(key, W, H);
     g.destroy();
+
+    // Hitbox is the worm's column: the full segR-wide strip from below the
+    // optional posterior horn down to the bottom edge of the head. PAD on
+    // the X axis matches drawing offsets; PAD + hornExtra on the Y axis
+    // skips the cosmetic horn at the top.
+    const hitboxWidth = 2 * segR;
+    const hitboxHeight = totalLen;
+    const hitboxOffsetX = PAD;
+    const hitboxOffsetY = PAD + hornExtra;
+    this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
   }
 
   // Spider — bulbous abdomen (top, rear) + smaller cephalothorax (bottom,
@@ -697,6 +746,15 @@ export class BootScene extends Phaser.Scene {
 
     g.generateTexture(key, W, H);
     g.destroy();
+
+    // Hitbox covers the abdomen+cephalothorax body mass. Legs are thin
+    // lines that barely extend past `size` and would inflate the box
+    // unfairly, so they're excluded.
+    const hitboxWidth = 2 * size;
+    const hitboxHeight = (cephCy + cephR) - (abdomenCy - size);
+    const hitboxOffsetX = (W - hitboxWidth) / 2;
+    const hitboxOffsetY = abdomenCy - size;
+    this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
   }
 
   // Dragonfly — long thin body with the head pointing DOWN, large
@@ -793,6 +851,15 @@ export class BootScene extends Phaser.Scene {
 
     g.generateTexture(key, W, H);
     g.destroy();
+
+    // Wings ARE the dragonfly's signature visual — players will shoot at
+    // the wide silhouette, so the hitbox includes the full wingspan and
+    // body length. Effectively the entire texture minus the PAD border.
+    const hitboxWidth = (bodyHalfW + wingLen) * 2;
+    const hitboxHeight = bodyLen + (wings === 4 ? wingHalfH * 0.8 : 0);
+    const hitboxOffsetX = PAD;
+    const hitboxOffsetY = PAD;
+    this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
   }
 
 }

@@ -55,8 +55,8 @@
           "id": "boss-1-intro",
           "durationMs": 16000,
           "spawns": [
-            { "enemy": "caterpillar-hornworm", "count": 4, "delayMs": 1500, "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "caterpillar-army",     "count": 2, "delayMs": 6500, "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "beetle-scarab", "count": 4, "delayMs": 1500, "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "spider-widow",  "count": 2, "delayMs": 6500, "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
             { "enemy": "dragonfly-common",               "count": 2, "delayMs": 10000, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
           ]
         },

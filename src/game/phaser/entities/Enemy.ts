@@ -5,6 +5,31 @@ import { getEnemy } from "../../data/enemies";
 
 export { getEnemy };
 
+type HitboxMeta = {
+  hitboxWidth: number;
+  hitboxHeight: number;
+  hitboxOffsetX: number;
+  hitboxOffsetY: number;
+};
+
+function readHitboxMeta(data: unknown): HitboxMeta | null {
+  if (typeof data !== "object" || data === null) return null;
+  const d = data as Record<string, unknown>;
+  const w = d.hitboxWidth;
+  const h = d.hitboxHeight;
+  const ox = d.hitboxOffsetX;
+  const oy = d.hitboxOffsetY;
+  if (
+    typeof w !== "number" ||
+    typeof h !== "number" ||
+    typeof ox !== "number" ||
+    typeof oy !== "number"
+  ) {
+    return null;
+  }
+  return { hitboxWidth: w, hitboxHeight: h, hitboxOffsetX: ox, hitboxOffsetY: oy };
+}
+
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   definition: EnemyDefinition = getEnemy("aphid");
   hp = 0;
@@ -42,7 +67,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
 
     const body = this.body as Phaser.Physics.Arcade.Body | null;
-    body?.setSize(this.width * 0.7, this.height * 0.7);
+    if (body) {
+      const meta = readHitboxMeta(this.texture.customData);
+      if (meta) {
+        body.setSize(meta.hitboxWidth, meta.hitboxHeight, false);
+        body.setOffset(meta.hitboxOffsetX, meta.hitboxOffsetY);
+      } else {
+        body.setSize(this.width * 0.7, this.height * 0.7);
+      }
+    }
   }
 
   takeDamage(amount: number): boolean {
