@@ -25,6 +25,13 @@ interface EngineOptions {
   readonly fadeInSec?: number;
   readonly fadeOutSec?: number;
   readonly silenceMs?: number;
+  // When true, the browser loops the audio natively (gapless, bulletproof).
+  // The manual fade-out → silence → fade-in routine is bypassed entirely so
+  // there's no window where a navigation event can land mid-silence and
+  // make the bed feel like it stopped. Use for ambient menu music that
+  // should play forever; leave false for combat music that needs a clean
+  // stop on mission end.
+  readonly loop?: boolean;
 }
 
 type Listener = (state: { muted: boolean; armed: boolean }) => void;
@@ -45,6 +52,7 @@ class MusicEngine {
   private readonly fadeInSec: number;
   private readonly fadeOutSec: number;
   private readonly silenceMs: number;
+  private readonly loop: boolean;
   private readonly listeners = new Set<Listener>();
 
   constructor(opts: EngineOptions = {}) {
@@ -53,6 +61,7 @@ class MusicEngine {
     this.fadeInSec = opts.fadeInSec ?? FADE_IN_SEC;
     this.fadeOutSec = opts.fadeOutSec ?? FADE_OUT_SEC;
     this.silenceMs = opts.silenceMs ?? SILENCE_MS;
+    this.loop = opts.loop ?? false;
   }
 
   init(): void {
@@ -158,9 +167,14 @@ class MusicEngine {
   private attachElement(src: string): void {
     const el = new Audio(src);
     el.preload = "auto";
-    el.loop = false;
+    el.loop = this.loop;
     el.volume = 0;
-    el.addEventListener("ended", this.onEnded);
+    // Manual fade-out → silence → restart only when native loop is off.
+    // With native loop the browser handles seamless restart; we never want
+    // to react to "ended" because it never fires.
+    if (!this.loop) {
+      el.addEventListener("ended", this.onEnded);
+    }
     this.el = el;
   }
 
@@ -180,7 +194,12 @@ class MusicEngine {
       }
     }
     this.fadeTo(this.targetVolume, this.fadeInSec);
-    this.scheduleEndFade();
+    // Native-loop tracks never need an end fade — the browser restarts
+    // seamlessly. Manual-loop tracks (combat) still get the scheduled
+    // fade so the loop has a "breath" instead of a hard cut.
+    if (!this.loop) {
+      this.scheduleEndFade();
+    }
   }
 
   private fadeAndPause(): void {
@@ -275,7 +294,13 @@ class MusicEngine {
   }
 }
 
-export const menuMusic = new MusicEngine({ src: "/audio/music/menu-theme.ogg" });
+// Menu bed loops natively (gapless) so navigating between /, /play, /shop,
+// and /leaderboard never lands on a silence window. The engine's manual
+// fade-out → silence → fade-in routine is bypassed for this engine.
+export const menuMusic = new MusicEngine({
+  src: "/audio/music/menu-theme.ogg",
+  loop: true
+});
 
 // Combat src is set via loadTrack() per mission. Slightly louder bed since
 // combat SFX are sparser than the menu's ambient layering. Fade-in is cut
