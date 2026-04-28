@@ -33,7 +33,7 @@
       "orbitNode": 1.2,
       "scale": 1.1,
       "requires": ["tutorial"],
-      "musicTrack": "/audio/music/combat-1.ogg",
+      "musicTrack": "/audio/music/combat-tutorial.ogg",
       "ring": { "innerRadius": 1.55, "outerRadius": 2.7, "tilt": 0.42 }
     },
     {
@@ -51,7 +51,7 @@
       "orbitNode": 2.5,
       "scale": 1.4,
       "requires": ["combat-1"],
-      "musicTrack": "/audio/music/boss-1.ogg"
+      "musicTrack": "/audio/music/combat-tutorial.ogg"
     },
     {
       "id": "shop",
