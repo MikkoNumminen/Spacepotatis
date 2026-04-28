@@ -92,6 +92,12 @@ export default function GameCanvas() {
         return;
       }
       setFocusedPlanetId(null);
+      // Start fetching + playing the mission bed BEFORE the fade-to-black so
+      // the audio is up by the time the combat scene appears. CombatScene's
+      // own loadTrack call later is a no-op when the src already matches.
+      if (mission.musicTrack) {
+        combatMusic.loadTrack(mission.musicTrack);
+      }
       await fadeOverlay(1);
       setLaunching(mission);
       setMode("combat");

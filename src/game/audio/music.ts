@@ -278,8 +278,13 @@ class MusicEngine {
 export const menuMusic = new MusicEngine({ src: "/audio/music/menu-theme.ogg" });
 
 // Combat src is set via loadTrack() per mission. Slightly louder bed since
-// combat SFX are sparser than the menu's ambient layering.
-export const combatMusic = new MusicEngine({ targetVolume: 0.55 });
+// combat SFX are sparser than the menu's ambient layering. Fade-in is cut
+// to a snap so the mission bed feels like it starts WITH the mission, not
+// like it ramps up over the first ~2 seconds the player is fighting.
+export const combatMusic = new MusicEngine({
+  targetVolume: 0.55,
+  fadeInSec: 0.15
+});
 
 export function setAllMuted(muted: boolean): void {
   menuMusic.setMuted(muted);
