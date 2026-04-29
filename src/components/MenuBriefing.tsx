@@ -17,17 +17,35 @@ export default function MenuBriefing() {
     const firstNudge = isContinue
       ? "/audio/menu/ui_idle_continue_nudge.mp3"
       : "/audio/menu/ui_idle_play_nudge.mp3";
+    const sharedNudge = "/audio/menu/ui_idle_continue_nudge.mp3";
 
+    // For PLAY users the first two items are play_nudge → continue_nudge.
+    // For CONTINUE users they would both be continue_nudge — drop the
+    // duplicate so the player isn't hearing the same line twice in a row.
     const queue: readonly MenuBriefingItem[] = [
       { src: firstNudge, gapBeforeMs: 0 },
-      { src: "/audio/menu/ui_idle_continue_nudge.mp3", gapBeforeMs: 5000 },
+      ...(firstNudge === sharedNudge
+        ? []
+        : [{ src: sharedNudge, gapBeforeMs: 5000 } satisfies MenuBriefingItem]),
       { src: "/audio/menu/ui_idle_final_warning.mp3", gapBeforeMs: 5000 },
       { src: "/audio/menu/ui_idle_surrender.mp3", gapBeforeMs: 5000 },
       { src: "/audio/menu/system-briefing.mp3", gapBeforeMs: 0 }
     ];
     menuBriefingAudio.playSequence(queue);
 
+    // Autoplay arming: on a cold page load the first voice.play() rejects
+    // because no user gesture has happened yet. The engine flags the stall
+    // internally; calling arm() on the first interaction retries the stalled
+    // voice. Listeners stay registered for the component's lifetime so a
+    // later gesture (after the player has been idle) still recovers — arm()
+    // is a no-op once the queue is running.
+    const onGesture = (): void => menuBriefingAudio.arm();
+    window.addEventListener("pointerdown", onGesture);
+    window.addEventListener("keydown", onGesture);
+
     return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
       menuBriefingAudio.stop();
     };
   }, [isContinue]);

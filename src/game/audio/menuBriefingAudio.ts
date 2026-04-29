@@ -23,6 +23,11 @@ class MenuBriefingAudio {
   private queue: readonly MenuBriefingItem[] = [];
   private queueIdx = 0;
   private gapTimerId: number | null = null;
+  // True if the most recent voice.play() promise rejected (typically the
+  // autoplay block on a cold load). arm() reads this to know the queue is
+  // stalled and needs to retry the current item; otherwise arm() is a no-op
+  // so mid-playback gestures don't interfere with the running queue.
+  private startFailed = false;
 
   playSequence(items: readonly MenuBriefingItem[]): void {
     this.stop();
@@ -35,6 +40,17 @@ class MenuBriefingAudio {
     this.scheduleNext();
   }
 
+  // Called on the first user gesture after mount. If the queue stalled
+  // because voice.play() rejected (cold-load autoplay block), retry the
+  // stalled item immediately; otherwise no-op.
+  arm(): void {
+    if (!this.startFailed) return;
+    this.startFailed = false;
+    const item = this.queue[this.queueIdx];
+    if (!item) return;
+    this.startVoice(item.src);
+  }
+
   stop(): void {
     if (this.gapTimerId !== null) {
       clearTimeout(this.gapTimerId);
@@ -42,6 +58,7 @@ class MenuBriefingAudio {
     }
     this.queue = [];
     this.queueIdx = 0;
+    this.startFailed = false;
     const voice = this.voice;
     this.voice = null;
     if (!voice) return;
@@ -83,10 +100,17 @@ class MenuBriefingAudio {
       this.scheduleNext();
     });
     this.voice = voice;
-    void voice.play().catch(() => {
-      // Autoplay blocked — silent fallback. Queue stalls until next user
-      // interaction; PLAY/CONTINUE click still clears it cleanly.
-    });
+    voice
+      .play()
+      .then(() => {
+        this.startFailed = false;
+      })
+      .catch(() => {
+        // Autoplay blocked — release the voice so arm() can re-create and
+        // retry it on the next user gesture.
+        this.startFailed = true;
+        if (this.voice === voice) this.voice = null;
+      });
   }
 }
 
