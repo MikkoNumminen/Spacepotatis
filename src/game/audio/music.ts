@@ -139,6 +139,17 @@ class MusicEngine {
     this.notify();
   }
 
+  // Forceful resume — if shouldBePlaying() is true but the element is
+  // actually paused (typical aftermath of a play() rejection that the
+  // promise's catch handler couldn't recover from), kick startPlayback
+  // immediately. Cheaper than waiting for the watchdog (~2s) and safe
+  // to call repeatedly. Caller is GameCanvas.handleMissionComplete which
+  // observes a race where the mode-effect's unduck doesn't actually
+  // resume audio on return to the galaxy.
+  ensurePlaying(): void {
+    this.kickIfShouldBePlaying();
+  }
+
   setMuted(muted: boolean): void {
     if (this.muted === muted) return;
     this.muted = muted;
@@ -286,11 +297,14 @@ class MusicEngine {
     if (el.paused) {
       try {
         await el.play();
-      } catch {
+      } catch (err) {
         // Autoplay block, audio session interrupt, or load failure. Stay
         // armed and schedule a retry — the watchdog and the next user
         // gesture will both back this up, but the explicit retry handles
         // transient failures within a frame or two.
+        if (typeof console !== "undefined") {
+          console.warn("[MusicEngine] play() rejected, scheduling retry", err);
+        }
         this.scheduleRetry();
         return;
       }

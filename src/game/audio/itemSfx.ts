@@ -2,9 +2,9 @@
 
 // Item-acquisition voice cues. Plays one of four short voice clips when the
 // player receives a permanent item — fired from the Victory modal's
-// first-clear reveal and from each shop purchase. Templates are cached and
-// cloned per fire so back-to-back plays overlap cleanly. Honors the master
-// mute toggle.
+// first-clear reveal, every shop purchase, and the in-combat drop pickups.
+// Templates are cached and cloned per fire so back-to-back plays overlap
+// cleanly. Honors the master mute toggle.
 
 const PATHS = {
   weapon: "/audio/sfx/ui_shop_gun.mp3",
@@ -13,9 +13,16 @@ const PATHS = {
   money: "/audio/sfx/ui_shop_money.mp3"
 } as const;
 
+// Throttle window for money(). Credit pickups in combat can fire every
+// ~0.5s during a wave clear; without a gate Grandma's money line would
+// step on itself constantly. 1.8s lets the cue land cleanly between
+// pickups without dropping every fire.
+const MONEY_COOLDOWN_MS = 1800;
+
 class ItemSfxEngine {
   private muted = false;
   private templates = new Map<string, HTMLAudioElement>();
+  private lastMoneyAt = 0;
 
   private play(src: string): void {
     if (typeof window === "undefined") return;
@@ -54,6 +61,9 @@ class ItemSfxEngine {
   }
 
   money(): void {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - this.lastMoneyAt < MONEY_COOLDOWN_MS) return;
+    this.lastMoneyAt = now;
     this.play(PATHS.money);
   }
 

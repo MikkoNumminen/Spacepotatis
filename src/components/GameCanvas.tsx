@@ -360,12 +360,17 @@ export default function GameCanvas() {
       setLaunching(null);
       setMode("galaxy");
       // Belt-and-suspenders music resume. The mode-effect cleanup already
-      // calls menuMusic.unduck(), but a race between effect ordering and the
-      // 4s combat-music fade-out has been observed to leave the menu bed
-      // silent on return. Re-asserting unduck + arm here is idempotent and
-      // covers any cleanup that didn't fire in the expected order.
+      // calls menuMusic.unduck(), but a race with the 4s combat-music
+      // fade-out (and the play() promise that occasionally rejects when
+      // the audio session is mid-transition) can leave the menu bed
+      // silent on return. unduck() resets the ducked flag; ensurePlaying()
+      // forces a startPlayback retry; the two scheduled ensurePlaying()
+      // calls cover the case where the first attempt's play() rejected
+      // before the watchdog (2s cadence) catches up.
       menuMusic.unduck();
-      menuMusic.arm();
+      menuMusic.ensurePlaying();
+      window.setTimeout(() => menuMusic.ensurePlaying(), 100);
+      window.setTimeout(() => menuMusic.ensurePlaying(), 500);
       requestAnimationFrame(() => void fadeOverlay(0));
     },
     [fadeOverlay, authStatus]
