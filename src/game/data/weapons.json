@@ -18,16 +18,18 @@
     },
     {
       "id": "spread-shot",
-      "name": "Scatter Beam",
-      "description": "Three bullets in a cone. Trades range for coverage.",
+      "name": "Idaho Potato Rifle",
+      "description": "Three Idaho-russet spuds in a 22° cone. Trades range for coverage — perfect for sweeping a lane.",
       "damage": 5,
       "fireRateMs": 220,
       "bulletSpeed": 640,
       "projectileCount": 3,
       "spreadDegrees": 22,
       "cost": 450,
-      "tint": "#ff66cc",
-      "energyCost": 8
+      "tint": "#b87a4a",
+      "energyCost": 8,
+      "bulletSprite": "bullet-potato-idaho",
+      "podSprite": "pod-potato"
     },
     {
       "id": "heavy-cannon",

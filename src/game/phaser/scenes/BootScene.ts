@@ -26,6 +26,7 @@ export class BootScene extends Phaser.Scene {
     this.drawBullet("bullet-friendly", 0x4fd1ff, 6, 18);
     this.drawBullet("bullet-hostile", 0xff4d6d, 8, 14);
     this.drawPotatoBullet("bullet-potato");
+    this.drawIdahoPotatoBullet("bullet-potato-idaho");
     this.drawPotatoPod("pod-potato");
 
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
@@ -324,10 +325,51 @@ export class BootScene extends Phaser.Scene {
     g.destroy();
   }
 
+  // Idaho-russet potato projectile — same shape as drawPotatoBullet
+  // but the player-ship russet palette instead of the lime peeled
+  // variety, so a player firing the Idaho Potato Rifle alongside the
+  // Potato Cannon can read the two streams apart instantly.
+  private drawIdahoPotatoBullet(key: string): void {
+    const PAD = 2;
+    const W = 14 + PAD * 2;
+    const H = 16 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Russet body.
+    g.fillStyle(0xb87a4a, 1);
+    g.fillEllipse(cx, cy, 12, 14);
+
+    // Shadow wash on lower-right for a hint of volume.
+    g.fillStyle(0x6b3f1f, 0.55);
+    g.fillEllipse(cx + 1.5, cy + 2, 9, 10);
+
+    // Two-stage highlight, warm tan.
+    g.fillStyle(0xd9a378, 0.55);
+    g.fillEllipse(cx - 2, cy - 3, 6, 5);
+    g.fillStyle(0xffe6b8, 0.8);
+    g.fillEllipse(cx - 3, cy - 4, 2, 1.2);
+
+    // Two potato eyes — same dark brown as the Potato Cannon's so the
+    // tuber-eye motif stays consistent across spud weapons.
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 2, cy - 1, 0.9);
+    g.fillCircle(cx - 1, cy + 3, 0.8);
+
+    // 1px outline at 70% opacity over a re-stroked ellipse so the
+    // silhouette stays crisp at small size.
+    g.lineStyle(1, 0x4a2810, 0.7);
+    g.strokeEllipse(cx, cy, 12, 14);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
   // Half-scale player potato. Same body recipe as drawPotatoShip, no
   // rim glow, no sprout — just the silhouette + dimensional shading +
   // outline. Used as a visible "side pod" attached to the main ship
-  // when an additional slot is equipped with the Potato Cannon.
+  // when an additional slot is equipped with any potato-themed weapon.
   private drawPotatoPod(key: string): void {
     const PAD = 4;
     const innerW = 26;

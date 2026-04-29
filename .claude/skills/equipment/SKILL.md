@@ -89,8 +89,8 @@ Modifying these is a stat-only change — see Operation: MODIFY → stats.
 
 | What changes visually | Where to edit |
 |---|---|
-| Weapon **bullet sprite** in combat | `BootScene.ts` `draw<X>Bullet(key)` generator + `weapons.json` `bulletSprite` field |
-| Weapon **side-pod sprite** | `BootScene.ts` `draw<X>Pod(key)` + `weapons.json` `podSprite` field. **Currently only `rapid-fire` has a pod**, and the rendering path in Player code is rapid-fire-specific. If adding a pod to a different weapon, STOP and confirm the pod render code is generalized first. |
+| Weapon **bullet sprite** in combat | `BootScene.ts` `draw<X>Bullet(key)` generator + `weapons.json` `bulletSprite` field. **Coupling:** if the new sprite materially changes the weapon's color, also update `weapons.json#tint` to match so the loadout / shop / pickup UI dot reads as the same weapon — these two fields are read by different surfaces but should always agree on color. |
+| Weapon **side-pod sprite** | `BootScene.ts` `draw<X>Pod(key)` + `weapons.json` `podSprite` field. The pod render path in `src/game/phaser/entities/player/PodController.ts` is GENERIC — it iterates `slotInstances` and reads `getWeapon(inst.id).podSprite` for each one. Any weapon with `podSprite` set automatically gets a visible side pod when equipped in a non-primary slot; weapons without it stay invisible (today's behavior). Multiple weapons can share the same pod texture (e.g. `rapid-fire` and `spread-shot` both use `pod-potato`). |
 | Weapon **UI tint dot** (loadout, shop) | `weapons.json` `tint` field — pure CSS color, read by `WeaponDot` in [src/components/loadout/dots.tsx](src/components/loadout/dots.tsx). No sprite/texture work needed. |
 | Augment **UI tint dot** | `augments.ts` `<id>.tint` field — same. |
 | Combat HUD energy / shield / armor **bars** | [src/game/phaser/scenes/combat/CombatHud.ts](src/game/phaser/scenes/combat/CombatHud.ts) — Phaser Graphics calls. Energy bar ~line 88, shield ~line 67, armor ~line 73. |
@@ -171,6 +171,25 @@ The four shapes that match what's in the catalog today. Match the user's intent 
 }
 ```
 
+**E. Re-skinned existing weapon** — rename + new bullet sprite + matching tint, stats unchanged. The pattern the weapon walk-through uses on every existing weapon. Stats stay frozen so balance doesn't shift; only the surface presentation changes. The `id` MUST stay the same — it's referenced from saves, loot pools, the upgrade ladder, and `DEFAULT_SHIP`. Renaming the id is a destructive change and belongs in REMOVE+CREATE, not here.
+```json
+{
+  "id": "<unchanged-existing-id>",
+  "name": "<New Display Name>",
+  "description": "<rewritten tooltip>",
+  "damage": <unchanged>,
+  "fireRateMs": <unchanged>,
+  "bulletSpeed": <unchanged>,
+  "projectileCount": <unchanged>,
+  "spreadDegrees": <unchanged>,
+  "cost": <unchanged>,
+  "tint": "#<new-hex-matching-the-bullet>",
+  "energyCost": <unchanged>,
+  "bulletSprite": "<new-bootscene-key>",
+  "podSprite": "<optional-bootscene-key, shared OK>"
+}
+```
+
 When in doubt, pick an existing entry that's structurally closest (e.g. "spread-shot" for a spread weapon, "spud-missile" for a homing one) and copy its shape. Run `/balance-review` after you've drafted numbers — the comparison against existing DPS / TTK / cost-per-DPS keeps the new entry in the same balance band.
 
 # Operation: CREATE
@@ -226,6 +245,24 @@ After editing stats, run `npm run typecheck && npm run lint && npm test`. For ba
 ## Visuals only — see surface table above
 
 Single-edit operations in most cases: changing `weapons.json#tint` or `augments.ts#tint` propagates to the loadout/shop UI immediately. Changing a bullet sprite requires both the `BootScene.ts` generator AND the `weapons.json#bulletSprite` field.
+
+## Re-skin (rename + new bullet sprite + matching tint)
+
+The weapon walk-through pass uses this shape repeatedly: stats stay frozen so balance doesn't shift, only the presentation changes. Common phrasings: "rename X to Y", "make X shoot a red potato instead of cyan capsule", "re-skin X as Y". Use Template E.
+
+Steps:
+1. Pick the new texture key. Convention: `bullet-<theme>` for the bullet, `pod-<theme>` for the optional pod (e.g. `bullet-potato-idaho`, `pod-potato`). Pod textures are share-friendly — multiple weapons can reference the same `pod-X` key (the `PodController` is generic).
+2. Add the `draw<X>Bullet(key)` generator in `BootScene.ts` (and `draw<X>Pod(key)` if the weapon needs its own pod variant). Pattern: copy the closest existing generator and recolor.
+3. Wire the new generator(s) into `BootScene.generateTextures()` next to the existing `drawBullet` calls.
+4. In `weapons.json`, edit the existing entry IN PLACE (don't add a new one — the `id` stays):
+   - `name` — display name in loadout / shop / pickups
+   - `description` — one-line tooltip
+   - `tint` — switch to a hex that visually matches the new bullet color (the loadout dot, shop row chip, and pickup color all read this; mismatched tint vs sprite reads as a bug)
+   - `bulletSprite` — set to the new texture key
+   - `podSprite` — set if the weapon should show a side pod when equipped in slot ≥ 1; reuse an existing key when the visual fits (potato weapons all share `pod-potato`, for example).
+5. **Do NOT touch the `id`.** It's referenced from `DEFAULT_SHIP`, save migration, the upgrade ladder, loot pools, and tests. A pure re-skin keeps the id and only changes surface fields. If the user actually wants the id to change, that's REMOVE + CREATE, not a re-skin.
+6. **Do NOT touch stats.** A re-skin is presentation-only. If the user wants both presentation and balance changes, do them as two separate commits so `/balance-review` has a clean diff.
+7. Run `npm run typecheck && npm run lint && npm test`. The data-integrity tests confirm the new texture-key strings start with `bullet-` / `pod-` and are non-empty; manual smoke (`npm run dev`, boot the tutorial mission) confirms the new sprite renders.
 
 # Operation: REMOVE
 
