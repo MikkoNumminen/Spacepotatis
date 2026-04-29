@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import { ROUTES } from "@/lib/routes";
+import { useReliableSession } from "./useReliableSession";
 
 // Shape returned by GET /api/handle. See src/app/api/handle/route.ts — the
 // route either returns { handle: string | null } on success, or an
@@ -64,7 +64,7 @@ async function fetchHandle(): Promise<HandleResponse> {
 }
 
 export function useHandle(): UseHandleResult {
-  const { status: authStatus } = useSession();
+  const { status: authStatus } = useReliableSession();
   const [handle, setHandle] = useState<string | null>(cached?.handle ?? null);
   const [status, setStatus] = useState<HandleStatus>(() => {
     if (cached) return "ready";

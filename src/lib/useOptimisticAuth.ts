@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import {
   clearAuthCache,
   readAuthCache,
@@ -10,6 +9,7 @@ import {
 } from "./authCache";
 import { getSaveCache, loadSave } from "@/game/state/sync";
 import { useHandle, type HandleStatus } from "./useHandle";
+import { useReliableSession } from "./useReliableSession";
 
 export type OptimisticAuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -51,7 +51,7 @@ export function isAuthVerified(
 }
 
 export function useOptimisticAuth(): OptimisticAuthResult {
-  const { status: sessionStatus } = useSession();
+  const { status: sessionStatus } = useReliableSession();
   const handleResult = useHandle();
   // Seed from the loadSave module cache so a hot remount renders with
   // hasSave already known — that's what lets isAuthVerified return true on

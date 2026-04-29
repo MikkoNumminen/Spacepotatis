@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import { isSaveCached, loadSave } from "@/game/state/sync";
+import { useReliableSession } from "@/lib/useReliableSession";
 
 // Returns `loaded` so SplashGate can wait for the save to land before
 // revealing the galaxy view — otherwise the player sees the panel render
@@ -14,7 +14,7 @@ import { isSaveCached, loadSave } from "@/game/state/sync";
 // the very first render — that's the signal SplashGate needs to skip
 // the splash entirely.
 export function useCloudSaveSync(): { loaded: boolean } {
-  const { status: authStatus } = useSession();
+  const { status: authStatus } = useReliableSession();
   const [loaded, setLoaded] = useState(() => isSaveCached());
 
   useEffect(() => {
