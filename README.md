@@ -216,7 +216,7 @@ None of this changes how the game looks or feels. It just means the next person 
 
 ## How AI helps build this game (Claude Code skills)
 
-This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains eight custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time.
+This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains eight custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time. (There's a ninth file in there too — `new-weapon` — but it's a single-line redirect that points to `/equipment`, since equipment now covers the whole "add / change / remove a weapon" lifecycle in one place.)
 
 Why does that matter? Every time Claude reads a file, it costs a small amount of money (paid in "tokens" — chunks of text Claude charges for). If a beginner asks "add a new enemy" and Claude has to grep around the codebase to find every file it needs to touch, that's a lot of tokens. A skill is basically a recipe: it lists the exact files to edit, the field names to use, and the invariants to keep, so Claude can go straight to the work.
 
@@ -226,7 +226,7 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 | -------------------- | -------------------------------------------------------------------------------------------------- |
 | `/new-mission`       | Adds a new combat mission, picks the solar system it belongs to, and wires up waves + planet binding.|
 | `/new-enemy`         | Adds a new enemy entry, generates a placeholder sprite, and (optionally) drops it into a test wave.|
-| `/new-weapon`        | Adds a new ship weapon (energy cost, optional homing) with the right unlock wiring. All weapons fire forward and can be equipped in any slot. |
+| `/equipment`         | Add, change, or remove a weapon, augment, reactor, shield, or armor entry — including visual changes (bullet sprite, UI tint dot, combat HUD bars, explosion particles). One skill covers the entire CRUD lifecycle for everything in the player's loadout, and includes a cleanup table so removing a weapon doesn't quietly break the default loadout, the in-mission upgrade ladder, or the loot pools. |
 | `/new-perk`          | Adds a new mid-mission buff (a "perk") with its icon, HUD chip, and pickup logic.                  |
 | `/new-solar-system`  | Adds a new selectable star system to the galaxy overworld (sun color/size, unlock condition, etc).  |
 | `/new-story`         | Adds a new in-game story popup — a chunk of narrative text plus background music plus a voiceover — that either auto-plays once for new players (think opening cinematic) or sits in the Story log to be replayed later. |
@@ -244,14 +244,16 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 | `/new-mission`       |         ~7.4K |                      30 |              ~222K |
 | `/new-enemy`         |         ~4.9K |                      25 |              ~123K |
 | `/new-perk`          |         ~8.5K |                      10 |               ~85K |
-| `/new-weapon`        |         ~5.6K |                      15 |               ~84K |
+| `/equipment`         |  ~4.3K (avg)¹ |                      56 |              ~240K |
 | `/new-solar-system`  |         ~9.7K |                       5 |               ~49K |
 | `/new-story`         |         ~6.0K |                      10 |               ~60K |
-| **Total**            |               |             **195 uses** | **~1.83M tokens** |
+| **Total**            |               |             **236 uses** | **~1.99M tokens** |
+
+¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year. The 240K total is more honest than the average per-use number suggests, because the high-stakes removal path also avoids a separate "fix-up commit" round-trip.
 
 The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
 
-The savings get bigger over time: every time the project's data shape evolves (a new field on weapons, a new mission attribute, etc.), the skill instructions are updated once, and every future agent gets the new pattern for free instead of having to discover it by grepping. Without skills, an agent asked to "add a new weapon" today would need to read at least seven files (`weapons.json`, `types/game.ts`, `ShipConfig.ts`, two test files, plus the shop and loadout UI components) to figure out the required fields. With the skill, it reads one ~80-line recipe.
+The savings get bigger over time: every time the project's data shape evolves (a new field on weapons, a new mission attribute, etc.), the skill instructions are updated once, and every future agent gets the new pattern for free instead of having to discover it by grepping. Without skills, an agent asked to "remove this weapon from the game" today would need to read at least eight files (`weapons.json`, `types/game.ts`, `save.ts`, `ShipConfig.ts`, `persistence.ts`, `DropController.ts`, `lootPools.ts`, `ShipConfig.test.ts`) and probably still miss one of the hard-coded references — leaving the player stuck with a broken default loadout, or breaking the in-mission upgrade ladder so a critical pickup never appears. With the skill, the agent loads one recipe that names the exact files to clean and the exact line in each, and the test suite catches anything missed.
 
 ## Where to look next
 
@@ -260,7 +262,7 @@ If you want to understand the project deeper, here's the order to read things in
 1. **[CLAUDE.md](CLAUDE.md)** — the developer-facing rulebook for the project. Coding standards, hard rules ("no Prisma", "no `any`", "all game logic runs in the browser"), and the mapping from "what the user wants" → "which skill to invoke".
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** — a tour of how data flows through the app: how a click on a planet leads to a Phaser combat scene starting, how saves are written, how the database schema is laid out.
 3. **[TODO.md](TODO.md)** — the planned implementation phases and what's deliberately out of scope.
-4. **[.claude/skills/](.claude/skills/)** — the eight skills mentioned above. Each one is a short markdown file you can read on its own.
+4. **[.claude/skills/](.claude/skills/)** — the eight skills mentioned above (plus the `new-weapon` redirect stub). Each one is a short markdown file you can read on its own.
 5. **[src/game/phaser/data/](src/game/phaser/data/)** — the game's balance data (weapons, enemies, waves, missions, perks). All numbers live here as JSON, so you can re-tune the game without touching any code.
 
 ## License
