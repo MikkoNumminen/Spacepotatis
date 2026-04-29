@@ -19,7 +19,7 @@ If the user's request mentions the Story log, story popup, narrative, cinematic,
 Do NOT use for:
 - Tweaking an existing story's text, music, or voice — edit `src/game/data/story.ts` and the asset file directly.
 - Adjusting the cinematic UI itself (modal styling, fade timing, etc.) — those live in `src/components/story/StoryModal.tsx` and `src/game/audio/story.ts`.
-- Adding a genuinely NEW auto-trigger kind (e.g. "after boss-1 cleared", "on first perk pickup", "when entering a specific solar system"). The current `StoryAutoTrigger` union supports `first-time`, `on-mission-select`, and `on-shop-open`; anything else requires a new variant in the union AND a matching firing site (a `useEffect` somewhere that scans `STORY_ENTRIES` for the new kind and calls `storyAudio.play` / opens the modal). That's a feature, not a content addition. STOP and flag this to the user instead of silently inventing a new kind.
+- Adding a genuinely NEW auto-trigger kind (e.g. "after boss-1 cleared", "on first perk pickup", "when entering a specific solar system"). The current `StoryAutoTrigger` union supports `first-time`, `on-mission-select`, `on-shop-open`, and `on-system-cleared-idle`; anything else requires a new variant in the union AND a matching firing site (a `useEffect` somewhere that scans `STORY_ENTRIES` for the new kind and calls `storyAudio.play` / opens the modal). That's a feature, not a content addition. STOP and flag this to the user instead of silently inventing a new kind.
 
 # Audio shape — music is optional, voice is required
 Every entry MUST carry a voice track. The music track is optional and the runtime explicitly handles `musicTrack: null`:
@@ -32,6 +32,9 @@ Conventional pairings (what the existing entries do today):
 - Mission/shop briefing: voice only (`musicTrack: null`, `voiceDelayMs: 0`) — the narrator rides on the menu/shop bed.
 
 If the user hands you only a voice file, that is a valid story entry — set `musicTrack: null` and pick the briefing pattern below. Don't ask for a music file you don't need.
+
+# Narrator persona — Grandma
+Every spoken line in the game is read by the **same** in-character narrator: **Grandma**. She's the warm-but-no-nonsense voice of the entire storyline (cinematics, mission briefings, shop welcomes, system-cleared idle voice, item-acquisition cues — all of it). When you write a new story entry's `body` text, write it as something Grandma would say out loud: friendly tone, clear sentences that read well aloud, no UI jargon, no "click here" instructions. The TTS pipeline (Chatterbox in `MikkoNumminen/AudiobookMaker`) is keyed to one voice profile; consistency is intentional and helps the player recognize narrative beats vs system noise. If the user hands you a script that breaks Grandma's voice (clinical/sci-fi-jargon-heavy/multiple speakers), gently flag it before you ship — better to refine the script than ship inconsistent narration.
 
 # Inputs the user must provide
 Ask once, in a single message, for any missing fields:
@@ -46,6 +49,7 @@ Ask once, in a single message, for any missing fields:
    - `{ kind: "first-time" }` — auto-fires on the player's first galaxy-view load if they haven't seen it. Currently only ONE entry can usefully carry this — the firing loop in `GameCanvas.tsx#useEffect` picks the first unseen `first-time` entry, so two such entries cascade across two consecutive sessions which is rarely the intended UX.
    - `{ kind: "on-mission-select", missionId: <MissionId> }` — auto-fires once the first time that mission's quest card is opened, GATED ON THE MISSION BEING UNLOCKED (locked "?" cards never trigger their briefing — `GameCanvas#handleMissionSelect` checks `unlockedPlanets`). Auto-expansion of the suggested card counts as a selection; the seen-set guards re-fires. Use for short briefings tied to a specific mission.
    - `{ kind: "on-shop-open" }` — auto-fires EVERY time the player lands on the `/shop` page (any shop). The seen-set is consulted only to decide whether to mark seen + save on the first dock — the audio plays unconditionally on every mount so returning players still get the welcome line. Wired in `ShopUI.tsx#useEffect`. Currently shop-id-agnostic — extend the variant with a `missionId` field if a specific shop needs its own briefing.
+   - `{ kind: "on-system-cleared-idle", systemId: <SolarSystemId>, initialDelayMs: <ms>, intervalMs: <ms> }` — auto-fires repeatedly while the player idles in the named solar system AND every combat mission in that system has been completed. First fire after `initialDelayMs`, then loops every `intervalMs`. Cancels the moment the player opens the shop / Story log / a story modal, or warps to a different system. Wired in `GameCanvas.tsx#useEffect` (idle ticker). Existing usage: `sol-spudensis-cleared` with 5000ms initial + 20000ms interval.
    - If the user wants any OTHER trigger (e.g. "after boss-1 is cleared", "on first perk pickup", "when entering tubernovae system"), STOP — it requires a new variant in the `StoryAutoTrigger` union plus matching firing logic in a `useEffect` somewhere. Flag this to the user; do not silently invent a new kind.
 8. `mode` — one of:
    - `"modal"` — cinematic popup, ducks the menu bed, plays its own music + voice. Default for big story beats with body text the player should read.
@@ -130,7 +134,7 @@ The four shapes that actually ship today. Match the user's intent to one and use
 - `voiceDelayMs >= 0`. Use `0` when `musicTrack === null` (nothing to wait for); use `~3000` when there's music to establish first.
 - Asset files are each < 500 KB (CLAUDE.md §13 asset budget — heavy assets go to object storage, not `public/`).
 - At most one entry has `autoTrigger.kind === "first-time"` set at a time (soft rule — multiple such entries technically work but cascade in unintended ways).
-- `autoTrigger` is one of the four currently-supported shapes: `null`, `{kind: "first-time"}`, `{kind: "on-mission-select", missionId}`, `{kind: "on-shop-open"}`. Anything else is a feature, not a content add.
+- `autoTrigger` is one of the five currently-supported shapes: `null`, `{kind: "first-time"}`, `{kind: "on-mission-select", missionId}`, `{kind: "on-shop-open"}`, `{kind: "on-system-cleared-idle", systemId, initialDelayMs, intervalMs}`. Anything else is a feature, not a content add.
 - No `any` types introduced. No new comments unless explaining a non-obvious why.
 - `npm run typecheck && npm test` passes after the change.
 

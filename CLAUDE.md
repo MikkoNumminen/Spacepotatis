@@ -4,14 +4,15 @@ This file is loaded into every Claude Code session in this repo. It is the singl
 
 ## 1. What we are building
 
-A **Tyrian 2000–inspired vertical scrolling space shooter** with a **3D galaxy overworld**.
+A **Tyrian 2000–inspired vertical scrolling space shooter** with a **3D galaxy overworld**, wrapped in a **fully-voiced audiobook-style storyline**.
 
-Two gameplay modes linked together:
+Three pillars:
 
 1. **Galaxy View** (Three.js): a 3D solar system. Each planet is a mission, shop, or hub. Non-linear — the player picks their path.
 2. **Combat Mission** (Phaser 3): top-down vertical shooter. Ship scrolls upward, enemies fall from above, collect power-ups, fight bosses.
+3. **Audio storyline & audio-assisted gameplay** (NOT a small thing — see README "Audio storyline" section): every voice in the game is read by a single character — **Grandma** — generated on Mikko's machine via the **AudiobookMaker** repo (Chatterbox TTS) and dropped in as plain mp3s. Voice surfaces include: a menu-briefing nudge queue + system-briefing lecture on every menu visit, a "Great Potato Awakening" cinematic opener, per-mission briefings, a "Market arrival" line on every shop dock, an idle "system cleared" voice that loops while the player lingers in a fully-cleared system, four per-category item-acquisition cues at drops + shop purchases, and a Story log that replays everything. The audio is doing both narrative work AND UI-feedback work — when the player gets a gun, Grandma says so; the player doesn't need to read a tooltip.
 
-**Loop:** galaxy view → select planet → camera zoom → Phaser combat → result screen → back to galaxy → shop or next mission.
+**Loop:** galaxy view → select planet → camera zoom → Phaser combat → result screen → back to galaxy → shop or next mission. Grandma narrates the connective tissue throughout.
 
 ## 2. Tech stack (and why each)
 
@@ -61,6 +62,7 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 | [src/game/data/](src/game/data/)                          | Game balance JSON + accessors (weapons, enemies, waves, missions, perks, augments, solarSystems) — **shared content registry** |
 | [src/game/three/](src/game/three/)                        | Three.js galaxy overworld + shared `SceneRig`   |
 | [src/game/state/](src/game/state/)                        | GameState barrel + slices (stateCore, shipMutators, persistence, pricing), ShipConfig, sync, useGameState |
+| [src/game/audio/](src/game/audio/)                        | Audio engines: `music.ts` (menu/combat beds + master-mute hub via `setAllMuted`), `story.ts` (StoryModal cinematics), `storyLogAudio.ts` (Story-log bed), `menuBriefingAudio.ts` (landing-page voice queue), `itemSfx.ts` (per-category drop/shop cues), `sfx.ts` (procedural Web-Audio combat SFX) |
 | [src/lib/](src/lib/)                                      | DB client, auth, leaderboard, players, handle, routes, useHandle |
 | [src/lib/schemas/](src/lib/schemas/)                      | Zod schemas validating every API boundary        |
 | [src/types/](src/types/)                                  | Shared TypeScript types                         |

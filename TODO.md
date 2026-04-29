@@ -167,7 +167,7 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
   - **Link to /settings** — when the menu grows beyond ~4-5 items, the heavier flows (avatar uploader, GDPR forms) should move to a dedicated `/settings` page; the dropdown becomes a thin shortcut.
 
 - Real art: drop PNGs into [public/sprites/](public/sprites/) with the keys already referenced in code (e.g. `/sprites/player/ship.png`). [BootScene](src/game/phaser/scenes/BootScene.ts) currently synthesizes placeholders — switch its `preload` to load files when assets exist.
-- Real audio: drop files into [public/audio/](public/audio/) and rewrite [sfx.ts](src/game/audio/sfx.ts) to trigger HTMLAudioElement playback. Public folder structure is already documented in [public/README.md](public/README.md).
+- ~~Real audio: drop files into public/audio/ and rewrite sfx.ts to trigger HTMLAudioElement playback.~~ **— DONE for music + voice.** The audio storyline pipeline is shipped: `menuMusic` / `combatMusic` (HTMLAudioElement-based engines in [music.ts](src/game/audio/music.ts)), four story-system engines (`storyAudio`, `storyLogAudio`, `menuBriefingAudio`, `itemSfx`), and a real `public/audio/{menu,story,sfx,music}/` tree. Combat SFX (laser/hit/explosion/pickup chime) intentionally remain procedural Web Audio in [sfx.ts](src/game/audio/sfx.ts) — short impact sounds, no benefit to file-based playback.
 - Real planet textures: file names in [missions.json](src/game/phaser/data/missions.json) under `texture` — loader already tries and falls back to flat color.
 - Background music per mission + galaxy theme.
 - Gamepad support — write a second factory in [Controls.ts](src/game/phaser/systems/Controls.ts).
@@ -176,7 +176,7 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
 ## Out of scope for MVP — do NOT build
 
 - Multiplayer or ghost replays.
-- Story, dialogue, or cutscenes.
+- ~~Story, dialogue, or cutscenes.~~ **— SUPERSEDED.** The audio storyline is now a flagship feature: a fully-voiced narrative layer with one consistent narrator persona (Grandma), spanning the menu briefing queue, opening cinematic, per-mission briefings, shop arrival line, system-cleared idle voice, item-acquisition cues, and the replay-able Story log. See [README.md](README.md) "Audio storyline" section, [src/game/data/story.ts](src/game/data/story.ts), and the `/new-story` skill. New story content is added through `/new-story`.
 - Procedural mission / level generation.
 - Achievements system.
 - ~~More than 4 planets (3 missions + 1 shop)~~ — **superseded by Phase 9**: 2 solar systems and 8 planets total now. Hand-authored content cap is now per-system, not project-wide.
