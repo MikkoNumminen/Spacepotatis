@@ -201,7 +201,7 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 | ---------------------------------------------- | ------------------- |
 | A new combat mission or shop planet            | `/new-mission`      |
 | A new enemy type                               | `/new-enemy`        |
-| A new primary weapon                           | `/new-weapon`       |
+| **Anything** weapon/equipment-related — add, modify, remove, recolor, re-skin, rebalance a weapon, augment, reactor, shield, or armor (including bullet sprites, UI tints, HUD bars) | `/equipment` |
 | A new mission perk (passive or active)         | `/new-perk`         |
 | A new solar system in the overworld            | `/new-solar-system` |
 | **Anything** story-related — new entry, cinematic, voiceover, narration, lore, chapter | `/new-story` |
