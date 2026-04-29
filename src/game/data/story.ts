@@ -23,11 +23,13 @@ export type StoryId =
   | "great-potato-awakening"
   | "spud-prime-arrival"
   | "yamsteroid-belt-arrival"
-  | "dreadfruit-arrival";
+  | "dreadfruit-arrival"
+  | "market-arrival";
 
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
-  | { readonly kind: "on-mission-select"; readonly missionId: MissionId };
+  | { readonly kind: "on-mission-select"; readonly missionId: MissionId }
+  | { readonly kind: "on-shop-open" };
 
 export interface StoryEntry {
   readonly id: StoryId;
@@ -88,6 +90,18 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     voiceTrack: "/audio/story/dreadfruit-arrival-voice.mp3",
     voiceDelayMs: 0,
     autoTrigger: { kind: "on-mission-select", missionId: "boss-1" },
+    mode: "overlay"
+  },
+  {
+    id: "market-arrival",
+    title: "Market Arrival",
+    body: [
+      "You've docked at the Market — Mission Control runs through what's on the shelves."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/market-arrival-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-shop-open" },
     mode: "overlay"
   }
 ];

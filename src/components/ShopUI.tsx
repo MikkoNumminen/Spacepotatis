@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   buyArmorUpgrade,
   buyAugment,
   buyReactorCapacityUpgrade,
   buyReactorRechargeUpgrade,
   buyShieldUpgrade,
-  buyWeapon
+  buyWeapon,
+  markStorySeen
 } from "@/game/state/GameState";
+import { saveNow } from "@/game/state/sync";
+import { STORY_ENTRIES } from "@/game/data/story";
+import { storyAudio } from "@/game/audio/story";
 import {
   MAX_LEVEL,
   armorUpgradeCost,
@@ -28,6 +32,31 @@ import { WeaponStats } from "@/components/WeaponStats";
 export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
   const ship = useGameState((s) => s.ship);
+  const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
+
+  // Fire-once on mount: play any unseen on-shop-open story (overlay-mode,
+  // voice over the menu bed). Empty dep array intentionally — `seen` is
+  // captured at mount; subsequent state updates from markStorySeen don't
+  // re-trigger and tear down the playing voice. Cleanup stops the voice
+  // if the user navigates away mid-playback.
+  useEffect(() => {
+    const seen = new Set(seenStoryEntries);
+    const entry = STORY_ENTRIES.find(
+      (e) => e.autoTrigger?.kind === "on-shop-open" && !seen.has(e.id)
+    );
+    if (!entry) return;
+    storyAudio.play({
+      musicSrc: entry.musicTrack,
+      voiceSrc: entry.voiceTrack,
+      voiceDelayMs: entry.voiceDelayMs
+    });
+    markStorySeen(entry.id);
+    void saveNow();
+    return () => {
+      storyAudio.stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const shieldCost = shieldUpgradeCost(ship.shieldLevel);
   const armorCost = armorUpgradeCost(ship.armorLevel);
