@@ -12,6 +12,7 @@ import {
 } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
 import { STORY_ENTRIES } from "@/game/data/story";
+import { itemSfx } from "@/game/audio/itemSfx";
 import { storyAudio } from "@/game/audio/story";
 import {
   MAX_LEVEL,
@@ -67,10 +68,25 @@ export default function ShopUI() {
   const reactorCapMaxed = ship.reactor.capacityLevel >= MAX_LEVEL;
   const reactorRechMaxed = ship.reactor.rechargeLevel >= MAX_LEVEL;
 
-  const handleBuyShield = useCallback(() => void buyShieldUpgrade(), []);
-  const handleBuyArmor = useCallback(() => void buyArmorUpgrade(), []);
-  const handleBuyReactorCap = useCallback(() => void buyReactorCapacityUpgrade(), []);
-  const handleBuyReactorRech = useCallback(() => void buyReactorRechargeUpgrade(), []);
+  // Each handler fires its sfx alongside the mutation. The buttons are
+  // disabled when the player can't afford the cost, so reaching the
+  // handler implies a successful purchase.
+  const handleBuyShield = useCallback(() => {
+    buyShieldUpgrade();
+    itemSfx.upgrade();
+  }, []);
+  const handleBuyArmor = useCallback(() => {
+    buyArmorUpgrade();
+    itemSfx.upgrade();
+  }, []);
+  const handleBuyReactorCap = useCallback(() => {
+    buyReactorCapacityUpgrade();
+    itemSfx.upgrade();
+  }, []);
+  const handleBuyReactorRech = useCallback(() => {
+    buyReactorRechargeUpgrade();
+    itemSfx.upgrade();
+  }, []);
 
   return (
     <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
@@ -132,7 +148,10 @@ export default function ShopUI() {
                 <button
                   type="button"
                   disabled={credits < weapon.cost}
-                  onClick={() => void buyWeapon(weapon.id)}
+                  onClick={() => {
+                    buyWeapon(weapon.id);
+                    itemSfx.weapon();
+                  }}
                   className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
                 >
                   BUY · ¢ {weapon.cost}
@@ -172,7 +191,10 @@ export default function ShopUI() {
                 <button
                   type="button"
                   disabled={credits < aug.cost}
-                  onClick={() => void buyAugment(aug.id)}
+                  onClick={() => {
+                    buyAugment(aug.id);
+                    itemSfx.augment();
+                  }}
                   className="shrink-0 rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
                 >
                   BUY · ¢ {aug.cost}

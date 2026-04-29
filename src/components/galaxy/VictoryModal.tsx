@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CombatSummary } from "@/game/phaser/config";
+import { itemSfx } from "@/game/audio/itemSfx";
 import { describeMissionReward } from "@/game/state/rewards";
 
 export default function VictoryModal({
@@ -18,6 +19,27 @@ export default function VictoryModal({
   useEffect(() => {
     setReady(true);
   }, []);
+
+  // First-clear reward voice cue — fires once on modal mount, matched to
+  // the reward kind. Replays show no reward so this branch is skipped.
+  const reward = summary.firstClearReward;
+  useEffect(() => {
+    if (!reward) return;
+    switch (reward.kind) {
+      case "weapon":
+        itemSfx.weapon();
+        return;
+      case "augment":
+        itemSfx.augment();
+        return;
+      case "upgrade":
+        itemSfx.upgrade();
+        return;
+      case "credits":
+        itemSfx.money();
+        return;
+    }
+  }, [reward]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

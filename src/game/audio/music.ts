@@ -397,6 +397,7 @@ export function setAllMuted(muted: boolean): void {
   void import("./menuBriefingAudio").then(({ menuBriefingAudio }) =>
     menuBriefingAudio.setMuted(muted)
   );
+  void import("./itemSfx").then(({ itemSfx }) => itemSfx.setMuted(muted));
 }
 
 // Back-compat alias so existing imports of `music` keep working as the menu
