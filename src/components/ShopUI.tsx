@@ -34,24 +34,24 @@ export default function ShopUI() {
   const ship = useGameState((s) => s.ship);
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
 
-  // Fire-once on mount: play any unseen on-shop-open story (overlay-mode,
-  // voice over the menu bed). Empty dep array intentionally — `seen` is
-  // captured at mount; subsequent state updates from markStorySeen don't
-  // re-trigger and tear down the playing voice. Cleanup stops the voice
-  // if the user navigates away mid-playback.
+  // Plays the on-shop-open briefing every time the player docks (any shop
+  // → /shop). The seen-set is consulted only to decide whether to mark
+  // seen + save (first dock) — the audio plays unconditionally so a
+  // returning player still gets the welcome line on every visit.
+  // Empty dep array intentionally: fire once on mount, cleanup stops
+  // the voice if the player navigates away mid-playback.
   useEffect(() => {
-    const seen = new Set(seenStoryEntries);
-    const entry = STORY_ENTRIES.find(
-      (e) => e.autoTrigger?.kind === "on-shop-open" && !seen.has(e.id)
-    );
+    const entry = STORY_ENTRIES.find((e) => e.autoTrigger?.kind === "on-shop-open");
     if (!entry) return;
     storyAudio.play({
       musicSrc: entry.musicTrack,
       voiceSrc: entry.voiceTrack,
       voiceDelayMs: entry.voiceDelayMs
     });
-    markStorySeen(entry.id);
-    void saveNow();
+    if (!seenStoryEntries.includes(entry.id)) {
+      markStorySeen(entry.id);
+      void saveNow();
+    }
     return () => {
       storyAudio.stop();
     };
