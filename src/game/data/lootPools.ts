@@ -2,7 +2,10 @@
 // from its system's pool — weapons / augments / upgrades the player can
 // already obtain through the normal shop economy, never bespoke loot.
 // Each system gates a different tier of progression so warping forward
-// keeps offering meaningful drops.
+// keeps offering meaningful drops. Family gating: the tutorial pool is
+// potato-only by design (carrots and turnips ship in tubernovae and
+// later systems); the shop UI applies the matching filter so a player
+// docking in tutorial sees the same set the loot pool offers.
 
 import type {
   AugmentId,
@@ -29,7 +32,7 @@ const POOLS: ReadonlyMap<SolarSystemId, LootPool> = new Map([
     "tutorial",
     {
       systemId: "tutorial",
-      weapons: ["spread-shot", "heavy-cannon", "spud-missile", "tater-net"],
+      weapons: ["spread-shot", "heavy-cannon", "spud-missile"],
       augments: ["damage-up", "fire-rate-up", "extra-projectile", "energy-down"],
       upgrades: ["shield", "armor", "reactor-capacity", "reactor-recharge"],
       credits: { min: 200, max: 500 }

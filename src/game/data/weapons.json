@@ -12,6 +12,7 @@
       "spreadDegrees": 0,
       "cost": 0,
       "tint": "#4fd1ff",
+      "family": "potato",
       "energyCost": 4,
       "bulletSprite": "bullet-potato",
       "podSprite": "pod-potato"
@@ -27,6 +28,7 @@
       "spreadDegrees": 22,
       "cost": 450,
       "tint": "#b87a4a",
+      "family": "potato",
       "energyCost": 8,
       "bulletSprite": "bullet-potato-idaho",
       "podSprite": "pod-potato"
@@ -42,6 +44,7 @@
       "spreadDegrees": 12,
       "cost": 900,
       "tint": "#ddc060",
+      "family": "potato",
       "energyCost": 18,
       "bulletSprite": "bullet-potato-yukon",
       "podSprite": "pod-potato"
@@ -57,6 +60,7 @@
       "spreadDegrees": 0,
       "cost": 1100,
       "tint": "#c84050",
+      "family": "potato",
       "energyCost": 22,
       "homing": true,
       "turnRateRadPerSec": 3.5,
@@ -74,6 +78,7 @@
       "spreadDegrees": 28,
       "cost": 600,
       "tint": "#e8a040",
+      "family": "carrot",
       "energyCost": 6,
       "gravity": 300,
       "bulletSprite": "bullet-carrot-chantenay",
@@ -90,6 +95,7 @@
       "spreadDegrees": 0,
       "cost": 700,
       "tint": "#d77820",
+      "family": "carrot",
       "energyCost": 5,
       "gravity": 60,
       "bulletSprite": "bullet-carrot-imperator",
@@ -106,6 +112,7 @@
       "spreadDegrees": 0,
       "cost": 500,
       "tint": "#ed8b30",
+      "family": "carrot",
       "energyCost": 3,
       "gravity": 120,
       "bulletSprite": "bullet-carrot-nantes",
@@ -122,6 +129,7 @@
       "spreadDegrees": 0,
       "cost": 1300,
       "tint": "#f0e8d0",
+      "family": "turnip",
       "energyCost": 9,
       "bulletSprite": "bullet-turnip-tokyo",
       "podSprite": "pod-turnip"
@@ -137,6 +145,7 @@
       "spreadDegrees": 36,
       "cost": 1500,
       "tint": "#9050b0",
+      "family": "turnip",
       "energyCost": 14,
       "bulletSprite": "bullet-turnip-milan",
       "podSprite": "pod-turnip"

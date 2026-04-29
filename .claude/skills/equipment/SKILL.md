@@ -63,7 +63,13 @@ If the request mentions any specific weapon id, augment id, or any of the words 
 - **Type union**: `WeaponId` in [src/types/game.ts](src/types/game.ts).
 - **Schema array**: `WEAPON_IDS` in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — uses `satisfies readonly WeaponId[]` so adding to one without the other fails to compile.
 - **Accessor**: `getWeapon(id)` in [src/game/data/weapons.ts](src/game/data/weapons.ts) — throws on unknown id (no nullable variant).
-- **Definition shape** (`WeaponDefinition` in [src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥ 0), `tint` (CSS hex), `energyCost` (> 0). OPTIONAL: `homing` (bool), `turnRateRadPerSec`, `gravity` (px/s² applied as +y acceleration each frame — bullets arc and rotate along their motion vector; carrot weapons use 60–300), `bulletSprite` (BootScene texture key), `podSprite`.
+- **Definition shape** (`WeaponDefinition` in [src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥ 0), `tint` (CSS hex), `family` (`"potato" | "carrot" | "turnip"` — `WeaponFamily`), `energyCost` (> 0). OPTIONAL: `homing` (bool), `turnRateRadPerSec`, `gravity` (px/s² applied as +y acceleration each frame — bullets arc and rotate along their motion vector; carrot weapons use 60–300), `bulletSprite` (BootScene texture key), `podSprite`.
+
+- **Family gating** — the `family` field controls which weapons appear in which solar system's shop and loot pool:
+  - `"potato"` weapons appear EVERYWHERE (including the tutorial system).
+  - `"carrot"` and `"turnip"` weapons are HIDDEN in the tutorial system's shop ([ShopUI.tsx](src/components/ShopUI.tsx) filter) AND excluded from the tutorial loot pool ([lootPools.ts](src/game/data/lootPools.ts)).
+  - Adding a NEW non-potato weapon to the catalog: it automatically inherits the tutorial-hidden behavior. To make it appear elsewhere, also add the id to the matching system's loot pool in `lootPools.ts`.
+  - LoadoutMenu is NEVER family-gated — players keep using any weapon they already own in any system.
 
 ## Augments
 
@@ -124,6 +130,7 @@ The four shapes that match what's in the catalog today. Match the user's intent 
   "spreadDegrees": 0,
   "cost": 600,
   "tint": "#88ccff",
+  "family": "potato",
   "energyCost": 6
 }
 ```
@@ -141,6 +148,7 @@ The four shapes that match what's in the catalog today. Match the user's intent 
   "spreadDegrees": 0,
   "cost": 1200,
   "tint": "#ffaa44",
+  "family": "potato",
   "energyCost": 14,
   "homing": true,
   "turnRateRadPerSec": 3.0
@@ -185,6 +193,7 @@ The four shapes that match what's in the catalog today. Match the user's intent 
   "spreadDegrees": <unchanged>,
   "cost": <unchanged>,
   "tint": "#<new-hex-matching-the-bullet>",
+  "family": <unchanged unless you're switching the weapon's vegetable line>,
   "energyCost": <unchanged>,
   "gravity": <optional, 60-300 for carrot-style arc; omit for straight flight>,
   "bulletSprite": "<new-bootscene-key>",

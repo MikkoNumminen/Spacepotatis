@@ -34,6 +34,15 @@ export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
   const ship = useGameState((s) => s.ship);
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
+  const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
+
+  // Tutorial system gates the shop to potato weapons only — the loot pool
+  // matches this constraint (see src/game/data/lootPools.ts). Other systems
+  // show everything currently in the catalog. LoadoutMenu is never gated;
+  // players keep using any weapon they already own in any system.
+  const visibleWeapons = currentSolarSystemId === "tutorial"
+    ? getAllWeapons().filter((w) => w.family === "potato")
+    : getAllWeapons();
 
   // Plays the on-shop-open briefing every time the player docks (any shop
   // → /shop). The seen-set is consulted only to decide whether to mark
@@ -139,7 +148,7 @@ export default function ShopUI() {
         </header>
 
         <ul className="flex flex-col gap-3">
-          {getAllWeapons().map((weapon) => (
+          {visibleWeapons.map((weapon) => (
             <li key={weapon.id} className="rounded border border-space-border p-3">
               <div className="font-display tracking-wider">{weapon.name}</div>
               <WeaponStats weapon={weapon} />
