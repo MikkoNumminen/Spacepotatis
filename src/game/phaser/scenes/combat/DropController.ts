@@ -57,6 +57,7 @@ export class DropController {
   applyPowerUp(power: PowerUp): void {
     sfx.pickup();
     if (isPerkKind(power.kind)) {
+      itemSfx.perk(power.kind.perk);
       this.onPerk(power.kind.perk, power.x, power.y);
       return;
     }
@@ -68,6 +69,7 @@ export class DropController {
           player.maxShield,
           player.shield + player.maxShield * 0.5
         );
+        itemSfx.shield();
         this.flashPickup("+ SHIELD", 0x4fd1ff, power.x, power.y, "potato");
         break;
       case "credit":

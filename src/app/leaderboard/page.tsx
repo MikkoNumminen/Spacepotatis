@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCombatMissions } from "@/game/data/missions";
 import Leaderboard from "@/components/Leaderboard";
+import LeaderboardBriefing from "@/components/LeaderboardBriefing";
 import TopPilots from "@/components/TopPilots";
 import { ROUTES } from "@/lib/routes";
 
@@ -14,6 +15,7 @@ const COMBAT_MISSIONS = getCombatMissions();
 export default function LeaderboardPage() {
   return (
     <main className="relative mx-auto flex min-h-dvh max-w-4xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10">
+      <LeaderboardBriefing />
       <header className="flex flex-wrap items-center gap-4 sm:gap-5">
         <Link
           href={ROUTES.page.home}

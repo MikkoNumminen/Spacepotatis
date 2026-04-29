@@ -1,17 +1,28 @@
 "use client";
 
-// Item-acquisition voice cues. Plays one of four short voice clips when the
-// player receives a permanent item — fired from the Victory modal's
-// first-clear reveal, every shop purchase, and the in-combat drop pickups.
-// Templates are cached and cloned per fire so back-to-back plays overlap
-// cleanly. Honors the master mute toggle.
+import type { PerkId } from "@/game/data/perks";
+
+// Item-acquisition voice cues. Plays a short Grandma voice clip when the
+// player receives an item or buff — fired from the Victory modal's
+// first-clear reveal, every shop purchase, and the in-combat drop pickups
+// (credit, weapon, shield, perk). Templates are cached and cloned per fire
+// so back-to-back plays overlap cleanly. Honors the master mute toggle.
 
 const PATHS = {
   weapon: "/audio/sfx/ui_shop_gun.mp3",
   augment: "/audio/sfx/ui_shop_gun_mod.mp3",
   upgrade: "/audio/sfx/ui_shop_ship_upgrade.mp3",
-  money: "/audio/sfx/ui_shop_money.mp3"
+  money: "/audio/sfx/ui_shop_money.mp3",
+  shield: "/audio/sfx/ui_shield_pickup.mp3"
 } as const;
+
+// Per-perk voice paths — each perk gets its own line so Grandma names the
+// thing the player just picked up.
+const PERK_PATHS: Readonly<Record<PerkId, string>> = {
+  overdrive: "/audio/sfx/ui_perk_overdrive.mp3",
+  hardened: "/audio/sfx/ui_perk_hardened.mp3",
+  emp: "/audio/sfx/ui_perk_emp.mp3"
+};
 
 // Throttle window for money(). Credit pickups in combat can fire every
 // ~0.5s during a wave clear; without a gate Grandma's money line would
@@ -65,6 +76,14 @@ class ItemSfxEngine {
     if (now - this.lastMoneyAt < MONEY_COOLDOWN_MS) return;
     this.lastMoneyAt = now;
     this.play(PATHS.money);
+  }
+
+  shield(): void {
+    this.play(PATHS.shield);
+  }
+
+  perk(id: PerkId): void {
+    this.play(PERK_PATHS[id]);
   }
 
   setMuted(muted: boolean): void {
