@@ -27,8 +27,33 @@ import {
 } from "@/game/state/ShipConfig";
 import { getAllWeapons } from "@/game/data/weapons";
 import { getAllAugments } from "@/game/data/augments";
+import type { AugmentId, WeaponId } from "@/types/game";
+import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponStats } from "@/components/WeaponStats";
+
+// Total copies of a weapon id the player owns across slots + inventory.
+// Used to decorate buy rows so the player can see "owned · N" before purchase.
+function countOwnedWeapon(ship: ShipConfig, id: WeaponId): number {
+  let n = 0;
+  for (const slot of ship.slots) if (slot?.id === id) n++;
+  for (const inst of ship.inventory) if (inst.id === id) n++;
+  return n;
+}
+
+// Total copies of an augment id, INCLUDING ones already installed on weapons
+// (those can't be uninstalled, but the player still "has" the augment id).
+// Free-to-install copies live in augmentInventory.
+function countOwnedAugment(ship: ShipConfig, id: AugmentId): {
+  total: number;
+  free: number;
+} {
+  const free = ship.augmentInventory.filter((a) => a === id).length;
+  let installed = 0;
+  for (const slot of ship.slots) if (slot) installed += slot.augments.filter((a) => a === id).length;
+  for (const inst of ship.inventory) installed += inst.augments.filter((a) => a === id).length;
+  return { total: free + installed, free };
+}
 
 export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
@@ -148,26 +173,36 @@ export default function ShopUI() {
         </header>
 
         <ul className="flex flex-col gap-3">
-          {visibleWeapons.map((weapon) => (
-            <li key={weapon.id} className="rounded border border-space-border p-3">
-              <div className="font-display tracking-wider">{weapon.name}</div>
-              <WeaponStats weapon={weapon} />
-              <p className="mt-2 text-xs text-hud-green/70">{weapon.description}</p>
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={credits < weapon.cost}
-                  onClick={() => {
-                    buyWeapon(weapon.id);
-                    itemSfx.weapon();
-                  }}
-                  className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                >
-                  BUY · ¢ {weapon.cost}
-                </button>
-              </div>
-            </li>
-          ))}
+          {visibleWeapons.map((weapon) => {
+            const owned = countOwnedWeapon(ship, weapon.id);
+            return (
+              <li key={weapon.id} className="rounded border border-space-border p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="font-display tracking-wider">{weapon.name}</div>
+                  {owned > 0 && (
+                    <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-2 py-0.5 text-[11px] text-hud-green/80">
+                      owned × {owned}
+                    </span>
+                  )}
+                </div>
+                <WeaponStats weapon={weapon} />
+                <p className="mt-2 text-xs text-hud-green/70">{weapon.description}</p>
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={credits < weapon.cost}
+                    onClick={() => {
+                      buyWeapon(weapon.id);
+                      itemSfx.weapon();
+                    }}
+                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                  >
+                    BUY · ¢ {weapon.cost}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -185,31 +220,44 @@ export default function ShopUI() {
         <ul className="flex flex-col gap-3">
           {getAllAugments()
             .filter((a) => a.cost > 0)
-            .map((aug) => (
-              <li
-                key={aug.id}
-                className="flex items-start justify-between gap-3 rounded border border-space-border p-3"
-              >
-                <div className="flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <AugmentDot tint={aug.tint} />
-                    <span className="font-display tracking-wider">{aug.name}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-hud-green/70">{aug.description}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={credits < aug.cost}
-                  onClick={() => {
-                    buyAugment(aug.id);
-                    itemSfx.augment();
-                  }}
-                  className="shrink-0 touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+            .map((aug) => {
+              const { total, free } = countOwnedAugment(ship, aug.id);
+              return (
+                <li
+                  key={aug.id}
+                  className="flex items-start justify-between gap-3 rounded border border-space-border p-3"
                 >
-                  BUY · ¢ {aug.cost}
-                </button>
-              </li>
-            ))}
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <AugmentDot tint={aug.tint} />
+                      <span className="font-display tracking-wider">{aug.name}</span>
+                      {total > 0 && (
+                        <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-2 py-0.5 text-[11px] text-hud-green/80">
+                          {/* Free copies are install-ready in augmentInventory; the
+                              rest are stuck on weapons (one-way install). Show both
+                              so the player knows whether buying another adds an
+                              install-ready spare. */}
+                          owned × {total}
+                          {free !== total ? ` (free ${free})` : ""}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-hud-green/70">{aug.description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={credits < aug.cost}
+                    onClick={() => {
+                      buyAugment(aug.id);
+                      itemSfx.augment();
+                    }}
+                    className="shrink-0 touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                  >
+                    BUY · ¢ {aug.cost}
+                  </button>
+                </li>
+              );
+            })}
         </ul>
       </section>
     </div>
