@@ -27,6 +27,8 @@ export class BootScene extends Phaser.Scene {
     this.drawBullet("bullet-hostile", 0xff4d6d, 8, 14);
     this.drawPotatoBullet("bullet-potato");
     this.drawIdahoPotatoBullet("bullet-potato-idaho");
+    this.drawYukonGoldBullet("bullet-potato-yukon");
+    this.drawRedBlissBullet("bullet-potato-redbliss");
     this.drawPotatoPod("pod-potato");
 
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
@@ -361,6 +363,89 @@ export class BootScene extends Phaser.Scene {
     // silhouette stays crisp at small size.
     g.lineStyle(1, 0x4a2810, 0.7);
     g.strokeEllipse(cx, cy, 12, 14);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Yukon Gold mortar projectile — heavier sibling of the standard
+  // potato bullet. Larger silhouette (16×18 vs 12×14), warm
+  // gold/buttery palette, same eyes-and-outline discipline. Sized up
+  // so the heavy-cannon's three-bolt burst feels like it has weight
+  // compared to the lighter Pulse / Idaho streams.
+  private drawYukonGoldBullet(key: string): void {
+    const PAD = 2;
+    const W = 18 + PAD * 2;
+    const H = 20 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Yukon-gold body — buttery yellow, more rounded than the russet
+    // sibling so it reads as a heavier, denser spud.
+    g.fillStyle(0xddc060, 1);
+    g.fillEllipse(cx, cy, 16, 18);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0x7a6020, 0.55);
+    g.fillEllipse(cx + 2, cy + 3, 12, 13);
+
+    // Two-stage highlight.
+    g.fillStyle(0xfff5b8, 0.55);
+    g.fillEllipse(cx - 3, cy - 4, 8, 6);
+    g.fillStyle(0xffffff, 0.85);
+    g.fillEllipse(cx - 4, cy - 5, 3, 1.5);
+
+    // Two potato eyes — same dark brown as the rest of the spud line.
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 3, cy - 1, 1.0);
+    g.fillCircle(cx - 1, cy + 4, 0.9);
+
+    // Outline.
+    g.lineStyle(1, 0x5a4818, 0.7);
+    g.strokeEllipse(cx, cy, 16, 18);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Red Bliss missile projectile — elongated 10×16 silhouette so the
+  // homing rotation reads it as a pointed missile (the bullet's
+  // homing logic calls setRotation each tick, overriding the cosmetic
+  // tumble — the elongation lines up with the motion vector). Crimson
+  // body for instant read against the lighter spud streams.
+  private drawRedBlissBullet(key: string): void {
+    const PAD = 2;
+    const W = 12 + PAD * 2;
+    const H = 18 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Crimson body, taller than wide so it reads as a missile when
+    // the homing logic locks rotation to the motion vector.
+    g.fillStyle(0xc84050, 1);
+    g.fillEllipse(cx, cy, 10, 16);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0x6a1a25, 0.55);
+    g.fillEllipse(cx + 1.5, cy + 2.5, 7, 11);
+
+    // Two-stage highlight, pink.
+    g.fillStyle(0xffb0c0, 0.55);
+    g.fillEllipse(cx - 2, cy - 4, 5, 6);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillEllipse(cx - 3, cy - 5, 2, 1.2);
+
+    // One eye near the top — sparse so the elongated shape stays
+    // legible at small size.
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 1, cy - 3, 0.9);
+    g.fillCircle(cx - 1, cy + 3, 0.8);
+
+    // Outline.
+    g.lineStyle(1, 0x4a1218, 0.7);
+    g.strokeEllipse(cx, cy, 10, 16);
 
     g.generateTexture(key, W, H);
     g.destroy();

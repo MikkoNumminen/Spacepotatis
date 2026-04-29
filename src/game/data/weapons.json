@@ -33,31 +33,35 @@
     },
     {
       "id": "heavy-cannon",
-      "name": "Plasma Triad",
-      "description": "Three heavy plasma bolts in a tight cone. Brutal up close.",
+      "name": "Yukon Gold Mortar",
+      "description": "Three Yukon Gold spuds packed into a tight 12° cone. Heavy alpha, slow cadence — heaviest reactor draw in the catalog.",
       "damage": 14,
       "fireRateMs": 480,
       "bulletSpeed": 580,
       "projectileCount": 3,
       "spreadDegrees": 12,
       "cost": 900,
-      "tint": "#ff8844",
-      "energyCost": 18
+      "tint": "#ddc060",
+      "energyCost": 18,
+      "bulletSprite": "bullet-potato-yukon",
+      "podSprite": "pod-potato"
     },
     {
       "id": "spud-missile",
-      "name": "Spud Missile",
-      "description": "Slow-firing heavy ordnance with massive payload. Homes in on the nearest enemy.",
+      "name": "Red Bliss Rocket",
+      "description": "Slow-firing Red Bliss seeker with massive payload. Locks onto the nearest enemy and chases it down.",
       "damage": 35,
       "fireRateMs": 900,
       "bulletSpeed": 420,
       "projectileCount": 1,
       "spreadDegrees": 0,
       "cost": 1100,
-      "tint": "#ff5566",
+      "tint": "#c84050",
       "energyCost": 22,
       "homing": true,
-      "turnRateRadPerSec": 3.5
+      "turnRateRadPerSec": 3.5,
+      "bulletSprite": "bullet-potato-redbliss",
+      "podSprite": "pod-potato"
     },
     {
       "id": "tater-net",
