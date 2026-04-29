@@ -113,29 +113,33 @@
     },
     {
       "id": "plasma-whip",
-      "name": "Plasma Whip",
-      "description": "Pinprick damage at machine-gun cadence — a near-continuous lash that melts armor over time.",
+      "name": "Tokyo Cross Spray",
+      "description": "Tiny Tokyo Cross turnips spat in a continuous stream. Japanese hybrid bred for uniformity — pinprick damage at machine-gun cadence, melts armor over time.",
       "damage": 2,
       "fireRateMs": 60,
       "bulletSpeed": 480,
       "projectileCount": 1,
       "spreadDegrees": 0,
       "cost": 1300,
-      "tint": "#cc44ff",
-      "energyCost": 9
+      "tint": "#f0e8d0",
+      "energyCost": 9,
+      "bulletSprite": "bullet-turnip-tokyo",
+      "podSprite": "pod-turnip"
     },
     {
       "id": "hailstorm",
-      "name": "Hailstorm",
-      "description": "Five icy slugs in a wide arc. Heavy alpha strike on tight cooldown — the screen-clearer.",
+      "name": "Milan Purple Top Discs",
+      "description": "Five flat-and-wide Milan Purple Top discs flung edge-on in a 36° fan. Italian heirloom variety launched as a volley — heavy alpha strike on tight cooldown, the screen-clearer of the turnip line.",
       "damage": 8,
       "fireRateMs": 320,
       "bulletSpeed": 580,
       "projectileCount": 5,
       "spreadDegrees": 36,
       "cost": 1500,
-      "tint": "#ddffdd",
-      "energyCost": 14
+      "tint": "#9050b0",
+      "energyCost": 14,
+      "bulletSprite": "bullet-turnip-milan",
+      "podSprite": "pod-turnip"
     }
   ]
 }

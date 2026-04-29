@@ -32,8 +32,11 @@ export class BootScene extends Phaser.Scene {
     this.drawChantenayBullet("bullet-carrot-chantenay");
     this.drawImperatorBullet("bullet-carrot-imperator");
     this.drawNantesBullet("bullet-carrot-nantes");
+    this.drawTokyoCrossBullet("bullet-turnip-tokyo");
+    this.drawMilanPurpleTopBullet("bullet-turnip-milan");
     this.drawPotatoPod("pod-potato");
     this.drawCarrotPod("pod-carrot");
+    this.drawTurnipPod("pod-turnip");
 
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
     this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
@@ -614,6 +617,151 @@ export class BootScene extends Phaser.Scene {
 
     // Outline.
     g.lineStyle(1, 0x4a2010, 0.7);
+    g.strokeEllipse(cx, cy, innerW, innerH);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Tokyo Cross turnip — tiny cream/white Japanese hybrid bred for
+  // uniformity. Used as the rapid-stream chip-damage round. Single small
+  // green tuft at the top marks it as a turnip rather than a stray
+  // pearl/egg shape.
+  private drawTokyoCrossBullet(key: string): void {
+    const PAD = 2;
+    const W = 10 + PAD * 2;
+    const H = 11 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Cream/white body — slightly taller than wide so it reads as a tiny
+    // round turnip rather than a generic pellet.
+    g.fillStyle(0xf0e8d0, 1);
+    g.fillEllipse(cx, cy, 6, 7);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0xa09080, 0.5);
+    g.fillEllipse(cx + 1, cy + 1, 4.5, 5);
+
+    // Two-stage highlight.
+    g.fillStyle(0xfff5e8, 0.55);
+    g.fillEllipse(cx - 1, cy - 1.5, 2.5, 2.5);
+    g.fillStyle(0xffffff, 0.85);
+    g.fillEllipse(cx - 1.5, cy - 2, 1.2, 0.8);
+
+    // Tiny green tuft at the TOP — single small leaf so the silhouette
+    // stays compact at this size.
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx, PAD + 1, 2.4, 1.4);
+
+    // Outline.
+    g.lineStyle(1, 0x5a4a30, 0.7);
+    g.strokeEllipse(cx, cy, 6, 7);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Milan Purple Top turnip — the Italian flat-and-wide variety. Wider
+  // than tall (22×12 vs the round Globe variant's 14×16), so when it
+  // tumbles it reads as a thrown disc rather than a thrown ball. Used
+  // as the heavy 5-shot volley round (5 discs flung in a 36° fan).
+  // Same purple-cap-on-white-base treatment as the Globe sibling, just
+  // squashed into a wide silhouette.
+  private drawMilanPurpleTopBullet(key: string): void {
+    const PAD = 2;
+    const W = 22 + PAD * 2;
+    const H = 12 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Step 1 — full white/cream body sets the bottom half. WIDE ellipse
+    // for the disc-shape that distinguishes Milan from the round Globe.
+    g.fillStyle(0xf0e8d0, 1);
+    g.fillEllipse(cx, cy, 20, 10);
+
+    // Step 2 — purple cap covers the upper half so the silhouette
+    // reads as the signature two-tone Purple Top, just flattened.
+    g.fillStyle(0x9050b0, 1);
+    g.fillEllipse(cx, cy - 2.5, 20, 6.5);
+
+    // Subtle shadow wash on lower-right across both halves.
+    g.fillStyle(0x3a1a4a, 0.4);
+    g.fillEllipse(cx + 2, cy + 1.5, 14, 7);
+
+    // Two-stage highlight on the purple cap (upper-left).
+    g.fillStyle(0xc898d8, 0.55);
+    g.fillEllipse(cx - 4, cy - 3, 7, 3);
+    g.fillStyle(0xffffff, 0.7);
+    g.fillEllipse(cx - 5, cy - 3.5, 2.5, 1);
+
+    // Two small dark "root pocks" on the white bottom half.
+    g.fillStyle(0x6a5040, 0.6);
+    g.fillCircle(cx - 2, cy + 2, 0.8);
+    g.fillCircle(cx + 4, cy + 3, 0.8);
+
+    // Green tuft at the TOP — three small leaves fanning across the
+    // wider cap so the disc still reads as a turnip silhouette.
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx - 4, PAD, 3, 1.6);
+    g.fillEllipse(cx, PAD - 0.5, 3, 1.6);
+    g.fillEllipse(cx + 4, PAD, 3, 1.6);
+
+    // Outline around the full disc body.
+    g.lineStyle(1, 0x3a1a4a, 0.7);
+    g.strokeEllipse(cx, cy, 20, 10);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Half-scale turnip mini-ship — turnip-line counterpart to drawPotatoPod
+  // and drawCarrotPod. Two-tone purple-cap-on-white-globe silhouette so
+  // it reads as "turnip" not potato or carrot when attached as a side pod.
+  private drawTurnipPod(key: string): void {
+    const PAD = 4;
+    const innerW = 14;
+    const innerH = 18;
+    const W = innerW + PAD * 2;
+    const H = innerH + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Step 1 — full white/cream body.
+    g.fillStyle(0xf0e8d0, 1);
+    g.fillEllipse(cx, cy, innerW, innerH);
+
+    // Step 2 — purple cap covers the upper half.
+    g.fillStyle(0x9050b0, 1);
+    g.fillEllipse(cx, cy - 5, innerW, innerH * 0.6);
+
+    // Shadow wash on lower-right across the body.
+    g.fillStyle(0x3a1a4a, 0.4);
+    g.fillEllipse(cx + 2, cy + 3, innerW - 4, innerH - 6);
+
+    // Highlight on the purple cap (upper-left) + warm sheen.
+    g.fillStyle(0xc898d8, 0.5);
+    g.fillEllipse(cx - 3, cy - 6, innerW - 6, innerH - 12);
+    g.fillStyle(0xffe6b8, 0.6);
+    g.fillEllipse(cx - 3.5, cy - 7, 3, 1.6);
+
+    // Two small dark "root pocks" on the white bottom half.
+    g.fillStyle(0x6a5040, 0.6);
+    g.fillCircle(cx - 1, cy + 3, 1.0);
+    g.fillCircle(cx + 2, cy + 5, 1.0);
+
+    // Leafy green top — three ellipses fanning across the top edge,
+    // middle leaf raised 1px.
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx - 3, PAD, 4, 2.4);
+    g.fillEllipse(cx, PAD - 1, 4, 2.4);
+    g.fillEllipse(cx + 3, PAD, 4, 2.4);
+
+    // Outline.
+    g.lineStyle(1, 0x3a1a4a, 0.7);
     g.strokeEllipse(cx, cy, innerW, innerH);
 
     g.generateTexture(key, W, H);
