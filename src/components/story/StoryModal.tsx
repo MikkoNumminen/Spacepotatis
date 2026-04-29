@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { StoryEntry } from "@/game/data/story";
-import { menuMusic } from "@/game/audio/music";
 import { storyAudio } from "@/game/audio/story";
 
 // Cinematic story popup. Two presentation modes:
 //
-//   "first-time" — auto-fired beats. Owns the music lifecycle: ducks the
-//                  menu bed and plays the entry's music + voice. Continue
-//                  button dismisses.
+//   "first-time" — auto-fired beats. Plays the entry's music + voice on
+//                  top of the keep-alive menu bed (no ducking — menu
+//                  music stays audible underneath). Continue button
+//                  dismisses.
 //   "replay-from-log" — user opened this from the Story log. The
 //                  storyLogAudio bed is already playing; this modal does
 //                  NOT change music, only plays the voice on top. Back
@@ -32,11 +32,9 @@ export default function StoryModal({
   useEffect(() => {
     setReady(true);
     if (mode === "first-time") {
-      // Auto-fire owns the music lifecycle. Only duck the menu bed when
-      // the entry brings its own music — otherwise the modal would sit
-      // silent over the existing bed.
-      const hasOwnMusic = entry.musicTrack !== null;
-      if (hasOwnMusic) menuMusic.duck();
+      // Auto-fire just plays its own music + voice. The menu bed is
+      // keep-alive and stays playing underneath — story music layers on
+      // top instead of replacing it.
       storyAudio.play({
         musicSrc: entry.musicTrack,
         voiceSrc: entry.voiceTrack,
@@ -45,7 +43,6 @@ export default function StoryModal({
       if (firstSeen && onMarkSeen) onMarkSeen();
       return () => {
         storyAudio.stop();
-        if (hasOwnMusic) menuMusic.unduck();
       };
     }
     // Replay-from-log: storyLogAudio is already playing the bed (managed

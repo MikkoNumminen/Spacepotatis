@@ -47,6 +47,13 @@ interface EngineOptions {
   // should play forever; leave false for combat music that needs a clean
   // stop on mission end.
   readonly loop?: boolean;
+  // When true, `duck()` and the fade-to-zero callback never call `el.pause()`.
+  // The element stays playing at volume 0. `unduck()` just fades volume back
+  // up — no `play()` call, no autoplay risk. Set this on engines that should
+  // be perpetually live (menu bed) so navigation / story modals / combat
+  // ducking can never strand them in a paused state requiring a fresh user
+  // gesture to resume.
+  readonly keepAlive?: boolean;
 }
 
 type Listener = (state: { muted: boolean; armed: boolean }) => void;
@@ -77,6 +84,7 @@ class MusicEngine {
   private readonly fadeOutSec: number;
   private readonly silenceMs: number;
   private readonly loop: boolean;
+  private readonly keepAlive: boolean;
   private readonly listeners = new Set<Listener>();
 
   constructor(opts: EngineOptions = {}) {
@@ -86,6 +94,7 @@ class MusicEngine {
     this.fadeOutSec = opts.fadeOutSec ?? FADE_OUT_SEC;
     this.silenceMs = opts.silenceMs ?? SILENCE_MS;
     this.loop = opts.loop ?? false;
+    this.keepAlive = opts.keepAlive ?? false;
   }
 
   init(): void {
@@ -324,6 +333,7 @@ class MusicEngine {
     this.cancelSilence();
     this.cancelFadeOutTimer();
     this.fadeTo(0, this.fadeOutSec, () => {
+      if (this.keepAlive) return;
       if (this.muted || this.ducked || !this.src) el.pause();
     });
   }
@@ -415,7 +425,8 @@ class MusicEngine {
 // fade-out → silence → fade-in routine is bypassed for this engine.
 export const menuMusic = new MusicEngine({
   src: "/audio/music/menu-theme.ogg",
-  loop: true
+  loop: true,
+  keepAlive: true
 });
 
 // Combat src is set via loadTrack() per mission. Slightly louder bed since

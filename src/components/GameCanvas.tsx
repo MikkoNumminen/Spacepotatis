@@ -123,11 +123,9 @@ export default function GameCanvas() {
 
   useEffect(() => {
     if (inStoryLogContext) {
-      menuMusic.duck();
       storyLogAudio.play();
     } else {
       storyLogAudio.stop();
-      menuMusic.unduck();
     }
   }, [inStoryLogContext]);
 
@@ -359,18 +357,10 @@ export default function GameCanvas() {
       await fadeOverlay(1);
       setLaunching(null);
       setMode("galaxy");
-      // Belt-and-suspenders music resume. The mode-effect cleanup already
-      // calls menuMusic.unduck(), but a race with the 4s combat-music
-      // fade-out (and the play() promise that occasionally rejects when
-      // the audio session is mid-transition) can leave the menu bed
-      // silent on return. unduck() resets the ducked flag; ensurePlaying()
-      // forces a startPlayback retry; the two scheduled ensurePlaying()
-      // calls cover the case where the first attempt's play() rejected
-      // before the watchdog (2s cadence) catches up.
+      // Combat ducked menuMusic; restore volume on return. With the
+      // keep-alive menu engine, this is a pure volume fade — no play()
+      // call, no autoplay risk.
       menuMusic.unduck();
-      menuMusic.ensurePlaying();
-      window.setTimeout(() => menuMusic.ensurePlaying(), 100);
-      window.setTimeout(() => menuMusic.ensurePlaying(), 500);
       requestAnimationFrame(() => void fadeOverlay(0));
     },
     [fadeOverlay, authStatus]
