@@ -143,7 +143,7 @@ export default function GameCanvas() {
   //   - First overlay play marks the entry seen so it appears in the
   //     Story log; subsequent replays from the quest menu re-fire silently.
   const pendingPlayTimer = useRef<number | null>(null);
-  const SELECT_DELAY_MS = 3500;
+  const SELECT_DELAY_MS = 2000;
 
   const cancelPendingBriefing = useCallback(() => {
     if (pendingPlayTimer.current !== null) {
