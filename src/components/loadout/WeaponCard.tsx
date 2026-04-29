@@ -64,15 +64,15 @@ export function WeaponCard({
         <MarkBadge level={level} />
       </div>
       <WeaponStats weapon={weapon} level={level} augmentIds={installedAugments} />
-      <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <p className="mt-2 text-xs text-hud-green/70">{weapon.description}</p>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <AugmentChips installed={installedAugments} />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canInstall && (
             <button
               type="button"
               onClick={onOpenInstaller}
-              className="rounded border border-hud-green/60 px-3 py-1 text-xs text-hud-green hover:bg-hud-green/10"
+              className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1 text-xs text-hud-green hover:bg-hud-green/10 active:bg-hud-green/20"
             >
               INSTALL
             </button>
@@ -85,7 +85,7 @@ export function WeaponCard({
                 type="button"
                 disabled={!canAffordUpgrade}
                 onClick={() => void buyWeaponUpgrade(position)}
-                className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
               >
                 UPGRADE Mk{level + 1} · ¢ {upgradeCost}
               </button>
@@ -94,7 +94,7 @@ export function WeaponCard({
             <button
               type="button"
               onClick={() => void sellWeapon(position.index)}
-              className="rounded border border-hud-red/60 px-3 py-1 text-xs text-hud-red hover:bg-hud-red/10"
+              className="touch-manipulation select-none rounded border border-hud-red/60 px-3 py-1 text-xs text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
             >
               SELL · ¢ {sellPrice}
             </button>

@@ -27,34 +27,34 @@ export default function StoryListModal({
   const visible = STORY_ENTRIES.filter((e) => seen.has(e.id));
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 backdrop-blur-sm">
-      <div className="relative w-[28rem] rounded border border-hud-amber/60 bg-space-panel/95 p-6 shadow-[0_0_40px_rgba(255,204,51,0.15)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute left-3 top-3 rounded border border-hud-green/60 px-3 py-1 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
-        >
-          ← Back
-        </button>
+    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-sm sm:p-6">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute left-3 top-3 z-10 min-h-[44px] touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20 sm:left-6 sm:top-6"
+      >
+        ← Back
+      </button>
+      <div className="relative w-[min(28rem,100%)] rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] sm:p-6">
         <div className="text-center font-display text-base tracking-widest text-hud-amber">
           STORY LOG
         </div>
         <div className="mt-6 space-y-2">
           {visible.length === 0 ? (
-            <p className="text-center text-[11px] text-hud-green/50">
+            <p className="text-center text-xs text-hud-green/50">
               No story entries unlocked yet.
             </p>
           ) : (
             visible.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-center justify-between rounded border border-hud-amber/30 bg-space-bg/40 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded border border-hud-amber/30 bg-space-bg/40 px-3 py-2"
               >
                 <div className="text-sm text-hud-green/90">{entry.title}</div>
                 <button
                   type="button"
                   onClick={() => onReplay(entry.id)}
-                  className="rounded border border-hud-amber/60 px-3 py-1 text-[11px] font-display tracking-widest text-hud-amber hover:bg-hud-amber/10"
+                  className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
                 >
                   REPLAY
                 </button>

@@ -13,24 +13,24 @@ const COMBAT_MISSIONS = getCombatMissions();
 
 export default function LeaderboardPage() {
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-4xl flex-col gap-8 px-6 py-10">
-      <header className="flex items-center gap-5">
+    <main className="relative mx-auto flex min-h-dvh max-w-4xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10">
+      <header className="flex flex-wrap items-center gap-4 sm:gap-5">
         <Link
           href={ROUTES.page.home}
-          className="rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
+          className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20"
         >
           ← Back
         </Link>
-        <h1 className="font-display text-3xl tracking-widest">LEADERBOARD</h1>
+        <h1 className="font-display text-2xl tracking-widest sm:text-3xl">LEADERBOARD</h1>
       </header>
 
       <TopPilots limit={10} />
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {COMBAT_MISSIONS.map((m) => (
           <section key={m.id} className="rounded border border-space-border bg-space-panel/70 p-4">
             <h2 className="mb-1 font-display tracking-widest text-hud-green">{m.name}</h2>
-            <div className="mb-3 text-[11px] text-hud-amber">
+            <div className="mb-3 text-xs text-hud-amber">
               difficulty {"★".repeat(m.difficulty)}
             </div>
             <Leaderboard missionId={m.id} limit={10} />

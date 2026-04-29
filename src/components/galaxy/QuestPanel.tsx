@@ -76,10 +76,10 @@ export default function QuestPanel({
     setExpandedId((prev) => (prev === id ? null : id));
 
   return (
-    <div className="pointer-events-auto absolute left-6 top-32 w-80 rounded border border-space-border bg-space-panel/90 p-4 backdrop-blur-md">
-      <header className="mb-3">
+    <div className="pointer-events-auto absolute left-3 top-44 w-[min(20rem,calc(100vw-1.5rem))] rounded border border-space-border bg-space-panel/90 p-4 backdrop-blur-md sm:left-6 sm:top-32">
+      <header className="mb-3 select-none">
         <div className="font-display text-sm tracking-widest text-hud-green">QUESTS</div>
-        <div className="text-[11px] text-hud-amber/80">{system.name}</div>
+        <div className="text-xs text-hud-amber/80">{system.name}</div>
       </header>
 
       {buckets.suggested ? (
@@ -170,7 +170,7 @@ function prereqName(id: string): string {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section className="mt-3 first:mt-0">
-      <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hud-green/60">
+      <div className="mb-1 select-none font-mono text-[10px] uppercase tracking-[0.2em] text-hud-green/60">
         {label}
       </div>
       <div className="flex flex-col gap-1">{children}</div>
@@ -198,7 +198,7 @@ function SuggestedRow({
       <button
         type="button"
         onClick={() => onToggle(mission.id)}
-        className="flex w-full items-baseline justify-between text-left"
+        className="flex w-full touch-manipulation select-none items-baseline justify-between text-left"
       >
         <span className="font-display text-sm tracking-widest text-hud-green">
           {mission.name}
@@ -207,13 +207,13 @@ function SuggestedRow({
       </button>
       {expanded && (
         <>
-          <p className="mt-2 text-[12px] leading-relaxed text-hud-green/80">
+          <p className="mt-2 text-xs leading-relaxed text-hud-green/80">
             {mission.description}
           </p>
           <button
             type="button"
             onClick={() => onLaunch(mission)}
-            className="mt-3 w-full rounded border border-hud-green/60 px-3 py-2 font-display text-xs tracking-widest text-hud-green hover:bg-hud-green/10"
+            className="mt-3 w-full touch-manipulation select-none rounded border border-hud-green/60 px-3 py-2 font-display text-xs tracking-widest text-hud-green hover:bg-hud-green/10 active:bg-hud-green/20"
           >
             LAUNCH MISSION
           </button>
@@ -255,9 +255,9 @@ function CollapsibleRow({
       <button
         type="button"
         onClick={() => onToggle(mission.id)}
-        className="flex w-full items-baseline justify-between text-left"
+        className="flex w-full touch-manipulation select-none items-baseline justify-between text-left"
       >
-        <span className={`font-mono text-[12px] ${nameColor}`}>
+        <span className={`font-mono text-xs ${nameColor}`}>
           {prefix}
           {mission.name}
         </span>
@@ -265,15 +265,15 @@ function CollapsibleRow({
       </button>
       {expanded && (
         <div className="mt-2 border-t border-space-border/40 pt-2">
-          <p className="text-[11px] leading-relaxed text-hud-green/70">
+          <p className="text-xs leading-relaxed text-hud-green/70">
             {mission.description}
           </p>
-          {hint && <div className="mt-2 text-[11px] text-hud-red/80">{hint}</div>}
+          {hint && <div className="mt-2 text-xs text-hud-red/80">{hint}</div>}
           {actionLabel && onAction && (
             <button
               type="button"
               onClick={onAction}
-              className="mt-2 w-full rounded border border-hud-green/40 px-3 py-1.5 font-display text-[11px] tracking-widest text-hud-green hover:bg-hud-green/10"
+              className="mt-2 w-full touch-manipulation select-none rounded border border-hud-green/40 px-3 py-1.5 font-display text-xs tracking-widest text-hud-green hover:bg-hud-green/10 active:bg-hud-green/20"
             >
               {actionLabel}
             </button>
@@ -297,12 +297,12 @@ function ShopRow({
         <div className="font-display text-xs tracking-widest text-hud-amber">
           {shop.name}
         </div>
-        <div className="text-[11px] text-hud-green/60">{shop.description}</div>
+        <div className="text-xs text-hud-green/60">{shop.description}</div>
       </div>
       <button
         type="button"
         onClick={() => onLaunch(shop)}
-        className="ml-3 rounded border border-hud-amber/60 px-3 py-1 font-display text-[11px] tracking-widest text-hud-amber hover:bg-hud-amber/10"
+        className="ml-3 touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
       >
         DOCK
       </button>
@@ -322,14 +322,14 @@ function SystemClearCta({
       <div className="font-display text-xs tracking-widest text-hud-amber">
         SYSTEM CLEAR
       </div>
-      <p className="mt-1 text-[11px] text-hud-green/70">
+      <p className="mt-1 text-xs text-hud-green/70">
         Every mission in this system is done.
       </p>
       {warpAvailable ? (
         <button
           type="button"
           onClick={onWarp}
-          className="mt-3 w-full rounded border border-hud-amber/60 px-3 py-2 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10"
+          className="mt-3 w-full touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-2 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
         >
           WARP TO NEXT SYSTEM
         </button>

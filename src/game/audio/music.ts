@@ -13,6 +13,15 @@
 // Autoplay note: browsers block .play() until a user gesture. Menu engine is
 // armed once on first input by MenuMusic.tsx; combat engine inherits the
 // gesture (combat is always reached via a click).
+//
+// iOS Safari budget: the platform caps simultaneous HTMLAudioElement
+// instances at roughly 6 per page; above that, play() silently fails or the
+// audio session is torn down. The whole audio cluster (this file plus
+// story/storyLog/menuBriefing/itemSfx) keeps the live count well under that
+// by (a) lazy-creating elements only when about to play and (b) releasing
+// them on `ended`/stop via `src = ""` so the slot frees immediately. The
+// only persistent element is menuMusic (native loop, never released);
+// every other engine drops to zero elements when not actively playing.
 
 const TARGET_VOLUME = 0.45;
 const FADE_OUT_SEC = 4;
@@ -161,13 +170,29 @@ class MusicEngine {
   // mission boot starts from a clean slate. Clearing src first is what makes
   // it actually stay stopped — otherwise the natural-end loop logic would
   // happily restart the track during or right after the fade.
+  //
+  // Also releases the underlying HTMLAudioElement so it stops counting
+  // against the iOS Safari ~6-element budget while the player is back on
+  // the galaxy view. Native-loop engines (menuMusic) skip the release —
+  // they're meant to live forever and re-arming them would cost a reload.
   stop(): void {
     this.cancelSilence();
     this.cancelFadeOutTimer();
     this.src = null;
     const el = this.el;
     if (!el) return;
-    this.fadeTo(0, this.fadeOutSec, () => el.pause());
+    if (this.loop) {
+      this.fadeTo(0, this.fadeOutSec, () => el.pause());
+      return;
+    }
+    this.fadeTo(0, this.fadeOutSec, () => {
+      el.pause();
+      el.removeEventListener("ended", this.onEnded);
+      el.removeEventListener("pause", this.onPause);
+      el.src = "";
+      el.load();
+      if (this.el === el) this.el = null;
+    });
   }
 
   subscribe(cb: Listener): () => void {

@@ -171,7 +171,12 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
 - Real planet textures: file names in [missions.json](src/game/phaser/data/missions.json) under `texture` — loader already tries and falls back to flat color.
 - Background music per mission + galaxy theme.
 - Gamepad support — write a second factory in [Controls.ts](src/game/phaser/systems/Controls.ts).
-- Touch controls for mobile — virtual sticks, same Controls contract.
+- **Mobile combat (touch controls)** — deferred from the menu+galaxy mobile pass (which shipped). Scope:
+  - Touch input model: drag-anywhere-to-move + auto-fire while finger is down (fits the existing hold-to-fire pattern). Implement as a second `Controls.ts` factory so the desktop keyboard model stays untouched.
+  - Phaser `Scale Manager` set to `FIT` so the combat canvas resizes to the viewport.
+  - On-screen pause button (P/Esc isn't reachable on touch).
+  - Real-iPhone audio test for the combat scene — combat adds `combatMusic` on top of the menu/story audio elements; if the menu+galaxy mobile pass had to reduce simultaneous HTMLAudioElement count, combat may need similar discipline.
+  - Tuning pass: dodge feel, fire reachability, pause-button hit area.
 
 ## Out of scope for MVP — do NOT build
 
@@ -183,5 +188,6 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
 - Mobile / touch controls.
 - Mod support, user-generated content.
 - In-app purchases.
+- **Mobile combat / touch combat controls** — deferred. Menu + galaxy view are being made mobile-friendly in a separate pass; combat-on-mobile is the next-up item above. Until that lands, the game on mobile is "browse and choose missions, but launch into combat on a desktop".
 
 If a task tempts you to cross one of these lines, **stop and ask the user**.

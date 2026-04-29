@@ -80,18 +80,18 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="handle-prompt-title"
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md rounded border border-hud-green/40 bg-space-bg/95 p-6 shadow-[0_0_40px_rgba(94,255,167,0.15)]"
+        className="w-full max-w-md rounded border border-hud-green/40 bg-space-bg/95 p-5 shadow-[0_0_40px_rgba(94,255,167,0.15)] sm:p-6"
       >
         <h2
           id="handle-prompt-title"
-          className="font-display text-lg tracking-widest text-hud-green"
+          className="select-none font-display text-lg tracking-widest text-hud-green"
         >
           PICK A HANDLE
         </h2>
@@ -112,10 +112,10 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
           autoComplete="off"
           spellCheck={false}
           placeholder="potato_pilot"
-          className="mt-4 w-full rounded border border-hud-green/30 bg-black/40 px-3 py-2 font-mono text-sm text-hud-green outline-none focus:border-hud-green/70"
+          className="mt-4 w-full rounded border border-hud-green/30 bg-black/40 px-3 py-2 font-mono text-base text-hud-green outline-none focus:border-hud-green/70"
         />
 
-        <p className="mt-2 text-[11px] text-hud-amber/70">
+        <p className="mt-2 text-xs text-hud-amber/70">
           {HANDLE_MIN_LENGTH}-{HANDLE_MAX_LENGTH} chars · letters, numbers, _ or -
         </p>
 
@@ -125,14 +125,14 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded border border-hud-green/60 px-4 py-2 font-display text-sm tracking-widest text-hud-green hover:bg-hud-green/10 disabled:opacity-50"
+            className="w-full touch-manipulation select-none rounded border border-hud-green/60 px-4 py-2 font-display text-sm tracking-widest text-hud-green hover:bg-hud-green/10 active:bg-hud-green/20 disabled:opacity-50"
           >
             {submitting ? "SAVING..." : "CONFIRM"}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="w-full rounded border border-hud-amber/50 px-4 py-2 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10"
+            className="w-full touch-manipulation select-none rounded border border-hud-amber/50 px-4 py-2 font-display text-xs tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
           >
             CANCEL
           </button>

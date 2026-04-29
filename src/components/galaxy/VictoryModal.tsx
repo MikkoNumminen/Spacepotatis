@@ -58,21 +58,21 @@ export default function VictoryModal({
   const titleColor = victory ? "text-hud-green" : "text-hud-red";
   const panelBorder = victory ? "border-hud-green/40" : "border-hud-red/40";
   const buttonClass = victory
-    ? "border-hud-green/60 text-hud-green hover:bg-hud-green/10"
-    : "border-hud-red/60 text-hud-red hover:bg-hud-red/10";
+    ? "border-hud-green/60 text-hud-green hover:bg-hud-green/10 active:bg-hud-green/20"
+    : "border-hud-red/60 text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20";
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/70 backdrop-blur-sm">
+    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/70 p-3 backdrop-blur-sm sm:p-6">
       <div
-        className={`rounded border ${panelBorder} bg-space-panel/95 p-8 shadow-[0_0_40px_rgba(94,255,167,0.15)] transition-all duration-200 ease-out ${
+        className={`w-[min(28rem,100%)] rounded border ${panelBorder} bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(94,255,167,0.15)] transition-all duration-200 ease-out sm:p-8 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
       >
-        <div className="flex flex-col items-center">
-          <div className={`font-display text-3xl tracking-widest ${titleColor}`}>
+        <div className="flex flex-col items-center select-none">
+          <div className={`font-display text-2xl tracking-widest sm:text-3xl ${titleColor}`}>
             {titleText}
           </div>
-          <div className="mt-2 text-[11px] uppercase tracking-[0.3em] text-hud-amber/80">
+          <div className="mt-2 text-xs uppercase tracking-[0.3em] text-hud-amber/80">
             ─── {missionName} ───
           </div>
         </div>
@@ -105,7 +105,7 @@ export default function VictoryModal({
           <button
             type="button"
             onClick={onClose}
-            className={`rounded border ${buttonClass} px-6 py-2 font-display tracking-widest`}
+            className={`touch-manipulation select-none rounded border ${buttonClass} px-6 py-2 font-display tracking-widest`}
           >
             {buttonText}
           </button>
@@ -125,7 +125,7 @@ function StatRow({
   valueClass: string;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-12">
+    <div className="flex items-baseline justify-between gap-6 sm:gap-12">
       <span className="text-hud-green/70">{label}</span>
       <span className={`text-right ${valueClass}`}>{value}</span>
     </div>

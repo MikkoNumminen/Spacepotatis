@@ -28,7 +28,17 @@ class ItemSfxEngine {
     }
     const clone = tmpl.cloneNode(true) as HTMLAudioElement;
     clone.volume = 1.0;
-    void clone.play().catch(() => {});
+    // iOS Safari caps simultaneous HTMLAudioElement instances at ~6 per page.
+    // Drop the clone's src as soon as it finishes (or errors) so the element
+    // becomes GC-eligible immediately instead of lingering as a "live" slot.
+    const release = (): void => {
+      clone.removeEventListener("ended", release);
+      clone.removeEventListener("error", release);
+      clone.src = "";
+    };
+    clone.addEventListener("ended", release);
+    clone.addEventListener("error", release);
+    void clone.play().catch(release);
   }
 
   weapon(): void {

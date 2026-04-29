@@ -30,27 +30,29 @@ export default async function Leaderboard({
   }
 
   return (
-    <table className="w-full text-xs">
-      <thead>
-        <tr className="text-left text-space-border">
-          <th className="py-1">#</th>
-          <th>Pilot</th>
-          <th className="text-right">Score</th>
-          <th className="text-right">Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {entries.map((e, i) => (
-          <tr key={`${e.playerName}-${e.createdAt}`} className="border-t border-space-border">
-            <td className="py-1 text-hud-amber">{i + 1}</td>
-            <td className="text-hud-green">{e.playerName}</td>
-            <td className="text-right">{e.score}</td>
-            <td className="text-right text-space-border">
-              {e.timeSeconds !== null ? `${e.timeSeconds}s` : "—"}
-            </td>
+    <div className="-mx-1 overflow-x-auto">
+      <table className="w-full min-w-[20rem] text-xs">
+        <thead>
+          <tr className="text-left text-space-border">
+            <th className="py-1">#</th>
+            <th>Pilot</th>
+            <th className="text-right">Score</th>
+            <th className="text-right">Time</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {entries.map((e, i) => (
+            <tr key={`${e.playerName}-${e.createdAt}`} className="border-t border-space-border">
+              <td className="py-1 text-hud-amber">{i + 1}</td>
+              <td className="text-hud-green">{e.playerName}</td>
+              <td className="text-right">{e.score}</td>
+              <td className="text-right text-space-border">
+                {e.timeSeconds !== null ? `${e.timeSeconds}s` : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -89,8 +89,8 @@ export default function ShopUI() {
   }, []);
 
   return (
-    <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
-      <section className="rounded border border-space-border bg-space-panel/70 p-5">
+    <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_1fr]">
+      <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
         <header className="mb-4 flex items-baseline justify-between">
           <h2 className="font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
           <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
@@ -132,7 +132,7 @@ export default function ShopUI() {
         />
       </section>
 
-      <section className="rounded border border-space-border bg-space-panel/70 p-5">
+      <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
         <header className="mb-4 flex items-baseline justify-between">
           <h2 className="font-display tracking-widest text-hud-green">NEW WEAPONS</h2>
           <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
@@ -143,7 +143,7 @@ export default function ShopUI() {
             <li key={weapon.id} className="rounded border border-space-border p-3">
               <div className="font-display tracking-wider">{weapon.name}</div>
               <WeaponStats weapon={weapon} />
-              <p className="mt-2 text-[11px] text-hud-green/70">{weapon.description}</p>
+              <p className="mt-2 text-xs text-hud-green/70">{weapon.description}</p>
               <div className="mt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -152,7 +152,7 @@ export default function ShopUI() {
                     buyWeapon(weapon.id);
                     itemSfx.weapon();
                   }}
-                  className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                  className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
                 >
                   BUY · ¢ {weapon.cost}
                 </button>
@@ -162,13 +162,13 @@ export default function ShopUI() {
         </ul>
       </section>
 
-      <section className="rounded border border-space-border bg-space-panel/70 p-5 md:col-span-2">
+      <section className="rounded border border-space-border bg-space-panel/70 p-4 md:col-span-2 sm:p-5">
         <header className="mb-4 flex items-baseline justify-between">
           <h2 className="font-display tracking-widest text-hud-green">AUGMENTS</h2>
           <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
         </header>
 
-        <p className="mb-3 text-[11px] text-hud-green/60">
+        <p className="mb-3 text-xs text-hud-green/60">
           Permanent weapon modifiers. Once installed they cannot be moved or sold —
           choose carefully. You may stock multiple copies in inventory.
         </p>
@@ -186,7 +186,7 @@ export default function ShopUI() {
                     <AugmentDot tint={aug.tint} />
                     <span className="font-display tracking-wider">{aug.name}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-hud-green/70">{aug.description}</p>
+                  <p className="mt-1 text-xs text-hud-green/70">{aug.description}</p>
                 </div>
                 <button
                   type="button"
@@ -195,7 +195,7 @@ export default function ShopUI() {
                     buyAugment(aug.id);
                     itemSfx.augment();
                   }}
-                  className="shrink-0 rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                  className="shrink-0 touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
                 >
                   BUY · ¢ {aug.cost}
                 </button>
@@ -233,18 +233,18 @@ function Row({
   cta: string;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between rounded border border-space-border p-3">
-      <div>
+    <div className="mb-3 flex items-center justify-between gap-3 rounded border border-space-border p-3">
+      <div className="min-w-0">
         <div className="font-display tracking-wider">{label}</div>
-        <div className="text-[11px] text-hud-green/70">{detail}</div>
+        <div className="text-xs text-hud-green/70">{detail}</div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {cost !== null && <span className="text-xs text-hud-amber">¢ {cost}</span>}
         <button
           type="button"
           disabled={disabled}
           onClick={onClick}
-          className="rounded border border-hud-green/60 px-3 py-1 text-xs enabled:hover:bg-hud-green/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+          className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1 text-xs enabled:hover:bg-hud-green/10 enabled:active:bg-hud-green/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
         >
           {cta}
         </button>

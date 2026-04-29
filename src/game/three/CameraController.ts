@@ -28,13 +28,22 @@ export class CameraController {
   private targetPolar: number;
 
   private dragging = false;
+  private activePointerId: number | null = null;
   private lastX = 0;
   private lastY = 0;
+
+  private pinchActive = false;
+  private pinchStartDist = 0;
+  private pinchStartRadius = 0;
 
   private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
   private readonly onPointerUp = (e: PointerEvent) => this.handlePointerUp(e);
+  private readonly onPointerCancel = (e: PointerEvent) => this.handlePointerUp(e);
   private readonly onWheel = (e: WheelEvent) => this.handleWheel(e);
+  private readonly onTouchStart = (e: TouchEvent) => this.handleTouchStart(e);
+  private readonly onTouchMove = (e: TouchEvent) => this.handleTouchMove(e);
+  private readonly onTouchEnd = (e: TouchEvent) => this.handleTouchEnd(e);
 
   constructor(element: HTMLElement, aspect: number, options: Partial<Options> = {}) {
     this.element = element;
@@ -49,9 +58,14 @@ export class CameraController {
     this.apply();
 
     element.addEventListener("pointerdown", this.onPointerDown);
-    window.addEventListener("pointermove", this.onPointerMove);
-    window.addEventListener("pointerup", this.onPointerUp);
+    element.addEventListener("pointermove", this.onPointerMove);
+    element.addEventListener("pointerup", this.onPointerUp);
+    element.addEventListener("pointercancel", this.onPointerCancel);
     element.addEventListener("wheel", this.onWheel, { passive: false });
+    element.addEventListener("touchstart", this.onTouchStart, { passive: false });
+    element.addEventListener("touchmove", this.onTouchMove, { passive: false });
+    element.addEventListener("touchend", this.onTouchEnd);
+    element.addEventListener("touchcancel", this.onTouchEnd);
   }
 
   update(_dt: number): void {
@@ -68,9 +82,14 @@ export class CameraController {
 
   dispose(): void {
     this.element.removeEventListener("pointerdown", this.onPointerDown);
-    window.removeEventListener("pointermove", this.onPointerMove);
-    window.removeEventListener("pointerup", this.onPointerUp);
+    this.element.removeEventListener("pointermove", this.onPointerMove);
+    this.element.removeEventListener("pointerup", this.onPointerUp);
+    this.element.removeEventListener("pointercancel", this.onPointerCancel);
     this.element.removeEventListener("wheel", this.onWheel);
+    this.element.removeEventListener("touchstart", this.onTouchStart);
+    this.element.removeEventListener("touchmove", this.onTouchMove);
+    this.element.removeEventListener("touchend", this.onTouchEnd);
+    this.element.removeEventListener("touchcancel", this.onTouchEnd);
   }
 
   private apply(): void {
@@ -83,15 +102,20 @@ export class CameraController {
   }
 
   private handlePointerDown(e: PointerEvent): void {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (this.pinchActive) return;
     this.dragging = true;
+    this.activePointerId = e.pointerId;
     this.lastX = e.clientX;
     this.lastY = e.clientY;
+    // Pointer capture guarantees move/up still fire when the finger leaves the
+    // canvas mid-drag — without it, mobile drags get stuck on quick swipes.
     this.element.setPointerCapture?.(e.pointerId);
   }
 
   private handlePointerMove(e: PointerEvent): void {
     if (!this.dragging) return;
+    if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
     const dx = e.clientX - this.lastX;
     const dy = e.clientY - this.lastY;
     this.lastX = e.clientX;
@@ -106,8 +130,12 @@ export class CameraController {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
     this.dragging = false;
-    this.element.releasePointerCapture?.(e.pointerId);
+    this.activePointerId = null;
+    if (this.element.hasPointerCapture?.(e.pointerId)) {
+      this.element.releasePointerCapture(e.pointerId);
+    }
   }
 
   private handleWheel(e: WheelEvent): void {
@@ -119,4 +147,47 @@ export class CameraController {
       this.opts.maxRadius
     );
   }
+
+  private handleTouchStart(e: TouchEvent): void {
+    const a = e.touches[0];
+    const b = e.touches[1];
+    if (a && b) {
+      e.preventDefault();
+      this.pinchActive = true;
+      // Cancel any in-flight rotation drag; the second finger means pinch.
+      this.dragging = false;
+      this.activePointerId = null;
+      this.pinchStartDist = touchDistance(a, b);
+      this.pinchStartRadius = this.targetRadius;
+    }
+  }
+
+  private handleTouchMove(e: TouchEvent): void {
+    if (!this.pinchActive) return;
+    const a = e.touches[0];
+    const b = e.touches[1];
+    if (!a || !b) return;
+    e.preventDefault();
+    const dist = touchDistance(a, b);
+    if (dist <= 0 || this.pinchStartDist <= 0) return;
+    const ratio = this.pinchStartDist / dist;
+    this.targetRadius = THREE.MathUtils.clamp(
+      this.pinchStartRadius * ratio,
+      this.opts.minRadius,
+      this.opts.maxRadius
+    );
+  }
+
+  private handleTouchEnd(e: TouchEvent): void {
+    if (e.touches.length < 2) {
+      this.pinchActive = false;
+      this.pinchStartDist = 0;
+    }
+  }
+}
+
+function touchDistance(a: Touch, b: Touch): number {
+  const dx = a.clientX - b.clientX;
+  const dy = a.clientY - b.clientY;
+  return Math.hypot(dx, dy);
 }

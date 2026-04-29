@@ -45,7 +45,7 @@ export default function LoadoutMenu(_props: Props) {
   const augPickerWeapon = augPickerInstance ? getWeapon(augPickerInstance.id) : null;
 
   return (
-    <section className="rounded border border-space-border bg-space-panel/70 p-5">
+    <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
       <header className="mb-4 flex items-baseline justify-between">
         <h2 className="font-display tracking-widest text-hud-green">SHIP LOADOUT</h2>
         <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
@@ -53,12 +53,12 @@ export default function LoadoutMenu(_props: Props) {
 
       <SlotGrid slots={ship.slots} onPick={sel.openPicker} />
 
-      <div className="mt-3 flex items-center justify-between rounded border border-dashed border-space-border p-3">
-        <div>
+      <div className="mt-3 flex items-center justify-between gap-3 rounded border border-dashed border-space-border p-3">
+        <div className="min-w-0">
           <div className="font-display text-sm tracking-widest text-hud-green/80">
             ADD WEAPON SLOT
           </div>
-          <div className="text-[11px] text-hud-green/60">
+          <div className="text-xs text-hud-green/60">
             {slotCount}/{MAX_WEAPON_SLOTS} mounted · expansions append at the right
           </div>
         </div>
@@ -67,12 +67,12 @@ export default function LoadoutMenu(_props: Props) {
             type="button"
             disabled={!canAffordSlot}
             onClick={() => void buyWeaponSlot()}
-            className="rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+            className="shrink-0 touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
           >
             BUY · ¢ {nextSlotCost}
           </button>
         ) : (
-          <span className="font-mono text-[11px] text-hud-green/50">slots maxed</span>
+          <span className="shrink-0 font-mono text-xs text-hud-green/50">slots maxed</span>
         )}
       </div>
 
@@ -95,7 +95,7 @@ export default function LoadoutMenu(_props: Props) {
           <h3 className="mt-6 mb-2 font-display text-xs tracking-widest text-hud-green/70">
             INVENTORY
           </h3>
-          <p className="text-[11px] text-hud-green/50">
+          <p className="text-xs text-hud-green/50">
             All owned weapons are equipped. Visit the shop to buy more.
           </p>
         </>

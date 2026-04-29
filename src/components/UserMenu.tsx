@@ -53,7 +53,7 @@ export default function UserMenu({
   // First visit only — returning users render straight from the cached
   // snapshot with no flash.
   if (firstVisit) {
-    return <span className="text-[11px] text-space-border">…</span>;
+    return <span className="text-xs text-space-border">…</span>;
   }
 
   if (status !== "authenticated") {
@@ -61,7 +61,7 @@ export default function UserMenu({
       <button
         type="button"
         onClick={() => void signIn("google")}
-        className="rounded border border-hud-green/60 px-3 py-1.5 text-xs hover:bg-hud-green/10"
+        className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 text-xs hover:bg-hud-green/10 active:bg-hud-green/20"
       >
         Sign in with Google
       </button>
@@ -77,7 +77,7 @@ export default function UserMenu({
         onClick={() => setOpen((p) => !p)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="rounded border border-hud-amber/40 px-3 py-1.5 text-xs text-hud-green/90 hover:bg-hud-amber/10"
+        className="touch-manipulation select-none rounded border border-hud-amber/40 px-3 py-1.5 text-xs text-hud-green/90 hover:bg-hud-amber/10 active:bg-hud-amber/20"
       >
         {label} ▾
       </button>
@@ -94,12 +94,12 @@ export default function UserMenu({
                 setOpen(false);
                 onOpenStoryList();
               }}
-              className="block w-full px-3 py-2 text-left text-xs text-hud-green/90 hover:bg-hud-amber/10"
+              className="block w-full touch-manipulation select-none px-3 py-2 text-left text-xs text-hud-green/90 hover:bg-hud-amber/10 active:bg-hud-amber/20"
             >
               Story
             </button>
           ) : (
-            <p className="px-3 py-2 text-[11px] text-hud-amber/50">
+            <p className="px-3 py-2 text-xs text-hud-amber/50">
               More options coming soon.
             </p>
           )}

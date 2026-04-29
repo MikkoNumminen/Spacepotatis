@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import MenuMusic from "@/components/MenuMusic";
@@ -13,6 +13,13 @@ const siteUrl =
     : process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000");
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#05060f"
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -34,7 +41,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-space-bg text-hud-green antialiased">
+      <body className="min-h-dvh bg-space-bg text-hud-green antialiased">
         <Providers>{children}</Providers>
         <MenuMusic />
       </body>

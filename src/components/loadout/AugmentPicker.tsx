@@ -28,33 +28,33 @@ export function AugmentPicker({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded border border-space-border bg-space-panel p-5"
+        className="w-full max-w-md rounded border border-space-border bg-space-panel p-4 sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="mb-3 flex items-baseline justify-between">
+        <header className="mb-3 flex items-baseline justify-between gap-3">
           <h3 className="font-display tracking-widest text-hud-green">
             INSTALL · {weapon.name}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-xs text-hud-green/60 hover:text-hud-green"
+            className="touch-manipulation select-none text-xs text-hud-green/60 hover:text-hud-green active:text-hud-green"
           >
             close
           </button>
         </header>
 
-        <p className="mb-3 text-[11px] text-hud-green/60">
+        <p className="mb-3 text-xs text-hud-green/60">
           {installed.length}/{MAX_AUGMENTS_PER_WEAPON} slots used. Augments are permanent
           once installed.
         </p>
 
         {eligible.length === 0 ? (
-          <p className="text-[11px] text-hud-green/60">
+          <p className="text-xs text-hud-green/60">
             No eligible augments in your inventory. Visit the shop to buy more.
           </p>
         ) : (
@@ -66,7 +66,7 @@ export function AugmentPicker({
                   <button
                     type="button"
                     onClick={() => onPick(id)}
-                    className="flex w-full flex-col gap-1 rounded border border-space-border px-3 py-2 text-left text-xs hover:border-hud-amber/60"
+                    className="flex w-full touch-manipulation select-none flex-col gap-1 rounded border border-space-border px-3 py-2 text-left text-xs hover:border-hud-amber/60 active:bg-hud-amber/5"
                   >
                     <span className="flex items-baseline gap-2">
                       <AugmentDot tint={aug.tint} />
@@ -74,7 +74,7 @@ export function AugmentPicker({
                         {aug.name}
                       </span>
                     </span>
-                    <span className="text-[11px] text-hud-green/70">{aug.description}</span>
+                    <span className="text-xs text-hud-green/70">{aug.description}</span>
                   </button>
                 </li>
               );

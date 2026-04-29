@@ -71,6 +71,10 @@ export function useGalaxyScene({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Stop the browser from claiming touch gestures (page scroll, pinch-zoom,
+    // double-tap-zoom) so our pointer/touch handlers see them all.
+    canvas.style.touchAction = "none";
+
     let disposed = false;
     let cleanup: (() => void) | null = null;
 

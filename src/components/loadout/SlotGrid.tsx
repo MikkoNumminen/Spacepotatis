@@ -39,10 +39,10 @@ function SlotCard({
     <button
       type="button"
       onClick={() => onPick(slotIndex)}
-      className={`rounded border p-3 text-left transition ${
+      className={`touch-manipulation select-none rounded border p-3 text-left transition ${
         weapon
-          ? "border-hud-green/60 bg-hud-green/5 hover:border-hud-green"
-          : "border-dashed border-space-border hover:border-hud-amber/60"
+          ? "border-hud-green/60 bg-hud-green/5 hover:border-hud-green active:bg-hud-green/10"
+          : "border-dashed border-space-border hover:border-hud-amber/60 active:bg-hud-amber/5"
       }`}
     >
       <div className="flex items-baseline justify-between">
@@ -59,7 +59,7 @@ function SlotCard({
           <span className="font-display text-sm tracking-wider">{weapon.name}</span>
         </div>
       ) : (
-        <div className="mt-1 font-mono text-[11px] text-hud-green/40">empty</div>
+        <div className="mt-1 font-mono text-xs text-hud-green/40">empty</div>
       )}
       <div className="mt-2 text-[10px] text-hud-amber/80">change</div>
     </button>

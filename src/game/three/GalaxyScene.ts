@@ -37,8 +37,16 @@ export class GalaxyScene {
   private lastMs = 0;
   private hovered: CelestialBody | null = null;
 
+  private tapPointerId: number | null = null;
+  private tapStartX = 0;
+  private tapStartY = 0;
+  private tapStartT = 0;
+  private suppressNextClick = false;
+
+  private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
-  private readonly onPointerClick = (e: PointerEvent) => this.handlePointerClick(e);
+  private readonly onPointerUp = (e: PointerEvent) => this.handlePointerUp(e);
+  private readonly onPointerClick = (e: MouseEvent) => this.handlePointerClick(e);
   private readonly onResize = () => this.resize();
 
   constructor(canvas: HTMLCanvasElement, opts: GalaxyOptions = {}) {
@@ -65,7 +73,9 @@ export class GalaxyScene {
       this.pickables.push(planet.getMesh());
     }
 
+    canvas.addEventListener("pointerdown", this.onPointerDown);
     canvas.addEventListener("pointermove", this.onPointerMove);
+    canvas.addEventListener("pointerup", this.onPointerUp);
     canvas.addEventListener("click", this.onPointerClick);
     window.addEventListener("resize", this.onResize);
 
@@ -97,7 +107,9 @@ export class GalaxyScene {
   dispose(): void {
     this.running = false;
     cancelAnimationFrame(this.rafId);
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
+    this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("click", this.onPointerClick);
     window.removeEventListener("resize", this.onResize);
     this.cameraCtl.dispose();
@@ -141,16 +153,56 @@ export class GalaxyScene {
     }
   }
 
-  private handlePointerMove(e: PointerEvent): void {
-    const rect = this.canvas.getBoundingClientRect();
-    this.pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  private handlePointerDown(e: PointerEvent): void {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    this.tapPointerId = e.pointerId;
+    this.tapStartX = e.clientX;
+    this.tapStartY = e.clientY;
+    this.tapStartT = performance.now();
+    // Touch pointers move the NDC at down-time so the raycaster can pick the
+    // planet under the finger before the up event resolves the tap.
+    if (e.pointerType !== "mouse") {
+      this.updatePointerNdc(e.clientX, e.clientY);
+      this.updateHover();
+    }
   }
 
-  private handlePointerClick(_e: PointerEvent): void {
+  private handlePointerMove(e: PointerEvent): void {
+    this.updatePointerNdc(e.clientX, e.clientY);
+  }
+
+  private handlePointerUp(e: PointerEvent): void {
+    if (this.tapPointerId === null || e.pointerId !== this.tapPointerId) return;
+    const dx = e.clientX - this.tapStartX;
+    const dy = e.clientY - this.tapStartY;
+    const dt = performance.now() - this.tapStartT;
+    this.tapPointerId = null;
+    const isTap = Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300;
+    if (!isTap) return;
+    // Touch fires pointerup → click; suppress the upcoming click so we don't
+    // double-fire. Mouse keeps the click path because pointerType is "mouse".
+    if (e.pointerType !== "mouse") {
+      this.suppressNextClick = true;
+      this.updatePointerNdc(e.clientX, e.clientY);
+      this.updateHover();
+      if (this.hovered) this.opts.onPlanetSelect?.(this.hovered.getDefinition());
+    }
+  }
+
+  private handlePointerClick(_e: MouseEvent): void {
+    if (this.suppressNextClick) {
+      this.suppressNextClick = false;
+      return;
+    }
     if (this.hovered) {
       this.opts.onPlanetSelect?.(this.hovered.getDefinition());
     }
+  }
+
+  private updatePointerNdc(clientX: number, clientY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   }
 
   private resize(): void {

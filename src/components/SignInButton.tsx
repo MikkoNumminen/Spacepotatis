@@ -28,7 +28,7 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
   // Only show the loading placeholder on a true first visit. Returning
   // users render directly from the cached snapshot — no flash.
   if (firstVisit) {
-    return <span className="text-[11px] text-space-border">…</span>;
+    return <span className="text-xs text-space-border">…</span>;
   }
 
   if (status === "authenticated") {
@@ -37,9 +37,9 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
       <button
         type="button"
         onClick={handleSignOut}
-        className={`rounded border border-hud-amber/40 ${
-          compact ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
-        } text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red`}
+        className={`touch-manipulation select-none rounded border border-hud-amber/40 ${
+          compact ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-xs"
+        } text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red active:border-hud-red/80 active:text-hud-red`}
         title="Sign out"
       >
         {label} · sign out
@@ -51,9 +51,9 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
     <button
       type="button"
       onClick={() => void signIn("google")}
-      className={`rounded border border-hud-green/60 ${
-        compact ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
-      } hover:bg-hud-green/10`}
+      className={`touch-manipulation select-none rounded border border-hud-green/60 ${
+        compact ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-xs"
+      } hover:bg-hud-green/10 active:bg-hud-green/20`}
     >
       Sign in with Google
     </button>

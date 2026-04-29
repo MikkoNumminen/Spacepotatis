@@ -94,6 +94,10 @@ class MenuBriefingAudio {
     voice.volume = this.muted ? 0 : TARGET_VOLUME;
     voice.preload = "auto";
     voice.addEventListener("ended", () => {
+      // Release the element promptly so it stops counting against iOS
+      // Safari's ~6-element audio budget. Without src="" the element can
+      // linger as a "live" slot until GC.
+      voice.src = "";
       if (this.voice !== voice) return;
       this.voice = null;
       this.queueIdx += 1;
@@ -108,6 +112,7 @@ class MenuBriefingAudio {
       .catch(() => {
         // Autoplay blocked — release the voice so arm() can re-create and
         // retry it on the next user gesture.
+        voice.src = "";
         this.startFailed = true;
         if (this.voice === voice) this.voice = null;
       });

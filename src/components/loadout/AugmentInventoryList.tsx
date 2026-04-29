@@ -18,7 +18,7 @@ export function AugmentInventoryList({ inventory }: { inventory: readonly Augmen
                 <AugmentDot tint={aug.tint} />
                 <span className="font-display tracking-wider">{aug.name}</span>
               </div>
-              <p className="mt-1 text-[11px] text-hud-green/70">{aug.description}</p>
+              <p className="mt-1 text-xs text-hud-green/70">{aug.description}</p>
               <p className="mt-1 text-[10px] text-hud-amber/70">
                 → install via the buttons above
               </p>
