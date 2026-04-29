@@ -30,7 +30,7 @@ export default function MuteToggle() {
       type="button"
       onClick={toggle}
       title={muted ? "Sound off" : "Sound on"}
-      className="inline-flex min-h-[44px] min-w-[44px] touch-manipulation select-none items-center justify-center rounded border border-space-border px-2 py-1 text-xs text-hud-green/80 hover:bg-space-panel active:bg-space-panel/80"
+      className="inline-flex min-h-[44px] min-w-[44px] touch-manipulation select-none items-center justify-center rounded border border-space-border px-2 py-1 text-xs text-hud-green/80 hover:bg-space-panel active:bg-space-panel/80 sm:min-h-0 sm:min-w-0"
     >
       {muted ? "♪ off" : "♪ on"}
     </button>

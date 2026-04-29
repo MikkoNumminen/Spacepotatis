@@ -23,7 +23,11 @@ export default function Home() {
       <LandingShell>
         <MenuBriefing />
         <main className="relative z-10 mx-auto flex min-h-dvh max-w-3xl flex-col items-center justify-center gap-8 px-4 text-center sm:gap-10 sm:px-6">
-          <div className="rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:px-8 sm:py-6">
+          {/* Mobile-only dark panel backgrounds keep the title + nav readable
+              over the busy 3D galaxy on small screens. Desktop has plenty of
+              negative space and the panels read as ugly frames there — strip
+              them at sm+ via sm:bg-transparent + sm:p-0. */}
+          <div className="rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <h1 className="font-display text-4xl tracking-widest text-hud-green drop-shadow-[0_0_20px_rgba(94,255,167,0.45)] sm:text-5xl">
               SPACEPOTATIS
             </h1>
@@ -32,7 +36,7 @@ export default function Home() {
             </p>
           </div>
 
-          <nav className="flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:max-w-none sm:px-6">
+          <nav className="flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:max-w-none sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <PlayButton />
             <Link
               href={ROUTES.page.leaderboard}
