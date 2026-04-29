@@ -125,7 +125,7 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     musicTrack: null,
     voiceTrack: "/audio/story/sol-spudensis-cleared-voice.mp3",
     voiceDelayMs: 0,
-    autoTrigger: { kind: "on-system-cleared-idle", systemId: "tutorial", initialDelayMs: 5000, intervalMs: 20000 },
+    autoTrigger: { kind: "on-system-cleared-idle", systemId: "tutorial", initialDelayMs: 5000, intervalMs: 30000 },
     mode: "overlay"
   }
 ];

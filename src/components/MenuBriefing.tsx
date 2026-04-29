@@ -22,8 +22,10 @@ export default function MenuBriefing() {
     // For PLAY users the first two items are play_nudge → continue_nudge.
     // For CONTINUE users they would both be continue_nudge — drop the
     // duplicate so the player isn't hearing the same line twice in a row.
+    // 6s lead-in before the first nudge so the player has a moment to
+    // breathe in the menu before Grandma starts talking.
     const queue: readonly MenuBriefingItem[] = [
-      { src: firstNudge, gapBeforeMs: 0 },
+      { src: firstNudge, gapBeforeMs: 6000 },
       ...(firstNudge === sharedNudge
         ? []
         : [{ src: sharedNudge, gapBeforeMs: 5000 } satisfies MenuBriefingItem]),
