@@ -391,9 +391,9 @@ export const combatMusic = new MusicEngine({
 export function setAllMuted(muted: boolean): void {
   menuMusic.setMuted(muted);
   combatMusic.setMuted(muted);
-  // Lazily import to avoid a circular module-init issue (story.ts has no
-  // dependency on this file but is constructed at module load).
+  // Lazily import to avoid a circular module-init issue.
   void import("./story").then(({ storyAudio }) => storyAudio.setMuted(muted));
+  void import("./storyLogAudio").then(({ storyLogAudio }) => storyLogAudio.setMuted(muted));
 }
 
 // Back-compat alias so existing imports of `music` keep working as the menu

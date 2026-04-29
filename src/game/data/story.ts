@@ -22,7 +22,8 @@ import type { MissionId } from "@/types/game";
 export type StoryId =
   | "great-potato-awakening"
   | "spud-prime-arrival"
-  | "yamsteroid-belt-arrival";
+  | "yamsteroid-belt-arrival"
+  | "dreadfruit-arrival";
 
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
@@ -75,6 +76,18 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     voiceTrack: "/audio/story/yamsteroid-belt-arrival-voice.mp3",
     voiceDelayMs: 0,
     autoTrigger: { kind: "on-mission-select", missionId: "combat-1" },
+    mode: "overlay"
+  },
+  {
+    id: "dreadfruit-arrival",
+    title: "Dreadfruit Briefing",
+    body: [
+      "Dreadfruit fills the viewport — a planet-sized tuber crawling with the Aphid Empress's hive. Mission Control walks you through what's at the core."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/dreadfruit-arrival-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-mission-select", missionId: "boss-1" },
     mode: "overlay"
   }
 ];

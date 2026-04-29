@@ -23,6 +23,7 @@ import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { STORY_ENTRIES, getStoryEntry, type StoryId } from "@/game/data/story";
 import { storyAudio } from "@/game/audio/story";
+import { storyLogAudio } from "@/game/audio/storyLogAudio";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -44,7 +45,11 @@ export default function GameCanvas() {
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
   const [warpOpen, setWarpOpen] = useState(false);
   const [storyListOpen, setStoryListOpen] = useState(false);
-  const [activeStory, setActiveStory] = useState<{ id: StoryId; firstSeen: boolean } | null>(null);
+  const [activeStory, setActiveStory] = useState<{
+    id: StoryId;
+    firstSeen: boolean;
+    fromLog: boolean;
+  } | null>(null);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
   const completedMissions = useGameState((s) => s.completedMissions);
@@ -96,7 +101,7 @@ export default function GameCanvas() {
     );
     if (next) {
       autoFiredRef.current.add(next.id);
-      setActiveStory({ id: next.id, firstSeen: true });
+      setActiveStory({ id: next.id, firstSeen: true, fromLog: false });
     }
   }, [saveLoaded, mode, seenStoryEntries, activeStory]);
 
@@ -108,8 +113,23 @@ export default function GameCanvas() {
 
   const handleReplayStory = useCallback((id: StoryId) => {
     setStoryListOpen(false);
-    setActiveStory({ id, firstSeen: false });
+    setActiveStory({ id, firstSeen: false, fromLog: true });
   }, []);
+
+  // Story-log music context: true while the player is browsing the Story
+  // log OR replaying any entry from it. The bed plays continuously through
+  // both views — opening a replay does NOT restart the music.
+  const inStoryLogContext = storyListOpen || (activeStory?.fromLog ?? false);
+
+  useEffect(() => {
+    if (inStoryLogContext) {
+      menuMusic.duck();
+      storyLogAudio.play();
+    } else {
+      storyLogAudio.stop();
+      menuMusic.unduck();
+    }
+  }, [inStoryLogContext]);
 
   // Mission-select trigger. Behavior:
   //   - Every click on an unlocked card schedules the matching overlay
@@ -166,7 +186,7 @@ export default function GameCanvas() {
         !autoFiredRef.current.has(entry.id)
       ) {
         autoFiredRef.current.add(entry.id);
-        setActiveStory({ id: entry.id, firstSeen: true });
+        setActiveStory({ id: entry.id, firstSeen: true, fromLog: false });
       }
     },
     [saveLoaded, mode, seenStoryEntries, unlockedPlanets, cancelPendingBriefing]
@@ -349,8 +369,18 @@ export default function GameCanvas() {
           {activeStory && (
             <StoryModal
               entry={getStoryEntry(activeStory.id)}
+              mode={activeStory.fromLog ? "replay-from-log" : "first-time"}
               firstSeen={activeStory.firstSeen}
-              onClose={() => setActiveStory(null)}
+              onClose={() => {
+                if (activeStory.fromLog) {
+                  // Back from a replay returns to the Story log — keep the
+                  // bed running, just swap the visible modal back.
+                  setActiveStory(null);
+                  setStoryListOpen(true);
+                } else {
+                  setActiveStory(null);
+                }
+              }}
               onMarkSeen={handleMarkStorySeen}
             />
           )}
