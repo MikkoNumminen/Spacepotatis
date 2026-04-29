@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import type { MissionId } from "@/types/game";
 import * as GameState from "@/game/state/GameState";
 import { sfx } from "@/game/audio/sfx";
+import { itemSfx } from "@/game/audio/itemSfx";
 import {
   PowerUpPool,
   isPerkKind,
@@ -71,6 +72,7 @@ export class DropController {
         break;
       case "credit":
         score.addCredits(25);
+        itemSfx.money();
         this.flashPickup("+ ¢25", 0xffcc33, power.x, power.y, "potato");
         break;
       case "weapon": {
@@ -91,6 +93,7 @@ export class DropController {
           if (landedSlot >= 0) {
             player.setSlotWeapon(landedSlot, slots[landedSlot] ?? null);
           }
+          itemSfx.weapon();
           this.flashPickup(
             `+ ${upgrade.name.toUpperCase()}`,
             hexToInt(upgrade.tint),
@@ -102,6 +105,7 @@ export class DropController {
           // Already maxed on weapons — convert pickup to credits so the player
           // is never penalized by a duplicate.
           score.addCredits(50);
+          itemSfx.money();
           this.flashPickup("+ ¢50", 0xffcc33, power.x, power.y, "potato");
         }
         break;

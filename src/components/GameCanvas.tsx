@@ -359,6 +359,13 @@ export default function GameCanvas() {
       await fadeOverlay(1);
       setLaunching(null);
       setMode("galaxy");
+      // Belt-and-suspenders music resume. The mode-effect cleanup already
+      // calls menuMusic.unduck(), but a race between effect ordering and the
+      // 4s combat-music fade-out has been observed to leave the menu bed
+      // silent on return. Re-asserting unduck + arm here is idempotent and
+      // covers any cleanup that didn't fire in the expected order.
+      menuMusic.unduck();
+      menuMusic.arm();
       requestAnimationFrame(() => void fadeOverlay(0));
     },
     [fadeOverlay, authStatus]
@@ -395,7 +402,7 @@ export default function GameCanvas() {
 
   return (
     <SplashGate ready={ready} splash={<Splash steps={splashSteps} />}>
-    <div className="relative h-screen w-screen overflow-hidden bg-space-bg">
+    <div className="relative h-dvh w-dvw overflow-hidden bg-space-bg">
       {mode === "galaxy" && <canvas ref={galaxyCanvasRef} className="block h-full w-full" />}
       {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
 
