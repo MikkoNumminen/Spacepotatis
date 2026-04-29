@@ -28,14 +28,14 @@ export default function StoryListModal({
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 backdrop-blur-sm">
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute left-6 top-6 rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
-      >
-        ← Back
-      </button>
       <div className="relative w-[28rem] rounded border border-hud-amber/60 bg-space-panel/95 p-6 shadow-[0_0_40px_rgba(255,204,51,0.15)]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute left-3 top-3 rounded border border-hud-green/60 px-3 py-1 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10"
+        >
+          ← Back
+        </button>
         <div className="text-center font-display text-base tracking-widest text-hud-amber">
           STORY LOG
         </div>
