@@ -29,7 +29,11 @@ export class BootScene extends Phaser.Scene {
     this.drawIdahoPotatoBullet("bullet-potato-idaho");
     this.drawYukonGoldBullet("bullet-potato-yukon");
     this.drawRedBlissBullet("bullet-potato-redbliss");
+    this.drawChantenayBullet("bullet-carrot-chantenay");
+    this.drawImperatorBullet("bullet-carrot-imperator");
+    this.drawNantesBullet("bullet-carrot-nantes");
     this.drawPotatoPod("pod-potato");
+    this.drawCarrotPod("pod-carrot");
 
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
     this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
@@ -446,6 +450,171 @@ export class BootScene extends Phaser.Scene {
     // Outline.
     g.lineStyle(1, 0x4a1218, 0.7);
     g.strokeEllipse(cx, cy, 10, 16);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Chantenay carrot — the wide-and-short variety, used as the chunky
+  // cluster round. Stubby orange ellipse with a tiny green tuft at the
+  // TOP so when motion-aligned by the gravity-rotation each tick, the
+  // carrot flies leaves-back / tip-forward.
+  private drawChantenayBullet(key: string): void {
+    const PAD = 2;
+    const W = 12 + PAD * 2;
+    const H = 14 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Stubby warm-orange body.
+    g.fillStyle(0xe8a040, 1);
+    g.fillEllipse(cx, cy, 8, 10);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0x8b4f10, 0.55);
+    g.fillEllipse(cx + 1.5, cy + 1.5, 6, 7);
+
+    // Two-stage highlight, warm cream.
+    g.fillStyle(0xffd896, 0.55);
+    g.fillEllipse(cx - 2, cy - 2, 4, 4);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillEllipse(cx - 2.5, cy - 3, 1.6, 1);
+
+    // Tiny green tuft at the TOP — two small leafy ellipses fan from
+    // just inside the top edge so the carrot reads tip-down (the bullet
+    // is rotated by the gravity-aligned motion vector each frame).
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx - 1.5, PAD, 2.5, 1.6);
+    g.fillEllipse(cx + 1.5, PAD, 2.5, 1.6);
+
+    // Outline.
+    g.lineStyle(1, 0x4a2810, 0.7);
+    g.strokeEllipse(cx, cy, 8, 10);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Imperator carrot — the very-long, slender variety, used as the
+  // lance/precision round. Tall thin orange ellipse with a slim frond
+  // at the TOP so the motion-aligned bullet reads as a flying lance.
+  private drawImperatorBullet(key: string): void {
+    const PAD = 2;
+    const W = 8 + PAD * 2;
+    const H = 20 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Tall skinny deep-orange body.
+    g.fillStyle(0xd77820, 1);
+    g.fillEllipse(cx, cy, 4, 16);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0x6b3a08, 0.55);
+    g.fillEllipse(cx + 0.7, cy + 2, 3, 12);
+
+    // Two-stage highlight, warm orange near the top.
+    g.fillStyle(0xffb060, 0.55);
+    g.fillEllipse(cx - 1, cy - 4, 2, 6);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillEllipse(cx - 1, cy - 6, 1.2, 1.6);
+
+    // Slim green frond at the TOP — single leaf so the silhouette stays
+    // narrow at small size.
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx, PAD, 3, 1.8);
+
+    // Outline.
+    g.lineStyle(1, 0x4a1810, 0.7);
+    g.strokeEllipse(cx, cy, 4, 16);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Nantes carrot — the classic medium variety, used as the workhorse
+  // assault round. Bright-orange ellipse with a medium green tuft at
+  // the TOP so when gravity-aligned each frame the carrot points tip-
+  // first along its motion vector.
+  private drawNantesBullet(key: string): void {
+    const PAD = 2;
+    const W = 10 + PAD * 2;
+    const H = 16 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Classic bright-orange body.
+    g.fillStyle(0xed8b30, 1);
+    g.fillEllipse(cx, cy, 6, 12);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0x804010, 0.55);
+    g.fillEllipse(cx + 1, cy + 2, 4.5, 9);
+
+    // Two-stage highlight.
+    g.fillStyle(0xffc870, 0.55);
+    g.fillEllipse(cx - 1.5, cy - 3, 3, 5);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillEllipse(cx - 2, cy - 4, 1.6, 1.2);
+
+    // Medium green tuft at the TOP — two leafy ellipses.
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx - 1.5, PAD, 2.8, 1.8);
+    g.fillEllipse(cx + 1.5, PAD, 2.8, 1.8);
+
+    // Outline.
+    g.lineStyle(1, 0x4a2010, 0.7);
+    g.strokeEllipse(cx, cy, 6, 12);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Half-scale carrot mini-ship — the carrot-line counterpart to
+  // drawPotatoPod. Tall orange silhouette so it reads as "carrot" not
+  // "potato" when attached as a side pod for any carrot-themed weapon.
+  private drawCarrotPod(key: string): void {
+    const PAD = 4;
+    const innerW = 14;
+    const innerH = 22;
+    const W = innerW + PAD * 2;
+    const H = innerH + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Tall orange body — straight ellipse since carrots are smoother
+    // than the lumpy potato silhouette.
+    g.fillStyle(0xed8b30, 1);
+    g.fillEllipse(cx, cy, innerW, innerH);
+
+    // Shadow wash on lower-right.
+    g.fillStyle(0x804010, 0.55);
+    g.fillEllipse(cx + 2, cy + 3, innerW - 4, innerH - 6);
+
+    // Two-stage highlight, warm cream.
+    g.fillStyle(0xffc870, 0.55);
+    g.fillEllipse(cx - 3, cy - 4, innerW - 6, innerH - 10);
+    g.fillStyle(0xffe6b8, 0.8);
+    g.fillEllipse(cx - 3.5, cy - 6, 3, 1.8);
+
+    // Two small dark "rings" / eyes on the body.
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 1, cy - 1, 1.0);
+    g.fillCircle(cx - 2, cy + 4, 1.0);
+
+    // Leafy green top — three ellipses fanning across the top edge.
+    g.fillStyle(0x4caa55, 1);
+    g.fillEllipse(cx - 3, PAD, 4, 2.4);
+    g.fillEllipse(cx, PAD - 1, 4, 2.4);
+    g.fillEllipse(cx + 3, PAD, 4, 2.4);
+
+    // Outline.
+    g.lineStyle(1, 0x4a2010, 0.7);
+    g.strokeEllipse(cx, cy, innerW, innerH);
 
     g.generateTexture(key, W, H);
     g.destroy();

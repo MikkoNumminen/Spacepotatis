@@ -48,7 +48,7 @@ export class WeaponSystem {
       : null;
     const damage = def.damage * damageMul;
     for (const v of vectors) {
-      this.pool.spawn(originX, originY, v.vx, v.vy, damage, friendly, homing, def.bulletSprite);
+      this.pool.spawn(originX, originY, v.vx, v.vy, damage, friendly, homing, def.bulletSprite, def.gravity);
     }
     return true;
   }

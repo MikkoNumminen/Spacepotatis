@@ -63,7 +63,7 @@ If the request mentions any specific weapon id, augment id, or any of the words 
 - **Type union**: `WeaponId` in [src/types/game.ts](src/types/game.ts).
 - **Schema array**: `WEAPON_IDS` in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — uses `satisfies readonly WeaponId[]` so adding to one without the other fails to compile.
 - **Accessor**: `getWeapon(id)` in [src/game/data/weapons.ts](src/game/data/weapons.ts) — throws on unknown id (no nullable variant).
-- **Definition shape** (`WeaponDefinition` in [src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥ 0), `tint` (CSS hex), `energyCost` (> 0). OPTIONAL: `homing` (bool), `turnRateRadPerSec`, `bulletSprite` (BootScene texture key), `podSprite`.
+- **Definition shape** (`WeaponDefinition` in [src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥ 0), `tint` (CSS hex), `energyCost` (> 0). OPTIONAL: `homing` (bool), `turnRateRadPerSec`, `gravity` (px/s² applied as +y acceleration each frame — bullets arc and rotate along their motion vector; carrot weapons use 60–300), `bulletSprite` (BootScene texture key), `podSprite`.
 
 ## Augments
 
@@ -90,6 +90,7 @@ Modifying these is a stat-only change — see Operation: MODIFY → stats.
 | What changes visually | Where to edit |
 |---|---|
 | Weapon **bullet sprite** in combat | `BootScene.ts` `draw<X>Bullet(key)` generator + `weapons.json` `bulletSprite` field. **Coupling:** if the new sprite materially changes the weapon's color, also update `weapons.json#tint` to match so the loadout / shop / pickup UI dot reads as the same weapon — these two fields are read by different surfaces but should always agree on color. |
+| Weapon **bullet trajectory** (arc) | `weapons.json#gravity` field — px/s² applied as +y acceleration each frame. Friendly bullets fire toward -y, so positive gravity slows them and makes them arc. Bullets with gravity also rotate each frame to point along their motion vector (good for sprites with a clear "tip"); the cosmetic tumble is suppressed in that case. Reference values: 60 = barely-perceptible drift (sniper feel), 120 = moderate arc (assault feel), 300 = chunky drop (cluster/grenade feel). Engine support is in `Bullet.fire`/`preUpdate` — no code change needed to add a new gravity-using weapon. |
 | Weapon **side-pod sprite** | `BootScene.ts` `draw<X>Pod(key)` + `weapons.json` `podSprite` field. The pod render path in `src/game/phaser/entities/player/PodController.ts` is GENERIC — it iterates `slotInstances` and reads `getWeapon(inst.id).podSprite` for each one. Any weapon with `podSprite` set automatically gets a visible side pod when equipped in a non-primary slot; weapons without it stay invisible (today's behavior). Multiple weapons can share the same pod texture (e.g. `rapid-fire` and `spread-shot` both use `pod-potato`). |
 | Weapon **UI tint dot** (loadout, shop) | `weapons.json` `tint` field — pure CSS color, read by `WeaponDot` in [src/components/loadout/dots.tsx](src/components/loadout/dots.tsx). No sprite/texture work needed. |
 | Augment **UI tint dot** | `augments.ts` `<id>.tint` field — same. |
@@ -185,6 +186,7 @@ The four shapes that match what's in the catalog today. Match the user's intent 
   "cost": <unchanged>,
   "tint": "#<new-hex-matching-the-bullet>",
   "energyCost": <unchanged>,
+  "gravity": <optional, 60-300 for carrot-style arc; omit for straight flight>,
   "bulletSprite": "<new-bootscene-key>",
   "podSprite": "<optional-bootscene-key, shared OK>"
 }

@@ -43,6 +43,7 @@ export interface WeaponDefinition {
   readonly energyCost: number;    // reactor energy spent per FIRE event, not per bullet
   readonly homing?: boolean;      // if true, projectiles steer toward the nearest enemy
   readonly turnRateRadPerSec?: number; // homing turn rate; defaults to 3.5 if homing without explicit value
+  readonly gravity?: number;  // px/s² applied as +y acceleration each frame. When set, the bullet arcs (decelerates if firing -y, accelerates if firing +y) and rotates each frame to point along its current motion vector. Defaults to 0 (straight flight).
   readonly bulletSprite?: string;  // texture key generated in BootScene; defaults to "bullet-friendly" when absent
   readonly podSprite?: string;     // texture key for a side-pod sprite rendered when this weapon is equipped in a non-primary slot. When absent, the slot stays invisible (today's behavior — bullets just spawn at the slot's offset).
 }

@@ -17,6 +17,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   friendly = true;
   damage = 0;
   private homing: HomingConfig | null = null;
+  private gravity = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, BULLET_TEXTURE_FRIENDLY);
@@ -30,18 +31,28 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     damage: number,
     friendly: boolean,
     homing: HomingConfig | null = null,
-    spriteKey?: string
+    spriteKey?: string,
+    gravity: number = 0
   ): void {
     this.friendly = friendly;
     this.damage = damage;
     this.homing = homing;
+    this.gravity = gravity;
     this.setTexture(spriteKey ?? (friendly ? BULLET_TEXTURE_FRIENDLY : BULLET_TEXTURE_HOSTILE));
 
     this.enableBody(true, x, y, true, true);
     this.setVelocity(vx, vy);
-    // Visible tumble for per-weapon sprites — purely cosmetic; the hitbox
-    // stays centered.
-    this.setAngularVelocity(spriteKey ? 720 : 0);
+    // Tumble policy:
+    //   - gravity > 0: motion-aligned rotation each frame (set in preUpdate);
+    //     skip the tumble so the carrot-tip points along the arc.
+    //   - spriteKey set, no gravity: cosmetic tumble (potato-style).
+    //   - default cyan bullet: no rotation.
+    if (gravity > 0) {
+      this.setAngularVelocity(0);
+      this.setRotation(Math.atan2(vy, vx) + Math.PI / 2);
+    } else {
+      this.setAngularVelocity(spriteKey ? 720 : 0);
+    }
 
     const body = this.body as Phaser.Physics.Arcade.Body | null;
     body?.setSize(this.width * 0.6, this.height * 0.8);
@@ -49,6 +60,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
 
   deactivate(): void {
     this.homing = null;
+    this.gravity = 0;
     this.setAngularVelocity(0);
     this.setRotation(0);
     this.disableBody(true, true);
@@ -56,6 +68,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
 
   override preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
+
+    if (this.gravity !== 0) {
+      const body = this.body as Phaser.Physics.Arcade.Body | null;
+      if (body) {
+        body.velocity.y += this.gravity * delta / 1000;
+        this.setRotation(Math.atan2(body.velocity.y, body.velocity.x) + Math.PI / 2);
+      }
+    }
 
     if (this.homing) {
       this.steerTowardTarget(delta);
@@ -124,7 +144,8 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
     damage: number,
     friendly: boolean,
     homing: { readonly turnRateRadPerSec: number } | null = null,
-    spriteKey?: string
+    spriteKey?: string,
+    gravity?: number
   ): Bullet | null {
     const bullet = this.get() as Bullet | null;
     if (!bullet) return null;
@@ -132,7 +153,7 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
       homing && this.findTarget
         ? { turnRateRadPerSec: homing.turnRateRadPerSec, findTarget: this.findTarget }
         : null;
-    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey);
+    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey, gravity);
     return bullet;
   }
 }
