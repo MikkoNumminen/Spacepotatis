@@ -25,6 +25,8 @@ export class BootScene extends Phaser.Scene {
 
     this.drawBullet("bullet-friendly", 0x4fd1ff, 6, 18);
     this.drawBullet("bullet-hostile", 0xff4d6d, 8, 14);
+    this.drawPotatoBullet("bullet-potato");
+    this.drawPotatoPod("pod-potato");
 
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
     this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
@@ -279,6 +281,111 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(color, 1);
     g.fillRoundedRect(0, 0, w, h, 2);
     g.generateTexture(key, w, h);
+    g.destroy();
+  }
+
+  // Small tumbling potato projectile. Asymmetric ellipse + 2 dark eye
+  // dots + a small white sheen — small enough to read as a thrown spud
+  // at combat speed but distinctive against the cyan default bullet.
+  private drawPotatoBullet(key: string): void {
+    const PAD = 2;
+    const W = 14 + PAD * 2;
+    const H = 16 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Asymmetric body — slightly off-center so the silhouette doesn't
+    // read as a generic pill.
+    g.fillStyle(0xc8d878, 1); // peeled-potato lime
+    g.fillEllipse(cx, cy, 12, 14);
+
+    // Shadow wash on lower-right for a hint of volume.
+    g.fillStyle(0x6e7f2c, 0.5);
+    g.fillEllipse(cx + 1.5, cy + 2, 9, 10);
+
+    // Two-stage highlight — matches drawPotatoShip's discipline.
+    g.fillStyle(0xeaffd0, 0.55);
+    g.fillEllipse(cx - 2, cy - 3, 6, 5);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillEllipse(cx - 3, cy - 4, 2, 1.2);
+
+    // Two potato eyes.
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 2, cy - 1, 0.9);
+    g.fillCircle(cx - 1, cy + 3, 0.8);
+
+    // 1px outline at 70% opacity over a re-stroked ellipse so the
+    // silhouette stays crisp at small size.
+    g.lineStyle(1, 0x4a3a14, 0.7);
+    g.strokeEllipse(cx, cy, 12, 14);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Half-scale player potato. Same body recipe as drawPotatoShip, no
+  // rim glow, no sprout — just the silhouette + dimensional shading +
+  // outline. Used as a visible "side pod" attached to the main ship
+  // when an additional slot is equipped with the Potato Cannon.
+  private drawPotatoPod(key: string): void {
+    const PAD = 4;
+    const innerW = 26;
+    const innerH = 22;
+    const W = innerW + PAD * 2;
+    const H = innerH + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    // Lumpy silhouette — pre-baked noise so the shape is identical
+    // every boot. Matches drawPotatoShip's noise pattern at half scale.
+    const noise = [0.07, -0.04, 0.05, -0.03, 0.02, -0.05, 0.04, 0.01, -0.06, 0.03, 0.05, -0.02, 0.04, -0.05, 0.03, 0.0, 0.05, -0.03];
+    const steps = 18;
+    const baseRx = innerW / 2;
+    const baseRy = innerH / 2;
+    const body: { x: number; y: number }[] = [];
+    for (let i = 0; i < steps; i++) {
+      const a = (Math.PI * 2 * i) / steps;
+      const wobble = 1 + (noise[i] ?? 0);
+      body.push({ x: cx + Math.cos(a) * baseRx * wobble, y: cy + Math.sin(a) * baseRy * wobble });
+    }
+
+    const tracePath = (): void => {
+      const first = body[0];
+      if (!first) return;
+      g.beginPath();
+      g.moveTo(first.x, first.y);
+      for (let i = 1; i < body.length; i++) {
+        const p = body[i];
+        if (p) g.lineTo(p.x, p.y);
+      }
+      g.closePath();
+    };
+
+    g.fillStyle(0xa86b3d, 1);
+    tracePath();
+    g.fillPath();
+
+    g.fillStyle(0x6b3f1f, 0.55);
+    g.fillEllipse(cx + 3, cy + 3, innerW - 8, innerH - 9);
+
+    g.fillStyle(0xd9a378, 0.7);
+    g.fillEllipse(cx - 3, cy - 4, innerW - 12, innerH - 12);
+
+    g.fillStyle(0xffe6b8, 0.9);
+    g.fillEllipse(cx - 4, cy - 5, 4, 2);
+
+    g.fillStyle(0x3d2210, 1);
+    g.fillCircle(cx + 2, cy - 2, 0.9);
+    g.fillCircle(cx - 3, cy + 2, 1.0);
+    g.fillCircle(cx + 5, cy + 1, 0.8);
+
+    g.lineStyle(1, 0x2a1808, 0.7);
+    tracePath();
+    g.strokePath();
+
+    g.generateTexture(key, W, H);
     g.destroy();
   }
 

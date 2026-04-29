@@ -3,12 +3,8 @@ import { WeaponSystem } from "../../systems/WeaponSystem";
 import { sfx } from "@/game/audio/sfx";
 import type { SlotMods } from "./SlotModResolver";
 import type { PlayerCombatant } from "./PlayerCombatant";
+import { slotXOffset } from "./slotLayout";
 
-// Per-slot bullet spawn x-offset relative to the ship center. Slot 0 fires
-// from the nose; expansion slots alternate left/right so bullets from a
-// 3-slot loadout don't all stack on the same column. Indices past the array
-// fall back to centerline.
-const SLOT_X_OFFSETS = [0, -16, 16, -28, 28, -40, 40] as const;
 const SPAWN_Y_OFFSET = -18;
 
 interface SpritePosition {
@@ -42,7 +38,7 @@ export class PlayerFireController {
     if (!mods) return false;
     if (combatant.energy < mods.energyCost) return false;
 
-    const xOffset = SLOT_X_OFFSETS[slotIndex] ?? 0;
+    const xOffset = slotXOffset(slotIndex);
     // Overdrive's fire-rate bonus stacks multiplicatively on top of any
     // augment fire-rate modifier — both are "cooldown multipliers", so the
     // effective cooldown is base × augment × overdrive.

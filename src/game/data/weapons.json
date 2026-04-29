@@ -3,8 +3,8 @@
   "weapons": [
     {
       "id": "rapid-fire",
-      "name": "Pulse Cannon",
-      "description": "High rate of fire, low damage per shot. Great against swarms.",
+      "name": "Potato Cannon",
+      "description": "Spud-loader cannon. Fast cadence, small potatoes — chips away at swarms.",
       "damage": 6,
       "fireRateMs": 120,
       "bulletSpeed": 720,
@@ -12,7 +12,9 @@
       "spreadDegrees": 0,
       "cost": 0,
       "tint": "#4fd1ff",
-      "energyCost": 4
+      "energyCost": 4,
+      "bulletSprite": "bullet-potato",
+      "podSprite": "pod-potato"
     },
     {
       "id": "spread-shot",

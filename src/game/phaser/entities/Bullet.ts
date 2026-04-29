@@ -29,15 +29,19 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     vy: number,
     damage: number,
     friendly: boolean,
-    homing: HomingConfig | null = null
+    homing: HomingConfig | null = null,
+    spriteKey?: string
   ): void {
     this.friendly = friendly;
     this.damage = damage;
     this.homing = homing;
-    this.setTexture(friendly ? BULLET_TEXTURE_FRIENDLY : BULLET_TEXTURE_HOSTILE);
+    this.setTexture(spriteKey ?? (friendly ? BULLET_TEXTURE_FRIENDLY : BULLET_TEXTURE_HOSTILE));
 
     this.enableBody(true, x, y, true, true);
     this.setVelocity(vx, vy);
+    // Visible tumble for per-weapon sprites — purely cosmetic; the hitbox
+    // stays centered.
+    this.setAngularVelocity(spriteKey ? 720 : 0);
 
     const body = this.body as Phaser.Physics.Arcade.Body | null;
     body?.setSize(this.width * 0.6, this.height * 0.8);
@@ -45,6 +49,8 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
 
   deactivate(): void {
     this.homing = null;
+    this.setAngularVelocity(0);
+    this.setRotation(0);
     this.disableBody(true, true);
   }
 
@@ -117,7 +123,8 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
     vy: number,
     damage: number,
     friendly: boolean,
-    homing: { readonly turnRateRadPerSec: number } | null = null
+    homing: { readonly turnRateRadPerSec: number } | null = null,
+    spriteKey?: string
   ): Bullet | null {
     const bullet = this.get() as Bullet | null;
     if (!bullet) return null;
@@ -125,7 +132,7 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
       homing && this.findTarget
         ? { turnRateRadPerSec: homing.turnRateRadPerSec, findTarget: this.findTarget }
         : null;
-    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig);
+    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey);
     return bullet;
   }
 }

@@ -11,6 +11,7 @@ import {
 } from "./player/SlotModResolver";
 import { PlayerCombatant } from "./player/PlayerCombatant";
 import { PlayerFireController } from "./player/PlayerFireController";
+import { PodController } from "./player/PodController";
 
 export const PLAYER_TEXTURE = "player-ship";
 
@@ -33,6 +34,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private readonly combatant: PlayerCombatant;
   private readonly fire: PlayerFireController;
+  private readonly pods: PodController;
 
   // Smoothed velocity. Set instantly when the input changes used to make the
   // ship feel weightless and snappy in a way that hurt dodge feel — eased
@@ -63,6 +65,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.combatant = new PlayerCombatant(ship);
     this.fire = new PlayerFireController(this.weaponsBySlot, this.slotInstances, this.slotMods);
+    this.pods = new PodController(scene, this.slotInstances);
   }
 
   get maxShield(): number { return this.combatant.maxShield; }
@@ -83,6 +86,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Mid-mission swaps are always level-1 picks with no augments, so we use
     // the granted-weapon mod path rather than re-resolving from instance data.
     this.slotMods[slotIndex] = slotModsForGrantedWeapon(instance?.id ?? null);
+    this.pods.reconcile();
   }
 
   getSlotWeapon(slotIndex: number): WeaponId | null {
@@ -124,6 +128,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.angle += (targetAngle - this.angle) * t;
     this.scaleY += (targetScaleY - this.scaleY) * t;
     this.scaleX += (targetScaleX - this.scaleX) * t;
+
+    this.pods.sync(this);
 
     this.combatant.tickRegen(time, delta);
 
