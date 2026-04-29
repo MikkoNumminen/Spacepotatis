@@ -1,4 +1,4 @@
-import type { MissionId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types/game";
 
 // Story log — narrative beats. Two presentation modes:
 //
@@ -12,6 +12,11 @@ import type { MissionId } from "@/types/game";
 //   { kind: "first-time" }                       — fires once on first galaxy load
 //   { kind: "on-mission-select", missionId: ... } — fires once when that mission's
 //                                                   quest card is opened
+//   { kind: "on-system-cleared-idle", systemId: ..., initialDelayMs: ..., intervalMs: ... }
+//                                                — fires repeatedly while the player idles in
+//                                                  the galaxy view of the named system AND
+//                                                  every combat mission in that system has
+//                                                  been completed
 //   null                                          — replay-only via Story log
 //
 // Each entry carries a voice track and (for modal mode) a music bed. The
@@ -24,12 +29,19 @@ export type StoryId =
   | "spud-prime-arrival"
   | "yamsteroid-belt-arrival"
   | "dreadfruit-arrival"
-  | "market-arrival";
+  | "market-arrival"
+  | "sol-spudensis-cleared";
 
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
   | { readonly kind: "on-mission-select"; readonly missionId: MissionId }
-  | { readonly kind: "on-shop-open" };
+  | { readonly kind: "on-shop-open" }
+  | {
+      readonly kind: "on-system-cleared-idle";
+      readonly systemId: SolarSystemId;
+      readonly initialDelayMs: number;
+      readonly intervalMs: number;
+    };
 
 export interface StoryEntry {
   readonly id: StoryId;
@@ -102,6 +114,18 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     voiceTrack: "/audio/story/market-arrival-voice.mp3",
     voiceDelayMs: 0,
     autoTrigger: { kind: "on-shop-open" },
+    mode: "overlay"
+  },
+  {
+    id: "sol-spudensis-cleared",
+    title: "Sol Spudensis Cleared",
+    body: [
+      "All threats in Sol Spudensis have been neutralized. Mission Control checks back in while the dust settles."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/sol-spudensis-cleared-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-system-cleared-idle", systemId: "tutorial", initialDelayMs: 5000, intervalMs: 20000 },
     mode: "overlay"
   }
 ];

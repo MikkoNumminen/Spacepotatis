@@ -192,6 +192,80 @@ export default function GameCanvas() {
     [saveLoaded, mode, seenStoryEntries, unlockedPlanets, cancelPendingBriefing]
   );
 
+  // Two refs because the trigger is bi-phase: one-shot initial delay, then
+  // a steady cadence. Sharing a single ref would force us to clear+reschedule
+  // on every fire and risk dropping the interval if conditions flicker.
+  const idleVoiceTimeoutRef = useRef<number | null>(null);
+  const idleVoiceIntervalRef = useRef<number | null>(null);
+  // Read seenStoryEntries via ref so the first-fire mark-seen doesn't bounce
+  // the effect and reset the initial-delay timer.
+  const seenStoryEntriesRef = useRef(seenStoryEntries);
+  seenStoryEntriesRef.current = seenStoryEntries;
+  useEffect(() => {
+    if (
+      mode !== "galaxy" ||
+      !saveLoaded ||
+      storyListOpen ||
+      activeStory
+    ) {
+      return;
+    }
+    const matches = STORY_ENTRIES.filter(
+      (e) =>
+        e.autoTrigger?.kind === "on-system-cleared-idle" &&
+        e.autoTrigger.systemId === currentSolarSystemId
+    );
+    if (matches.length === 0) return;
+    const completed = new Set(completedMissions);
+    const ready = matches.filter((e) => {
+      const trigger = e.autoTrigger;
+      if (trigger?.kind !== "on-system-cleared-idle") return false;
+      const systemMissions = getAllMissions().filter(
+        (m) => m.solarSystemId === trigger.systemId && m.kind === "mission"
+      );
+      return (
+        systemMissions.length > 0 &&
+        systemMissions.every((m) => completed.has(m.id))
+      );
+    });
+    if (ready.length === 0) return;
+
+    const fire = (entry: (typeof ready)[number]) => {
+      storyAudio.play({
+        musicSrc: entry.musicTrack,
+        voiceSrc: entry.voiceTrack,
+        voiceDelayMs: 0
+      });
+      if (!seenStoryEntriesRef.current.includes(entry.id)) {
+        markStorySeen(entry.id);
+        void saveNow();
+      }
+    };
+
+    const timeoutIds: number[] = [];
+    const intervalIds: number[] = [];
+    for (const entry of ready) {
+      const trigger = entry.autoTrigger;
+      if (trigger?.kind !== "on-system-cleared-idle") continue;
+      const initialId = window.setTimeout(() => {
+        fire(entry);
+        const repeatId = window.setInterval(() => fire(entry), trigger.intervalMs);
+        intervalIds.push(repeatId);
+        idleVoiceIntervalRef.current = repeatId;
+      }, trigger.initialDelayMs);
+      timeoutIds.push(initialId);
+      idleVoiceTimeoutRef.current = initialId;
+    }
+
+    return () => {
+      for (const id of timeoutIds) clearTimeout(id);
+      for (const id of intervalIds) clearInterval(id);
+      idleVoiceTimeoutRef.current = null;
+      idleVoiceIntervalRef.current = null;
+      storyAudio.stop();
+    };
+  }, [mode, saveLoaded, storyListOpen, activeStory, currentSolarSystemId, completedMissions]);
+
   // Single source of truth for which bed plays: combat owns audio in combat
   // mode, menu owns it everywhere else. Hard-stopping combat music on every
   // non-combat transition is what prevents the two beds from layering on
