@@ -394,6 +394,9 @@ export function setAllMuted(muted: boolean): void {
   // Lazily import to avoid a circular module-init issue.
   void import("./story").then(({ storyAudio }) => storyAudio.setMuted(muted));
   void import("./storyLogAudio").then(({ storyLogAudio }) => storyLogAudio.setMuted(muted));
+  void import("./menuBriefingAudio").then(({ menuBriefingAudio }) =>
+    menuBriefingAudio.setMuted(muted)
+  );
 }
 
 // Back-compat alias so existing imports of `music` keep working as the menu

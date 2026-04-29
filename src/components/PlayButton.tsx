@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import HandlePrompt from "./HandlePrompt";
+import { menuBriefingAudio } from "@/game/audio/menuBriefingAudio";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 
@@ -31,6 +32,9 @@ export default function PlayButton() {
   const [pendingClick, setPendingClick] = useState(false);
 
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // The briefing voice is a menu-only artifact — kill it the moment the
+    // player commits to entering, regardless of which branch we take below.
+    menuBriefingAudio.stop();
     // Unauthenticated → guest play, let the link navigate normally.
     if (status !== "authenticated") return;
     // Always intercept when authenticated. We need to know the handle before
