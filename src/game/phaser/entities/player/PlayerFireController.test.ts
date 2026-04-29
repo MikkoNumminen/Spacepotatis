@@ -136,7 +136,7 @@ describe("PlayerFireController.tryFireSlot", () => {
     expect(call?.[5]?.fireRateMul).toBeCloseTo(0.7 * 0.66, 6);
   });
 
-  it("uses the per-slot x-offset (slot 1 at -16, slot 2 at +16)", () => {
+  it("uses the per-slot x-offset (slot 1 at -36, slot 2 at +36 — wide enough for visible side pods)", () => {
     const rig = makeRig({
       weapons: ["rapid-fire", "tail-gunner", "side-spitter"]
     });
@@ -144,7 +144,7 @@ describe("PlayerFireController.tryFireSlot", () => {
     rig.controller.tryFireSlot(1, 0, 1, { x: 100, y: 200 }, makeCombatant(100));
     expect(rig.stubs[1]?.tryFire).toHaveBeenCalledWith(
       "tail-gunner",
-      84, // x - 16
+      64, // x - 36
       182, // y + SPAWN_Y_OFFSET (-18)
       0,
       true,
@@ -154,7 +154,7 @@ describe("PlayerFireController.tryFireSlot", () => {
     rig.controller.tryFireSlot(2, 0, 1, { x: 100, y: 200 }, makeCombatant(100));
     expect(rig.stubs[2]?.tryFire).toHaveBeenCalledWith(
       "side-spitter",
-      116, // x + 16
+      136, // x + 36
       182,
       0,
       true,

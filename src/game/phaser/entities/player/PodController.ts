@@ -51,8 +51,11 @@ export class PodController {
       if (desired) {
         const pod = this.scene.add.sprite(0, 0, desired);
         pod.setOrigin(0.5);
-        // Render below the main ship so the player sprite still pops.
-        pod.setDepth(-1);
+        // Same depth as the main ship — slot offsets are wide enough
+        // (see slotLayout.ts) that pods never overlap the ship sprite,
+        // so depth ordering is irrelevant. Default depth keeps the pod
+        // above the starfield + below any HUD overlays, which is what
+        // we want for a sibling ship.
         this.pods[i] = pod;
       }
     }
