@@ -4,48 +4,50 @@ description: Scaffold a new mission-only perk — perks.ts entry, BootScene icon
 ---
 
 # When to use
-The user says "/new-perk", "add a perk", or asks for a new mid-mission buff drop. Do NOT use for tweaking permanent ship upgrades (shield/credit/weapon) or for shop items — perks are mission-only and reset every CombatScene boot.
+User says "/new-perk", "add a perk", or asks for a new mid-mission buff drop. NOT for permanent ship upgrades or shop items — perks are mission-only and reset every CombatScene boot.
 
-# Inputs the user must provide
-Ask once, in a single message, for any missing fields:
-1. `perkId` — kebab-case, unique. Must NOT collide with existing ids in `src/game/data/perks.ts` (`overdrive`, `hardened`, `emp`).
-2. `displayName` — shown on the chip and pickup popup (e.g. "Shield Burst").
+# Inputs (ask once, all at once)
+1. `perkId` — kebab-case, unique. Must not collide with existing ids in `src/game/data/perks.ts` (`overdrive`, `hardened`, `emp`).
+2. `displayName` — chip + pickup popup label.
 3. `kind` — `"passive"` | `"active"`.
-4. `tint` — accent hex (e.g. `0x66ffaa`); used for chip border, popup color, icon.
-5. `dropWeight` — relative weight in the perk drop pool. NOTE: the current pool in `randomPerkId()` is **uniform** (no weights). State the desired weight, but the skill will simply add the perk to the pool unless the user also asks for a weighted-roll refactor (see TODO).
-6. For passive: the stat modifier (e.g. "+25% damage", "-20% incoming damage") AND which entity reads it (`Player`, `WeaponSystem`, etc.).
-7. For active: the keybind (default `CTRL` — already wired) and the effect description.
-8. Icon hint — one of `"bolt" | "hex" | "pulse"` to reuse, or pick a new shape name (skill will add a new branch in `drawMissionPerk`).
+4. `tint` — accent hex (e.g. `0x66ffaa`).
+5. `dropWeight` — current pool in `randomPerkId()` is **uniform**; weight is recorded but ignored unless user also requests a weighted-roll refactor.
+6. Passive only: stat modifier + which entity reads it (`Player`, `WeaponSystem`, etc.).
+7. Active only: keybind (default `CTRL`, already wired) + effect description.
+8. Icon — reuse `"bolt" | "hex" | "pulse"` or name a new shape (adds branch in `drawMissionPerk`).
 
 # Steps
-1. **`src/game/data/perks.ts`** — Extend the `PerkId` union to include the new id. Add an entry to `PERKS` with `id`, `name`, `type` (`"passive"` | `"active"`), `textureKey: "perk-<id>"`, `tint`, `hint` (short blurb shown on the pickup popup, e.g. `"CTRL: clear all enemy bullets"` for actives or `"+50% fire rate"` for passives). The exported `PERK_IDS` array is derived from `Object.keys(PERKS)`, so the new perk auto-joins the drop pool.
-2. **`src/game/phaser/scenes/BootScene.ts`** — In `generateTextures()`, add `this.drawMissionPerk("perk-<id>", <tint>, "<icon>");`. If the icon name is new, extend the `icon` union parameter of `drawMissionPerk` and add a new `else if` branch with the procedural drawing. Keep the magenta star frame and "M" tab — they signal "mission only" to the player.
-3. **`src/game/phaser/scenes/combat/PerkController.ts`** — In `apply()` (the switch on `perkId`), add a case that mutates per-mission perk state. For passives, set a flag/multiplier on the player via `this.player()` (e.g. `this.player().hasShieldBurst = true`). For actives, increment a charge counter on PerkController (mirror `this.empCharges += 1`). PerkController is the single owner of `activePerks` and per-perk charge counters; CombatScene only wires the keybind.
-4. **For active perks only**: also extend `triggerActive()` in PerkController with a case that consumes a charge, runs the effect, and calls `this.onChange()` (which CombatScene wires to `hud.refreshPerkChips`). The `CTRL` keybind in CombatScene is already wired (`this.input.keyboard?.on("keydown-CTRL", () => this.perks.triggerActive())`). If multiple actives are added later, the current single-keybind dispatch (which only handles `emp`) needs to switch on the most-recently-acquired active perk — flag this refactor to the user. **Adding a NEW active perk with charges requires extending the `PerkState` interface in `src/game/phaser/scenes/combat/PerkController.ts:7` (today only `empCharges` is exposed) AND adding a branch to the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()` (around line 127: ``CTRL × ${perkId === "emp" ? s.empCharges : 1}``) so the chip displays the correct count. Without both edits the new active will silently render "CTRL × 1" forever.**
-5. **For passive perks only**: add the corresponding flag to the read-site. For Player-affecting passives, add `hasFoo = false;` near `hasOverdrive` / `hasHardened` in `src/game/phaser/entities/Player.ts` and consume it in `preUpdate` / `takeDamage`. For weapon-affecting passives, plumb a multiplier through `WeaponSystem.tryFire` like `fireRateMul` already does. Reset on scene boot is automatic — the Player is reconstructed each CombatScene start.
-6. **HUD chip rendering** — No React component to touch. The HUD perk chips are rendered inside Phaser by `CombatHud.refreshPerkChips()` (top-right of the combat canvas) reading `PerkController.getState()`. It iterates `activePerks` and reads `PERKS[perkId]` for the icon/tint/name automatically — the new perk shows up with no extra wiring. For actives that show a charge counter, expose a getter on PerkController and mirror the existing `empCharges` plumbing in `CombatHud`.
-7. Run `npm run typecheck && npm test` and fix any failures. Report back the perk id, files modified, and whether the perk is passive or active.
+1. **`src/game/data/perks.ts`** — Extend `PerkId` union. Add entry to `PERKS` with `id`, `name`, `type`, `textureKey: "perk-<id>"`, `tint`, `hint`. `PERK_IDS` derives from `Object.keys(PERKS)` — auto-joins drop pool.
+2. **`src/game/phaser/scenes/BootScene.ts`** — Add `this.drawMissionPerk("perk-<id>", <tint>, "<icon>");` in `generateTextures()`. New icon name → extend the `icon` union and add an `else if` branch. Keep magenta star frame + "M" tab.
+3. **`src/game/phaser/scenes/combat/PerkController.ts`** — Add case in `apply()` switch. Passives: set flag/multiplier via `this.player()`. Actives: increment a charge counter (mirror `this.empCharges += 1`). PerkController owns `activePerks` and charge counters; CombatScene only wires the keybind.
+4. **Active perks only** — Extend `triggerActive()` with a case that consumes a charge, runs the effect, calls `this.onChange()` (CombatScene wires this to `hud.refreshPerkChips`). The `keydown-CTRL` handler is already wired. Multiple actives later → single-keybind dispatch needs to switch on most-recent active perk; flag this. **CRITICAL — adding a NEW active perk with charges requires:**
+   - Extending the `PerkState` interface in `src/game/phaser/scenes/combat/PerkController.ts:7` (today only `empCharges` is exposed).
+   - Adding a branch to the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()` (around line 127: ``CTRL × ${perkId === "emp" ? s.empCharges : 1}``).
+   Without both edits the chip silently renders "CTRL × 1" forever.
+5. **Passive perks only** — Add the read-site flag. Player-scoped: add `hasFoo = false;` near `hasOverdrive` / `hasHardened` in `src/game/phaser/entities/Player.ts`, consume in `preUpdate` / `takeDamage`. Weapon-scoped: plumb a multiplier through `WeaponSystem.tryFire` like `fireRateMul`. Reset on boot is automatic — Player is reconstructed each CombatScene start.
+6. **HUD chip** — No React work. `CombatHud.refreshPerkChips()` (NOT `CombatScene.refreshPerkChips()`) iterates `activePerks` and reads `PERKS[perkId]` automatically. Actives with a charge counter must expose a getter on PerkController and mirror the `empCharges` plumbing in `CombatHud`.
+7. Run `npm run typecheck && npm test`. Report perk id, files modified, kind.
 
-# Invariants this skill enforces
-- Perks are **mission-only**. Do NOT add perk state to `src/game/state/GameState.ts` or `ShipConfig` — perk flags live on Phaser entities (`Player`) or scene-local fields (`empCharges`, `activePerks`) and reset every CombatScene boot.
-- `PerkId` union in `perks.ts` includes the new id. No `any` introduced.
-- `textureKey` follows `"perk-<id>"` and a matching `drawMissionPerk` call exists in `BootScene` so the texture is generated before CombatScene starts.
-- Active perks have a case in BOTH `PerkController.apply()` (charge gain) and `PerkController.triggerActive()` (charge consume), plus the existing `keydown-CTRL` handler in CombatScene that calls `triggerActive()`. Active perks that show a charge counter additionally extend `PerkState` (PerkController.ts:7) and the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()`.
-- Passive perks have a flag/modifier read by the affected system on every relevant tick.
-- Drop weights are relative and currently uniform — remind the author that adding a perk dilutes every existing perk's drop chance by `1/n`. If they want non-uniform weights, that requires extending `PerkDef` with `dropWeight: number` AND rewriting `randomPerkId()` to do a weighted roll (out of scope for this skill — flag and ask).
-- `npm test` passes after the change.
+# Invariants
+- Perks are **mission-only**. Do NOT add perk state to `src/game/state/GameState.ts` or `ShipConfig` — flags live on Phaser entities or scene-local fields and reset every CombatScene boot.
+- `PerkId` union includes the new id. No `any`.
+- `textureKey` follows `"perk-<id>"` and a matching `drawMissionPerk` call exists in `BootScene`.
+- Active perks: case in BOTH `PerkController.apply()` AND `triggerActive()`, plus existing `keydown-CTRL` handler. Charge-counter actives also extend `PerkState` (PerkController.ts:7) AND the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()`.
+- Passive perks: flag/modifier read by the affected system every relevant tick.
+- Drop weights uniform — adding a perk dilutes every existing perk's chance by `1/n`. Non-uniform weights require extending `PerkDef` with `dropWeight: number` AND rewriting `randomPerkId()` to do a weighted roll (out of scope; flag and ask).
+- `npm test` passes.
 
-# Files this skill modifies
+# Files modified
 Always:
-- `src/game/data/perks.ts` — add `PerkId` literal + `PERKS` entry.
-- `src/game/phaser/scenes/BootScene.ts` — add `drawMissionPerk` call (and possibly a new icon branch).
-- `src/game/phaser/scenes/combat/PerkController.ts` — add a case in `apply()` (and `triggerActive()` for actives).
+- `src/game/data/perks.ts`
+- `src/game/phaser/scenes/BootScene.ts`
+- `src/game/phaser/scenes/combat/PerkController.ts`
 
 Conditionally:
-- `src/game/phaser/entities/Player.ts` — new passive flag + read-site, when the modifier is player-scoped.
-- `src/game/phaser/systems/WeaponSystem.ts` or `weaponMath.ts` — when the modifier is weapon-scoped.
+- `src/game/phaser/entities/Player.ts` — player-scoped passive flag.
+- `src/game/phaser/systems/WeaponSystem.ts` or `weaponMath.ts` — weapon-scoped modifier.
 
-Does NOT touch:
-- `src/components/HUD.tsx` — currently a stub; perk chips are drawn inside Phaser by `CombatHud.refreshPerkChips()`.
-- `src/game/state/GameState.ts` / `ShipConfig.ts` — perks are mission-only, never persisted.
-- `src/game/phaser/entities/PowerUp.ts` — generic; reads `PERKS[id].textureKey` automatically once the perk and texture exist.
+Never:
+- `src/components/HUD.tsx` — stub; perk chips are Phaser-side via `CombatHud.refreshPerkChips()`.
+- `src/game/state/GameState.ts` / `ShipConfig.ts` — perks are mission-only.
+- `src/game/phaser/entities/PowerUp.ts` — generic; reads `PERKS[id].textureKey` automatically.
