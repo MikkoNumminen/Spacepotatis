@@ -12,12 +12,14 @@
 //   - BUTTON_BACK: the back affordance used inside modals and at the top
 //     of /shop + /leaderboard pages. Small, hud-green border, mono font.
 //
-// Hover/active state is identical across all three: solid space-panel
-// background. We deliberately do NOT use hud-green/10 (a translucent
-// green tint) anywhere — that combination read as "the button became
-// transparent" against the busy 3D galaxy backdrop.
+// Hover/active state is identical across all variants: a translucent
+// green tint that picks up the HUD palette without going opaque. The
+// previous version of this used hud-green/10 (too see-through against
+// the busy 3D backdrop) and bg-space-panel (too opaque, broke the
+// "we're floating in space" feel). 20%/30% is the sweet spot — clearly
+// readable as "hovered" but the starfield still bleeds through.
 
-const SHARED_HOVER = "hover:bg-space-panel active:bg-space-panel/80";
+const SHARED_HOVER = "hover:bg-hud-green/20 active:bg-hud-green/30";
 const SHARED_TOUCH = "touch-manipulation select-none";
 
 export const BUTTON_PRIMARY = `${SHARED_TOUCH} rounded border border-hud-green/60 px-8 py-3 font-display tracking-widest ${SHARED_HOVER}`;
