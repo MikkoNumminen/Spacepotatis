@@ -232,8 +232,8 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 | `/new-perk`          | Adds a new mid-mission buff (a "perk") with its icon, HUD chip, and pickup logic.                  |
 | `/new-solar-system`  | Adds a new selectable star system to the galaxy overworld (sun color/size, unlock condition, etc).  |
 | `/new-story`         | Add, change, or remove in-game story content — the cinematic popups, mission/shop briefings, the spoken `body` text, the deeper written `logSummary` shown in the Story log, the music bed, and the auto-trigger wiring (which points in the game fires which beat). One skill covers the whole CRUD lifecycle, including a hard-coded-reference check so removing a story doesn't quietly break a test fixture. |
-| `/balance-review`    | Compares your uncommitted JSON tweaks against the previous version and prints a balance report.    |
-| `/content-audit`     | Walks every cross-file invariant the unit tests don't cover. Run it before opening a pull request. |
+| `/balance-review`    | Diffs your uncommitted changes across every game-data surface — weapons (with family + gravity), augments, loot pools, enemies, waves, missions, perks, solar systems — and prints DPS / TTK / energy-per-DPS / augment-folded effective DPS / loot-pool roster shifts. |
+| `/content-audit`     | Pre-commit invariants the unit tests don't cover: orphan refs (enemy / weapon / sprite / pod / loot-pool / mission system / story trigger), missing sprite generators, perk drop-weight sanity, mission prereq DAG, story integrity (voice + music files exist, trigger refs resolve), and storyTriggers helper coverage. Run it before opening a pull request. |
 
 ### How much does this save?
 
@@ -241,21 +241,25 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 
 | Skill                | Saved per use | Estimated uses per year | Total tokens saved |
 | -------------------- | ------------: | ----------------------: | -----------------: |
-| `/balance-review`    |        ~11.3K |                      50 |              ~565K |
-| `/content-audit`     |        ~12.8K |                      50 |              ~640K |
-| `/new-mission`       |         ~7.4K |                      30 |              ~222K |
-| `/new-enemy`         |         ~4.9K |                      25 |              ~123K |
-| `/new-perk`          |         ~8.5K |                      10 |               ~85K |
+| `/balance-review`    |       ~13.5K³ |                      50 |              ~675K |
+| `/content-audit`     |       ~15.0K³ |                      50 |              ~750K |
+| `/new-mission`       |         ~8.0K |                      30 |              ~240K |
+| `/new-enemy`         |         ~5.5K |                      25 |              ~138K |
+| `/new-perk`          |         ~9.0K |                      10 |               ~90K |
 | `/equipment`         |  ~4.3K (avg)¹ |                      56 |              ~240K |
-| `/new-solar-system`  |         ~9.7K |                       5 |               ~49K |
+| `/new-solar-system`  |        ~10.0K |                       5 |               ~50K |
 | `/new-story`         |  ~5.4K (avg)² |                      40 |              ~216K |
-| **Total**            |               |             **266 uses** | **~2.15M tokens** |
+| **Total**            |               |             **266 uses** | **~2.40M tokens** |
 
 ¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year. The 240K total is more honest than the average per-use number suggests, because the high-stakes removal path also avoids a separate "fix-up commit" round-trip.
 
 ² `/new-story` covers full CRUD: CREATE (cinematic intros and voice-only briefings), MODIFY (text edits, audio re-records, trigger changes), and REMOVE (with a hard-coded-reference cleanup table). Estimated mix per year: ~4 cinematic intros (saves ~11K each), ~12 mission/shop briefings (~6K each), ~15 text rewrites (~4K each), ~6 audio re-records (~4K each), ~2 trigger reroutes (~4K each), ~1 removal (~8K — the cleanup table catches the `storyLogAudio.ts` hard-coded music path that an unaided grep misses). The 216K total absorbs the post-audit improvements from late April 2026 — a re-audit caught two real drifts (a missing trigger kind and an undocumented hard-coded reference) that an agent following the stale skill would have shipped as bugs, so the per-use figure also reflects avoided fix-up commits.
 
+³ `/balance-review` and `/content-audit` are the two utility skills that grew the most after the April 2026 quarterly audit. `/balance-review` was extended from "weapons + enemies + waves + missions + perks" coverage to also include augments, loot pools, weapon families, gravity ballistics, and solar systems — bigger surface area means each invocation now catches roughly 2K more tokens of analysis the agent would otherwise have to derive (and, on the high end, prevents a class of "JSON tweak that silently moved the credit cap" that wasn't even on the previous radar). `/content-audit` gained four new audit steps (story integrity, storyTriggers helper coverage, loot-pool integrity, mission `solarSystemId` orphan check) plus a refreshed sprite-key enumeration; per-use savings up by similar magnitude, and the skill now catches the kind of orphan reference that took a separate audit pass to find. The annual frequency stayed at 50 each because both still fire once per JSON-touching commit.
+
 The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
+
+**The savings figures grow with the codebase, not just with usage.** Each new field, file, or invariant that lands without a corresponding skill update is a future failure mode the skill prevents — but only if the skill is kept current. The April 2026 audit found that two utility skills had drifted to ~5/10 accuracy because the codebase had grown shapes (augments, loot pools, story integrity) that the skills never knew about; once patched, the savings table jumped from ~2.15M to ~2.40M tokens/year. So the table at the bottom is real money, but only if you keep the skills in lockstep with the data shapes — figure on a quarterly re-audit pass per skill, plus an immediate update when any catalog file gains a new field.
 
 The savings get bigger over time: every time the project's data shape evolves (a new field on weapons, a new mission attribute, etc.), the skill instructions are updated once, and every future agent gets the new pattern for free instead of having to discover it by grepping. Without skills, an agent asked to "remove this weapon from the game" today would need to read at least eight files (`weapons.json`, `types/game.ts`, `save.ts`, `ShipConfig.ts`, `persistence.ts`, `DropController.ts`, `lootPools.ts`, `ShipConfig.test.ts`) and probably still miss one of the hard-coded references — leaving the player stuck with a broken default loadout, or breaking the in-mission upgrade ladder so a critical pickup never appears. With the skill, the agent loads one recipe that names the exact files to clean and the exact line in each, and the test suite catches anything missed.
 
