@@ -14,6 +14,7 @@ import StoryModal from "@/components/story/StoryModal";
 import StoryListModal from "@/components/story/StoryListModal";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
+import { allowPlayback } from "@/game/audio/playbackGate";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
@@ -213,7 +214,7 @@ export default function GameCanvas() {
   const ready = isVerified && saveLoaded && sceneReady;
 
   return (
-    <SplashGate ready={ready} splash={<Splash steps={splashSteps} />}>
+    <SplashGate ready={ready} splash={<Splash steps={splashSteps} />} onDismiss={allowPlayback}>
     <div className="relative h-dvh w-dvw overflow-hidden bg-space-bg">
       {mode === "galaxy" && <canvas ref={galaxyCanvasRef} className="block h-full w-full" />}
       {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
