@@ -82,7 +82,7 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
    - `{ kind: "first-time" }` — first galaxy load. Firing loop picks the FIRST unseen `first-time` entry; ship at most one usefully.
    - `{ kind: "on-mission-select", missionId }` — fires once when the mission card opens; gated on `unlockedPlanets`.
    - `{ kind: "on-shop-open" }` — fires every time the player lands on `/shop` (any shop); audio replays unconditionally, seen-set marks once.
-   - `{ kind: "on-system-enter", systemId }` — fires once on first warp into the system. Pairs with `mode: "modal"` + custom music.
+   - `{ kind: "on-system-enter", systemId, repeatable? }` — fires on first warp into the system. Pairs with `mode: "modal"` + custom music. Optional `repeatable: true` re-fires the cinematic every time the player transitions into the system (in-session `autoFired` still gates so it can't loop while idle in-system); leave unset / false for once-ever default. Shipping `repeatable: true` to players means they re-watch the chapter on every warp — fine for short beats, tedious for 30s+ chapters.
    - `{ kind: "on-system-cleared-idle", systemId, initialDelayMs, intervalMs }` — repeats while idling in fully-cleared system; cancels on shop / Story log / story modal / system warp.
    - Anything else → STOP (see boundary).
 9. `mode`:
@@ -135,7 +135,7 @@ autoTrigger: {
 ```
 `logSummary`: what was won, reflection, hook to next system.
 
-**E. System-entry chapter cinematic (`on-system-enter`, modal, music + voice)** — same shape as A but `autoTrigger: { kind: "on-system-enter", systemId: "<solarSystemId>" }`. Today's example: `tubernovae-cluster-intro`.
+**E. System-entry chapter cinematic (`on-system-enter`, modal, music + voice)** — same shape as A but `autoTrigger: { kind: "on-system-enter", systemId: "<solarSystemId>" }`. Add `repeatable: true` to the trigger to re-fire on every system entry (default: once-ever). Today's example: `tubernovae-cluster-intro` (currently ships repeatable for chapter-replayability — flip to false / drop the field for short beats players shouldn't re-watch).
 
 **F. Replay-only / lore drop (`null`, modal)** — `autoTrigger: null`. See caveat in input #8.
 
