@@ -56,17 +56,25 @@ describe("selectOnSystemEnterEntry", () => {
     ).toBeNull();
   });
 
-  it("returns null when the entry is in the seen-set (existing players)", () => {
+  it("repeatable entries fire even when in the seen-set (every-entry mode)", () => {
+    // tubernovae-cluster-intro is configured `repeatable: true`, which
+    // means the QA-friendly behavior of firing every time the player
+    // transitions into the system regardless of save state. If you flip
+    // that flag back to false (or delete it), this test becomes the
+    // mirror image of the existing-players one.
     expect(
       selectOnSystemEnterEntry(
         "tubernovae",
         new Set(["tubernovae-cluster-intro"]),
         empty<StoryId>()
-      )
-    ).toBeNull();
+      )?.id
+    ).toBe("tubernovae-cluster-intro");
   });
 
   it("returns null when the entry has already auto-fired this session", () => {
+    // Even with repeatable=true, autoFired blocks within the same
+    // residency in the system. The hook clears autoFired on system
+    // transition so re-entering re-fires.
     expect(
       selectOnSystemEnterEntry(
         "tubernovae",

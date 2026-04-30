@@ -28,13 +28,19 @@ export function selectOnSystemEnterEntry(
   autoFired: ReadonlySet<StoryId>
 ): StoryEntry | null {
   return (
-    STORY_ENTRIES.find(
-      (e) =>
-        e.autoTrigger?.kind === "on-system-enter" &&
-        e.autoTrigger.systemId === systemId &&
-        !seen.has(e.id) &&
-        !autoFired.has(e.id)
-    ) ?? null
+    STORY_ENTRIES.find((e) => {
+      const t = e.autoTrigger;
+      if (t?.kind !== "on-system-enter") return false;
+      if (t.systemId !== systemId) return false;
+      if (autoFired.has(e.id)) return false;
+      // Repeatable entries fire on every transition, so they bypass the
+      // saved seen-set. The autoFired ref above still prevents double-fire
+      // within the same residency in the system; the hook is responsible
+      // for clearing the entry from autoFired when the player leaves and
+      // re-enters.
+      if (t.repeatable) return true;
+      return !seen.has(e.id);
+    }) ?? null
   );
 }
 

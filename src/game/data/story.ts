@@ -14,9 +14,15 @@ import type { MissionId, SolarSystemId } from "@/types/game";
 //                                                   quest card is opened
 //   { kind: "on-shop-open" }                      — fires every time the player lands
 //                                                   on /shop (seen-mark is once-only)
-//   { kind: "on-system-enter", systemId: ... }   — fires once the first time the
-//                                                   player's currentSolarSystemId
-//                                                   becomes the named system
+//   { kind: "on-system-enter", systemId: ..., repeatable?: ... }
+//                                                — fires when the player's
+//                                                  currentSolarSystemId becomes the
+//                                                  named system. Default behavior is
+//                                                  once-ever (gated by the seen-set);
+//                                                  set `repeatable: true` to fire on
+//                                                  every transition into the system
+//                                                  (useful for QA / cinematic
+//                                                  validation without resetting saves).
 //   { kind: "on-system-cleared-idle", systemId: ..., initialDelayMs: ..., intervalMs: ... }
 //                                                — fires repeatedly while the player idles in
 //                                                  the galaxy view of the named system AND
@@ -47,7 +53,13 @@ export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
   | { readonly kind: "on-mission-select"; readonly missionId: MissionId }
   | { readonly kind: "on-shop-open" }
-  | { readonly kind: "on-system-enter"; readonly systemId: SolarSystemId }
+  | {
+      readonly kind: "on-system-enter";
+      readonly systemId: SolarSystemId;
+      // When true, fires every time the player transitions into the system.
+      // When omitted/false, fires once ever (gated by `seenStoryEntries`).
+      readonly repeatable?: boolean;
+    }
   | {
       readonly kind: "on-system-cleared-idle";
       readonly systemId: SolarSystemId;
@@ -200,7 +212,7 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     musicTrack: "/audio/story/tubernovae-cluster-intro-music.ogg",
     voiceTrack: "/audio/story/tubernovae-cluster-intro-voice.mp3",
     voiceDelayMs: 3000,
-    autoTrigger: { kind: "on-system-enter", systemId: "tubernovae" },
+    autoTrigger: { kind: "on-system-enter", systemId: "tubernovae", repeatable: true },
     mode: "modal"
   }
 ];
