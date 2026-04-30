@@ -12,6 +12,11 @@ import type { MissionId, SolarSystemId } from "@/types/game";
 //   { kind: "first-time" }                       — fires once on first galaxy load
 //   { kind: "on-mission-select", missionId: ... } — fires once when that mission's
 //                                                   quest card is opened
+//   { kind: "on-shop-open" }                      — fires every time the player lands
+//                                                   on /shop (seen-mark is once-only)
+//   { kind: "on-system-enter", systemId: ... }   — fires once the first time the
+//                                                   player's currentSolarSystemId
+//                                                   becomes the named system
 //   { kind: "on-system-cleared-idle", systemId: ..., initialDelayMs: ..., intervalMs: ... }
 //                                                — fires repeatedly while the player idles in
 //                                                  the galaxy view of the named system AND
@@ -35,12 +40,14 @@ export type StoryId =
   | "yamsteroid-belt-arrival"
   | "dreadfruit-arrival"
   | "market-arrival"
-  | "sol-spudensis-cleared";
+  | "sol-spudensis-cleared"
+  | "tubernovae-cluster-intro";
 
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
   | { readonly kind: "on-mission-select"; readonly missionId: MissionId }
   | { readonly kind: "on-shop-open" }
+  | { readonly kind: "on-system-enter"; readonly systemId: SolarSystemId }
   | {
       readonly kind: "on-system-cleared-idle";
       readonly systemId: SolarSystemId;
@@ -163,6 +170,25 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     voiceDelayMs: 0,
     autoTrigger: { kind: "on-system-cleared-idle", systemId: "tutorial", initialDelayMs: 5000, intervalMs: 30000 },
     mode: "overlay"
+  },
+  {
+    id: "tubernovae-cluster-intro",
+    title: "The Tubernovae Cluster",
+    body: [
+      "You've crossed the dark between systems. Welcome to the Tubernovae Cluster — a graveyard of dying stars, glowing red as embers, ringed with pirate-held outposts that don't take kindly to strangers.",
+      "Word has travelled, dear. They know what you did at Dreadfruit. They've had time to prepare. The bugs that nest out here are older, meaner, and very interested in the potato that crossed half a galaxy to find them.",
+      "Eat your vitamins. This part of the war does not forgive."
+    ],
+    logSummary: [
+      "The Tubernovae Cluster is what's left when stars run out of fuel — a loose huddle of swollen red giants and cooling ember-husks, lit in shades of bruise and rust. Long-haul tuber freighters used to skirt the edge of it on their way to deeper colonies. Then the freighters stopped coming back.",
+      "What moved in is a coalition of pirate cartels who bolted habitats onto cooled magma and called it home, and a strain of bug that decided dying suns made a fine place to hatch. The two sides mostly leave each other alone. They will not leave you alone. Word from Sol Spudensis travels at the speed of swarm-chatter, and your reputation precedes you in ways that are mostly unflattering.",
+      "Mission Control has flagged three priority targets out here: a hijacked Pirate Beacon, an Ember Run threading dying stars, and a Burnt Spud crowned by a Monarch Caterpillar that refuses to die. None of them are warm-up runs. Bring the loadout you trust and the patience you don't have."
+    ],
+    musicTrack: "/audio/story/great-potato-awakening-music.ogg",
+    voiceTrack: "/audio/story/tubernovae-cluster-intro-voice.mp3",
+    voiceDelayMs: 3000,
+    autoTrigger: { kind: "on-system-enter", systemId: "tubernovae" },
+    mode: "modal"
   }
 ];
 

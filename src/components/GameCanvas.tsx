@@ -105,6 +105,36 @@ export default function GameCanvas() {
     }
   }, [saveLoaded, mode, seenStoryEntries, activeStory]);
 
+  // System-enter auto-fire: opens the chapter cinematic the first time the
+  // player's currentSolarSystemId becomes the entry's systemId. Modal-mode
+  // entries route through setActiveStory so StoryModal owns the audio +
+  // mark-seen handshake; overlay-mode entries play voice over the menu bed
+  // directly (parity with on-system-cleared-idle).
+  useEffect(() => {
+    if (!saveLoaded || mode !== "galaxy" || activeStory || storyListOpen) return;
+    const seen = new Set(seenStoryEntries);
+    const next = STORY_ENTRIES.find(
+      (e) =>
+        e.autoTrigger?.kind === "on-system-enter" &&
+        e.autoTrigger.systemId === currentSolarSystemId &&
+        !seen.has(e.id) &&
+        !autoFiredRef.current.has(e.id)
+    );
+    if (!next) return;
+    autoFiredRef.current.add(next.id);
+    if (next.mode === "modal") {
+      setActiveStory({ id: next.id, firstSeen: true, fromLog: false });
+    } else {
+      storyAudio.play({
+        musicSrc: next.musicTrack,
+        voiceSrc: next.voiceTrack,
+        voiceDelayMs: next.voiceDelayMs
+      });
+      markStorySeen(next.id);
+      void saveNow();
+    }
+  }, [saveLoaded, mode, activeStory, storyListOpen, currentSolarSystemId, seenStoryEntries]);
+
   const handleMarkStorySeen = useCallback(() => {
     if (!activeStory) return;
     markStorySeen(activeStory.id);
