@@ -248,12 +248,12 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 | `/new-perk`          |         ~8.5K |                      10 |               ~85K |
 | `/equipment`         |  ~4.3K (avg)¹ |                      56 |              ~240K |
 | `/new-solar-system`  |         ~9.7K |                       5 |               ~49K |
-| `/new-story`         |  ~4.0K (avg)² |                      25 |              ~100K |
-| **Total**            |               |             **251 uses** | **~2.03M tokens** |
+| `/new-story`         |  ~5.4K (avg)² |                      40 |              ~216K |
+| **Total**            |               |             **266 uses** | **~2.15M tokens** |
 
 ¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year. The 240K total is more honest than the average per-use number suggests, because the high-stakes removal path also avoids a separate "fix-up commit" round-trip.
 
-² `/new-story` was a CREATE-only skill before; it now also covers MODIFY (text-only edits, audio re-records, trigger changes) and REMOVE (with the same hard-coded-reference cleanup pattern as `/equipment`, plus a save-format safety note that the persistence layer drops unknown story ids on hydrate). The 4.0K average covers a mix of ~10 new entries, ~10 text edits (body or `logSummary` rewrites), ~4 audio re-records, and ~1 removal per year. Per-use savings range from ~0 tokens (a one-field text tweak) to ~6K (a fresh story creation with both audio assets) to ~5K (a removal where the cleanup table keeps the route.test.ts fixture from breaking).
+² `/new-story` covers full CRUD: CREATE (cinematic intros and voice-only briefings), MODIFY (text edits, audio re-records, trigger changes), and REMOVE (with a hard-coded-reference cleanup table). Estimated mix per year: ~4 cinematic intros (saves ~11K each), ~12 mission/shop briefings (~6K each), ~15 text rewrites (~4K each), ~6 audio re-records (~4K each), ~2 trigger reroutes (~4K each), ~1 removal (~8K — the cleanup table catches the `storyLogAudio.ts` hard-coded music path that an unaided grep misses). The 216K total absorbs the post-audit improvements from late April 2026 — a re-audit caught two real drifts (a missing trigger kind and an undocumented hard-coded reference) that an agent following the stale skill would have shipped as bugs, so the per-use figure also reflects avoided fix-up commits.
 
 The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
 
