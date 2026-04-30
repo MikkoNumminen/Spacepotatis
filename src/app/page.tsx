@@ -37,7 +37,7 @@ export default function Home() {
             </p>
           </div>
 
-          <nav className="flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:max-w-none sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <nav className="flex w-full max-w-xs flex-col items-stretch gap-3 rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <PlayButton />
             <Link
               href={ROUTES.page.leaderboard}
@@ -45,9 +45,7 @@ export default function Home() {
             >
               Leaderboard
             </Link>
-            <div className="pt-2">
-              <SignInButton />
-            </div>
+            <SignInButton />
           </nav>
         </main>
       </LandingShell>

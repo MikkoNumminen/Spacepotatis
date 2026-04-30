@@ -82,10 +82,10 @@ export default function PlayButton() {
   // branch — the cached snapshot already tells us which label is correct.
   if (firstVisit) {
     return (
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex w-full flex-col items-stretch gap-2">
         <a
           href={ROUTES.page.play}
-          className="rounded border border-space-border px-8 py-3 font-display tracking-widest text-space-border"
+          className="flex h-12 items-center justify-center rounded border border-space-border px-8 font-display tracking-widest text-space-border"
           aria-busy="true"
         >
           PLAY
@@ -98,7 +98,7 @@ export default function PlayButton() {
   const showGuestWarning = status === "unauthenticated";
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex w-full flex-col items-stretch gap-2">
       <a
         href={ROUTES.page.play}
         onClick={handleClick}
@@ -107,7 +107,7 @@ export default function PlayButton() {
         {label}
       </a>
       {showGuestWarning && (
-        <span className="text-[11px] text-hud-amber/70">
+        <span className="text-center text-[11px] text-hud-amber/70">
           Playing as guest — progress won&apos;t be saved.
         </span>
       )}

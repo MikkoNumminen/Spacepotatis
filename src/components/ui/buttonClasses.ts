@@ -21,11 +21,14 @@
 
 const SHARED_HOVER = "hover:bg-hud-green/20 active:bg-hud-green/30";
 const SHARED_TOUCH = "touch-manipulation select-none";
+// Landing-page nav buttons share a fixed h-12 flex box so PLAY/CONTINUE,
+// Leaderboard, and the sign-in/out chip line up at the same height even
+// though they use different text sizes (base vs. sm). Width fills the
+// parent nav (items-stretch + max-w-xs).
+const SHARED_LANDING_BOX = "flex h-12 items-center justify-center px-8";
 
-export const BUTTON_PRIMARY = `${SHARED_TOUCH} rounded border border-hud-green/60 px-8 py-3 font-display tracking-widest ${SHARED_HOVER}`;
+export const BUTTON_PRIMARY = `${SHARED_TOUCH} ${SHARED_LANDING_BOX} rounded border border-hud-green/60 font-display tracking-widest ${SHARED_HOVER}`;
 
-export const BUTTON_NAV = `${SHARED_TOUCH} rounded border border-space-border px-8 py-2 text-sm text-hud-green/80 ${SHARED_HOVER}`;
-
-export const BUTTON_NAV_COMPACT = `${SHARED_TOUCH} rounded border border-hud-green/60 px-3 py-1.5 text-xs ${SHARED_HOVER}`;
+export const BUTTON_NAV = `${SHARED_TOUCH} ${SHARED_LANDING_BOX} rounded border border-space-border text-sm text-hud-green/80 ${SHARED_HOVER}`;
 
 export const BUTTON_BACK = `${SHARED_TOUCH} rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 ${SHARED_HOVER}`;

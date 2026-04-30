@@ -29,7 +29,7 @@ export default function StoryListModal({
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-sm sm:p-6">
-      <div className="relative w-[min(28rem,100%)] rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] sm:p-6">
+      <div className="relative max-h-[90vh] w-[min(34rem,100%)] overflow-y-auto rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] sm:p-6">
         <button
           type="button"
           onClick={onClose}
@@ -40,7 +40,7 @@ export default function StoryListModal({
         <div className="text-center font-display text-base tracking-widest text-hud-amber">
           STORY LOG
         </div>
-        <div className="mt-6 space-y-2">
+        <div className="mt-6 space-y-3">
           {visible.length === 0 ? (
             <p className="text-center text-xs text-hud-green/50">
               No story entries unlocked yet.
@@ -49,16 +49,28 @@ export default function StoryListModal({
             visible.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-center justify-between gap-3 rounded border border-hud-amber/30 bg-space-bg/40 px-3 py-2"
+                className="rounded border border-hud-amber/30 bg-space-bg/40 px-3 py-3"
               >
-                <div className="text-sm text-hud-green/90">{entry.title}</div>
-                <button
-                  type="button"
-                  onClick={() => onReplay(entry.id)}
-                  className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
-                >
-                  REPLAY
-                </button>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-hud-green/90">{entry.title}</div>
+                  <button
+                    type="button"
+                    onClick={() => onReplay(entry.id)}
+                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
+                  >
+                    REPLAY
+                  </button>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {entry.logSummary.map((paragraph, i) => (
+                    <p
+                      key={i}
+                      className="text-xs leading-relaxed text-hud-green/70"
+                    >
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
               </div>
             ))
           )}
