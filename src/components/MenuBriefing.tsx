@@ -17,18 +17,14 @@ export default function MenuBriefing() {
     const firstNudge = isContinue
       ? "/audio/menu/ui_idle_continue_nudge.mp3"
       : "/audio/menu/ui_idle_play_nudge.mp3";
-    const sharedNudge = "/audio/menu/ui_idle_continue_nudge.mp3";
 
-    // For PLAY users the first two items are play_nudge → continue_nudge.
-    // For CONTINUE users they would both be continue_nudge — drop the
-    // duplicate so the player isn't hearing the same line twice in a row.
-    // 6s lead-in before the first nudge so the player has a moment to
-    // breathe in the menu before Grandma starts talking.
+    // One label-matched nudge, then the shared warnings + lecture. We
+    // intentionally do NOT chain a second nudge — for PLAY users that
+    // second slot was previously continue_nudge, which contradicted the
+    // visible PLAY button and read as a bug. 6s lead-in so the player
+    // has a moment to settle before Grandma starts talking.
     const queue: readonly MenuBriefingItem[] = [
       { src: firstNudge, gapBeforeMs: 6000 },
-      ...(firstNudge === sharedNudge
-        ? []
-        : [{ src: sharedNudge, gapBeforeMs: 5000 } satisfies MenuBriefingItem]),
       { src: "/audio/menu/ui_idle_final_warning.mp3", gapBeforeMs: 5000 },
       { src: "/audio/menu/ui_idle_surrender.mp3", gapBeforeMs: 5000 },
       { src: "/audio/menu/system-briefing.mp3", gapBeforeMs: 0 }

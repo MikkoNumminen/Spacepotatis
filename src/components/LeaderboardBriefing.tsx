@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { leaderboardAudio } from "@/game/audio/leaderboardAudio";
 
-const LEAD_IN_MS = 6000;
+const LEAD_IN_MS = 5000;
 
 // Mounts on the Leaderboard page and schedules the "Hall of Mediocrity"
 // voice cue 6s after page entry. Cancels cleanly on unmount so a quick

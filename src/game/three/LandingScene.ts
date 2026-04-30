@@ -63,6 +63,7 @@ export class LandingScene {
       0.1,
       1000
     );
+    this.applyViewOffset();
 
     // Hide the floating name labels; they'd compete with the SPACEPOTATIS
     // wordmark and tagline.
@@ -121,7 +122,25 @@ export class LandingScene {
     const h = this.canvas.clientHeight;
     this.rig.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    this.applyViewOffset();
     this.camera.updateProjectionMatrix();
+  }
+
+  // Off-axis projection so the scene origin (sun) renders LEFT of screen
+  // center instead of dead center. The SPACEPOTATIS title + button column
+  // sit in the centered content area; without this offset the sun's bright
+  // glow + the silhouettes of the inner planets passing through it wash
+  // out the central column on every load. setViewOffset is the cleanest
+  // tool for this — it shifts the projection in screen-space so the sun
+  // stays at a fixed off-center position regardless of where the camera
+  // is along its orbit.
+  private applyViewOffset(): void {
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    // Shift the rendered viewport's origin RIGHT by 22% of canvas width,
+    // which moves the scene center LEFT on screen. The buttons get a clear
+    // backdrop; the sun lives in the left third instead of dead-center.
+    this.camera.setViewOffset(w, h, w * 0.22, 0, w, h);
   }
 
   private handleVisibility(): void {
