@@ -42,7 +42,7 @@ Ask once, in a single message, for any missing fields:
 5. **Add tests** to `src/game/data/data.test.ts` if missing: every system has a unique `id`, every id used by a `MissionDefinition.solarSystemId` resolves to a real system. (These are likely already present — verify before adding.)
 6. **Mission-binding TODO list.** This skill does NOT create missions. After it lands, tell the user: "Run `/new-mission` for each planet you want in `<systemId>`, with `solarSystemId: \"<systemId>\"`." Until at least one mission targets the new system, `GalaxyScene` will render an empty starfield when the player warps to it.
 7. **Run** `npm run typecheck && npm test` and fix any failures. The most common failure is forgetting to extend `SolarSystemId` after editing `solarSystems.json`.
-8. **Report back** the new system id, the files modified, the unlock condition, and the "now run `/new-mission` for these planets" reminder.
+8. **Report back** the new system id, the files modified, the unlock condition, and the "now run `/new-mission` for these planets" reminder. Also suggest running `/new-story` for an `on-system-enter` chapter cinematic (Template E) and an `on-system-cleared-idle` close (Template D) for the new system, mirroring the tubernovae pattern (`tubernovae-cluster-intro` + `sol-spudensis-cleared`). The `/new-story` skill's adjacent-asks list already routes back here, so this completes the cross-skill chain.
 
 # Invariants this skill enforces
 - `solarSystems.json` is valid JSON with the exact six-field shape above.
@@ -68,3 +68,4 @@ Does NOT touch:
 - `src/game/three/Sun.ts` — sun appearance is data-driven from `solarSystems.json` already.
 - `src/components/GameCanvas.tsx` — the warp picker (`WarpPicker`) iterates `getAllSolarSystems()` filtered to `unlockedSolarSystems`; no UI wiring needed.
 - `src/game/data/missions.json` — adding a system without missions is fine. Use `/new-mission` to populate.
+- `src/game/data/lootPools.ts` / `src/components/ShopUI.tsx` — weapon-family availability for the new system's shop and loot drops is configured by the system's entry in `lootPools.ts` (the `weapons` array) and the `family` field on entries in `weapons.json`. Adding a new system inherits the default (all families allowed unless gated). If the new system should feature carrots, turnips, or potatoes specifically — or any other family-level gating — that's `/equipment` work, not this skill.

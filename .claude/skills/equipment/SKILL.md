@@ -283,11 +283,14 @@ REMOVE is the most dangerous operation because the codebase has hard-coded refer
 
 | File | What it references | What breaks if you remove |
 |---|---|---|
-| [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) `DEFAULT_SHIP` | `"rapid-fire"` | New player has no weapons; `ShipConfig.test.ts` fails |
-| [src/game/state/persistence.ts](src/game/state/persistence.ts) `migrateShip` fallback | `"rapid-fire"` | Corrupted save → permanently weaponless player |
+| [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) `DEFAULT_SHIP` | `"rapid-fire"` (line 71) | New player has no weapons; `ShipConfig.test.ts` fails |
+| [src/game/state/persistence.ts](src/game/state/persistence.ts) `migrateShip` fallback | `newWeaponInstance("rapid-fire")` at BOTH line 333 AND line 386 (two fallback sites — the legacy-shape rebuild and the modern-shape rebuild). Forgetting either leaves a partially-broken hydrate path. | Corrupted save → permanently weaponless player |
 | [src/game/phaser/scenes/combat/DropController.ts](src/game/phaser/scenes/combat/DropController.ts) `nextWeaponUpgrade()` | `"rapid-fire"`, `"spread-shot"`, `"heavy-cannon"` | Mid-mission upgrade ladder skips a rung |
 | [src/game/data/lootPools.ts](src/game/data/lootPools.ts) | spread-shot, heavy-cannon, spud-missile, tater-net (tutorial system); tail-gunner, side-spitter, plasma-whip, hailstorm (tubernovae) | Removed weapon stops appearing as a mission drop |
-| [src/game/state/ShipConfig.test.ts](src/game/state/ShipConfig.test.ts) | `"rapid-fire"` (asserts DEFAULT_SHIP starts with it) | Test fails |
+| [src/game/state/ShipConfig.test.ts](src/game/state/ShipConfig.test.ts) | `"rapid-fire"` at line 29 (asserts DEFAULT_SHIP starts with it), plus `spread-shot` / `heavy-cannon` literals throughout the slot/inventory assertions | Test fails |
+| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | Extensive weapon-id literals: `rapid-fire`, `spread-shot`, `heavy-cannon`, `tail-gunner`, `side-spitter` (used to assert slot/inventory shape and migration behavior) | Tests fail at every assertion that names the removed id |
+| [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `spud-missile`, `tater-net` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
+| [src/game/state/sync.test.ts](src/game/state/sync.test.ts) | `rapid-fire` (lines ~71, ~123 — round-trip save fixtures) | Sync round-trip tests fail |
 
 ## Save-format safety net (REMOVE-friendly behavior already wired)
 
@@ -326,7 +329,7 @@ Augment removal is simpler than weapon removal because there are NO hard-coded a
 - Every hard-coded reference in the table above is updated or deleted.
 - `DEFAULT_SHIP.slots[0].id` resolves to a known WeaponId after the change.
 - `migrateShip`'s fallback weapon resolves to a known WeaponId.
-- `ShipConfig.test.ts:29` is updated to whatever the new starter weapon is.
+- `ShipConfig.test.ts:29` is updated to whatever the new starter weapon is. The other test files in the REMOVE table (`GameState.test.ts`, `rewards.test.ts`, `sync.test.ts`) only need editing if the removed weapon's id appears as an assertion target — `grep -rn '"<id>"' src/game/state/*.test.ts` first.
 
 # Files this skill modifies / never touches
 
