@@ -48,6 +48,6 @@ Conditionally:
 - `src/game/phaser/systems/WeaponSystem.ts` or `weaponMath.ts` — weapon-scoped modifier.
 
 Never:
-- `src/components/HUD.tsx` — stub; perk chips are Phaser-side via `CombatHud.refreshPerkChips()`.
+- No React HUD component — perk chips are Phaser-side via `CombatHud.refreshPerkChips()`.
 - `src/game/state/GameState.ts` / `ShipConfig.ts` — perks are mission-only.
 - `src/game/phaser/entities/PowerUp.ts` — generic; reads `PERKS[id].textureKey` automatically.
