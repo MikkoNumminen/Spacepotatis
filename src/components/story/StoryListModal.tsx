@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { STORY_ENTRIES, type StoryId } from "@/game/data/story";
+import { BUTTON_BACK } from "../ui/buttonClasses";
 
 // Lists every narrative beat the player has unlocked so they can replay
 // the cinematic from the user menu. Entries the player hasn't yet seen are
@@ -32,7 +33,7 @@ export default function StoryListModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute left-3 top-3 z-10 min-h-[44px] touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20"
+          className={`absolute left-3 top-3 z-10 min-h-[44px] ${BUTTON_BACK}`}
         >
           ← Back
         </button>

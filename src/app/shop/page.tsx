@@ -1,6 +1,7 @@
 import Link from "next/link";
 import LoadoutMenu from "@/components/LoadoutMenu";
 import ShopUI from "@/components/ShopUI";
+import { BUTTON_BACK } from "@/components/ui/buttonClasses";
 import { ROUTES } from "@/lib/routes";
 
 // Shop page — static shell; the ShopUI client component reads/writes
@@ -13,7 +14,7 @@ export default function ShopPage() {
       <header className="flex flex-wrap items-center gap-4 sm:gap-5">
         <Link
           href={ROUTES.page.play}
-          className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20"
+          className={BUTTON_BACK}
         >
           ← Back
         </Link>

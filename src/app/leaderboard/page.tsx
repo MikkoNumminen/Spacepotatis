@@ -3,6 +3,7 @@ import { getCombatMissions } from "@/game/data/missions";
 import Leaderboard from "@/components/Leaderboard";
 import LeaderboardBriefing from "@/components/LeaderboardBriefing";
 import TopPilots from "@/components/TopPilots";
+import { BUTTON_BACK } from "@/components/ui/buttonClasses";
 import { ROUTES } from "@/lib/routes";
 
 // ISR: re-render at most every 60s. Each render goes through the cached
@@ -19,7 +20,7 @@ export default function LeaderboardPage() {
       <header className="flex flex-wrap items-center gap-4 sm:gap-5">
         <Link
           href={ROUTES.page.home}
-          className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20"
+          className={BUTTON_BACK}
         >
           ← Back
         </Link>

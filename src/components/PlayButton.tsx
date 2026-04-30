@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import HandlePrompt from "./HandlePrompt";
+import { BUTTON_PRIMARY } from "./ui/buttonClasses";
 import { menuBriefingAudio } from "@/game/audio/menuBriefingAudio";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -101,7 +102,7 @@ export default function PlayButton() {
       <a
         href={ROUTES.page.play}
         onClick={handleClick}
-        className="rounded border border-hud-green/60 px-8 py-3 font-display tracking-widest hover:bg-hud-green/10"
+        className={BUTTON_PRIMARY}
       >
         {label}
       </a>

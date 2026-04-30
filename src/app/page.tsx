@@ -5,6 +5,7 @@ import MenuBriefing from "@/components/MenuBriefing";
 import MuteToggle from "@/components/MuteToggle";
 import PlayButton from "@/components/PlayButton";
 import SignInButton from "@/components/SignInButton";
+import { BUTTON_NAV } from "@/components/ui/buttonClasses";
 import { ROUTES } from "@/lib/routes";
 
 // Landing page. Static by design — the Three.js backdrop, sign-in button and
@@ -40,7 +41,7 @@ export default function Home() {
             <PlayButton />
             <Link
               href={ROUTES.page.leaderboard}
-              className="touch-manipulation select-none rounded border border-space-border px-8 py-2 text-sm text-hud-green/80 hover:bg-space-panel active:bg-space-panel/80"
+              className={BUTTON_NAV}
             >
               Leaderboard
             </Link>

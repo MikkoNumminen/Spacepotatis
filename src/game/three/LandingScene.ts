@@ -101,11 +101,20 @@ export class LandingScene {
   private update(dt: number): void {
     this.rig.starfield.update(dt);
     this.rig.sun.update(dt);
+    // Two-pass update so child-orbit bodies (orbitParentId, e.g. the Market
+    // station orbits the Spurdospärdersi planet) read their parent's
+    // up-to-date position rather than orbiting the sun. Mirrors the same
+    // pattern in GalaxyScene. Roots first, children second.
+    const boosted = dt * ORBIT_SPEED_BOOST;
     for (const planet of this.rig.planets) {
-      // Inline a temporarily boosted orbit by stepping with a scaled dt. The
-      // Planet class advances internally, so we feed it the boosted dt instead
-      // of mutating its private angle.
-      planet.update(dt * ORBIT_SPEED_BOOST);
+      if (planet.getDefinition().orbitParentId) continue;
+      planet.update(boosted);
+    }
+    for (const planet of this.rig.planets) {
+      const parentId = planet.getDefinition().orbitParentId;
+      if (!parentId) continue;
+      const parent = this.rig.planetsById.get(parentId);
+      planet.update(boosted, parent ? parent.object.position : null);
     }
     this.azimuth += (Math.PI * 2 * dt) / CAMERA_ORBIT_SECONDS;
     const sinPolar = Math.sin(CAMERA_POLAR);

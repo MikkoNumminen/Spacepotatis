@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { StoryEntry } from "@/game/data/story";
 import { storyAudio } from "@/game/audio/story";
+import { BUTTON_BACK } from "../ui/buttonClasses";
 
 // Cinematic story popup. Two presentation modes:
 //
@@ -77,7 +78,7 @@ export default function StoryModal({
           <button
             type="button"
             onClick={onClose}
-            className="absolute left-3 top-3 z-10 min-h-[44px] touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20"
+            className={`absolute left-3 top-3 z-10 min-h-[44px] ${BUTTON_BACK}`}
           >
             ← Back
           </button>

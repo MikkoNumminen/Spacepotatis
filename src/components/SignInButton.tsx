@@ -5,6 +5,7 @@ import { clearAuthCache } from "@/lib/authCache";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 import { clearHandleCache } from "@/lib/useHandle";
 import { clearLoadSaveCache } from "@/game/state/sync";
+import { BUTTON_NAV_COMPACT } from "./ui/buttonClasses";
 
 // Simple auth control used on the landing page. Shows the handle (never the
 // Google profile name) plus a sign-out affordance when authenticated, or a
@@ -47,13 +48,18 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
     );
   }
 
+  // Sign-in (unauthenticated) uses the shared NAV_COMPACT styling so the
+  // hover state matches the rest of the menu. Compact variant uses tighter
+  // padding for HUD bars; the default is the landing-page nav size.
   return (
     <button
       type="button"
       onClick={() => void signIn("google")}
-      className={`touch-manipulation select-none rounded border border-hud-green/60 ${
-        compact ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-xs"
-      } hover:bg-hud-green/10 active:bg-hud-green/20`}
+      className={
+        compact
+          ? "touch-manipulation select-none rounded border border-hud-green/60 px-2 py-1 text-xs hover:bg-space-panel active:bg-space-panel/80"
+          : BUTTON_NAV_COMPACT
+      }
     >
       Sign in with Google
     </button>
