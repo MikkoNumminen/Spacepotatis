@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MissionId } from "@/types/game";
 import type { SolarSystemId } from "@/types/game";
-import { type StoryId } from "@/game/data/story";
+import { STORY_ENTRIES, type StoryId } from "@/game/data/story";
 import {
   selectFirstTimeEntry,
   selectOnMissionSelectEntry,
@@ -90,12 +90,30 @@ export function useStoryTriggers({
     }
   }, [saveLoaded, enabled, seenStoryEntries, activeStory]);
 
-  // on-system-enter auto-fire — fires the chapter cinematic the first time
-  // the player's currentSolarSystemId becomes the entry's systemId. Modal
+  // on-system-enter auto-fire — fires the chapter cinematic when the
+  // player's currentSolarSystemId becomes the entry's systemId. Modal
   // entries route through setActiveStory; overlay entries play voice
   // directly over the menu bed (parity with cleared-idle).
+  //
+  // For non-repeatable entries the seen-set gates lifetime once-ever
+  // playback. For repeatable entries we additionally clear them from the
+  // autoFired ref every time the player transitions between systems — that
+  // way leaving and re-entering re-fires the cinematic without depending
+  // on save state.
+  const prevSystemRef = useRef<SolarSystemId | null>(null);
   useEffect(() => {
     if (!enabled || !saveLoaded || activeStory || storyListOpen) return;
+
+    if (prevSystemRef.current !== currentSolarSystemId) {
+      prevSystemRef.current = currentSolarSystemId;
+      for (const entry of STORY_ENTRIES) {
+        const t = entry.autoTrigger;
+        if (t?.kind === "on-system-enter" && t.repeatable) {
+          autoFiredRef.current.delete(entry.id);
+        }
+      }
+    }
+
     const next = selectOnSystemEnterEntry(
       currentSolarSystemId,
       new Set(seenStoryEntries),
