@@ -19,25 +19,34 @@ description: Add, modify, or remove story content — cinematic popups, voiceove
 ## Triggers — modification (text / audio / trigger)
 - "rewrite the X synopsis / body / log summary"
 - "edit the X cinematic", "tweak the X briefing", "punch up X"
-- "rerecord X's voice", "swap X's music", "replace the audio for X"
-- "make X auto-fire on Y instead of Z", "change when X fires"
-- "X's title should be …", "rename X to …"
+- "rerecord / regenerate / fix X's voice", "the X audio is glitchy / broken"
+- "swap X's music", "replace the audio for X"
+- "make X auto-fire on Y instead of Z", "change when X fires", "move the X briefing to fire on Y"
+- "X's title should be …", "rename X to …" (note: renaming the entry's `id` is REMOVE + CREATE — see REMOVE section)
 - "X feels too long / too short / too dry" (sentiment ask — still in scope; treat as a content edit)
-- "make the synopsis more extensive", "the log entry should say more about Y"
+- "make the synopsis more extensive / shorter / longer", "trim the X synopsis", "cut down X", "the log entry should say more about Y"
 
 ## Triggers — removal
 - "remove the X story", "delete the X cinematic", "drop X"
 - "rip out / kill / scrap / retire the X story"
+- "disable / mute / turn off the X voice / cinematic / briefing"
 - "we're not shipping X anymore"
-- "X is duplicate, get rid of one"
+- "X is duplicate / annoying / boring, get rid of one"
 
 If the request mentions any specific story id, the words `Story log / cinematic / voiceover / narration / chapter / lore / synopsis / log summary / briefing` alongside an action verb (`add / remove / change / edit / rewrite / tweak / rerecord / replace / scrap / rip out`), or a sentiment about an existing story feeling too X, invoke this skill.
 
 ## Boundary — do NOT use for
 - **Adjusting the cinematic UI itself** (modal styling, fade timing, panel width, button position) — those live in `src/components/story/StoryModal.tsx`, `src/components/story/StoryListModal.tsx`, and `src/game/audio/story.ts`. Code-edit ask, not a content task.
-- **Adding a genuinely NEW auto-trigger kind** (e.g. "after boss-1 cleared", "on first perk pickup", "when entering tubernovae system"). The `StoryAutoTrigger` union currently supports `null`, `first-time`, `on-mission-select`, `on-shop-open`, and `on-system-cleared-idle` — anything else requires a new variant in the union AND a matching firing site (a `useEffect` somewhere that scans `STORY_ENTRIES` for the new kind and calls `storyAudio.play` / opens the modal). That's a feature, not a content addition. STOP and flag.
-- **Restructuring `StoryEntry`** (adding a 6th trigger kind, splitting `body` from `logSummary` into something else, changing the audio engine semantics). STOP and flag.
+- **Adding a genuinely NEW auto-trigger kind** (e.g. "after boss-1 cleared", "on first perk pickup", "after a specific augment is installed"). The `StoryAutoTrigger` union currently supports `null`, `first-time`, `on-mission-select`, `on-shop-open`, `on-system-enter`, and `on-system-cleared-idle` — anything else requires a new variant in the union AND a matching firing site (a `useEffect` somewhere that scans `STORY_ENTRIES` for the new kind and calls `storyAudio.play` / opens the modal). That's a feature, not a content addition. STOP and flag.
+- **Restructuring `StoryEntry`** (adding a 7th trigger kind, splitting `body` from `logSummary` into something else, changing the audio engine semantics, moving `seenStoryEntries` per-character vs per-account). STOP and flag.
 - **Changing the master mute behaviour or the audio engine** in `src/game/audio/story.ts` / `music.ts`. Code-edit ask.
+- **DB schema or state-slice changes** (e.g. moving `seenStoryEntries` to per-character, adding a `seenAt` timestamp). Code-edit ask, not story content.
+
+## Adjacent asks (route here for the story portion)
+
+- **`/new-solar-system` was just run / a new system was added** → the new system probably wants an `on-system-enter` chapter-opening cinematic (Template E) and an `on-system-cleared-idle` close (Template D). Run `/new-solar-system` first for the system; then `/new-story` for each story beat.
+- **`/new-mission` was just run** → if the mission is a meaningful narrative beat, it may want an `on-mission-select` briefing (Template B). The mission goes through `/new-mission`; the briefing goes here.
+- **A new shop/market planet was added** → `on-shop-open` briefing (Template C). One per shop is the convention; the trigger today is shop-id-agnostic, so a second shop story would either replace the existing `market-arrival` or require extending the trigger union to take a `missionId`.
 
 # Audio shape — music is optional, voice is required
 
@@ -80,6 +89,7 @@ Every spoken line in the game is read by the **same** in-character narrator: **G
 | Auto-fire — first-time | `src/components/GameCanvas.tsx` `useEffect` scanning for unseen `first-time` |
 | Auto-fire — on-mission-select | `GameCanvas#handleMissionSelect` (gated on `unlockedPlanets`) |
 | Auto-fire — on-shop-open | `src/components/ShopUI.tsx` `useEffect` on mount |
+| Auto-fire — on-system-enter | `GameCanvas.tsx` `useEffect` watching `currentSolarSystemId` (fires once the first time the player warps into the named system, gated on the seen-set) |
 | Auto-fire — on-system-cleared-idle | `GameCanvas` idle ticker |
 | Persistence | `seenStoryEntries: StoryId[]` in `src/game/state/stateCore.ts`. Hydrate sanitises via `isKnownStoryId` — unknown ids drop silently. |
 | DB column | `seen_story_entries TEXT[]` (added in `db/migrations/20260429000000_add_seen_story_entries.sql`) — column already covers any number of ids, no migration needed for content adds/removes. |
@@ -97,11 +107,12 @@ Ask once, in a single message, for any missing fields:
 6. **Music asset** (OPTIONAL — omit for briefings) — local file path. Will be copied into `public/audio/story/<storyId>-music.ogg`. Prefer `.ogg`; `.mp3` is acceptable. Same < 500 KB budget. If the user does not hand you a music file, set `musicTrack: null` in the entry and skip the music copy step — DO NOT prompt them for a music file they don't have.
 7. `voiceDelayMs` — milliseconds to wait after `play()` before voice starts. Use `3000` for cinematic intros (lets the music bed establish mood). Use `0` for voice-only briefings. Default `3000` if the entry has music, `0` if it doesn't.
 8. `autoTrigger` — one of:
-   - `null` — replay-only via the Story log; never auto-fires.
-   - `{ kind: "first-time" }` — fires on the player's first galaxy-view load. Only ONE entry can usefully carry this; the firing loop picks the first unseen `first-time` entry.
-   - `{ kind: "on-mission-select", missionId: <MissionId> }` — fires once when the named mission's quest card is opened, gated on `unlockedPlanets` (locked "?" cards never fire).
+   - `null` — replay-only via the Story log; never auto-fires. Use for lore drops, post-hoc collectibles, or content authored ahead of its trigger wiring.
+   - `{ kind: "first-time" }` — fires on the player's first galaxy-view load. Only ONE entry can usefully carry this at a time. **Mechanism:** the firing loop in `GameCanvas.tsx` picks the FIRST unseen `first-time` entry. If you ship two, the second only fires after the first is seen, on a subsequent session — rarely the intended UX.
+   - `{ kind: "on-mission-select", missionId: <MissionId> }` — fires once when the named mission's quest card is opened, gated on `unlockedPlanets` (locked "?" cards never fire). Cancels on next selection.
    - `{ kind: "on-shop-open" }` — fires every time the player lands on `/shop` (any shop). Audio plays unconditionally; only the seen-set marking is once-only.
-   - `{ kind: "on-system-cleared-idle", systemId: <SolarSystemId>, initialDelayMs: <ms>, intervalMs: <ms> }` — fires repeatedly while the player idles in the named system AND every combat mission in that system has been completed.
+   - `{ kind: "on-system-enter", systemId: <SolarSystemId> }` — fires once the first time the player warps INTO the named system. Used today by `tubernovae-cluster-intro` as a chapter-opening cinematic when the player crosses to the next system. Pairs naturally with `mode: "modal"` and a custom music track.
+   - `{ kind: "on-system-cleared-idle", systemId: <SolarSystemId>, initialDelayMs: <ms>, intervalMs: <ms> }` — fires repeatedly while the player idles in the named system AND every combat mission in that system has been completed. Cancels the moment the player opens the shop, the Story log, a story modal, or warps to a different system.
    - Anything else → STOP and flag (see boundary).
 9. `mode` — one of:
    - `"modal"` — cinematic popup, ducks the menu bed (when music is set), Continue button. Default for big story beats with text the player should read.
@@ -191,6 +202,44 @@ The four shapes that ship today. Match the user's intent to one and fill it in i
 }
 ```
 
+**E. Chapter-opening cinematic on system entry** — modal popup with custom music, fires once the first time the player warps into the named system. Today's example: `tubernovae-cluster-intro`.
+```ts
+{
+  id: "<storyId>",
+  title: "<Title>",
+  body: ["<spoken paragraph 1>", "<spoken paragraph 2>", "<spoken paragraph 3>"],
+  logSummary: [
+    "<paragraph 1 — what this place is, why it's bleak/beautiful/hostile>",
+    "<paragraph 2 — who's there, what they want, why they care about you>",
+    "<paragraph 3 — what missions await, what to bring>"
+  ],
+  musicTrack: "/audio/story/<storyId>-music.ogg",
+  voiceTrack: "/audio/story/<storyId>-voice.mp3",
+  voiceDelayMs: 3000,
+  autoTrigger: { kind: "on-system-enter", systemId: "<solarSystemId>" },
+  mode: "modal"
+}
+```
+
+**F. Replay-only / lore drop** — never auto-fires; sits in the Story log waiting for the player to find it. Use when authoring content ahead of its trigger wiring, or when the narrative beat is a collectible the player must seek out (no shipped example today; reserved for future use).
+```ts
+{
+  id: "<storyId>",
+  title: "<Title>",
+  body: ["<spoken paragraph>"],
+  logSummary: [
+    "<paragraph 1 — the lore content>",
+    "<paragraph 2 — context or callback>"
+  ],
+  musicTrack: "/audio/story/<storyId>-music.ogg" /* or null */,
+  voiceTrack: "/audio/story/<storyId>-voice.mp3",
+  voiceDelayMs: 3000 /* or 0 if no music */,
+  autoTrigger: null,
+  mode: "modal"
+}
+```
+Caveat: with `autoTrigger: null` the entry never reaches `seenStoryEntries` automatically — the Story log filters by the seen-set, so the player will never see it surface there unless something else marks it seen. Today there is no shipped path that does so; if the user wants this template, surface that limitation BEFORE shipping.
+
 # Operation: CREATE
 
 ## Steps
@@ -217,6 +266,7 @@ If the user only wants to expand the `logSummary` (the most common modify reques
 2. Overwrite the existing file at `public/audio/story/<storyId>-voice.{mp3|ogg}` (or `-music.{ogg|mp3}`) using `Bash` + `cp`.
 3. The entry's `voiceTrack` / `musicTrack` path field stays the same — only the file content changes.
 4. NO DB migration needed. Players' next page load gets the new audio (HTTP cache permitting; in development, hard-refresh).
+5. **Smoke test:** open the user menu in the galaxy view → Story log → click REPLAY on the entry. Confirm the new audio plays from the start. The list view also shows the entry — confirm `logSummary` text wasn't accidentally edited.
 
 ## Auto-trigger change
 1. Edit only the `autoTrigger` field on the existing entry. Keep within the supported union (see boundary section).
@@ -225,6 +275,9 @@ If the user only wants to expand the `logSummary` (the most common modify reques
 
 ## Adding logSummary to an existing entry
 Already done (every shipped entry has one). If you find an entry missing `logSummary`, that's a contract violation — `StoryEntry.logSummary` is REQUIRED. The compiler will catch it at typecheck time.
+
+## Renaming a story id (not a real MODIFY — it's REMOVE + CREATE)
+Changing the `id` field of an existing entry breaks `seenStoryEntries` continuity for every player who already saw it: the migrate-on-hydrate filter (`isKnownStoryId`) will silently DROP the old id from their seen-set the next time they load, and the new id will appear unseen. The user-visible effect is that the entry re-fires (for `first-time` / `on-system-enter` triggers) AND the Story log replay button briefly disappears for affected players. Call this out before agreeing to a rename, and prefer keeping the old id in place. If the user genuinely wants the rename, treat it as REMOVE + CREATE: do the REMOVE cleanup first (test fixtures + grep), then the CREATE with the new id.
 
 # Operation: REMOVE
 
@@ -263,8 +316,8 @@ That's it today. Story ids do NOT appear in the data layer's mission/weapon/perk
 - If `musicTrack !== null`: it starts with `/audio/story/` AND the file exists. If `musicTrack === null`: no music asset is referenced or copied.
 - `voiceDelayMs >= 0`. Use `0` when `musicTrack === null`; use `~3000` when there's music to establish first.
 - Asset files are each < 500 KB (CLAUDE.md §13 asset budget).
-- At most one entry has `autoTrigger.kind === "first-time"` set at a time (soft rule — multiple such entries cascade across consecutive sessions in unintended ways).
-- `autoTrigger` is one of the five currently-supported shapes. Anything else is a feature, not a content add.
+- At most one entry has `autoTrigger.kind === "first-time"` set at a time (soft rule — multiple such entries cascade across consecutive sessions in unintended ways; the firing loop picks the first unseen one each session).
+- `autoTrigger` is one of the six currently-supported shapes (`null`, `first-time`, `on-mission-select`, `on-shop-open`, `on-system-enter`, `on-system-cleared-idle`). Anything else is a feature, not a content add.
 
 ## MODIFY-specific
 - Audio replacements keep the same path; only file content changes.
