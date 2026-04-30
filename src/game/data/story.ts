@@ -173,18 +173,31 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
   },
   {
     id: "tubernovae-cluster-intro",
-    title: "The Tubernovae Cluster",
+    title: "The Armed Harvest",
     body: [
-      "You've crossed the dark between systems. Welcome to the Tubernovae Cluster — a graveyard of dying stars, glowing red as embers, ringed with pirate-held outposts that don't take kindly to strangers.",
-      "Word has travelled, dear. They know what you did at Dreadfruit. They've had time to prepare. The bugs that nest out here are older, meaner, and very interested in the potato that crossed half a galaxy to find them.",
-      "Eat your vitamins. This part of the war does not forgive."
+      "For a thousand harvests, the Spud knew only victory.",
+      "We rooted into worlds and they yielded. Soil softened. Skies thickened with our spores. Civilizations bowed their heads, and we, in our gentle, starchy way, ate them. Not cruelly. Just thoroughly.",
+      "But the Tubernovae Cluster is not soil. It is rust.",
+      "The pirates do not bleed sap. They bleed coolant. Their ships are not grown — they are welded. Their weapons do not wither in our atmospheres; they cut, and what they cut does not regrow. Three of our scouts came back as mash. The fourth came back as nothing.",
+      "And so, in the quiet hum of the Tubernovae Outpost — surrounded by the wares of dead races and the soft glow of stolen reactors — the Spud has made a decision that no Spud before has ever had to make.",
+      "We will take what they have.",
+      "Not eat it. Wear it.",
+      "The first volunteers are already in the surgery vats. Plating, bolted into skin that was meant to be peeled. Servos, threaded through stolons. A targeting array, salvaged from a pirate cruiser, grafted directly into the eye of an old, proud tuber who once won the Kepler Sprouting Championships three years running.",
+      "He says he is honored. He says he can see the heat of stars now.",
+      "Some of us are afraid this is the end of who we are.",
+      "Most of us are afraid of mash.",
+      "Captain — your potato_pilot designation has been upgraded. Your hull is no longer purely biological. The pirates wired their stars together with that beacon out there; cut it down, and we begin the harder work — learning to be what we eat.",
+      "And what we eat, now, has teeth."
     ],
     logSummary: [
-      "The Tubernovae Cluster is what's left when stars run out of fuel — a loose huddle of swollen red giants and cooling ember-husks, lit in shades of bruise and rust. Long-haul tuber freighters used to skirt the edge of it on their way to deeper colonies. Then the freighters stopped coming back.",
-      "What moved in is a coalition of pirate cartels who bolted habitats onto cooled magma and called it home, and a strain of bug that decided dying suns made a fine place to hatch. The two sides mostly leave each other alone. They will not leave you alone. Word from Sol Spudensis travels at the speed of swarm-chatter, and your reputation precedes you in ways that are mostly unflattering.",
-      "Mission Control has flagged three priority targets out here: a hijacked Pirate Beacon, an Ember Run threading dying stars, and a Burnt Spud crowned by a Monarch Caterpillar that refuses to die. None of them are warm-up runs. Bring the loadout you trust and the patience you don't have."
+      "For a thousand harvests, the Spud knew only victory. We rooted into worlds and they yielded. Soil softened. Skies thickened with our spores. Civilizations bowed their heads, and we, in our gentle, starchy way, ate them. Not cruelly. Just thoroughly.",
+      "But the Tubernovae Cluster is not soil. It is rust. The pirates do not bleed sap. They bleed coolant. Their ships are not grown — they are welded. Their weapons do not wither in our atmospheres; they cut, and what they cut does not regrow. Three of our scouts came back as mash. The fourth came back as nothing.",
+      "And so, in the quiet hum of the Tubernovae Outpost — surrounded by the wares of dead races and the soft glow of stolen reactors — the Spud has made a decision that no Spud before has ever had to make. We will take what they have. Not eat it. Wear it.",
+      "The first volunteers are already in the surgery vats. Plating, bolted into skin that was meant to be peeled. Servos, threaded through stolons. A targeting array, salvaged from a pirate cruiser, grafted directly into the eye of an old, proud tuber who once won the Kepler Sprouting Championships three years running. He says he is honored. He says he can see the heat of stars now.",
+      "Some of us are afraid this is the end of who we are. Most of us are afraid of mash.",
+      "Captain — your potato_pilot designation has been upgraded. Your hull is no longer purely biological. The pirates wired their stars together with that beacon out there; cut it down, and we begin the harder work — learning to be what we eat. And what we eat, now, has teeth."
     ],
-    musicTrack: "/audio/story/great-potato-awakening-music.ogg",
+    musicTrack: "/audio/story/tubernovae-cluster-intro-music.ogg",
     voiceTrack: "/audio/story/tubernovae-cluster-intro-voice.mp3",
     voiceDelayMs: 3000,
     autoTrigger: { kind: "on-system-enter", systemId: "tubernovae" },
