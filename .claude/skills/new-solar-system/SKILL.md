@@ -1,6 +1,6 @@
 ---
 name: new-solar-system
-description: Add a new solar system to the galaxy — solarSystems.json entry, SolarSystemId union extension, optional unlock gating, REQUIRED on-system-enter cinematic (voice + music), and mission-binding TODO list.
+description: Add a new solar system to the galaxy — solarSystems.json entry (incl. galaxy bed), SolarSystemId union extension, optional unlock gating, REQUIRED on-system-enter cinematic (voice + music) AND dedicated galaxy-view music bed, and mission-binding TODO list.
 ---
 
 # When to use
@@ -17,8 +17,9 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
 6. `ambientHue` — hex; reserved for future ambient tinting.
 7. `unlockBy` — `"default"` OR a `MissionId` literal that unlocks this system on completion.
 8. **`introVoiceAsset` (REQUIRED)** — local path to chapter-opener voiceover (typically `D:\koodaamista\AudiobookMaker\out\spacepotatis\`). Every system ships with on-system-enter cinematic — non-optional. Re-encoded and copied to `public/audio/story/<systemId>-intro-voice.mp3`.
-9. **`introMusicAsset` (REQUIRED)** — system-specific bed. Don't reuse another arc's bed; each new system gets its own. Re-encoded and copied to `public/audio/story/<systemId>-intro-music.ogg`.
-10. `introBody` + `introLogSummary` — spoken paragraph (Grandma) + Story-log synopsis. Match `tubernovae-cluster-intro` tone.
+9. **`introMusicAsset` (REQUIRED)** — system-specific cinematic bed. Don't reuse another arc's bed; each new system gets its own. Re-encoded and copied to `public/audio/story/<systemId>-intro-music.ogg`.
+10. **`galaxyMusicAsset` (REQUIRED)** — system-specific GALAXY-VIEW bed. Plays continuously while the player is in this system's galaxy view; swapped in by `MenuMusic.tsx` on `currentSolarSystemId` change. SEPARATE from `introMusicAsset` (cinematic plays once, galaxy bed loops forever). Encoded to ~150s stereo vorbis q3 (~1.5MB) → `public/audio/music/<systemId>-galaxy.ogg`. Music exceeds the 500KB cap — same de-facto exception as `menu-theme.ogg` and `combat-tutorial.ogg`.
+11. `introBody` + `introLogSummary` — spoken paragraph (Grandma) + Story-log synopsis. Match `tubernovae-cluster-intro` tone.
 
 # Steps
 1. **Append to `src/game/data/solarSystems.json`**:
@@ -29,7 +30,8 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
      "description": "<description>",
      "sunColor": "<#RRGGBB>",
      "sunSize": <number>,
-     "ambientHue": "<#RRGGBB>"
+     "ambientHue": "<#RRGGBB>",
+     "galaxyMusicTrack": "/audio/music/<systemId>-galaxy.ogg"
    }
    ```
    No `planets`, `unlockedByDefault`, or `unlockedAfter` — none exist in schema. Default-unlock lives in `INITIAL_STATE.unlockedSolarSystems` in `src/game/state/stateCore.ts`; mission-gated unlocks live in `SYSTEM_UNLOCK_GATES` in the same file.
@@ -42,33 +44,36 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
    - `setSolarSystem("<systemId>")` rejected when locked.
 5. **Verify `src/game/data/data.test.ts`** covers id-uniqueness + `MissionDefinition.solarSystemId` resolution. Likely already present.
 6. **Mission-binding reminder.** This skill creates no missions. Tell user: "Run `/new-mission` for each planet in `<systemId>` with `solarSystemId: \"<systemId>\"`." Empty system = empty starfield in `GalaxyScene`.
-7. **Scaffold the on-system-enter cinematic (REQUIRED).** Either invoke `/new-story` (Template E) or inline:
+7. **Encode the galaxy bed (REQUIRED).** `ffmpeg -y -i <galaxyMusicAsset> -t 150 -af "afade=in:st=0:d=3,afade=out:st=145:d=5" -c:a libvorbis -q:a 3 public/audio/music/<systemId>-galaxy.ogg`. ~150s clipped with loop-friendly fades, ends ~1.5MB. Plays whenever the player is in this system's galaxy view (swapped by `MenuMusic.tsx` reading `currentSolarSystemId`).
+8. **Scaffold the on-system-enter cinematic (REQUIRED).** Either invoke `/new-story` (Template E) or inline:
    - Re-encode voice ≤500 KB (`ffmpeg -i in.mp3 -ac 1 -b:a 64k out.mp3`) → `public/audio/story/<systemId>-intro-voice.mp3`.
    - Copy `introMusicAsset` to `public/audio/story/<systemId>-intro-music.ogg`. Music is REQUIRED — every new arc gets its own bed. Don't fall back to reusing the awakening track.
    - Add `STORY_ENTRIES` entry in `src/game/data/story.ts`: id `<systemId>-cluster-intro`, `mode: "modal"`, `voiceDelayMs: 3000`, `autoTrigger: { kind: "on-system-enter", systemId: "<systemId>" }`. Extend `StoryId` union.
    - Add fires-when-fresh assertion in `selectOnSystemEnterEntry` block of `src/game/data/storyTriggers.test.ts`: id, `mode === "modal"`, `musicTrack !== null`, `voiceTrack` under `/audio/story/`. Tubernovae block is template.
-8. **Run** `npm run typecheck && npm test`. Common failures: forgot to extend `SolarSystemId`; shipped without paired on-system-enter entry (storyTriggers test catches this).
-9. **Report** new id, files modified, unlock condition, cinematic story id, the `/new-mission` reminder. Optionally suggest `/new-story` Template D for `on-system-cleared-idle` close (mirrors `sol-spudensis-cleared`) — optional, fires only when system fully cleared.
+9. **Run** `npm run typecheck && npm test`. Common failures: forgot to extend `SolarSystemId`; shipped without paired on-system-enter entry (storyTriggers test catches this); forgot `galaxyMusicTrack` field on the `solarSystems.json` entry (typecheck catches this).
+10. **Report** new id, files modified, unlock condition, cinematic story id, galaxy bed path, the `/new-mission` reminder. Optionally suggest `/new-story` Template D for `on-system-cleared-idle` close (mirrors `sol-spudensis-cleared`) — optional, fires only when system fully cleared.
 
 # Invariants
-- `solarSystems.json` is valid JSON with the six-field shape above.
+- `solarSystems.json` is valid JSON with the seven-field shape above (incl. `galaxyMusicTrack`).
 - Every system `id` is unique; every `SolarSystemId` literal has a matching JSON entry and vice versa.
 - Every `MissionDefinition.solarSystemId` resolves to a known system.
 - Non-default unlock has a `SYSTEM_UNLOCK_GATES` entry, an explicit `INITIAL_STATE.unlockedSolarSystems` push, or is intentionally unreachable.
 - **Every system has a paired `on-system-enter` `STORY_ENTRIES` entry with `mode: "modal"` and non-null `musicTrack`.** No silent map swaps.
+- **Every system has its OWN audio identity: dedicated cinematic music (story `musicTrack`) AND dedicated galaxy bed (`galaxyMusicTrack`).** Don't reuse another arc's tracks; the player should hear a different bed in each system. Tutorial maps to `menu-theme.ogg` only as the historical default.
 - No `any`. No game-balance constants in `.ts`.
 - `npm test` passes.
 
 # Files modified
 Always:
-- `src/game/data/solarSystems.json` — append entry.
+- `src/game/data/solarSystems.json` — append entry (incl. `galaxyMusicTrack`).
 - `src/types/game.ts` — extend `SolarSystemId`.
 - `src/game/data/story.ts` — append cinematic + extend `StoryId`.
 - `src/game/data/storyTriggers.test.ts` — fires-when-fresh assertion.
 - `public/audio/story/<systemId>-intro-voice.mp3` — re-encoded ≤500 KB.
+- `public/audio/story/<systemId>-intro-music.ogg` — dedicated cinematic bed.
+- `public/audio/music/<systemId>-galaxy.ogg` — dedicated galaxy bed (~150s, ~1.5MB).
 
 Conditionally:
-- `public/audio/story/<systemId>-intro-music.ogg` — only if system-specific bed supplied.
 - `src/game/state/stateCore.ts` — `INITIAL_STATE.unlockedSolarSystems` OR `SYSTEM_UNLOCK_GATES`.
 - `src/game/state/GameState.test.ts` — unlock + warp-rejection tests.
 - `src/game/data/data.test.ts` — only if existing tests miss the new system.
