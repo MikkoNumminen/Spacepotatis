@@ -7,7 +7,7 @@ description: Diff uncommitted changes to game data (weapons, enemies, waves, mis
 Invoke on `/balance-review`, "what did my JSON tweak do to balance," or any uncommitted edits to `src/game/data/{weapons,enemies,waves,missions,solarSystems}.json` or the TS catalogs (`perks.ts`, `augments.ts`, `lootPools.ts`). Read-only.
 
 # Steps
-1. `git status --porcelain -- src/game/data` to find dirty files. None → report "no balance changes" and stop. (Path is `src/game/data`, not `src/game/phaser/data`.)
+1. `git status --porcelain -- src/game/data` to find dirty files. None → report "no balance changes" and stop.
 2. For each dirty file: `git show HEAD:<path>` for BEFORE, working tree for AFTER. JSON files parse as JSON; TS catalogs (`perks.ts`, `augments.ts`, `lootPools.ts`) read as text and locate the literal record (`PERKS`, `AUGMENTS_RECORD`, `POOLS`) — `eval` is unsafe; quote-strip the keys you care about (id / cost / *Mul / *Bonus / weapons[] / augments[] / credits.min / credits.max).
 3. Build keyed maps (`id` for weapons/enemies/missions/augments; `systemId` for loot pools; `(missionId, wave.id, spawn index)` for waves). Diff added / removed / changed.
 4. For each changed entity, compute the metrics below for BEFORE and AFTER, then `(after-before)/before * 100`. Skip percent if before is 0.
