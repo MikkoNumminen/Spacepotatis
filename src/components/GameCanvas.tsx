@@ -17,13 +17,12 @@ import SplashGate from "@/components/SplashGate";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
+import { useStoryTriggers } from "@/components/hooks/useStoryTriggers";
 import { useGameState } from "@/game/state/useGameState";
-import { markStorySeen, setSolarSystem } from "@/game/state/GameState";
+import { setSolarSystem } from "@/game/state/GameState";
 import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
-import { STORY_ENTRIES, getStoryEntry, type StoryId } from "@/game/data/story";
-import { storyAudio } from "@/game/audio/story";
-import { storyLogAudio } from "@/game/audio/storyLogAudio";
+import { getStoryEntry } from "@/game/data/story";
 import { saveNow, submitScore } from "@/game/state/sync";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -44,12 +43,6 @@ export default function GameCanvas() {
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
   const [warpOpen, setWarpOpen] = useState(false);
-  const [storyListOpen, setStoryListOpen] = useState(false);
-  const [activeStory, setActiveStory] = useState<{
-    id: StoryId;
-    firstSeen: boolean;
-    fromLog: boolean;
-  } | null>(null);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
   const completedMissions = useGameState((s) => s.completedMissions);
@@ -77,222 +70,23 @@ export default function GameCanvas() {
 
   const { loaded: saveLoaded } = useCloudSaveSync();
 
-  // First-time auto-fire: once the cloud save is loaded and the player
-  // is on the galaxy view, find the first story entry tagged
-  // `autoTrigger.kind === "first-time"` that they haven't seen yet and
-  // open it. The check is gated on `mode === "galaxy"` so we don't
-  // surface a story popup mid-combat.
-  //
-  // `autoFiredRef` is the in-session fire-once guard: once we've shown an
-  // entry this session, never re-show it even if the seenStoryEntries
-  // selector briefly returns a stale value (e.g. a later cloud sync that
-  // races with the local mark-seen). Combined with the localStorage backup
-  // in markStorySeen + the union read in hydrate, the popup can't appear
-  // a second time on the same device.
-  const autoFiredRef = useRef<Set<StoryId>>(new Set());
-  useEffect(() => {
-    if (!saveLoaded || mode !== "galaxy" || activeStory) return;
-    const seen = new Set(seenStoryEntries);
-    const next = STORY_ENTRIES.find(
-      (e) =>
-        e.autoTrigger?.kind === "first-time" &&
-        !seen.has(e.id) &&
-        !autoFiredRef.current.has(e.id)
-    );
-    if (next) {
-      autoFiredRef.current.add(next.id);
-      setActiveStory({ id: next.id, firstSeen: true, fromLog: false });
-    }
-  }, [saveLoaded, mode, seenStoryEntries, activeStory]);
-
-  // System-enter auto-fire: opens the chapter cinematic the first time the
-  // player's currentSolarSystemId becomes the entry's systemId. Modal-mode
-  // entries route through setActiveStory so StoryModal owns the audio +
-  // mark-seen handshake; overlay-mode entries play voice over the menu bed
-  // directly (parity with on-system-cleared-idle).
-  useEffect(() => {
-    if (!saveLoaded || mode !== "galaxy" || activeStory || storyListOpen) return;
-    const seen = new Set(seenStoryEntries);
-    const next = STORY_ENTRIES.find(
-      (e) =>
-        e.autoTrigger?.kind === "on-system-enter" &&
-        e.autoTrigger.systemId === currentSolarSystemId &&
-        !seen.has(e.id) &&
-        !autoFiredRef.current.has(e.id)
-    );
-    if (!next) return;
-    autoFiredRef.current.add(next.id);
-    if (next.mode === "modal") {
-      setActiveStory({ id: next.id, firstSeen: true, fromLog: false });
-    } else {
-      storyAudio.play({
-        musicSrc: next.musicTrack,
-        voiceSrc: next.voiceTrack,
-        voiceDelayMs: next.voiceDelayMs
-      });
-      markStorySeen(next.id);
-      void saveNow();
-    }
-  }, [saveLoaded, mode, activeStory, storyListOpen, currentSolarSystemId, seenStoryEntries]);
-
-  const handleMarkStorySeen = useCallback(() => {
-    if (!activeStory) return;
-    markStorySeen(activeStory.id);
-    void saveNow();
-  }, [activeStory]);
-
-  const handleReplayStory = useCallback((id: StoryId) => {
-    setStoryListOpen(false);
-    setActiveStory({ id, firstSeen: false, fromLog: true });
-  }, []);
-
-  // Story-log music context: true while the player is browsing the Story
-  // log OR replaying any entry from it. The bed plays continuously through
-  // both views — opening a replay does NOT restart the music.
-  const inStoryLogContext = storyListOpen || (activeStory?.fromLog ?? false);
-
-  useEffect(() => {
-    if (inStoryLogContext) {
-      storyLogAudio.play();
-    } else {
-      storyLogAudio.stop();
-    }
-  }, [inStoryLogContext]);
-
-  // Mission-select trigger. Behavior:
-  //   - Every click on an unlocked card schedules the matching overlay
-  //     briefing to play after SELECT_DELAY_MS. The delay lets the player
-  //     "shuffle" through cards without triggering audio they don't want;
-  //     each new selection cancels the previous pending or playing voice.
-  //   - Locked "?" cards never reveal their briefing. They DO cancel any
-  //     pending audio (the player has clearly moved attention away).
-  //   - Modal-mode on-mission-select entries still respect the seen-set
-  //     (they open a one-shot popup, not a re-playable utility briefing).
-  //   - First overlay play marks the entry seen so it appears in the
-  //     Story log; subsequent replays from the quest menu re-fire silently.
-  const pendingPlayTimer = useRef<number | null>(null);
-  const SELECT_DELAY_MS = 2000;
-
-  const cancelPendingBriefing = useCallback(() => {
-    if (pendingPlayTimer.current !== null) {
-      clearTimeout(pendingPlayTimer.current);
-      pendingPlayTimer.current = null;
-    }
-    storyAudio.stop();
-  }, []);
-
-  const handleMissionSelect = useCallback(
-    (missionId: MissionId) => {
-      if (!saveLoaded || mode !== "galaxy") return;
-
-      cancelPendingBriefing();
-
-      if (!unlockedPlanets.includes(missionId)) return;
-
-      const entry = STORY_ENTRIES.find(
-        (e) =>
-          e.autoTrigger?.kind === "on-mission-select" &&
-          e.autoTrigger.missionId === missionId
-      );
-      if (!entry) return;
-
-      if (entry.mode === "overlay") {
-        pendingPlayTimer.current = window.setTimeout(() => {
-          pendingPlayTimer.current = null;
-          storyAudio.play({
-            musicSrc: entry.musicTrack,
-            voiceSrc: entry.voiceTrack,
-            voiceDelayMs: 0
-          });
-          if (!seenStoryEntries.includes(entry.id)) {
-            markStorySeen(entry.id);
-            void saveNow();
-          }
-        }, SELECT_DELAY_MS);
-      } else if (
-        !seenStoryEntries.includes(entry.id) &&
-        !autoFiredRef.current.has(entry.id)
-      ) {
-        autoFiredRef.current.add(entry.id);
-        setActiveStory({ id: entry.id, firstSeen: true, fromLog: false });
-      }
-    },
-    [saveLoaded, mode, seenStoryEntries, unlockedPlanets, cancelPendingBriefing]
-  );
-
-  // Two refs because the trigger is bi-phase: one-shot initial delay, then
-  // a steady cadence. Sharing a single ref would force us to clear+reschedule
-  // on every fire and risk dropping the interval if conditions flicker.
-  const idleVoiceTimeoutRef = useRef<number | null>(null);
-  const idleVoiceIntervalRef = useRef<number | null>(null);
-  // Read seenStoryEntries via ref so the first-fire mark-seen doesn't bounce
-  // the effect and reset the initial-delay timer.
-  const seenStoryEntriesRef = useRef(seenStoryEntries);
-  seenStoryEntriesRef.current = seenStoryEntries;
-  useEffect(() => {
-    if (
-      mode !== "galaxy" ||
-      !saveLoaded ||
-      storyListOpen ||
-      activeStory
-    ) {
-      return;
-    }
-    const matches = STORY_ENTRIES.filter(
-      (e) =>
-        e.autoTrigger?.kind === "on-system-cleared-idle" &&
-        e.autoTrigger.systemId === currentSolarSystemId
-    );
-    if (matches.length === 0) return;
-    const completed = new Set(completedMissions);
-    const ready = matches.filter((e) => {
-      const trigger = e.autoTrigger;
-      if (trigger?.kind !== "on-system-cleared-idle") return false;
-      const systemMissions = getAllMissions().filter(
-        (m) => m.solarSystemId === trigger.systemId && m.kind === "mission"
-      );
-      return (
-        systemMissions.length > 0 &&
-        systemMissions.every((m) => completed.has(m.id))
-      );
-    });
-    if (ready.length === 0) return;
-
-    const fire = (entry: (typeof ready)[number]) => {
-      storyAudio.play({
-        musicSrc: entry.musicTrack,
-        voiceSrc: entry.voiceTrack,
-        voiceDelayMs: 0
-      });
-      if (!seenStoryEntriesRef.current.includes(entry.id)) {
-        markStorySeen(entry.id);
-        void saveNow();
-      }
-    };
-
-    const timeoutIds: number[] = [];
-    const intervalIds: number[] = [];
-    for (const entry of ready) {
-      const trigger = entry.autoTrigger;
-      if (trigger?.kind !== "on-system-cleared-idle") continue;
-      const initialId = window.setTimeout(() => {
-        fire(entry);
-        const repeatId = window.setInterval(() => fire(entry), trigger.intervalMs);
-        intervalIds.push(repeatId);
-        idleVoiceIntervalRef.current = repeatId;
-      }, trigger.initialDelayMs);
-      timeoutIds.push(initialId);
-      idleVoiceTimeoutRef.current = initialId;
-    }
-
-    return () => {
-      for (const id of timeoutIds) clearTimeout(id);
-      for (const id of intervalIds) clearInterval(id);
-      idleVoiceTimeoutRef.current = null;
-      idleVoiceIntervalRef.current = null;
-      storyAudio.stop();
-    };
-  }, [mode, saveLoaded, storyListOpen, activeStory, currentSolarSystemId, completedMissions]);
+  const {
+    activeStory,
+    setActiveStory,
+    storyListOpen,
+    setStoryListOpen,
+    handleMissionSelect,
+    handleMarkStorySeen,
+    handleReplayStory,
+    cancelPendingBriefing
+  } = useStoryTriggers({
+    enabled: mode === "galaxy",
+    saveLoaded,
+    currentSolarSystemId,
+    unlockedPlanets,
+    completedMissions,
+    seenStoryEntries
+  });
 
   // Single source of truth for which bed plays: combat owns audio in combat
   // mode, menu owns it everywhere else. Hard-stopping combat music on every
@@ -315,13 +109,6 @@ export default function GameCanvas() {
       menuMusic.unduck();
     };
   }, [mode, cancelPendingBriefing]);
-
-  // Final cleanup so a navigation away cancels any briefing in flight.
-  useEffect(() => {
-    return () => {
-      cancelPendingBriefing();
-    };
-  }, [cancelPendingBriefing]);
 
   // Planet click in the 3D scene flows into QuestPanel as a focus signal so
   // the matching entry expands inline. Clearing on null lets a click on
