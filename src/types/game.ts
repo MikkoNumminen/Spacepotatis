@@ -71,7 +71,14 @@ export type EnemyId =
   | "spider-jumper"
   | "dragonfly-common"
   | "dragonfly-heli"
-  | "dragonfly-damsel";
+  | "dragonfly-damsel"
+  | "pirate-skiff"
+  | "pirate-cutlass"
+  | "pirate-marauder"
+  | "pirate-corsair"
+  | "pirate-frigate"
+  | "pirate-galleon"
+  | "pirate-dreadnought";
 export type EnemyBehavior = "straight" | "zigzag" | "homing" | "boss";
 
 export interface EnemyDefinition {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { shouldHideSplash } from "./splashGateLogic";
 
 const MIN_DISPLAY_MS = 600;
@@ -9,11 +9,17 @@ const FADE_MS = 400;
 export default function SplashGate({
   ready,
   splash,
-  children
+  children,
+  onDismiss
 }: {
   ready: boolean;
   splash: ReactNode;
   children: ReactNode;
+  // Fires once, exactly when the splash has finished fading out and
+  // unmounted. Use this to delay anything that should NOT compete for
+  // user attention (or autoplay activation) while the loading screen
+  // is on top — menu music, briefing voice queue, etc.
+  onDismiss?: () => void;
 }) {
   // If ready was already true on the very first render — e.g. navigating
   // /play → / where every cache is hot — skip the splash entirely. Without
@@ -38,6 +44,16 @@ export default function SplashGate({
     const t = setTimeout(() => setUnmount(true), FADE_MS);
     return () => clearTimeout(t);
   }, [hide]);
+
+  // Fire onDismiss once when the splash has fully unmounted. Ref guard so
+  // a re-render doesn't re-fire it; the contract is "dismissed for this
+  // mount" and parents that rely on it (audio gating) only want it once.
+  const dismissFiredRef = useRef(false);
+  useEffect(() => {
+    if (!unmount || dismissFiredRef.current) return;
+    dismissFiredRef.current = true;
+    onDismiss?.();
+  }, [unmount, onDismiss]);
 
   return (
     <>

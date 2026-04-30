@@ -1,7 +1,6 @@
 import Link from "next/link";
 import LandingBackground from "@/components/LandingBackground";
 import LandingShell from "@/components/LandingShell";
-import MenuBriefing from "@/components/MenuBriefing";
 import MuteToggle from "@/components/MuteToggle";
 import PlayButton from "@/components/PlayButton";
 import SignInButton from "@/components/SignInButton";
@@ -22,7 +21,6 @@ export default function Home() {
         <MuteToggle />
       </div>
       <LandingShell>
-        <MenuBriefing />
         <main className="relative z-10 mx-auto flex min-h-dvh max-w-3xl flex-col items-center justify-center gap-8 px-4 text-center sm:gap-10 sm:px-6">
           {/* Mobile-only dark panel backgrounds keep the title + nav readable
               over the busy 3D galaxy on small screens. Desktop has plenty of

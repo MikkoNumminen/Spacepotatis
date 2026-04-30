@@ -76,19 +76,19 @@
           "id": "pirate-beacon-wave-1",
           "durationMs": 26000,
           "spawns": [
-            { "enemy": "dragonfly-common", "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",     "xPercent": 0.35 },
-            { "enemy": "dragonfly-common", "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",     "xPercent": 0.65 },
-            { "enemy": "dragonfly-heli",   "count": 3, "delayMs": 12000, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "pirate-skiff", "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",     "xPercent": 0.35 },
+            { "enemy": "pirate-skiff", "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",     "xPercent": 0.65 },
+            { "enemy": "pirate-corsair",   "count": 3, "delayMs": 12000, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "pirate-beacon-wave-2",
           "durationMs": 30000,
           "spawns": [
-            { "enemy": "dragonfly-common", "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.25 },
-            { "enemy": "dragonfly-heli",   "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.75 },
-            { "enemy": "beetle-scarab",    "count": 4, "delayMs": 9000,  "intervalMs": 1700, "formation": "line",    "xPercent": 0.5 },
-            { "enemy": "caterpillar-hornworm", "count": 2, "delayMs": 22000, "intervalMs": 2400, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "pirate-skiff", "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.25 },
+            { "enemy": "pirate-corsair",   "count": 5, "delayMs": 0,     "intervalMs": 1400, "formation": "column",  "xPercent": 0.75 },
+            { "enemy": "pirate-frigate",    "count": 4, "delayMs": 9000,  "intervalMs": 1700, "formation": "line",    "xPercent": 0.5 },
+            { "enemy": "pirate-galleon", "count": 2, "delayMs": 22000, "intervalMs": 2400, "formation": "scatter", "xPercent": 0.5 }
           ]
         }
       ]
@@ -100,27 +100,27 @@
           "id": "ember-run-wave-1",
           "durationMs": 28000,
           "spawns": [
-            { "enemy": "spider-jumper", "count": 5, "delayMs": 1500,  "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "dragonfly-common",        "count": 4, "delayMs": 11000, "intervalMs": 1600, "formation": "scatter", "xPercent": 0.3 }
+            { "enemy": "pirate-cutlass", "count": 5, "delayMs": 1500,  "intervalMs": 1700, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "pirate-skiff",        "count": 4, "delayMs": 11000, "intervalMs": 1600, "formation": "scatter", "xPercent": 0.3 }
           ]
         },
         {
           "id": "ember-run-wave-2",
           "durationMs": 30000,
           "spawns": [
-            { "enemy": "dragonfly-common",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.15 },
-            { "enemy": "dragonfly-common",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.85 },
-            { "enemy": "spider-wolf",   "count": 4, "delayMs": 10000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "pirate-skiff",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.15 },
+            { "enemy": "pirate-skiff",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.85 },
+            { "enemy": "pirate-marauder",   "count": 4, "delayMs": 10000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "ember-run-wave-3",
           "durationMs": 34000,
           "spawns": [
-            { "enemy": "spider-jumper", "count": 8, "delayMs": 0,     "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "dragonfly-common",        "count": 5, "delayMs": 9000,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "spider-wolf",   "count": 4, "delayMs": 19000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "caterpillar-army", "count": 3, "delayMs": 6000, "intervalMs": 1800, "formation": "vee", "xPercent": 0.5 }
+            { "enemy": "pirate-cutlass", "count": 8, "delayMs": 0,     "intervalMs": 1100, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "pirate-skiff",        "count": 5, "delayMs": 9000,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "pirate-marauder",   "count": 4, "delayMs": 19000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "pirate-frigate", "count": 3, "delayMs": 6000, "intervalMs": 1800, "formation": "vee", "xPercent": 0.5 }
           ]
         }
       ]
@@ -132,16 +132,16 @@
           "id": "burnt-spud-intro",
           "durationMs": 18000,
           "spawns": [
-            { "enemy": "dragonfly-common",        "count": 4, "delayMs": 1500,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
-            { "enemy": "spider-jumper", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 },
-            { "enemy": "caterpillar-hornworm", "count": 2, "delayMs": 12000, "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 }
+            { "enemy": "pirate-skiff",        "count": 4, "delayMs": 1500,  "intervalMs": 1500, "formation": "vee",     "xPercent": 0.5 },
+            { "enemy": "pirate-cutlass", "count": 3, "delayMs": 9000,  "intervalMs": 1600, "formation": "scatter", "xPercent": 0.5 },
+            { "enemy": "pirate-galleon", "count": 2, "delayMs": 12000, "intervalMs": 1500, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
           "id": "burnt-spud-fight",
           "durationMs": 110000,
           "spawns": [
-            { "enemy": "caterpillar-monarch", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
+            { "enemy": "pirate-dreadnought", "count": 1, "delayMs": 0, "intervalMs": 0, "formation": "line", "xPercent": 0.5 }
           ]
         }
       ]

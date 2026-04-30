@@ -1,16 +1,20 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
+import MenuBriefing from "@/components/MenuBriefing";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
+import { allowPlayback } from "@/game/audio/playbackGate";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 
 // Client wrapper for the landing page main content. Holds the boot splash
-// up until the auth status is verified — that's the only signal worth
-// gating on here, since the page is force-static (HTML ships instantly)
-// and the only thing that "pops in" is the auth-aware buttons.
+// up until the auth status is verified, then opens the audio gate so the
+// menu music engine and the briefing voice queue both start their
+// countdowns AFTER the player can actually see the menu — not while the
+// loading screen is still on top.
 export default function LandingShell({ children }: { children: ReactNode }) {
   const { isVerified } = useOptimisticAuth();
+  const [splashDismissed, setSplashDismissed] = useState(false);
 
   const steps = useMemo<readonly SplashStep[]>(
     () => [
@@ -20,9 +24,15 @@ export default function LandingShell({ children }: { children: ReactNode }) {
     [isVerified]
   );
 
+  const onDismiss = useCallback(() => {
+    setSplashDismissed(true);
+    allowPlayback();
+  }, []);
+
   return (
-    <SplashGate ready={isVerified} splash={<Splash steps={steps} />}>
+    <SplashGate ready={isVerified} splash={<Splash steps={steps} />} onDismiss={onDismiss}>
       {children}
+      {splashDismissed && <MenuBriefing />}
     </SplashGate>
   );
 }

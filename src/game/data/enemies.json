@@ -192,6 +192,90 @@
       "spriteKey": "enemy-dragonfly-damsel",
       "fireRateMs": 3500,
       "collisionDamage": 18
+    },
+    {
+      "id": "pirate-skiff",
+      "name": "Pirate Skiff",
+      "hp": 18,
+      "speed": 145,
+      "behavior": "zigzag",
+      "scoreValue": 130,
+      "creditValue": 13,
+      "spriteKey": "enemy-pirate-skiff",
+      "fireRateMs": 2400,
+      "collisionDamage": 12
+    },
+    {
+      "id": "pirate-cutlass",
+      "name": "Cutlass Striker",
+      "hp": 12,
+      "speed": 220,
+      "behavior": "homing",
+      "scoreValue": 100,
+      "creditValue": 10,
+      "spriteKey": "enemy-pirate-cutlass",
+      "fireRateMs": null,
+      "collisionDamage": 25
+    },
+    {
+      "id": "pirate-marauder",
+      "name": "Marauder",
+      "hp": 25,
+      "speed": 110,
+      "behavior": "homing",
+      "scoreValue": 180,
+      "creditValue": 18,
+      "spriteKey": "enemy-pirate-marauder",
+      "fireRateMs": 2400,
+      "collisionDamage": 16
+    },
+    {
+      "id": "pirate-corsair",
+      "name": "Pirate Corsair",
+      "hp": 30,
+      "speed": 100,
+      "behavior": "zigzag",
+      "scoreValue": 220,
+      "creditValue": 22,
+      "spriteKey": "enemy-pirate-corsair",
+      "fireRateMs": 1700,
+      "collisionDamage": 16
+    },
+    {
+      "id": "pirate-frigate",
+      "name": "Pirate Frigate",
+      "hp": 40,
+      "speed": 60,
+      "behavior": "straight",
+      "scoreValue": 150,
+      "creditValue": 15,
+      "spriteKey": "enemy-pirate-frigate",
+      "fireRateMs": 3000,
+      "collisionDamage": 12
+    },
+    {
+      "id": "pirate-galleon",
+      "name": "Pirate Galleon",
+      "hp": 50,
+      "speed": 65,
+      "behavior": "straight",
+      "scoreValue": 220,
+      "creditValue": 22,
+      "spriteKey": "enemy-pirate-galleon",
+      "fireRateMs": 2700,
+      "collisionDamage": 18
+    },
+    {
+      "id": "pirate-dreadnought",
+      "name": "Crimson Dreadnought",
+      "hp": 800,
+      "speed": 50,
+      "behavior": "boss",
+      "scoreValue": 5000,
+      "creditValue": 500,
+      "spriteKey": "enemy-pirate-dreadnought",
+      "fireRateMs": 1300,
+      "collisionDamage": 30
     }
   ]
 }
