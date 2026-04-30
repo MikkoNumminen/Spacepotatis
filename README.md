@@ -79,6 +79,8 @@ The same four cues are reused everywhere a permanent item changes hands, so the 
 
 If you miss a beat — or you just want to hear it again — open the **user menu** in the top-right corner of the galaxy view and pick **Story log**. Every storyline entry you've already unlocked sits in there, ready to replay from the beginning, music and voice and all. Entries you haven't reached yet stay hidden so the path ahead doesn't spoil itself. The log has its own dedicated music bed that ducks the menu music while you're browsing it — opening a replay does not restart the bed, so the music plays continuously across the list view and any replay you open from inside it.
 
+Each entry in the log shows a **written synopsis** under its title — usually two or three short paragraphs. Grandma's spoken narration in the cinematic is intentionally short and read-aloud-friendly; the synopsis is the deeper, written version, with room for lore, context, and what's at stake that wouldn't fit comfortably in spoken text. Read the synopsis if you want the longer version of the story; press REPLAY to hear the spoken version again with its music bed.
+
 ### How the audio is put together
 
 A short word on the pipeline, because two of the pieces are interesting open-source corners of recent tech.
@@ -226,10 +228,10 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 | -------------------- | -------------------------------------------------------------------------------------------------- |
 | `/new-mission`       | Adds a new combat mission, picks the solar system it belongs to, and wires up waves + planet binding.|
 | `/new-enemy`         | Adds a new enemy entry, generates a placeholder sprite, and (optionally) drops it into a test wave.|
-| `/equipment`         | Add, change, or remove a weapon, augment, reactor, shield, or armor entry — including visual changes (bullet sprite, UI tint dot, combat HUD bars, explosion particles). One skill covers the entire CRUD lifecycle for everything in the player's loadout, and includes a cleanup table so removing a weapon doesn't quietly break the default loadout, the in-mission upgrade ladder, or the loot pools. |
+| `/equipment`         | Add, change, or remove a weapon, augment, reactor, shield, or armor entry — including visual changes (bullet sprite, UI tint dot, combat HUD bars, explosion particles) and the **family** field (`potato` / `carrot` / `turnip`) that controls which weapons appear in which solar system's shop and loot pool, plus carrot weapons' optional `gravity` field for arcing ballistics. One skill covers the entire CRUD lifecycle for everything in the player's loadout, and includes a cleanup table so removing a weapon doesn't quietly break the default loadout, the in-mission upgrade ladder, or the loot pools. |
 | `/new-perk`          | Adds a new mid-mission buff (a "perk") with its icon, HUD chip, and pickup logic.                  |
 | `/new-solar-system`  | Adds a new selectable star system to the galaxy overworld (sun color/size, unlock condition, etc).  |
-| `/new-story`         | Adds a new in-game story popup — a chunk of narrative text plus background music plus a voiceover — that either auto-plays once for new players (think opening cinematic) or sits in the Story log to be replayed later. |
+| `/new-story`         | Add, change, or remove in-game story content — the cinematic popups, mission/shop briefings, the spoken `body` text, the deeper written `logSummary` shown in the Story log, the music bed, and the auto-trigger wiring (which points in the game fires which beat). One skill covers the whole CRUD lifecycle, including a hard-coded-reference check so removing a story doesn't quietly break a test fixture. |
 | `/balance-review`    | Compares your uncommitted JSON tweaks against the previous version and prints a balance report.    |
 | `/content-audit`     | Walks every cross-file invariant the unit tests don't cover. Run it before opening a pull request. |
 
@@ -246,10 +248,12 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 | `/new-perk`          |         ~8.5K |                      10 |               ~85K |
 | `/equipment`         |  ~4.3K (avg)¹ |                      56 |              ~240K |
 | `/new-solar-system`  |         ~9.7K |                       5 |               ~49K |
-| `/new-story`         |         ~6.0K |                      10 |               ~60K |
-| **Total**            |               |             **236 uses** | **~1.99M tokens** |
+| `/new-story`         |  ~4.0K (avg)² |                      25 |              ~100K |
+| **Total**            |               |             **251 uses** | **~2.03M tokens** |
 
 ¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year. The 240K total is more honest than the average per-use number suggests, because the high-stakes removal path also avoids a separate "fix-up commit" round-trip.
+
+² `/new-story` was a CREATE-only skill before; it now also covers MODIFY (text-only edits, audio re-records, trigger changes) and REMOVE (with the same hard-coded-reference cleanup pattern as `/equipment`, plus a save-format safety note that the persistence layer drops unknown story ids on hydrate). The 4.0K average covers a mix of ~10 new entries, ~10 text edits (body or `logSummary` rewrites), ~4 audio re-records, and ~1 removal per year. Per-use savings range from ~0 tokens (a one-field text tweak) to ~6K (a fresh story creation with both audio assets) to ~5K (a removal where the cleanup table keeps the route.test.ts fixture from breaking).
 
 The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
 
