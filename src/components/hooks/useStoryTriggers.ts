@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MissionId } from "@/types/game";
 import type { SolarSystemId } from "@/types/game";
-import { STORY_ENTRIES, type StoryId } from "@/game/data/story";
+import { type StoryId } from "@/game/data/story";
+import {
+  selectFirstTimeEntry,
+  selectOnMissionSelectEntry,
+  selectOnSystemEnterEntry,
+  selectReadyClearedIdleEntries
+} from "@/game/data/storyTriggers";
 import { storyAudio } from "@/game/audio/story";
 import { storyLogAudio } from "@/game/audio/storyLogAudio";
 import { markStorySeen } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
-import { getAllMissions } from "@/game/data/missions";
 
 // Owns the entire galaxy-view story-trigger surface so adding a new
 // auto-trigger kind doesn't reach into GameCanvas.
@@ -78,13 +83,7 @@ export function useStoryTriggers({
   // we never overlap a popup mid-combat or mid-cinematic.
   useEffect(() => {
     if (!saveLoaded || !enabled || activeStory) return;
-    const seen = new Set(seenStoryEntries);
-    const next = STORY_ENTRIES.find(
-      (e) =>
-        e.autoTrigger?.kind === "first-time" &&
-        !seen.has(e.id) &&
-        !autoFiredRef.current.has(e.id)
-    );
+    const next = selectFirstTimeEntry(new Set(seenStoryEntries), autoFiredRef.current);
     if (next) {
       autoFiredRef.current.add(next.id);
       setActiveStory({ id: next.id, firstSeen: true, fromLog: false });
@@ -97,13 +96,10 @@ export function useStoryTriggers({
   // directly over the menu bed (parity with cleared-idle).
   useEffect(() => {
     if (!enabled || !saveLoaded || activeStory || storyListOpen) return;
-    const seen = new Set(seenStoryEntries);
-    const next = STORY_ENTRIES.find(
-      (e) =>
-        e.autoTrigger?.kind === "on-system-enter" &&
-        e.autoTrigger.systemId === currentSolarSystemId &&
-        !seen.has(e.id) &&
-        !autoFiredRef.current.has(e.id)
+    const next = selectOnSystemEnterEntry(
+      currentSolarSystemId,
+      new Set(seenStoryEntries),
+      autoFiredRef.current
     );
     if (!next) return;
     autoFiredRef.current.add(next.id);
@@ -160,11 +156,7 @@ export function useStoryTriggers({
       if (!saveLoaded || !enabled) return;
       cancelPendingBriefing();
       if (!unlockedPlanets.includes(missionId)) return;
-      const entry = STORY_ENTRIES.find(
-        (e) =>
-          e.autoTrigger?.kind === "on-mission-select" &&
-          e.autoTrigger.missionId === missionId
-      );
+      const entry = selectOnMissionSelectEntry(missionId);
       if (!entry) return;
 
       if (entry.mode === "overlay") {
@@ -200,24 +192,10 @@ export function useStoryTriggers({
   // cinematic's audio mid-fade-in.
   useEffect(() => {
     if (!enabled || !saveLoaded || storyListOpen || activeStory) return;
-    const matches = STORY_ENTRIES.filter(
-      (e) =>
-        e.autoTrigger?.kind === "on-system-cleared-idle" &&
-        e.autoTrigger.systemId === currentSolarSystemId
+    const ready = selectReadyClearedIdleEntries(
+      currentSolarSystemId,
+      new Set(completedMissions)
     );
-    if (matches.length === 0) return;
-    const completed = new Set(completedMissions);
-    const ready = matches.filter((e) => {
-      const trigger = e.autoTrigger;
-      if (trigger?.kind !== "on-system-cleared-idle") return false;
-      const systemMissions = getAllMissions().filter(
-        (m) => m.solarSystemId === trigger.systemId && m.kind === "mission"
-      );
-      return (
-        systemMissions.length > 0 &&
-        systemMissions.every((m) => completed.has(m.id))
-      );
-    });
     if (ready.length === 0) return;
 
     let weStartedAudio = false;
