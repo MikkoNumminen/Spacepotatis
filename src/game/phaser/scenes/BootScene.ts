@@ -59,6 +59,14 @@ export class BootScene extends Phaser.Scene {
     this.drawDragonfly("enemy-dragonfly-heli",   { size: 46, body: 0x2a8cb0, accent: 0x103040, wing: 0x80d8e8, wings: 4 });
     this.drawDragonfly("enemy-dragonfly-damsel", { size: 36, body: 0xc060d0, accent: 0x4a1a55, wing: 0xf5c8ff, wings: 2, slim: true });
 
+    this.drawPirateShip("enemy-pirate-skiff",       { size: 36,  body: 0x8a5a3a, accent: 0x3a2010, variant: "skiff",       cannons: 0, sail: 0xd9c6a0 });
+    this.drawPirateShip("enemy-pirate-cutlass",     { size: 38,  body: 0x6b3a2a, accent: 0x2a140a, variant: "cutlass",     cannons: 1, sail: 0xc8a878 });
+    this.drawPirateShip("enemy-pirate-marauder",    { size: 42,  body: 0x5a4a2a, accent: 0x231a10, variant: "marauder",    cannons: 2, sail: 0xb89868 });
+    this.drawPirateShip("enemy-pirate-corsair",     { size: 46,  body: 0x9a3030, accent: 0x4a1414, variant: "corsair",     cannons: 2, sail: 0xd8a060, skull: true });
+    this.drawPirateShip("enemy-pirate-frigate",     { size: 52,  body: 0x4a4a6a, accent: 0x1f1f30, variant: "frigate",     cannons: 3, sail: 0xa8a8c0 });
+    this.drawPirateShip("enemy-pirate-galleon",     { size: 60,  body: 0x5a4030, accent: 0x2a1c10, variant: "galleon",     cannons: 4, sail: 0xc8a87a });
+    this.drawPirateShip("enemy-pirate-dreadnought", { size: 110, body: 0x7a1010, accent: 0x2a0606, variant: "dreadnought", cannons: 6, sail: 0x1a0606, skull: true });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -1411,6 +1419,195 @@ export class BootScene extends Phaser.Scene {
     const hitboxHeight = bodyLen + (wings === 4 ? wingHalfH * 0.8 : 0);
     const hitboxOffsetX = PAD;
     const hitboxOffsetY = PAD;
+    this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
+  }
+
+  // Top-down pirate vessel pointing DOWN (bow at the bottom, stern at the top
+  // of the texture). Hull is an elongated wedge — a stern rectangle joined
+  // to a triangular bow — with a square sail behind, optional cannon ports
+  // along port + starboard, and an optional jolly-roger skull on the hull.
+  // `dreadnought` adds a raised forecastle at the bow + double cannon rows
+  // so it reads bigger and meaner than a galleon. Variant just tunes width
+  // and length so silhouettes feel distinct at a glance.
+  private drawPirateShip(
+    key: string,
+    opts: {
+      size: number;
+      body: number;
+      accent: number;
+      sail?: number;
+      cannons?: number;
+      variant: "skiff" | "cutlass" | "marauder" | "corsair" | "frigate" | "galleon" | "dreadnought";
+      skull?: boolean;
+    }
+  ): void {
+    const { size, body, accent, sail, cannons = 0, variant, skull } = opts;
+    const PAD = 5;
+
+    // Width per variant — skiff narrowest, dreadnought widest.
+    const widthFactor =
+      variant === "skiff" ? 0.34 :
+      variant === "cutlass" ? 0.36 :
+      variant === "marauder" ? 0.40 :
+      variant === "corsair" ? 0.42 :
+      variant === "frigate" ? 0.42 :
+      variant === "galleon" ? 0.48 :
+      0.52; // dreadnought
+
+    const hullHalfW = size * widthFactor;
+    const hullLen = size;
+    const bowLen = hullLen * 0.30;
+    const sternLen = hullLen - bowLen;
+
+    const sailHalfW = hullHalfW * 0.85;
+    const sailH = sail !== undefined ? hullLen * 0.42 : 0;
+    const sailGap = sail !== undefined ? size * 0.04 : 0;
+
+    const W = hullHalfW * 2 + PAD * 2;
+    const H = sailH + sailGap + hullLen + PAD * 2;
+    const cx = W / 2;
+
+    // Bow at the bottom of the texture (enemies fall down). Stern at top.
+    const bowTipY = H - PAD;
+    const sternTopY = bowTipY - hullLen;
+    const sternBottomY = sternTopY + sternLen;
+
+    const g = this.add.graphics();
+
+    // Sail — square sail behind/above the hull.
+    if (sail !== undefined) {
+      const sailBottomY = sternTopY - sailGap;
+      const sailTopY = sailBottomY - sailH;
+      g.fillStyle(sail, 1);
+      g.fillRect(cx - sailHalfW, sailTopY, sailHalfW * 2, sailH);
+      g.lineStyle(1, accent, 0.7);
+      g.strokeRect(cx - sailHalfW, sailTopY, sailHalfW * 2, sailH);
+      // Mast — vertical line up the middle of the sail.
+      g.lineStyle(Math.max(1, size * 0.025), accent, 0.85);
+      g.beginPath();
+      g.moveTo(cx, sailTopY - sailGap * 0.5);
+      g.lineTo(cx, sternTopY + sternLen * 0.25);
+      g.strokePath();
+      // Pennant — small triangle off the top of the mast.
+      g.fillStyle(accent, 0.9);
+      g.fillTriangle(
+        cx, sailTopY - sailGap * 0.5,
+        cx + size * 0.10, sailTopY - sailGap * 0.5 + size * 0.04,
+        cx, sailTopY - sailGap * 0.5 + size * 0.08
+      );
+    }
+
+    // Hull — stern rectangle + bow triangle, drawn as one filled silhouette.
+    g.fillStyle(body, 1);
+    g.fillRect(cx - hullHalfW, sternTopY, hullHalfW * 2, sternLen);
+    g.fillTriangle(
+      cx - hullHalfW, sternBottomY,
+      cx + hullHalfW, sternBottomY,
+      cx, bowTipY
+    );
+
+    // Right-side shadow wash for volume.
+    g.fillStyle(accent, 0.45);
+    g.fillRect(cx + hullHalfW * 0.15, sternTopY + sternLen * 0.05, hullHalfW * 0.85, sternLen * 0.95);
+    g.fillTriangle(
+      cx + hullHalfW * 0.15, sternBottomY,
+      cx + hullHalfW, sternBottomY,
+      cx, bowTipY
+    );
+
+    // Top-left highlight on the deck.
+    g.fillStyle(0xffffff, 0.18);
+    g.fillRect(cx - hullHalfW * 0.85, sternTopY + sternLen * 0.10, hullHalfW * 0.70, sternLen * 0.35);
+
+    // Stern transom — accent strip across the top of the rectangle.
+    g.fillStyle(accent, 0.85);
+    g.fillRect(cx - hullHalfW, sternTopY, hullHalfW * 2, Math.max(1.5, size * 0.05));
+
+    // Deck plank seam — thin centerline running stern-to-bow.
+    g.lineStyle(Math.max(1, size * 0.02), accent, 0.55);
+    g.beginPath();
+    g.moveTo(cx, sternTopY + size * 0.08);
+    g.lineTo(cx, bowTipY - size * 0.05);
+    g.strokePath();
+
+    // Forecastle — only on the dreadnought, a smaller raised rectangle near
+    // the bow that visually layers a second deck on top.
+    if (variant === "dreadnought") {
+      const foreHalfW = hullHalfW * 0.55;
+      const foreTopY = sternBottomY - sternLen * 0.20;
+      const foreH = sternLen * 0.32;
+      g.fillStyle(body, 1);
+      g.fillRect(cx - foreHalfW, foreTopY, foreHalfW * 2, foreH);
+      g.fillStyle(accent, 0.55);
+      g.fillRect(cx + foreHalfW * 0.15, foreTopY + foreH * 0.1, foreHalfW * 0.85, foreH * 0.9);
+      g.lineStyle(1, accent, 0.85);
+      g.strokeRect(cx - foreHalfW, foreTopY, foreHalfW * 2, foreH);
+    }
+
+    // Cannon ports — small dark circles along port + starboard. Count is
+    // per side (so cannons:2 = 2 left + 2 right). Dreadnought stacks two
+    // rows at slightly different X offsets to read as multi-deck.
+    if (cannons > 0) {
+      const portR = Math.max(1.2, size * 0.04);
+      const xPort = -hullHalfW + portR * 1.6;
+      const xStar = hullHalfW - portR * 1.6;
+      const yTop = sternTopY + sternLen * 0.22;
+      const yBot = sternBottomY - sternLen * 0.05;
+      const yStep = cannons > 1 ? (yBot - yTop) / (cannons - 1) : 0;
+      g.fillStyle(0x05060a, 1);
+      for (let i = 0; i < cannons; i++) {
+        const yc = cannons === 1 ? (yTop + yBot) * 0.5 : yTop + yStep * i;
+        g.fillCircle(cx + xPort, yc, portR);
+        g.fillCircle(cx + xStar, yc, portR);
+        if (variant === "dreadnought") {
+          g.fillCircle(cx + xPort + portR * 1.5, yc - portR * 0.4, portR * 0.85);
+          g.fillCircle(cx + xStar - portR * 1.5, yc - portR * 0.4, portR * 0.85);
+        }
+      }
+    }
+
+    // Jolly-roger skull on hull center (corsair, dreadnought).
+    if (skull === true) {
+      const skullR = size * 0.10;
+      const skullCy = sternTopY + sternLen * 0.55;
+      g.fillStyle(0xf0e8d8, 1);
+      g.fillCircle(cx, skullCy, skullR);
+      // Jaw — short rectangle below the cranium.
+      g.fillRect(cx - skullR * 0.55, skullCy + skullR * 0.6, skullR * 1.1, skullR * 0.45);
+      // Eye pits + nasal slit.
+      g.fillStyle(0x05060a, 1);
+      g.fillCircle(cx - skullR * 0.4, skullCy - skullR * 0.05, skullR * 0.28);
+      g.fillCircle(cx + skullR * 0.4, skullCy - skullR * 0.05, skullR * 0.28);
+      g.fillRect(cx - skullR * 0.08, skullCy + skullR * 0.3, skullR * 0.16, skullR * 0.25);
+      // Jaw line.
+      g.lineStyle(Math.max(1, size * 0.018), 0x05060a, 0.9);
+      g.beginPath();
+      g.moveTo(cx - skullR * 0.55, skullCy + skullR * 0.85);
+      g.lineTo(cx + skullR * 0.55, skullCy + skullR * 0.85);
+      g.strokePath();
+    }
+
+    // Hull outline last so the silhouette reads cleanly.
+    g.lineStyle(1, accent, 0.85);
+    g.beginPath();
+    g.moveTo(cx - hullHalfW, sternTopY);
+    g.lineTo(cx + hullHalfW, sternTopY);
+    g.lineTo(cx + hullHalfW, sternBottomY);
+    g.lineTo(cx, bowTipY);
+    g.lineTo(cx - hullHalfW, sternBottomY);
+    g.lineTo(cx - hullHalfW, sternTopY);
+    g.strokePath();
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+
+    // Hitbox covers the hull silhouette only — the sail + pennant are
+    // cosmetic and excluded so players aren't punished for shooting at
+    // empty cloth above the deck.
+    const hitboxWidth = hullHalfW * 2;
+    const hitboxHeight = hullLen;
+    const hitboxOffsetX = (W - hitboxWidth) / 2;
+    const hitboxOffsetY = sternTopY;
     this.setEnemyHitbox(key, hitboxWidth, hitboxHeight, hitboxOffsetX, hitboxOffsetY);
   }
 
