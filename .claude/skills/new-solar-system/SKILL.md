@@ -17,7 +17,7 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
 6. `ambientHue` — hex; reserved for future ambient tinting.
 7. `unlockBy` — `"default"` OR a `MissionId` literal that unlocks this system on completion.
 8. **`introVoiceAsset` (REQUIRED)** — local path to chapter-opener voiceover (typically `D:\koodaamista\AudiobookMaker\out\spacepotatis\`). Every system ships with on-system-enter cinematic — non-optional. Re-encoded and copied to `public/audio/story/<systemId>-intro-voice.mp3`.
-9. `introMusicAsset` (optional) — system-specific bed. If omitted, reuse `/audio/story/great-potato-awakening-music.ogg`.
+9. **`introMusicAsset` (REQUIRED)** — system-specific bed. Don't reuse another arc's bed; each new system gets its own. Re-encoded and copied to `public/audio/story/<systemId>-intro-music.ogg`.
 10. `introBody` + `introLogSummary` — spoken paragraph (Grandma) + Story-log synopsis. Match `tubernovae-cluster-intro` tone.
 
 # Steps
@@ -44,7 +44,7 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
 6. **Mission-binding reminder.** This skill creates no missions. Tell user: "Run `/new-mission` for each planet in `<systemId>` with `solarSystemId: \"<systemId>\"`." Empty system = empty starfield in `GalaxyScene`.
 7. **Scaffold the on-system-enter cinematic (REQUIRED).** Either invoke `/new-story` (Template E) or inline:
    - Re-encode voice ≤500 KB (`ffmpeg -i in.mp3 -ac 1 -b:a 64k out.mp3`) → `public/audio/story/<systemId>-intro-voice.mp3`.
-   - If `introMusicAsset` supplied, copy to `public/audio/story/<systemId>-intro-music.ogg`. Else reuse `/audio/story/great-potato-awakening-music.ogg`.
+   - Copy `introMusicAsset` to `public/audio/story/<systemId>-intro-music.ogg`. Music is REQUIRED — every new arc gets its own bed. Don't fall back to reusing the awakening track.
    - Add `STORY_ENTRIES` entry in `src/game/data/story.ts`: id `<systemId>-cluster-intro`, `mode: "modal"`, `voiceDelayMs: 3000`, `autoTrigger: { kind: "on-system-enter", systemId: "<systemId>" }`. Extend `StoryId` union.
    - Add fires-when-fresh assertion in `selectOnSystemEnterEntry` block of `src/game/data/storyTriggers.test.ts`: id, `mode === "modal"`, `musicTrack !== null`, `voiceTrack` under `/audio/story/`. Tubernovae block is template.
 8. **Run** `npm run typecheck && npm test`. Common failures: forgot to extend `SolarSystemId`; shipped without paired on-system-enter entry (storyTriggers test catches this).
