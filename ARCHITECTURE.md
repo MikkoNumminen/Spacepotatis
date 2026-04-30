@@ -354,6 +354,14 @@ public/audio/
   music/         per-mission combat beds (referenced by missions.json `musicTrack`)
 ```
 
+### Story content shape
+
+`StoryEntry` in [src/game/data/story.ts](src/game/data/story.ts) carries two parallel text fields:
+- `body: readonly string[]` — paragraphs Grandma reads aloud. Kept short and sentence-clean so the spoken narration breathes. Rendered in `StoryModal` (the cinematic popup).
+- `logSummary: readonly string[]` — the deeper written synopsis rendered in the Story log list view (`StoryListModal`). Free to go further than the spoken track: lore, context, what's at stake. 2-4 paragraphs is the typical length. The user-facing rationale: browsing the log gets the richer read; REPLAY plays the spoken short version with its music bed.
+
+Both fields are required on every entry. The `/new-story` skill enforces this for create / modify / remove operations.
+
 ### Story trigger system
 
 The `StoryAutoTrigger` discriminated union in [src/game/data/story.ts](src/game/data/story.ts) currently supports four kinds. Each kind has exactly one firing site in the codebase that scans `STORY_ENTRIES` for matches.
