@@ -86,11 +86,12 @@ Every spoken line in the game is read by the **same** in-character narrator: **G
 | Cinematic popup | `src/components/story/StoryModal.tsx` (renders `body` paragraphs) |
 | Story log list | `src/components/story/StoryListModal.tsx` (renders `title` + `logSummary` paragraphs) |
 | Audio engine | [src/game/audio/story.ts](src/game/audio/story.ts) — generic `play({ musicSrc, voiceSrc, voiceDelayMs })` |
-| Auto-fire — first-time | `src/components/GameCanvas.tsx` `useEffect` scanning for unseen `first-time` |
-| Auto-fire — on-mission-select | `GameCanvas#handleMissionSelect` (gated on `unlockedPlanets`) |
+| Auto-fire — first-time | `src/components/hooks/useStoryTriggers.ts` `useEffect` scanning for unseen `first-time` |
+| Auto-fire — on-mission-select | `useStoryTriggers.ts` `handleMissionSelect` (gated on `unlockedPlanets`) |
 | Auto-fire — on-shop-open | `src/components/ShopUI.tsx` `useEffect` on mount |
-| Auto-fire — on-system-enter | `GameCanvas.tsx` `useEffect` watching `currentSolarSystemId` (fires once the first time the player warps into the named system, gated on the seen-set) |
-| Auto-fire — on-system-cleared-idle | `GameCanvas` idle ticker |
+| Auto-fire — on-system-enter | `useStoryTriggers.ts` `useEffect` watching `currentSolarSystemId` (fires once the first time the player warps into the named system, gated on the seen-set) |
+| Auto-fire — on-system-cleared-idle | `useStoryTriggers.ts` idle ticker |
+| Story-log replay music bed | [src/game/audio/storyLogAudio.ts](src/game/audio/storyLogAudio.ts) — **hard-codes** `/audio/story/great-potato-awakening-music.ogg` as the loop bed under the Story log list view AND any replay opened from inside it. See REMOVE cleanup table. |
 | Persistence | `seenStoryEntries: StoryId[]` in `src/game/state/stateCore.ts`. Hydrate sanitises via `isKnownStoryId` — unknown ids drop silently. |
 | DB column | `seen_story_entries TEXT[]` (added in `db/migrations/20260429000000_add_seen_story_entries.sql`) — column already covers any number of ids, no migration needed for content adds/removes. |
 | Audio assets | `public/audio/story/<storyId>-voice.{mp3\|ogg}` and `public/audio/story/<storyId>-music.{ogg\|mp3}` |
@@ -120,7 +121,7 @@ Ask once, in a single message, for any missing fields:
 
 # Templates — pick one and fill it in
 
-The four shapes that ship today. Match the user's intent to one and fill it in instead of building from scratch.
+The six shapes covered today (A–E ship in `STORY_ENTRIES`; F is the replay-only/lore-drop slot reserved for future use). Match the user's intent to one and fill it in instead of building from scratch.
 
 **A. Cinematic intro / chapter card** — modal popup, custom music, voice on top, fires once for new players.
 ```ts
@@ -287,9 +288,12 @@ Removing a story entry is mostly safe because `seenStoryEntries` migration silen
 
 | File | What it references | What breaks if you remove |
 |---|---|---|
-| `src/app/api/save/route.test.ts` (lines 102, 116) | `"great-potato-awakening"` (used as a test fixture for the seen_story_entries roundtrip) | Test fails. If you remove `great-potato-awakening`, replace the fixture with another known story id, OR remove the assertion entirely if no entry is left to test with. |
+| `src/app/api/save/route.test.ts` (lines 102, 116) | `"great-potato-awakening"` (used as a test fixture for the seen_story_entries roundtrip) | Test fails. Replace the fixture with another known story id, OR remove the assertion entirely if no entry is left to test with. |
+| `src/game/audio/storyLogAudio.ts` (the `STORY_LOG_MUSIC_PATH` constant near the top of the file) | **Hard-coded music path** `/audio/story/great-potato-awakening-music.ogg` — the Story log replay bed loops this file. If you remove `great-potato-awakening`, this file path also disappears (assuming you delete the asset), and the Story log music silently fails to play. | Story log + replay views fall silent. **Fix:** before deleting `great-potato-awakening` OR its music asset, point `STORY_LOG_MUSIC_PATH` at another available story music file (or generalize the engine to read from a story id). This is a HARD blocker on removing the Awakening's music asset specifically. |
 
-That's it today. Story ids do NOT appear in the data layer's mission/weapon/perk/enemy catalogs, in `lootPools.ts`, in the auth/save guards, or in any user-facing component (all components iterate `STORY_ENTRIES` generically). Every other reference is inside `story.ts` itself.
+Story ids do NOT appear in the data layer's mission/weapon/perk/enemy catalogs, in `lootPools.ts`, in the auth/save guards, or in any user-facing component (all components iterate `STORY_ENTRIES` generically). Every other reference is inside `story.ts` itself.
+
+**Grep step is non-optional.** If a future commit adds a fresh hard-coded story id reference that this table doesn't list yet, only the grep will catch it.
 
 ## Steps
 
