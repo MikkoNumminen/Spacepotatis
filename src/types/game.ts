@@ -142,6 +142,7 @@ export interface SolarSystemDefinition {
   readonly sunColor: string;          // "#RRGGBB" — drives the central star tint
   readonly sunSize: number;           // multiplier on the base sun radius
   readonly ambientHue: string;        // "#RRGGBB" — informational; ambient palette hint
+  readonly galaxyMusicTrack: string;  // "/audio/music/<systemId>-galaxy.ogg" — bed for the galaxy view of this system
 }
 
 export type PlanetKind = "mission" | "shop" | "scenery";

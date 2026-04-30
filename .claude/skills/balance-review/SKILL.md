@@ -48,7 +48,7 @@ Field names come from real schemas. `WeaponDefinition` source of truth: `src/typ
 - `src/game/data/enemies.json` — `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`.
 - `src/game/data/waves.json` — `missions[].waves[].spawns[]` with `enemy, count, delayMs, intervalMs, formation, xPercent`; wave-level `id, durationMs`.
 - `src/game/data/missions.json` — `id, kind, name, difficulty, requires, solarSystemId, ...` (galaxy/visual fields ignored unless changed).
-- `src/game/data/solarSystems.json` — `id, name, sunColor, sunSize, ambientHue`. Cosmetic-only except `id`.
+- `src/game/data/solarSystems.json` — `id, name, description, sunColor, sunSize, ambientHue, galaxyMusicTrack`. Cosmetic-only except `id`.
 - `src/game/data/perks.ts` — `PERKS` record + `PERK_IDS`. Read as text; parse `PERKS` object literal keys.
 - `src/game/data/augments.ts` — `AUGMENTS_RECORD`, `AUGMENT_IDS`, `MAX_AUGMENTS_PER_WEAPON`. Read as text; parse cost + the five *Mul/*Bonus fields.
 - `src/game/data/lootPools.ts` — `POOLS` Map keyed by `SolarSystemId`. Read as text; parse `weapons[]`, `augments[]`, `upgrades[]`, `credits.{min,max}` per system.
@@ -87,4 +87,4 @@ End with:
 - (none) — or bullet each: dangling enemy id, DPS <= 0, perk count drift, missing mission ref, wave referencing removed enemy, loot-pool weapon id not in WeaponId, augment turnRateMul change with no homing weapon affected, mission solarSystemId pointing at unknown system, family-gated weapon in wrong pool, credits.min >= credits.max.
 ```
 
-Keep the note column to one short clause naming the entity in human terms ("Aphid 30% slower", "Yamsteroid Belt wave 1 easier"). Cosmetic-only changes (tint, name, description, texture, orbitRadius, musicTrack, sunColor, ambientHue, bulletSprite, podSprite) get one "Cosmetic-only" line — no deltas computed.
+Keep the note column to one short clause naming the entity in human terms ("Aphid 30% slower", "Yamsteroid Belt wave 1 easier"). Cosmetic-only changes (tint, name, description, texture, orbitRadius, musicTrack, sunColor, ambientHue, galaxyMusicTrack, bulletSprite, podSprite) get one "Cosmetic-only" line — no deltas computed.
