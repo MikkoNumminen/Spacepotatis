@@ -8,6 +8,12 @@ import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
 import type { CombatSummary } from "@/game/phaser/config";
 import { ROUTES } from "@/lib/routes";
 import { RemoteSaveSchema } from "@/lib/schemas/save";
+import {
+  drainScoreQueue as drainQueueWith,
+  type DrainResult,
+  type ScorePostFn,
+  type ScorePostInput
+} from "./scoreQueue";
 
 // Module-level cache + in-flight de-dup. Both useCloudSaveSync (which
 // hydrates the GameState) and useOptimisticAuth (which only needs to know
@@ -143,15 +149,23 @@ export async function saveNow(): Promise<SyncResult> {
 export async function submitScore(summary: CombatSummary): Promise<SyncResult> {
   // Treat a loss as a successful no-op: nothing to submit, nothing failed.
   if (!summary.victory) return { ok: true };
+  return submitScorePayload({
+    missionId: summary.missionId,
+    score: summary.score,
+    timeSeconds: summary.timeSeconds
+  });
+}
+
+// Internal POST. The score-queue drain reuses this so retries go through the
+// same path as the immediate submit on mission complete. Separated from
+// submitScore so the queue doesn't need a synthetic CombatSummary just to
+// flip `victory: true`.
+async function submitScorePayload(payload: ScorePostInput): Promise<SyncResult> {
   try {
     const res = await fetch(ROUTES.api.leaderboard, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        missionId: summary.missionId,
-        score: summary.score,
-        timeSeconds: summary.timeSeconds
-      })
+      body: JSON.stringify(payload)
     });
     if (res.ok) return { ok: true };
     const detail = await res.text().catch(() => "");
@@ -164,6 +178,35 @@ export async function submitScore(summary: CombatSummary): Promise<SyncResult> {
       message: `Network error — couldn't reach the leaderboard server (${describeError(err)})`
     };
   }
+}
+
+// Adapter for scoreQueue. Maps SyncResult → the queue's narrower shape
+// ({ ok } | { ok=false, status, errorCode }) so the queue can branch on
+// the error code without parsing the user-facing message string.
+const queueAwareSubmit: ScorePostFn = async (input) => {
+  // We can't see the raw fetch response from inside submitScorePayload,
+  // so re-derive the error code by re-running the POST and parsing the
+  // body here. Cheaper than refactoring submitScorePayload to expose
+  // both shapes; the drain path is the only caller and runs at most
+  // a handful of times per mount.
+  try {
+    const res = await fetch(ROUTES.api.leaderboard, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input)
+    });
+    if (res.ok) return { ok: true };
+    const detail = await res.text().catch(() => "");
+    return { ok: false, status: res.status, errorCode: parseErrorCode(detail) };
+  } catch {
+    return { ok: false, status: 0, errorCode: null };
+  }
+};
+
+// Public hook for callers (GameCanvas) that want to kick the queue. Safe to
+// call from anywhere — does nothing if the queue is empty, never throws.
+export async function drainScoreQueue(): Promise<DrainResult> {
+  return drainQueueWith(queueAwareSubmit);
 }
 
 // Status-code → short human-readable message. Reads the JSON `error` field

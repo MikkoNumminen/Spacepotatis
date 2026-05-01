@@ -23,7 +23,8 @@ import { setSolarSystem } from "@/game/state/GameState";
 import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { getStoryEntry } from "@/game/data/story";
-import { saveNow, submitScore } from "@/game/state/sync";
+import { drainScoreQueue, saveNow } from "@/game/state/sync";
+import { enqueueScore } from "@/game/state/scoreQueue";
 import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -175,13 +176,22 @@ export default function GameCanvas() {
       const seq = ++missionSeqRef.current;
       setLastSummary(summary);
 
-      // Sync flow:
-      //  - Anonymous + win: show the "sign in to save" hint.
-      //  - Anonymous + loss: idle (nothing to surface, no missing leaderboard
-      //    entry to confuse the player).
-      //  - Authenticated + loss: still POST /api/save so credits earned during
-      //    the run + playedTimeSeconds persist; no leaderboard post.
-      //  - Authenticated + win: full save→score chain.
+      // Every victory is enqueued FIRST, before any network I/O. The queue
+      // is the source of truth for "this score must reach the leaderboard
+      // eventually" — if the player closes the tab right now, the next
+      // mount drains it. Anonymous wins enqueue too: when the player signs
+      // in later, the drain replays them. The leaderboard never silently
+      // forgets a win.
+      if (summary.victory) {
+        enqueueScore({
+          missionId: summary.missionId,
+          score: summary.score,
+          timeSeconds: summary.timeSeconds
+        });
+      }
+
+      // Anonymous: queue captured the score (if any). Post-mount drain
+      // replays once the player signs in. No save POST while anonymous.
       if (authStatus !== "authenticated") {
         setSyncStatus(summary.victory ? { kind: "unauthenticated" } : { kind: "idle" });
         await fadeOverlay(1);
@@ -192,13 +202,14 @@ export default function GameCanvas() {
         return;
       }
 
+      // Authenticated: save first (the leaderboard guard requires the new
+      // mission visible in completed_missions). The queue drain after
+      // saveNow handles the score POST — including a retry if the immediate
+      // submit hit a transient failure. Drain is non-blocking on the fade,
+      // so the mode switch isn't gated on score-post latency.
       setSyncStatus({ kind: "pending" });
-      // saveNow MUST commit before submitScore so the /api/leaderboard
-      // mission-completion guard sees the new mission in the player's
-      // save row. Awaiting it here serializes that requirement; the
-      // ~100ms latency is the price of the guard.
       const saveResult = await saveNow();
-      if (missionSeqRef.current !== seq) return; // newer complete superseded us
+      if (missionSeqRef.current !== seq) return;
 
       if (!saveResult.ok) {
         setSyncStatus({
@@ -207,23 +218,29 @@ export default function GameCanvas() {
           message: saveResult.message
         });
       } else if (!summary.victory) {
-        // Loss: save committed, no score to post. Leaving "pending" up
-        // would lie about something coming next; idle is honest.
+        // Loss: save committed, nothing to post. Modal goes back to idle.
         setSyncStatus({ kind: "idle" });
       } else {
-        // Victory + auth + saved: kick submitScore in PARALLEL with the
-        // fade-to-galaxy and let the modal update when the score post
-        // resolves. The seq guard above + below stops a slow resolve
-        // from clobbering a newer mission's syncStatus.
-        void submitScore(summary).then((scoreResult) => {
+        // Victory: drive the queue. drainScoreQueue picks up THIS mission's
+        // entry (and any older queued entries that didn't post yet), POSTs
+        // each, drops on success, retries transients next drain. We update
+        // the modal status from the drain outcome.
+        void drainScoreQueue().then((drainResult) => {
           if (missionSeqRef.current !== seq) return;
-          if (scoreResult.ok) {
+          if (drainResult.remaining === 0) {
+            setSyncStatus({ kind: "ok" });
+          } else if (drainResult.succeeded > 0) {
+            // Some entries posted, others still queued. From this player's
+            // POV their latest win went through — show "ok" but the queue
+            // will still retry the others on the next drain trigger.
             setSyncStatus({ kind: "ok" });
           } else {
+            // Nothing posted this drain. Could be transient; the next
+            // drain (mount / visibility / auth-change) will retry.
             setSyncStatus({
-              kind: "score_failed",
-              status: scoreResult.status,
-              message: scoreResult.message
+              kind: "queued",
+              message:
+                "Score saved locally — will post automatically as soon as the leaderboard is reachable."
             });
           }
         });
@@ -240,6 +257,32 @@ export default function GameCanvas() {
     },
     [fadeOverlay, authStatus]
   );
+
+  // Drain the score queue on three triggers so a missing leaderboard entry
+  // self-heals without user action:
+  //   1. Mount + every transition to authenticated (anonymous wins from a
+  //      prior session catch up the moment the player signs in).
+  //   2. Tab returns to foreground (covers the "I closed the tab while the
+  //      submit was in flight" case — the next visit reposts).
+  //   3. Network-online events (mobile out-of-coverage → coverage).
+  // Drain is a no-op when the queue is empty, so spamming the trigger is
+  // cheap.
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    void drainScoreQueue();
+    const onVisibility = (): void => {
+      if (document.visibilityState === "visible") void drainScoreQueue();
+    };
+    const onOnline = (): void => {
+      void drainScoreQueue();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [authStatus]);
 
   // Route Phaser's onComplete through a ref so a mid-combat auth flip
   // ("loading" → "authenticated") doesn't leave Phaser holding a stale
