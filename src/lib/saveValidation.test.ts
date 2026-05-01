@@ -377,3 +377,114 @@ describe("module-load diagnostics", () => {
     expect(fired).toBe(true);
   });
 });
+
+describe("validateCreditsDelta floor-clamp on negative deltaTime (post-reset re-save)", () => {
+  // The line `Math.max(0, next.playedTimeSeconds - prevTime)` clamps a backward
+  // playtime to 0. A reset-and-resave shouldn't crater the cap into negatives
+  // (which would make every delta exceed an effectively-negative budget).
+  it("clamps deltaTime to 0 when next.playedTimeSeconds < prev.playedTimeSeconds", () => {
+    // Backward time travel + small positive credits delta still under
+    // (1 first clear) * cap + slack should pass.
+    const result = validateCreditsDelta({
+      prev: { credits: 100, playedTimeSeconds: 1000, completedMissionsCount: 0 },
+      next: {
+        credits: 100 + CREDITS_DELTA_SLACK,
+        playedTimeSeconds: 0,
+        completedMissionsCount: 1
+      }
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a large positive credits delta even with a backward playtime delta (deltaTime is clamped, not negative)", () => {
+    // If deltaTime were -1000, that would multiply the cap into negative
+    // territory and *every* positive credit delta would fail — but the
+    // floor-clamp prevents that pathology. Instead, the cap is exactly:
+    //   0 (clamped) * maxPerSecond + 0 * maxPerFirstClear + slack = slack.
+    // A 999_999 delta is still way over budget.
+    const result = validateCreditsDelta({
+      prev: { credits: 0, playedTimeSeconds: 1000, completedMissionsCount: 1 },
+      next: {
+        credits: 999_999,
+        playedTimeSeconds: 0,
+        completedMissionsCount: 1
+      }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("delta_time=0s");
+  });
+
+  it("clamps deltaCompleted to 0 when next.completedMissionsCount < prev.completedMissionsCount", () => {
+    // A weird shape but legal at the API boundary (Zod doesn't tie them
+    // together). The clamp prevents the formula from going negative.
+    const result = validateCreditsDelta({
+      prev: { credits: 0, playedTimeSeconds: 60, completedMissionsCount: 5 },
+      next: {
+        credits: CREDITS_DELTA_SLACK,
+        playedTimeSeconds: 60,
+        completedMissionsCount: 1
+      }
+    });
+    // delta_time=0, delta_completed clamped to 0, slack only — still admits 100.
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a large positive credits delta when both deltas clamp to 0 (only slack admits credits)", () => {
+    const result = validateCreditsDelta({
+      prev: { credits: 0, playedTimeSeconds: 1000, completedMissionsCount: 5 },
+      next: {
+        credits: 50_000,
+        playedTimeSeconds: 500,
+        completedMissionsCount: 0
+      }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("delta_time=0s");
+    expect(result.error).toContain("delta_completed=0");
+  });
+});
+
+describe("validatePlaytimeDelta boundary at exactly nowMs === prevUpdatedMs", () => {
+  // wallClockSeconds = max(0, (nowMs - prevUpdatedMs) / 1000) → 0 for a
+  // simultaneous-millisecond double-save. allowedDelta is exactly the
+  // PLAYTIME_DELTA_SLACK_SECONDS slack.
+  const T0 = new Date("2026-04-28T12:00:00.000Z");
+  const T0_MS = T0.getTime();
+
+  it("accepts a delta within the slack when nowMs === prevUpdatedMs", () => {
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 100, updatedAt: T0 },
+        next: { playedTimeSeconds: 100 + PLAYTIME_DELTA_SLACK_SECONDS },
+        nowMs: T0_MS
+      }).ok
+    ).toBe(true);
+  });
+
+  it("rejects a delta past the slack when nowMs === prevUpdatedMs", () => {
+    const result = validatePlaytimeDelta({
+      prev: { playedTimeSeconds: 100, updatedAt: T0 },
+      next: { playedTimeSeconds: 100 + PLAYTIME_DELTA_SLACK_SECONDS + 1 },
+      nowMs: T0_MS
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("clamps wallClockSeconds to 0 when nowMs < prevUpdatedMs (negative skew)", () => {
+    // Server clock skew or stale prev row: the floor-clamp should keep the
+    // budget at exactly the slack.
+    expect(
+      validatePlaytimeDelta({
+        prev: { playedTimeSeconds: 0, updatedAt: T0 },
+        next: { playedTimeSeconds: PLAYTIME_DELTA_SLACK_SECONDS },
+        nowMs: T0_MS - 5000
+      }).ok
+    ).toBe(true);
+    const result = validatePlaytimeDelta({
+      prev: { playedTimeSeconds: 0, updatedAt: T0 },
+      next: { playedTimeSeconds: PLAYTIME_DELTA_SLACK_SECONDS + 1 },
+      nowMs: T0_MS - 5000
+    });
+    expect(result.ok).toBe(false);
+  });
+});
