@@ -273,7 +273,7 @@ If you want to understand the project deeper, here's the order to read things in
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** — a tour of how data flows through the app: how a click on a planet leads to a Phaser combat scene starting, how saves are written, how the database schema is laid out.
 3. **[TODO.md](TODO.md)** — the planned implementation phases and what's deliberately out of scope.
 4. **[.claude/skills/](.claude/skills/)** — the eight skills mentioned above (plus the `new-weapon` redirect stub). Each one is a short markdown file you can read on its own.
-5. **[src/game/phaser/data/](src/game/phaser/data/)** — the game's balance data (weapons, enemies, waves, missions, perks). All numbers live here as JSON, so you can re-tune the game without touching any code.
+5. **[src/game/data/](src/game/data/)** — the game's balance data (weapons, enemies, waves, missions, perks). All numbers live here as JSON, so you can re-tune the game without touching any code.
 
 ## License
 

@@ -2,11 +2,20 @@
 // weapons.ts/enemies.ts/waves.ts/solarSystems.ts pattern so callers don't
 // repeat `missionsData.missions as readonly MissionDefinition[]` casts and
 // inline `kind === "mission"` filters at every site.
+//
+// missions.json is parsed through MissionsFileSchema at module load so a
+// drifted entry (missing field, wrong type, unknown enum) throws here with a
+// helpful Zod path rather than leaking a NaN/undefined into orbit math at
+// runtime. The other JSON-backed accessors (weapons / enemies / waves /
+// solarSystems) still rely on plain `as` casts; if/when one of those drifts
+// in the wild, they should grow the same boot-parse pattern. Today this is
+// the only data file singled out by the audit follow-up.
 import missionsData from "./missions.json";
 import type { MissionDefinition, MissionId } from "@/types/game";
+import { MissionsFileSchema } from "@/lib/schemas/missions";
 
-const ALL_MISSIONS: readonly MissionDefinition[] =
-  missionsData.missions as readonly MissionDefinition[];
+const PARSED = MissionsFileSchema.parse(missionsData);
+const ALL_MISSIONS: readonly MissionDefinition[] = PARSED.missions;
 
 const MISSIONS: ReadonlyMap<MissionId, MissionDefinition> = new Map(
   ALL_MISSIONS.map((m) => [m.id, m])

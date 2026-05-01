@@ -147,10 +147,10 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
 
 **Going-forward principle — modularity discipline:** see CLAUDE.md §5 for the file-size ceilings, single-responsibility expectations, and "split before it grows" guidance that the audit codified.
 
-### Audit follow-ups (not yet shipped)
+### Audit follow-ups
 
-- **`.claude/skills/*/SKILL.md`** still reference the pre-rename `src/game/phaser/data/` paths. Update them to point at `src/game/data/`.
-- **Optional Zod boot-time parse of `src/game/data/missions.json`** — currently the `as readonly MissionDefinition[]` cast at module load is unguarded. Low risk (tests would catch most drift), but a one-shot `MissionDefinitionSchema.array().parse(...)` would close the gap.
+- ~~**`.claude/skills/*/SKILL.md`** still reference the pre-rename `src/game/phaser/data/` paths.~~ **DONE** — all current `.claude/skills/*/SKILL.md` files point at `src/game/data/`. (Stale references survive only inside `.claude/worktrees/` agent snapshots, which never load.)
+- ~~**Optional Zod boot-time parse of `src/game/data/missions.json`**~~ **DONE** — `MissionsFileSchema` in [src/lib/schemas/missions.ts](src/lib/schemas/missions.ts) parses `missions.json` at module load via [src/game/data/missions.ts](src/game/data/missions.ts); negative-case contract tests in [src/lib/schemas/missions.test.ts](src/lib/schemas/missions.test.ts). The other accessors (weapons / enemies / waves / solarSystems) still rely on plain `as` casts; if/when one drifts in the wild, adopt the same pattern.
 - **CombatScene at 216 LOC** is at the suggested 300-LOC ceiling — justified by its orchestrator role, but worth flagging. If it grows further, split out the next responsibility (likely spawn or HUD wiring) rather than letting it drift.
 
 ---
@@ -168,7 +168,7 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
 
 - Real art: drop PNGs into [public/sprites/](public/sprites/) with the keys already referenced in code (e.g. `/sprites/player/ship.png`). [BootScene](src/game/phaser/scenes/BootScene.ts) currently synthesizes placeholders — switch its `preload` to load files when assets exist.
 - ~~Real audio: drop files into public/audio/ and rewrite sfx.ts to trigger HTMLAudioElement playback.~~ **— DONE for music + voice.** The audio storyline pipeline is shipped: `menuMusic` / `combatMusic` (HTMLAudioElement-based engines in [music.ts](src/game/audio/music.ts)), four story-system engines (`storyAudio`, `storyLogAudio`, `menuBriefingAudio`, `itemSfx`), and a real `public/audio/{menu,story,sfx,music}/` tree. Combat SFX (laser/hit/explosion/pickup chime) intentionally remain procedural Web Audio in [sfx.ts](src/game/audio/sfx.ts) — short impact sounds, no benefit to file-based playback.
-- Real planet textures: file names in [missions.json](src/game/phaser/data/missions.json) under `texture` — loader already tries and falls back to flat color.
+- Real planet textures: file names in [missions.json](src/game/data/missions.json) under `texture` — loader already tries and falls back to flat color.
 - Background music per mission + galaxy theme.
 - Gamepad support — write a second factory in [Controls.ts](src/game/phaser/systems/Controls.ts).
 - **Mobile combat (touch controls)** — deferred from the menu+galaxy mobile pass (which shipped). Scope:
