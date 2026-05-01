@@ -165,33 +165,58 @@ export default function GameCanvas() {
     [fadeOverlay, router]
   );
 
+  // Sequence counter so a slow submitScore from a prior mission can't
+  // overwrite the syncStatus of a newer one. Bumped on every mission
+  // complete; the async resolver short-circuits if the seq has moved.
+  const missionSeqRef = useRef(0);
+
   const handleMissionComplete = useCallback(
     async (summary: CombatSummary) => {
+      const seq = ++missionSeqRef.current;
       setLastSummary(summary);
-      // Reset to "pending" while the modal mounts; the awaits below resolve
-      // it to ok / save_failed / score_failed / unauthenticated. A loss
-      // (summary.victory === false) goes straight to "idle" since there's
-      // nothing to submit.
-      if (!summary.victory) {
+
+      // Sync flow:
+      //  - Anonymous + win: show the "sign in to save" hint.
+      //  - Anonymous + loss: idle (nothing to surface, no missing leaderboard
+      //    entry to confuse the player).
+      //  - Authenticated + loss: still POST /api/save so credits earned during
+      //    the run + playedTimeSeconds persist; no leaderboard post.
+      //  - Authenticated + win: full save→score chain.
+      if (authStatus !== "authenticated") {
+        setSyncStatus(summary.victory ? { kind: "unauthenticated" } : { kind: "idle" });
+        await fadeOverlay(1);
+        setLaunching(null);
+        setMode("galaxy");
+        menuMusic.unduck();
+        requestAnimationFrame(() => void fadeOverlay(0));
+        return;
+      }
+
+      setSyncStatus({ kind: "pending" });
+      // saveNow MUST commit before submitScore so the /api/leaderboard
+      // mission-completion guard sees the new mission in the player's
+      // save row. Awaiting it here serializes that requirement; the
+      // ~100ms latency is the price of the guard.
+      const saveResult = await saveNow();
+      if (missionSeqRef.current !== seq) return; // newer complete superseded us
+
+      if (!saveResult.ok) {
+        setSyncStatus({
+          kind: "save_failed",
+          status: saveResult.status,
+          message: saveResult.message
+        });
+      } else if (!summary.victory) {
+        // Loss: save committed, no score to post. Leaving "pending" up
+        // would lie about something coming next; idle is honest.
         setSyncStatus({ kind: "idle" });
-      } else if (authStatus !== "authenticated") {
-        setSyncStatus({ kind: "unauthenticated" });
       } else {
-        setSyncStatus({ kind: "pending" });
-        // Order matters: saveNow() must commit before submitScore() so the
-        // /api/leaderboard mission-completion guard sees the new mission in
-        // the player's save row. Both calls now return SyncResult so we can
-        // surface failures to the modal — they still never throw, so the
-        // UI flow below isn't blocked.
-        const saveResult = await saveNow();
-        if (!saveResult.ok) {
-          setSyncStatus({
-            kind: "save_failed",
-            status: saveResult.status,
-            message: saveResult.message
-          });
-        } else {
-          const scoreResult = await submitScore(summary);
+        // Victory + auth + saved: kick submitScore in PARALLEL with the
+        // fade-to-galaxy and let the modal update when the score post
+        // resolves. The seq guard above + below stops a slow resolve
+        // from clobbering a newer mission's syncStatus.
+        void submitScore(summary).then((scoreResult) => {
+          if (missionSeqRef.current !== seq) return;
           if (scoreResult.ok) {
             setSyncStatus({ kind: "ok" });
           } else {
@@ -201,8 +226,9 @@ export default function GameCanvas() {
               message: scoreResult.message
             });
           }
-        }
+        });
       }
+
       await fadeOverlay(1);
       setLaunching(null);
       setMode("galaxy");

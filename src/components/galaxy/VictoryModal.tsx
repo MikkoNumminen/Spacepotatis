@@ -160,7 +160,7 @@ function formatTime(s: number): string {
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
-function SyncStatusLine({ status }: { status: VictorySyncStatus }): React.ReactNode {
+function SyncStatusLine({ status }: { status: VictorySyncStatus }) {
   if (status.kind === "idle") return null;
   if (status.kind === "pending") {
     return (
