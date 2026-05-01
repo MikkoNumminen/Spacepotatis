@@ -34,9 +34,10 @@ class StoryAudio {
   }): void {
     this.stop();
     this.active = true;
-    if (typeof window !== "undefined") {
-      this.muted = window.localStorage.getItem("spacepotatis:muted") === "1";
-    }
+    // Mute state is owned by setMuted() (called from setAllMuted via the
+    // MuteToggle). Don't refresh from localStorage here — persistence was
+    // dropped because stale "muted=1" entries from prior testing sessions
+    // kept silencing the page on cold load with no obvious recovery.
 
     if (opts.musicSrc !== null) {
       const music = new Audio(opts.musicSrc);

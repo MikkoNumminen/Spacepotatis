@@ -21,9 +21,9 @@ class StoryLogAudio {
 
   play(): void {
     if (this.music) return;
-    if (typeof window !== "undefined") {
-      this.muted = window.localStorage.getItem("spacepotatis:muted") === "1";
-    }
+    // Mute state is owned by setMuted() (called from setAllMuted via the
+    // MuteToggle). localStorage persistence of mute was dropped — see
+    // comment in MuteToggle.tsx for the full rationale.
     const music = new Audio(STORY_LOG_MUSIC_PATH);
     music.loop = true;
     music.volume = 0;

@@ -22,7 +22,8 @@ class LeaderboardAudio {
   play(delayMs: number): void {
     this.stop();
     if (typeof window === "undefined") return;
-    this.muted = window.localStorage.getItem("spacepotatis:muted") === "1";
+    // Mute state is owned by setMuted() (called from setAllMuted via the
+    // MuteToggle). localStorage persistence was dropped — see MuteToggle.tsx.
     this.leadInTimerId = window.setTimeout(() => {
       this.leadInTimerId = null;
       this.startVoice();
