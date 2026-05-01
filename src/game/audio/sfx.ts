@@ -30,6 +30,16 @@ function autoDispose(stopper: AudioScheduledSourceNode, ...rest: AudioNode[]): v
   };
 }
 
+// Time constant for master-gain mute transitions. ~5ms is short enough that
+// the silence feels instant but long enough to avoid the click that an
+// abrupt `gain.value =` produces on some browsers when a sound is mid-envelope.
+const MUTE_RAMP_TC = 0.005;
+
+interface SoundContext {
+  readonly ctx: AudioContext;
+  readonly sink: AudioNode;
+}
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -44,26 +54,28 @@ class SoundEngine {
     audioBus.register("sfx", this);
   }
 
-  private ensureCtx(): AudioContext | null {
+  // Returns the live AudioContext + the shared masterGain that every per-sound
+  // chain terminates at, or null if we shouldn't be making sound right now
+  // (SSR, muted, or no Web Audio support). Bundling them avoids a separate
+  // `sink` getter that would have to re-prove `masterGain != null` past the
+  // type system.
+  private ensureCtx(): SoundContext | null {
     if (typeof window === "undefined") return null;
     if (this.muted) return null;
     if (!this.ctx) {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return null;
-      this.ctx = new Ctor();
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 1;
-      this.masterGain.connect(this.ctx.destination);
+      const ctx = new Ctor();
+      const masterGain = ctx.createGain();
+      masterGain.gain.value = 1;
+      masterGain.connect(ctx.destination);
+      this.ctx = ctx;
+      this.masterGain = masterGain;
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
-    return this.ctx;
-  }
-
-  // Per-sound chains terminate at masterGain (not destination) so the bus
-  // can flip every in-flight sound silent in one assignment.
-  private get sink(): AudioNode {
-    if (!this.masterGain) throw new Error("masterGain not initialized");
-    return this.masterGain;
+    // Non-null assertions are safe: masterGain is always set in lockstep
+    // with ctx above, and only here.
+    return { ctx: this.ctx, sink: this.masterGain as GainNode };
   }
 
   // Filled once on first call; if the AudioContext sample rate ever changes
@@ -81,20 +93,23 @@ class SoundEngine {
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    // Drop any in-flight sounds to silence immediately. The play* paths still
-    // schedule envelopes that ramp gain down toward 0.001 — leaving those
-    // running under a 0-master is fine; their disposal still fires on stopper
-    // ended. Future un-mute restores the master to 1.
-    if (this.masterGain) {
-      this.masterGain.gain.value = muted ? 0 : 1;
+    // Drop any in-flight sounds to silence immediately, with a short ramp to
+    // avoid the click an abrupt `gain.value =` can produce mid-envelope. The
+    // play* paths still schedule their own envelopes; leaving those running
+    // under a 0-master is fine because disposal fires on stopper.onended.
+    const gain = this.masterGain;
+    const ctx = this.ctx;
+    if (gain && ctx) {
+      gain.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, MUTE_RAMP_TC);
     }
   }
 
   // ---- sounds --------------------------------------------------------
 
   laser(): void {
-    const ctx = this.ensureCtx();
-    if (!ctx) return;
+    const sc = this.ensureCtx();
+    if (!sc) return;
+    const { ctx, sink } = sc;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -103,15 +118,16 @@ class SoundEngine {
     osc.frequency.exponentialRampToValueAtTime(220, t + 0.08);
     gain.gain.setValueAtTime(0.06, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-    osc.connect(gain).connect(this.sink);
+    osc.connect(gain).connect(sink);
     osc.start(t);
     osc.stop(t + 0.12);
     autoDispose(osc, gain);
   }
 
   explosion(): void {
-    const ctx = this.ensureCtx();
-    if (!ctx) return;
+    const sc = this.ensureCtx();
+    if (!sc) return;
+    const { ctx, sink } = sc;
     const t = ctx.currentTime;
 
     // White-noise burst through a lowpass filter. Buffer is shared across
@@ -125,15 +141,16 @@ class SoundEngine {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.18, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-    src.connect(filter).connect(gain).connect(this.sink);
+    src.connect(filter).connect(gain).connect(sink);
     src.start(t);
     src.stop(t + 0.4);
     autoDispose(src, filter, gain);
   }
 
   hit(): void {
-    const ctx = this.ensureCtx();
-    if (!ctx) return;
+    const sc = this.ensureCtx();
+    if (!sc) return;
+    const { ctx, sink } = sc;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -142,15 +159,16 @@ class SoundEngine {
     osc.frequency.exponentialRampToValueAtTime(60, t + 0.08);
     gain.gain.setValueAtTime(0.12, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-    osc.connect(gain).connect(this.sink);
+    osc.connect(gain).connect(sink);
     osc.start(t);
     osc.stop(t + 0.12);
     autoDispose(osc, gain);
   }
 
   pickup(): void {
-    const ctx = this.ensureCtx();
-    if (!ctx) return;
+    const sc = this.ensureCtx();
+    if (!sc) return;
+    const { ctx, sink } = sc;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -159,7 +177,7 @@ class SoundEngine {
     osc.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
     gain.gain.setValueAtTime(0.1, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-    osc.connect(gain).connect(this.sink);
+    osc.connect(gain).connect(sink);
     osc.start(t);
     osc.stop(t + 0.18);
     autoDispose(osc, gain);

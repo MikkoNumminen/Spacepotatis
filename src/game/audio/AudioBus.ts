@@ -96,11 +96,6 @@ class AudioBus {
     this.notify();
   }
 
-  toggleMaster(): boolean {
-    this.setMasterMuted(!this.masterMuted);
-    return this.masterMuted;
-  }
-
   getState(): AudioBusState {
     return {
       masterMuted: this.masterMuted,

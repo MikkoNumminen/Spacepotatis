@@ -34,6 +34,14 @@ class StoryAudio {
   private active = false;
 
   constructor() {
+    // TODO: when per-category sliders ship in MuteToggle, this engine plays
+    // BOTH the cinematic bed AND Grandma's voice — registering under "music"
+    // alone means a future "voice off" toggle won't silence story voiceovers.
+    // Options at that point: split into two AudioBusEngine adapters (one for
+    // music, one for voice with separate setMuted() that targets only the
+    // voice element), or accept that story is treated as music for the bus
+    // and document it. Either way, revisit this register call when the UI
+    // grows past a single master switch.
     audioBus.register("music", this);
   }
 

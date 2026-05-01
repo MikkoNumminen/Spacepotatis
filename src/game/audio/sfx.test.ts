@@ -112,10 +112,21 @@ describe("sfx autoDispose contract", () => {
     expect(fakes.contexts()).toHaveLength(0);
   });
 
-  it("category mute on sfx alone silences without affecting voice/music", () => {
+  it("category mute on sfx alone silences sfx without notifying other categories", () => {
+    // Register stand-in engines under voice and music so we can verify the
+    // bus's category-scoped fan-out — sfx's category mute must NOT call
+    // setMuted on engines registered under other categories.
+    const voiceCalls: boolean[] = [];
+    const musicCalls: boolean[] = [];
+    audioBus.register("voice", { setMuted: (m) => voiceCalls.push(m) });
+    audioBus.register("music", { setMuted: (m) => musicCalls.push(m) });
+    voiceCalls.length = 0;
+    musicCalls.length = 0;
     audioBus.setCategoryMuted("sfx", true);
     sfx.laser();
     expect(fakes.contexts()).toHaveLength(0);
+    expect(voiceCalls).toEqual([]);
+    expect(musicCalls).toEqual([]);
   });
 
   it("unmuting after mute lets sounds resume creating nodes and zero the master gain back to 1", () => {

@@ -41,6 +41,17 @@ describe("AudioBus.register", () => {
     audioBus.setMasterMuted(false);
     expect(eng.muteCalls).toEqual([true]);
   });
+
+  it("unregister is idempotent — calling it twice doesn't throw", () => {
+    const eng = new FakeEngine();
+    const off = audioBus.register("music", eng);
+    off();
+    expect(() => off()).not.toThrow();
+    // And subsequent state changes still don't notify the doubly-detached engine.
+    eng.muteCalls = [];
+    audioBus.setMasterMuted(true);
+    expect(eng.muteCalls).toEqual([]);
+  });
 });
 
 describe("AudioBus.setMasterMuted", () => {
@@ -97,7 +108,7 @@ describe("AudioBus.setCategoryMuted", () => {
     expect(m.muteCalls).toEqual([]);
   });
 
-  it("does notify when toggling master while a category is already muted", () => {
+  it("does NOT notify when toggling master while a category is already muted", () => {
     const m = new FakeEngine();
     audioBus.register("music", m);
     audioBus.setCategoryMuted("music", true);
@@ -106,16 +117,27 @@ describe("AudioBus.setCategoryMuted", () => {
     // stays muted — effective state unchanged, no call.
     audioBus.setMasterMuted(true);
     expect(m.muteCalls).toEqual([]);
-    // Master off again: still muted via category, no call.
+    // Master off again: still muted via category, no call (mirror of the
+    // master-on case — pinned because both directions exercise applyDiff's
+    // "skip when before === after" branch).
     audioBus.setMasterMuted(false);
     expect(m.muteCalls).toEqual([]);
   });
-});
 
-describe("AudioBus.toggleMaster", () => {
-  it("flips and returns the new state", () => {
-    expect(audioBus.toggleMaster()).toBe(true);
-    expect(audioBus.toggleMaster()).toBe(false);
+  it("master OFF while category is also OFF unmutes only categories that flip", () => {
+    const m = new FakeEngine();
+    const v = new FakeEngine();
+    audioBus.register("music", m);
+    audioBus.register("voice", v);
+    audioBus.setCategoryMuted("voice", true); // voice now muted
+    audioBus.setMasterMuted(true); // both muted
+    m.muteCalls = [];
+    v.muteCalls = [];
+    audioBus.setMasterMuted(false);
+    // Music unmutes (master was the only thing muting it).
+    expect(m.muteCalls).toEqual([false]);
+    // Voice stays muted (category mute still on); no redundant call.
+    expect(v.muteCalls).toEqual([]);
   });
 });
 

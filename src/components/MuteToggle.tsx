@@ -24,7 +24,7 @@ export default function MuteToggle() {
   }, []);
 
   const toggle = () => {
-    audioBus.toggleMaster();
+    audioBus.setMasterMuted(!audioBus.isMasterMuted());
   };
 
   return (
