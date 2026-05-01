@@ -1,5 +1,7 @@
 "use client";
 
+import { audioBus } from "./AudioBus";
+
 // Story audio controller. Plays a music bed and a delayed voiceover for a
 // single narrative beat at a time. Honors the master mute toggle: while
 // muted, play() is a no-op (the popup just shows the text). Toggling the
@@ -8,6 +10,10 @@
 // All transitions are faded — the menu bed's duck/unduck already fades, so
 // fading the story side too produces a smooth crossfade in both directions
 // instead of a hard cut. Continue → menu bed should never feel like a snap.
+//
+// Mute state is owned by AudioBus. Registered as "music" — bed and voice
+// fade together so a single category mapping is enough today; if a future
+// channel split exposes voice independently, register a second category.
 //
 // Lifecycle is owned by StoryModal — it calls play() on mount, stop() on
 // Continue or unmount.
@@ -27,6 +33,10 @@ class StoryAudio {
   private muted = false;
   private active = false;
 
+  constructor() {
+    audioBus.register("music", this);
+  }
+
   play(opts: {
     musicSrc: string | null;
     voiceSrc: string;
@@ -34,10 +44,6 @@ class StoryAudio {
   }): void {
     this.stop();
     this.active = true;
-    // Mute state is owned by setMuted() (called from setAllMuted via the
-    // MuteToggle). Don't refresh from localStorage here — persistence was
-    // dropped because stale "muted=1" entries from prior testing sessions
-    // kept silencing the page on cold load with no obvious recovery.
 
     if (opts.musicSrc !== null) {
       const music = new Audio(opts.musicSrc);

@@ -1,14 +1,17 @@
 "use client";
 
+import { audioBus } from "./AudioBus";
+
 // Voice queue for the landing page. Plays a series of nudge clips with a
 // configurable gap between each, ending with the system-briefing lecture.
 // The full sequence runs once per browser session (sessionStorage gate set
 // by the caller) and is cancelled the moment the player commits to entering
 // the game (PLAY/CONTINUE click).
 //
-// Independent of menuMusic — that bed keeps running underneath. Honors the
-// master mute toggle by setting voice.volume to 0; the queue keeps
-// advancing so timing stays stable across mute toggles.
+// Independent of menuMusic — that bed keeps running underneath. Mute state
+// is owned by AudioBus (category: voice); flipping the toggle sets
+// voice.volume to 0 without pausing the queue, so timing stays stable
+// across mute toggles.
 
 const TARGET_VOLUME = 1.0;
 
@@ -31,11 +34,13 @@ class MenuBriefingAudio {
   // so mid-playback gestures don't interfere with the running queue.
   private startFailed = false;
 
+  constructor() {
+    audioBus.register("voice", this);
+  }
+
   playSequence(items: readonly MenuBriefingItem[]): void {
     this.stop();
     if (items.length === 0) return;
-    // Mute state is owned by setMuted() (called from setAllMuted via the
-    // MuteToggle). localStorage persistence was dropped — see MuteToggle.tsx.
     this.queue = items;
     this.queueIdx = 0;
     this.scheduleNext();

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { sfx } from "@/game/audio/sfx";
-import { setAllMuted } from "@/game/audio/music";
+import { audioBus } from "@/game/audio/AudioBus";
 
 // Mute is SESSION-ONLY by design. Every page load starts with audio on;
 // clicking the toggle silences for the current session only. We do NOT
@@ -15,19 +14,17 @@ import { setAllMuted } from "@/game/audio/music";
 // upside is the page never lies about whether music is on.
 //
 // On re-mount within the same session (e.g. /play → / nav), the lazy
-// initializer reads the singleton `sfx` engine's current muted state so
-// the button visual matches whatever the user toggled before navigating.
+// initializer reads the singleton AudioBus's current master state so the
+// button visual matches whatever the user toggled before navigating.
 export default function MuteToggle() {
-  const [muted, setMuted] = useState<boolean>(() => sfx.isMuted());
+  const [muted, setMuted] = useState<boolean>(() => audioBus.isMasterMuted());
 
   useEffect(() => {
-    return sfx.subscribe(setMuted);
+    return audioBus.subscribe((s) => setMuted(s.masterMuted));
   }, []);
 
   const toggle = () => {
-    const next = !muted;
-    sfx.setMuted(next);
-    setAllMuted(next);
+    audioBus.toggleMaster();
   };
 
   return (
