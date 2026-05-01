@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { sql } from "kysely";
 import { getDb } from "@/lib/db";
 import type { MissionId } from "@/types/game";
+import { mapRowToPilot } from "./leaderboardMapper";
 
 // Tag used to invalidate every cached leaderboard slice when a new score
 // lands. One coarse tag (rather than per-mission tags) is fine — the dataset
@@ -116,12 +117,7 @@ async function fetchTopPilots(limit: number): Promise<PilotEntry[]> {
     .limit(limit)
     .execute();
 
-  return rows.map((r) => ({
-    handle: r.handle ?? "Pilot",
-    clears: Number(r.clears),
-    playtimeSeconds: Number(r.playtime),
-    bestScore: Number(r.best_score)
-  }));
+  return rows.map(mapRowToPilot);
 }
 
 export const getCachedTopPilots = unstable_cache(
