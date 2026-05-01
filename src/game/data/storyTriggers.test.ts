@@ -20,21 +20,16 @@ import type { MissionId } from "@/types/game";
 const empty = <T>(): ReadonlySet<T> => new Set<T>();
 
 describe("selectFirstTimeEntry", () => {
-  it("returns the great-potato-awakening cinematic on a fresh save", () => {
-    const entry = selectFirstTimeEntry(empty<StoryId>(), empty<StoryId>());
-    expect(entry?.id).toBe("great-potato-awakening");
-  });
-
-  it("returns null once the entry is already in the seen-set", () => {
-    expect(
-      selectFirstTimeEntry(new Set(["great-potato-awakening"]), empty<StoryId>())
-    ).toBeNull();
-  });
-
-  it("returns null when the entry has already auto-fired this session", () => {
-    expect(
-      selectFirstTimeEntry(empty<StoryId>(), new Set(["great-potato-awakening"]))
-    ).toBeNull();
+  // No entries use the `first-time` trigger anymore — the great-potato-
+  // awakening cinematic moved to on-system-enter for `tutorial` so it
+  // fires every time the player enters Sol Spudensis (parity with the
+  // Tubernovae chapter cinematic). The helper is kept as scaffolding;
+  // these assertions guard against accidentally re-introducing a first-
+  // time entry without thinking through the implications (it would fire
+  // exactly once on the first cold-load forever, which is rarely what
+  // a writer actually wants).
+  it("returns null on a fresh catalog with no first-time entries", () => {
+    expect(selectFirstTimeEntry(empty<StoryId>(), empty<StoryId>())).toBeNull();
   });
 });
 
@@ -50,10 +45,14 @@ describe("selectOnSystemEnterEntry", () => {
     expect(entry?.mode).toBe("modal");
   });
 
-  it("returns null in the tutorial system (no on-system-enter entry exists)", () => {
-    expect(
-      selectOnSystemEnterEntry("tutorial", empty<StoryId>(), empty<StoryId>())
-    ).toBeNull();
+  it("fires the great-potato-awakening cinematic on entry into tutorial", () => {
+    // Sol Spudensis (tutorial) gets its chapter cinematic the same way
+    // tubernovae does — on every system entry, repeatable.
+    const entry = selectOnSystemEnterEntry("tutorial", empty<StoryId>(), empty<StoryId>());
+    expect(entry?.id).toBe("great-potato-awakening");
+    expect(entry?.musicTrack).not.toBeNull();
+    expect(entry?.voiceTrack).toMatch(/^\/audio\/story\//);
+    expect(entry?.mode).toBe("modal");
   });
 
   it("repeatable entries fire even when in the seen-set (every-entry mode)", () => {

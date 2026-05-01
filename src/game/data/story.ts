@@ -95,7 +95,7 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     musicTrack: "/audio/story/great-potato-awakening-music.ogg",
     voiceTrack: "/audio/story/great-potato-awakening-voice.mp3",
     voiceDelayMs: 3000,
-    autoTrigger: { kind: "first-time" },
+    autoTrigger: { kind: "on-system-enter", systemId: "tutorial", repeatable: true },
     mode: "modal"
   },
   {
