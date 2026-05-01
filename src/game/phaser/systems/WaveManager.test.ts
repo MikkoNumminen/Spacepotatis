@@ -48,8 +48,7 @@ describe("WaveManager.start", () => {
     // plus one wave-duration delayedCall at the end.
     const tutorialWaves = getWavesForMission("tutorial");
     const firstWave = tutorialWaves[0];
-    expect(firstWave).toBeDefined();
-    if (!firstWave) return;
+    if (!firstWave) throw new Error("expected firstWave to be defined; fixture broken");
     const totalSpawns = firstWave.spawns.reduce((sum, s) => sum + s.count, 0);
     expect(scene.time.delayedCall).toHaveBeenCalledTimes(totalSpawns + 1);
   });
@@ -59,8 +58,7 @@ describe("WaveManager.start", () => {
     wm.start();
     const waves = getWavesForMission("combat-1");
     const wave0 = waves[0];
-    expect(wave0).toBeDefined();
-    if (!wave0) return;
+    if (!wave0) throw new Error("expected wave0 to be defined; fixture broken");
     const wave0SpawnCount = wave0.spawns.reduce((s, x) => s + x.count, 0);
     // Schedule shape: every spawn for wave 0 (each its own delayedCall) + one
     // wave-end timer for wave 0.
@@ -99,8 +97,7 @@ describe("WaveManager.allSpawnsFired", () => {
     const { scene, wm, enemySpawn } = setup("tutorial");
     wm.start();
     const wave = getWavesForMission("tutorial")[0];
-    expect(wave).toBeDefined();
-    if (!wave) return;
+    if (!wave) throw new Error("expected wave to be defined; fixture broken");
     const totalSpawns = wave.spawns.reduce((sum, s) => sum + s.count, 0);
 
     // Manually fire just the spawn entries (skip the wave-end timer).
@@ -139,9 +136,7 @@ describe("WaveManager wave progression", () => {
     const waves = getWavesForMission("combat-1");
     const wave0 = waves[0];
     const wave1 = waves[1];
-    expect(wave0).toBeDefined();
-    expect(wave1).toBeDefined();
-    if (!wave0 || !wave1) return;
+    if (!wave0 || !wave1) throw new Error("expected wave0 and wave1 to be defined; fixture broken");
 
     const wave0Spawns = wave0.spawns.reduce((s, x) => s + x.count, 0);
     const callsBefore = scene.time.delayedCall.mock.calls.length;
@@ -149,8 +144,7 @@ describe("WaveManager wave progression", () => {
 
     // Fire only the wave-end timer (last enqueued).
     const waveEnd = scene.time.queue[wave0Spawns];
-    expect(waveEnd).toBeDefined();
-    if (!waveEnd) return;
+    if (!waveEnd) throw new Error("expected waveEnd to be defined; fixture broken");
     waveEnd.fired = true;
     waveEnd.callback();
 

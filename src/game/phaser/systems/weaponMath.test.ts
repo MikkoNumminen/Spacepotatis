@@ -14,7 +14,7 @@ describe("canFire", () => {
     expect(canFire(500, 100, 200)).toBe(true);
   });
 
-  it("allows firing on the very first attempt (lastFire never set)", () => {
+  it("with lastFire never set (sentinel 0), still gates the first shot by elapsed time since t=0", () => {
     expect(canFire(0, 0, 100)).toBe(false);
     expect(canFire(100, 0, 100)).toBe(true);
   });

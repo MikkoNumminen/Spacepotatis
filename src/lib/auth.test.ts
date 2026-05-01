@@ -68,21 +68,16 @@ describe("NextAuth config shape", () => {
     expect(captured.config?.trustHost).toBe(true);
   });
 
-  it("exports the canonical NextAuth surface (handlers, auth, signIn, signOut)", async () => {
-    const mod = await loadAuth();
-    expect(mod.handlers).toBeDefined();
-    expect(typeof mod.auth).toBe("function");
-    expect(typeof mod.signIn).toBe("function");
-    expect(typeof mod.signOut).toBe("function");
-  });
+  // Note: the NextAuth export surface (handlers/auth/signIn/signOut) is
+  // enforced by TypeScript at compile time, not at runtime — a former
+  // shape-only test here was dropped as redundant.
 });
 
 describe("NextAuth callbacks", () => {
   it("jwt callback copies profile.email onto the token", async () => {
     await loadAuth();
     const jwt = captured.config?.callbacks?.jwt;
-    expect(jwt).toBeDefined();
-    if (!jwt) return;
+    if (!jwt) throw new Error("expected jwt callback to be defined; fixture broken");
     const token = await jwt({ token: {}, profile: { email: "p@example.com" } });
     expect(token.email).toBe("p@example.com");
   });
@@ -107,8 +102,7 @@ describe("NextAuth callbacks", () => {
   it("session callback projects token.email onto session.user.email", async () => {
     await loadAuth();
     const sessionCb = captured.config?.callbacks?.session;
-    expect(sessionCb).toBeDefined();
-    if (!sessionCb) return;
+    if (!sessionCb) throw new Error("expected session callback to be defined; fixture broken");
     const out = await sessionCb({
       session: { user: { email: null } },
       token: { email: "p@example.com" }

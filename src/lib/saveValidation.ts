@@ -147,10 +147,13 @@ export function computeCreditCapsForPlayer(
 }
 
 // Surface the tutorial-only baseline caps once on cold start so a
-// regression after a balance change shows up in Vercel function logs
-// without needing extra instrumentation. Tutorial-only is the floor —
-// every other player gets at least these caps. Skipped in test runs.
-if (typeof process !== "undefined" && process.env?.NODE_ENV !== "test") {
+// regression after a balance change shows up during local dev without
+// needing extra instrumentation. Tutorial-only is the floor — every
+// other player gets at least these caps. Dev-only: the gate must NOT
+// fire on Vercel Edge production cold starts (process is shimmed there
+// and NODE_ENV === "production"), which would log on every cold start
+// of /api/save and /api/leaderboard.
+if (typeof process !== "undefined" && process.env?.NODE_ENV === "development") {
   const tutorialCaps = computeCreditCapsForSystems(new Set(["tutorial"]));
   // eslint-disable-next-line no-console
   console.log("[saveValidation] tutorial-only caps (floor)", {
