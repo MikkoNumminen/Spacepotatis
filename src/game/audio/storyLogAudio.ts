@@ -1,3 +1,5 @@
+"use client";
+
 // Dedicated music engine for the Story log experience. Plays a single
 // looping bed while the Story menu is open OR while the player is replaying
 // any entry from the log — calling play() while already playing is a no-op,

@@ -56,7 +56,8 @@ export default function StoryListModal({
                   <button
                     type="button"
                     onClick={() => onReplay(entry.id)}
-                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
+                    aria-label={`Replay: ${entry.title}`}
+                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hud-amber/60 active:bg-hud-amber/20"
                   >
                     REPLAY
                   </button>

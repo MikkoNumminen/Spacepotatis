@@ -453,6 +453,3 @@ export function setAllMuted(muted: boolean): void {
   );
 }
 
-// Back-compat alias so existing imports of `music` keep working as the menu
-// engine. Remove after callers migrate to the named exports.
-export const music = menuMusic;
