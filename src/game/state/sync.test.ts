@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearLoadSaveCache, loadSave, saveNow, submitScore } from "./sync";
+import { clearLoadSaveCache, drainScoreQueue, loadSave, saveNow } from "./sync";
 import { getState, resetForTests } from "./GameState";
-import type { CombatSummary } from "@/game/phaser/config";
+import { clearScoreQueue, enqueueScore, readScoreQueueForTest } from "./scoreQueue";
 
-// ----- loadSave / saveNow / submitScore: best-effort fetch wrappers -----
+// ----- loadSave / saveNow / drainScoreQueue: best-effort fetch wrappers -----
 //
 // These functions sit on the gameplay-vs-persistence boundary. The contract
 // (see CLAUDE.md §6 and the "best-effort" comment at the top of sync.ts) is
@@ -226,88 +226,145 @@ describe("saveNow", () => {
   });
 });
 
-describe("submitScore", () => {
-  const winning: CombatSummary = {
-    missionId: "tutorial",
-    score: 1234,
-    credits: 5,
-    timeSeconds: 60,
-    victory: true
-  };
-  const losing: CombatSummary = { ...winning, victory: false };
-
-  it("does NOT post when the run was a loss; returns ok=true (nothing-to-do)", async () => {
-    const result = await submitScore(losing);
-    expect(fetchCalls).toHaveLength(0);
-    expect(result).toEqual({ ok: true });
-  });
-
-  it("posts mission/score/time on a victory and returns ok=true", async () => {
-    fetchImpl.current = async () => new Response(null, { status: 201 });
-    const result = await submitScore(winning);
-    expect(fetchCalls).toHaveLength(1);
-    const c = fetchCalls[0];
-    expect(c?.input).toBe("/api/leaderboard");
-    expect(c?.init?.method).toBe("POST");
-    const body = JSON.parse((c?.init?.body as string) ?? "{}");
-    expect(body).toEqual({ missionId: "tutorial", score: 1234, timeSeconds: 60 });
-    expect(result).toEqual({ ok: true });
-  });
-
-  it("returns ok=false with sign-in message on 401 (anonymous)", async () => {
-    fetchImpl.current = async () => new Response(null, { status: 401 });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      const result = await submitScore(winning);
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.status).toBe(401);
-        expect(result.message).toMatch(/[Ss]ign in/);
+// Integration-style tests for the drain path. scoreQueue.test.ts unit-tests
+// the queue against a hand-rolled ScorePostFn mock; these tests exercise
+// the REAL queueAwareSubmit adapter (i.e. it actually issues a fetch and
+// parses the JSON error code) by funneling through drainScoreQueue().
+describe("drainScoreQueue (via queueAwareSubmit fetch adapter)", () => {
+  beforeEach(() => {
+    // localStorage shim — same node-no-window approach the queue tests use.
+    const g = globalThis as unknown as Record<string, unknown>;
+    if (!g.window) g.window = globalThis;
+    class FakeStorage {
+      private store = new Map<string, string>();
+      getItem(key: string): string | null {
+        return this.store.has(key) ? (this.store.get(key) as string) : null;
       }
-    } finally {
-      warnSpy.mockRestore();
+      setItem(key: string, value: string): void {
+        this.store.set(key, value);
+      }
+      removeItem(key: string): void {
+        this.store.delete(key);
+      }
+      clear(): void {
+        this.store.clear();
+      }
+      get length(): number {
+        return this.store.size;
+      }
+      key(index: number): string | null {
+        return [...this.store.keys()][index] ?? null;
+      }
     }
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage = new FakeStorage();
+    clearScoreQueue();
   });
 
-  it("returns ok=false with mission_not_completed hint on 422", async () => {
+  it("POSTs the queued entry to /api/leaderboard with mission/score/time", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
+    fetchImpl.current = async () => new Response(null, { status: 201 });
+    const result = await drainScoreQueue();
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]?.input).toBe("/api/leaderboard");
+    const body = JSON.parse((fetchCalls[0]?.init?.body as string) ?? "{}");
+    expect(body).toEqual({ missionId: "tutorial", score: 1234, timeSeconds: 60 });
+    expect(result).toEqual({ attempted: 1, succeeded: 1, remaining: 0 });
+    expect(readScoreQueueForTest()).toHaveLength(0);
+  });
+
+  it("on 401 (anonymous): keeps the entry, doesn't burn attempts", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
+    fetchImpl.current = async () => new Response("unauthorized", { status: 401 });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await drainScoreQueue();
+    expect(result.remaining).toBe(1);
+    expect(readScoreQueueForTest()[0]?.attempts).toBe(0);
+  });
+
+  it("on 422 mission_not_completed: keeps the entry with attempts++", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
     fetchImpl.current = async () =>
       new Response(JSON.stringify({ error: "mission_not_completed" }), {
         status: 422,
         headers: { "content-type": "application/json" }
       });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      const result = await submitScore(winning);
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.status).toBe(422);
-        expect(result.message).toContain("doesn't see this mission as completed");
-      }
-    } finally {
-      warnSpy.mockRestore();
-    }
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await drainScoreQueue();
+    expect(result.remaining).toBe(1);
+    expect(readScoreQueueForTest()[0]?.attempts).toBe(1);
   });
 
-  it("returns ok=false on a 500 response", async () => {
+  it("on 5xx: keeps with attempts++ (transient)", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
     fetchImpl.current = async () => new Response(null, { status: 500 });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      const result = await submitScore(winning);
-      expect(result.ok).toBe(false);
-    } finally {
-      warnSpy.mockRestore();
-    }
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await drainScoreQueue();
+    expect(result.remaining).toBe(1);
+    expect(readScoreQueueForTest()[0]?.attempts).toBe(1);
   });
 
-  it("does not throw on a network error and returns ok=false with status=0", async () => {
+  it("on network error: keeps with attempts++, no throw", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
     fetchImpl.current = async () => {
       throw new TypeError("offline");
     };
-    const result = await submitScore(winning);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.status).toBe(0);
-      expect(result.message).toMatch(/Network error/);
-    }
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await drainScoreQueue();
+    expect(result.remaining).toBe(1);
+    expect(readScoreQueueForTest()[0]?.attempts).toBe(1);
+  });
+
+  it("on 422 with a non-mission-not-completed code: drops as permanent", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify({ error: "validation_failed" }), {
+        status: 422,
+        headers: { "content-type": "application/json" }
+      });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await drainScoreQueue();
+    expect(result.remaining).toBe(0);
+  });
+
+  it("concurrent drainScoreQueue() calls share the in-flight drain (no double-POST)", async () => {
+    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
+    let resolved = false;
+    fetchImpl.current = () =>
+      new Promise<Response>((resolve) => {
+        setTimeout(() => {
+          resolved = true;
+          resolve(new Response(null, { status: 201 }));
+        }, 5);
+      });
+    // Fire two drains in quick succession; the second one MUST NOT issue
+    // its own fetch — that's the whole point of the in-flight share lock.
+    const a = drainScoreQueue();
+    const b = drainScoreQueue();
+    const [resA, resB] = await Promise.all([a, b]);
+    expect(resolved).toBe(true);
+    expect(fetchCalls).toHaveLength(1);
+    expect(resA).toEqual(resB);
+    expect(readScoreQueueForTest()).toHaveLength(0);
+  });
+
+  it("enqueue during drain is preserved by the diff-write commit (no lost score)", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, Date.now());
+    const holder: { resolve: ((r: Response) => void) | null } = { resolve: null };
+    fetchImpl.current = () =>
+      new Promise<Response>((resolve) => {
+        holder.resolve = resolve;
+      });
+    const drain = drainScoreQueue();
+    // While drain is in flight, the user wins another mission and enqueues
+    // a fresh score. Without diff-write, the drain's final writeQueue() of
+    // [] would clobber this entry and the player's win would silently
+    // disappear.
+    enqueueScore({ missionId: "combat-1", score: 200, timeSeconds: 60 }, Date.now());
+    holder.resolve?.(new Response(null, { status: 201 }));
+    const result = await drain;
+    expect(result).toEqual({ attempted: 1, succeeded: 1, remaining: 1 });
+    const queue = readScoreQueueForTest();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.missionId).toBe("combat-1");
   });
 });

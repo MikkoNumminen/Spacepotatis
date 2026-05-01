@@ -24,7 +24,7 @@ import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { getStoryEntry } from "@/game/data/story";
 import { drainScoreQueue, saveNow } from "@/game/state/sync";
-import { enqueueScore } from "@/game/state/scoreQueue";
+import { enqueueScore, QUEUED_MESSAGE } from "@/game/state/scoreQueue";
 import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -237,11 +237,7 @@ export default function GameCanvas() {
           } else {
             // Nothing posted this drain. Could be transient; the next
             // drain (mount / visibility / auth-change) will retry.
-            setSyncStatus({
-              kind: "queued",
-              message:
-                "Score saved locally — will post automatically as soon as the leaderboard is reachable."
-            });
+            setSyncStatus({ kind: "queued", message: QUEUED_MESSAGE });
           }
         });
       }

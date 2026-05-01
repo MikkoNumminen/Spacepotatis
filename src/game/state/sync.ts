@@ -5,14 +5,12 @@
 // break gameplay. The game stays playable offline; persistence is a bonus.
 
 import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
-import type { CombatSummary } from "@/game/phaser/config";
 import { ROUTES } from "@/lib/routes";
 import { RemoteSaveSchema } from "@/lib/schemas/save";
 import {
   drainScoreQueue as drainQueueWith,
   type DrainResult,
-  type ScorePostFn,
-  type ScorePostInput
+  type ScorePostFn
 } from "./scoreQueue";
 
 // Module-level cache + in-flight de-dup. Both useCloudSaveSync (which
@@ -104,12 +102,12 @@ async function doLoadSave(): Promise<boolean> {
   }
 }
 
-// Structured outcome from saveNow / submitScore. Callers (today: GameCanvas)
-// surface this in the VictoryModal so the player gets feedback when their
-// score didn't post — silent failure used to make "I won but my score
-// isn't on the leaderboard" undebuggable from the user's seat. The
-// `error.message` field is intentionally short and human-readable; the
-// raw server response goes to console.warn for developer-side detail.
+// Structured outcome from saveNow. GameCanvas surfaces this in the
+// VictoryModal so the player gets feedback when their save didn't commit —
+// silent failure used to make "I won but my progress isn't saved"
+// undebuggable from the user's seat. The `message` field is intentionally
+// short and human-readable; the raw server response goes to console.warn
+// for developer detail.
 export type SyncResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly status: number; readonly message: string };
@@ -146,49 +144,13 @@ export async function saveNow(): Promise<SyncResult> {
   }
 }
 
-export async function submitScore(summary: CombatSummary): Promise<SyncResult> {
-  // Treat a loss as a successful no-op: nothing to submit, nothing failed.
-  if (!summary.victory) return { ok: true };
-  return submitScorePayload({
-    missionId: summary.missionId,
-    score: summary.score,
-    timeSeconds: summary.timeSeconds
-  });
-}
-
-// Internal POST. The score-queue drain reuses this so retries go through the
-// same path as the immediate submit on mission complete. Separated from
-// submitScore so the queue doesn't need a synthetic CombatSummary just to
-// flip `victory: true`.
-async function submitScorePayload(payload: ScorePostInput): Promise<SyncResult> {
-  try {
-    const res = await fetch(ROUTES.api.leaderboard, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) return { ok: true };
-    const detail = await res.text().catch(() => "");
-    console.warn("submitScore: server rejected score", res.status, detail);
-    return { ok: false, status: res.status, message: humanizeScoreError(res.status, detail) };
-  } catch (err) {
-    return {
-      ok: false,
-      status: 0,
-      message: `Network error — couldn't reach the leaderboard server (${describeError(err)})`
-    };
-  }
-}
-
-// Adapter for scoreQueue. Maps SyncResult → the queue's narrower shape
-// ({ ok } | { ok=false, status, errorCode }) so the queue can branch on
-// the error code without parsing the user-facing message string.
+// Single-source-of-truth POST to /api/leaderboard. Returns the raw shape
+// the queue needs ({ ok } | { ok=false, status, errorCode }) — never
+// throws. The score path is queue-only now: production code goes through
+// `enqueueScore` then `drainScoreQueue`, never a direct fire-and-forget
+// POST. This keeps the leaderboard "every win lands eventually" promise
+// from being undermined by a code path that bypasses the queue.
 const queueAwareSubmit: ScorePostFn = async (input) => {
-  // We can't see the raw fetch response from inside submitScorePayload,
-  // so re-derive the error code by re-running the POST and parsing the
-  // body here. Cheaper than refactoring submitScorePayload to expose
-  // both shapes; the drain path is the only caller and runs at most
-  // a handful of times per mount.
   try {
     const res = await fetch(ROUTES.api.leaderboard, {
       method: "POST",
@@ -197,14 +159,17 @@ const queueAwareSubmit: ScorePostFn = async (input) => {
     });
     if (res.ok) return { ok: true };
     const detail = await res.text().catch(() => "");
+    console.warn("submitScore: server rejected score", res.status, detail);
     return { ok: false, status: res.status, errorCode: parseErrorCode(detail) };
-  } catch {
+  } catch (err) {
+    console.warn("submitScore: network error", describeError(err));
     return { ok: false, status: 0, errorCode: null };
   }
 };
 
 // Public hook for callers (GameCanvas) that want to kick the queue. Safe to
-// call from anywhere — does nothing if the queue is empty, never throws.
+// call from anywhere — does nothing if the queue is empty, never throws,
+// shares an in-flight drain with concurrent callers (no duplicate POSTs).
 export async function drainScoreQueue(): Promise<DrainResult> {
   return drainQueueWith(queueAwareSubmit);
 }
@@ -230,19 +195,6 @@ function humanizeSaveError(status: number, body: string): string {
     return `Save rejected${errCode ? ` (${errCode})` : ""}.`;
   }
   return `Save failed (HTTP ${status}${errCode ? ` ${errCode}` : ""}).`;
-}
-
-function humanizeScoreError(status: number, body: string): string {
-  const errCode = parseErrorCode(body);
-  if (status === 401) return "Sign in to post scores to the leaderboard.";
-  if (status === 400) return `Score rejected (validation failed${errCode ? `: ${errCode}` : ""}).`;
-  if (status === 422) {
-    if (errCode === "mission_not_completed") {
-      return "Score rejected — server doesn't see this mission as completed yet. Try saving again.";
-    }
-    return `Score rejected${errCode ? ` (${errCode})` : ""}.`;
-  }
-  return `Score post failed (HTTP ${status}${errCode ? ` ${errCode}` : ""}).`;
 }
 
 function parseErrorCode(body: string): string | null {

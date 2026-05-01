@@ -32,10 +32,28 @@ import { MissionIdSchema } from "@/lib/schemas/save";
 //
 // Storage shape is versioned (`:v1`) so a future schema change can read
 // the old key, migrate, and write under `:v2` without conflict.
+//
+// Concurrency model:
+//  - Drain holds a module-level in-flight promise. A second drainScoreQueue()
+//    call while the first is running shares the same promise — it does NOT
+//    fire a parallel HTTP burst that could double-POST entries.
+//  - Drain writes are diff-based: at the end of a drain, we re-read the
+//    current queue (which may have grown via enqueueScore mid-flight) and
+//    only remove processed items by their unique key, then update transient
+//    items' attempts. New entries added during drain are preserved.
+//  - These two together close the window where concurrent drain triggers
+//    or an enqueue-during-drain could either duplicate-POST or lose an
+//    entry.
 
 const STORAGE_KEY = "spacepotatis:scoreQueue:v1";
 const MAX_ATTEMPTS = 50;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Player-facing message used when a drain finishes but didn't post anything
+// (transient failure / 401). Centralized here so the modal copy and the
+// place that sets `kind: "queued"` agree.
+export const QUEUED_MESSAGE =
+  "Score saved locally — will post automatically as soon as the leaderboard is reachable.";
 
 const QueuedScoreSchema = z.object({
   missionId: MissionIdSchema,
@@ -66,6 +84,16 @@ export type ScorePostFn = (input: ScorePostInput) => Promise<{
   readonly errorCode: string | null;
 }>;
 
+// Stable identity used to match a queue entry across reads — the diff-write
+// at end of drain compares by this so concurrent enqueues during a drain
+// don't get lost. {missionId, score, timeSeconds} alone is what enqueue
+// dedupes on, so it's also the right grain for "is this the same entry".
+// firstSeenMs disambiguates rare cases where the same triple is removed
+// and re-enqueued mid-drain.
+function entryKey(item: Pick<QueuedScore, "missionId" | "score" | "timeSeconds" | "firstSeenMs">): string {
+  return `${item.missionId}|${item.score}|${item.timeSeconds}|${item.firstSeenMs}`;
+}
+
 function readQueue(): QueuedScore[] {
   if (typeof window === "undefined") return [];
   let raw: string | null;
@@ -87,8 +115,15 @@ function readQueue(): QueuedScore[] {
   if (!result.success) {
     // A stray entry from a future schema or hand-edit can't be repaired
     // safely; drop the whole queue rather than risk silently posting
-    // half-broken payloads. console.warn so a real regression surfaces.
+    // half-broken payloads. console.warn so a real regression surfaces,
+    // and explicitly removeItem so the next read doesn't warn again on
+    // the same poisoned blob.
     console.warn("[scoreQueue] dropped queue: schema mismatch", result.error.issues);
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore — if remove fails, next read warns again. Not fatal.
+    }
     return [];
   }
   return result.data;
@@ -97,7 +132,11 @@ function readQueue(): QueuedScore[] {
 function writeQueue(items: readonly QueuedScore[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    if (items.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
   } catch {
     // Quota / private mode — can't persist. The current run's score is
     // still in the in-memory queue for this session, but won't survive
@@ -148,6 +187,13 @@ export interface DrainResult {
   readonly remaining: number;
 }
 
+// Module-level in-flight drain promise. A second drainScoreQueue() call
+// while one is already running returns the same promise instead of starting
+// a parallel drain — that's what stops concurrent triggers (mount + auth
+// change + visibility) from causing duplicate POSTs or stomping on each
+// other's writes. Cleared in finally so the next drain can run cleanly.
+let inflightDrain: Promise<DrainResult> | null = null;
+
 // Drain the queue against the supplied submit function. Each item's
 // outcome maps to one of three branches:
 //
@@ -162,18 +208,38 @@ export interface DrainResult {
 //
 // MAX_ATTEMPTS / MAX_AGE_MS purges happen up front, before any POST,
 // so a permanently-stuck entry doesn't keep generating network traffic.
+//
+// Concurrent calls share the in-flight drain (no parallel HTTP). Writes
+// at the end of the drain are diff-based against a fresh re-read of the
+// queue, so an enqueueScore() that lands during the drain isn't clobbered
+// when the drain commits its results.
 export async function drainScoreQueue(
   submit: ScorePostFn,
   nowMs: number = Date.now()
 ): Promise<DrainResult> {
-  const before = readQueue();
-  if (before.length === 0) {
+  if (inflightDrain) return inflightDrain;
+  inflightDrain = doDrain(submit, nowMs).finally(() => {
+    inflightDrain = null;
+  });
+  return inflightDrain;
+}
+
+async function doDrain(submit: ScorePostFn, nowMs: number): Promise<DrainResult> {
+  const initial = readQueue();
+  if (initial.length === 0) {
     return { attempted: 0, succeeded: 0, remaining: 0 };
   }
 
+  // Track outcomes by entry key. We apply these as a diff against a fresh
+  // re-read of the queue at the end so concurrent enqueues survive the
+  // commit.
+  const drop = new Set<string>();
+  const updates = new Map<string, QueuedScore>();
+
   // Purge entries that have aged out or hit the attempt cap. These are
   // genuinely stuck — leaving them in burns bandwidth and ages further.
-  const fresh = before.filter((item) => {
+  const fresh: QueuedScore[] = [];
+  for (const item of initial) {
     if (item.attempts >= MAX_ATTEMPTS) {
       console.warn(
         "[scoreQueue] dropping entry after max attempts",
@@ -181,7 +247,8 @@ export async function drainScoreQueue(
         "score",
         item.score
       );
-      return false;
+      drop.add(entryKey(item));
+      continue;
     }
     if (nowMs - item.firstSeenMs > MAX_AGE_MS) {
       console.warn(
@@ -190,21 +257,20 @@ export async function drainScoreQueue(
         "score",
         item.score
       );
-      return false;
+      drop.add(entryKey(item));
+      continue;
     }
-    return true;
-  });
+    fresh.push(item);
+  }
 
   let succeeded = 0;
   let attempted = 0;
-  const remaining: QueuedScore[] = [];
   let stopOnAnonymous = false;
 
   for (const item of fresh) {
     if (stopOnAnonymous) {
       // Already saw a 401 in this drain — every other entry would 401
       // too. Keep them untouched (don't burn attempts) and move on.
-      remaining.push(item);
       continue;
     }
     attempted += 1;
@@ -215,12 +281,12 @@ export async function drainScoreQueue(
     });
     if (result.ok) {
       succeeded += 1;
+      drop.add(entryKey(item));
       continue;
     }
     if (result.status === 401) {
       // Anonymous. Pause the drain; user will sign in eventually.
       stopOnAnonymous = true;
-      remaining.push(item);
       continue;
     }
     if (isPermanent(result.status, result.errorCode)) {
@@ -232,14 +298,26 @@ export async function drainScoreQueue(
         "code",
         result.errorCode
       );
+      drop.add(entryKey(item));
       continue;
     }
     // Transient — keep with attempts++.
-    remaining.push({ ...item, attempts: item.attempts + 1 });
+    updates.set(entryKey(item), { ...item, attempts: item.attempts + 1 });
   }
 
-  writeQueue(remaining);
-  return { attempted, succeeded, remaining: remaining.length };
+  // Re-read the queue NOW so any enqueueScore() calls that landed during
+  // the drain are visible. Then apply the diff: drop succeeded/permanent/
+  // purged entries by key, replace transient entries with their attempts++
+  // versions, leave everything else (including new entries) intact.
+  const current = readQueue();
+  const next = current.flatMap((item) => {
+    const k = entryKey(item);
+    if (drop.has(k)) return [];
+    const updated = updates.get(k);
+    return updated ? [updated] : [item];
+  });
+  writeQueue(next);
+  return { attempted, succeeded, remaining: next.length };
 }
 
 function isPermanent(status: number, errorCode: string | null): boolean {

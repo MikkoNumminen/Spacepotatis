@@ -266,3 +266,99 @@ describe("drainScoreQueue", () => {
     expect(queue[0]?.attempts).toBe(1);
   });
 });
+
+describe("drainScoreQueue concurrency", () => {
+  const NOW = 1_700_000_000_000;
+
+  it("concurrent calls share the in-flight drain — submit is called once per entry, not twice", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    enqueueScore({ missionId: "combat-1", score: 200, timeSeconds: 60 }, NOW);
+    const holder: { resolve: (() => void) | null } = { resolve: null };
+    const callOrder: string[] = [];
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async (input) => {
+      callOrder.push(input.missionId);
+      // Block the first POST so the second drain trigger lands while the
+      // first is still mid-flight. Without the in-flight lock, drain B
+      // would read the queue at this point and start its own POSTs.
+      if (callOrder.length === 1) {
+        await new Promise<void>((resolve) => {
+          holder.resolve = resolve;
+        });
+      }
+      return { ok: true };
+    });
+    const drainA = drainScoreQueue(submit, NOW);
+    const drainB = drainScoreQueue(submit, NOW);
+    // Let the queued microtasks run so drain B has a chance to read state.
+    await Promise.resolve();
+    holder.resolve?.();
+    const [resA, resB] = await Promise.all([drainA, drainB]);
+    // submit fires exactly once per queue entry, never twice.
+    expect(submit).toHaveBeenCalledTimes(2);
+    // Both promises resolve to the same DrainResult (drainB returned the
+    // shared in-flight promise).
+    expect(resA).toEqual(resB);
+    expect(readScoreQueueForTest()).toHaveLength(0);
+  });
+
+  it("enqueue during a drain is preserved at commit (no lost score)", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    const holder: { resolve: (() => void) | null } = { resolve: null };
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => {
+      // Block until the test enqueues a new score, then succeed. The
+      // drain's final write is "remove tutorial entry" — but the queue
+      // also contains combat-1 by then, and diff-write must keep it.
+      await new Promise<void>((resolve) => {
+        holder.resolve = resolve;
+      });
+      return { ok: true };
+    });
+    const drain = drainScoreQueue(submit, NOW);
+    await Promise.resolve();
+    enqueueScore({ missionId: "combat-1", score: 200, timeSeconds: 60 }, NOW);
+    holder.resolve?.();
+    const result = await drain;
+    expect(result.attempted).toBe(1);
+    expect(result.succeeded).toBe(1);
+    // tutorial dropped (succeeded), combat-1 preserved (added during drain).
+    const queue = readScoreQueueForTest();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.missionId).toBe("combat-1");
+    expect(result.remaining).toBe(1);
+  });
+
+  it("enqueue during a transient-failing drain doesn't lose either entry", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    const holder: { resolve: (() => void) | null } = { resolve: null };
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => {
+      await new Promise<void>((resolve) => {
+        holder.resolve = resolve;
+      });
+      return { ok: false, status: 503, errorCode: null };
+    });
+    const drain = drainScoreQueue(submit, NOW);
+    await Promise.resolve();
+    enqueueScore({ missionId: "combat-1", score: 200, timeSeconds: 60 }, NOW);
+    holder.resolve?.();
+    await drain;
+    const queue = readScoreQueueForTest();
+    expect(queue).toHaveLength(2);
+    // tutorial: was in initial drain pool, transient → attempts++.
+    // combat-1: enqueued during drain, untouched.
+    const tutorial = queue.find((q) => q.missionId === "tutorial");
+    const combat = queue.find((q) => q.missionId === "combat-1");
+    expect(tutorial?.attempts).toBe(1);
+    expect(combat?.attempts).toBe(0);
+  });
+
+  it("after one drain completes, the lock releases so the next drain can run", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => ({ ok: true }));
+    await drainScoreQueue(submit, NOW); // drain 1: drops tutorial
+    enqueueScore({ missionId: "combat-1", score: 200, timeSeconds: 60 }, NOW);
+    const result2 = await drainScoreQueue(submit, NOW); // drain 2: drops combat-1
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(result2.succeeded).toBe(1);
+    expect(readScoreQueueForTest()).toHaveLength(0);
+  });
+});
