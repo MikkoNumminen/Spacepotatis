@@ -143,6 +143,24 @@ describe("applyMissionReward", () => {
     expect(getState().ship.shieldLevel).toBe(before + 1);
   });
 
+  it("armor upgrade reward bumps armorLevel by one (rewards.ts applyUpgrade case)", () => {
+    const before = getState().ship.armorLevel;
+    applyMissionReward({ kind: "upgrade", field: "armor" });
+    expect(getState().ship.armorLevel).toBe(before + 1);
+  });
+
+  it("reactor-capacity upgrade reward bumps reactor.capacityLevel by one", () => {
+    const before = getState().ship.reactor.capacityLevel;
+    applyMissionReward({ kind: "upgrade", field: "reactor-capacity" });
+    expect(getState().ship.reactor.capacityLevel).toBe(before + 1);
+  });
+
+  it("reactor-recharge upgrade reward bumps reactor.rechargeLevel by one", () => {
+    const before = getState().ship.reactor.rechargeLevel;
+    applyMissionReward({ kind: "upgrade", field: "reactor-recharge" });
+    expect(getState().ship.reactor.rechargeLevel).toBe(before + 1);
+  });
+
   it("weapon reward unlocks the weapon", () => {
     const reward: MissionReward = { kind: "weapon", id: "spread-shot" };
     expect(ownsAnyOfType(getState().ship, "spread-shot")).toBe(false);

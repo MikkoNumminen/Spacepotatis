@@ -126,4 +126,25 @@ describe("steerVelocity", () => {
     expect(next.vx).toBe(0);
     expect(next.vy).toBe(0);
   });
+
+  it("wraps the angle delta the short way around (negative crossover)", () => {
+    // Bullet pointing slightly past -PI, target slightly past +PI. Naively
+    // the delta would be ~+2*PI; the `if (diff > Math.PI) diff -= 2*PI`
+    // branch (weaponMath.ts:66) folds it into a tiny negative turn so the
+    // homed velocity arc takes the SHORT way around.
+    const startAngle = -Math.PI + 0.05;
+    const startVx = Math.cos(startAngle) * SPEED;
+    const startVy = Math.sin(startAngle) * SPEED;
+    const targetAngle = Math.PI - 0.05;
+    const tx = Math.cos(targetAngle) * 1000;
+    const ty = Math.sin(targetAngle) * 1000;
+    const next = steerVelocity(startVx, startVy, 0, 0, tx, ty, TURN, DT);
+    const newAngle = Math.atan2(next.vy, next.vx);
+    // Short way is rotating slightly more negative past -PI (atan2 wraps
+    // the result to ~+PI), staying near targetAngle. Long way would sweep
+    // forward across +2*PI of arc.
+    const distShort = Math.abs(newAngle - targetAngle);
+    const distLong = Math.abs(newAngle - (targetAngle + 2 * Math.PI));
+    expect(distShort).toBeLessThan(distLong);
+  });
 });

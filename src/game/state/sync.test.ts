@@ -151,6 +151,27 @@ describe("loadSave", () => {
     expect(await loadSave()).toBe(false);
     expect(fetchCalls).toHaveLength(1);
   });
+
+  it("logs and returns false when the remote save row fails RemoteSaveSchema", async () => {
+    // RemoteSaveSchema requires `slot`, `credits`, `completedMissions`, etc.
+    // A row missing those keys exercises the safeParse-failure branch
+    // (sync.ts:67-76) which today is silent except for a console.warn.
+    const malformed = { not: "a save", credits: "definitely not a number" };
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify(malformed), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      expect(await loadSave()).toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+      const firstCall = warnSpy.mock.calls[0];
+      expect(firstCall?.[0]).toMatch(/loadSave: schema rejected save row/);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 describe("saveNow", () => {
