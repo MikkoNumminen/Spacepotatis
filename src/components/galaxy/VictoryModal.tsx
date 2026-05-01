@@ -5,13 +5,36 @@ import type { CombatSummary } from "@/game/phaser/config";
 import { itemSfx } from "@/game/audio/itemSfx";
 import { describeMissionReward } from "@/game/state/rewards";
 
+// Server-sync outcome surfaced under the stats. GameCanvas drives this from
+// the awaited results of saveNow() / drainScoreQueue(). The states map to:
+//  - idle: a loss, or modal opened from a pure replay — nothing to surface.
+//  - pending: save/score in flight; modal mounts before they resolve.
+//  - ok: save committed AND every queued score for this player posted.
+//  - queued: score is durably enqueued but couldn't post right now (offline,
+//    transient 5xx). The queue auto-retries on next mount / visibility
+//    change / network-online event, so the player needs to do nothing.
+//  - unauthenticated: not signed in. Score is in the queue locally; will
+//    auto-post the moment they sign in.
+//  - save_failed / score_failed: server rejected with a permanent error.
+//    Includes the humanized message so the player has a breadcrumb.
+export type VictorySyncStatus =
+  | { readonly kind: "idle" }
+  | { readonly kind: "pending" }
+  | { readonly kind: "ok" }
+  | { readonly kind: "queued"; readonly message: string }
+  | { readonly kind: "unauthenticated" }
+  | { readonly kind: "save_failed"; readonly status: number; readonly message: string }
+  | { readonly kind: "score_failed"; readonly status: number; readonly message: string };
+
 export default function VictoryModal({
   summary,
   missionName,
+  syncStatus = { kind: "idle" },
   onClose
 }: {
   summary: CombatSummary;
   missionName: string;
+  syncStatus?: VictorySyncStatus;
   onClose: () => void;
 }) {
   const [ready, setReady] = useState(false);
@@ -101,6 +124,8 @@ export default function VictoryModal({
           </div>
         )}
 
+        <SyncStatusLine status={syncStatus} />
+
         <div className="mt-8 flex justify-center">
           <button
             type="button"
@@ -136,4 +161,42 @@ function formatTime(s: number): string {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+function SyncStatusLine({ status }: { status: VictorySyncStatus }) {
+  if (status.kind === "idle") return null;
+  if (status.kind === "pending") {
+    return (
+      <div className="mt-6 text-center text-xs text-space-border">
+        Saving and posting score…
+      </div>
+    );
+  }
+  if (status.kind === "ok") {
+    return (
+      <div className="mt-6 text-center text-xs text-hud-green/80">
+        ✓ Score posted to leaderboard
+      </div>
+    );
+  }
+  if (status.kind === "unauthenticated") {
+    return (
+      <div className="mt-6 rounded border border-hud-amber/40 bg-hud-amber/5 px-3 py-2 text-center text-xs text-hud-amber/90">
+        Sign in on the home page — your score is safe and will post the moment you do.
+      </div>
+    );
+  }
+  if (status.kind === "queued") {
+    return (
+      <div className="mt-6 rounded border border-hud-amber/40 bg-hud-amber/5 px-3 py-2 text-center text-xs text-hud-amber/90">
+        ⏳ {status.message}
+      </div>
+    );
+  }
+  // save_failed | score_failed
+  return (
+    <div className="mt-6 rounded border border-hud-red/40 bg-hud-red/5 px-3 py-2 text-center text-xs text-hud-red/90">
+      ⚠ {status.message}
+    </div>
+  );
 }

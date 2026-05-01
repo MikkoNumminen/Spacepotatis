@@ -223,6 +223,7 @@ The 2026-04-27 modularity audit broke up several god modules. Quick lookup of wh
 | GameState public surface | [src/game/state/GameState.ts](src/game/state/GameState.ts) (barrel re-export) |
 | Wire-format Zod schemas | [src/lib/schemas/save.ts](src/lib/schemas/save.ts) |
 | Server-side cheat guards (mission graph, credits delta, playtime delta, per-player progression-aware caps) | [src/lib/saveValidation.ts](src/lib/saveValidation.ts) |
+| Leaderboard score queue (localStorage durability + auto-retry on mount/visibility/online) | [src/game/state/scoreQueue.ts](src/game/state/scoreQueue.ts) — see ARCHITECTURE.md §4a. **Never bypass the queue when posting a score** — `enqueueScore` first, then `drainScoreQueue` (or let the existing GameCanvas triggers handle it). The leaderboard is required to be eventually-consistent; fire-and-forget POSTs lose scores. |
 | Route constants | [src/lib/routes.ts](src/lib/routes.ts) |
 | Player handle hook | [src/lib/useHandle.ts](src/lib/useHandle.ts) |
 | Phaser event union + emit/on wrappers | [src/game/phaser/events.ts](src/game/phaser/events.ts) |

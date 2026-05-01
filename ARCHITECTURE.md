@@ -81,11 +81,16 @@ mount Phaser via createPhaserGame(parent, { missionId, onComplete })
 │  finish(victory) → setSummary│
 └──────────┬───────────────────┘
            │ onComplete callback fires:
+           │  enqueueScore()          (every victory, even anonymous — the
+           │                           score-queue is the source of truth for
+           │                           "this score must reach the leaderboard
+           │                           eventually"; see §7a)
            │  await saveNow()         (autosave; signed-in only — sequenced
-           │                           BEFORE submitScore so the leaderboard
+           │                           BEFORE the queue drain so the leaderboard
            │                           mission-completion guard sees the new
            │                           clear in the player's save row)
-           │  void submitScore()      (victory only; signed-in only)
+           │  drainScoreQueue()       (signed-in only; non-blocking on the
+           │                           fade — modal updates from the result)
            ▼
 GameCanvas: setMode("galaxy"), destroy Phaser game,
 remount GalaxyScene, then mount React VictoryModal showing
@@ -156,6 +161,51 @@ All routes live under [src/app/api/](src/app/api/). Keep the list short — ever
 `/api/save` and `/api/leaderboard` run on the Edge runtime via `@neondatabase/serverless` (WebSocket-backed `Pool` that's API-compatible with `pg.Pool`). NextAuth's `auth()` is JWT-cookie based and works in Edge. `/api/auth/[...nextauth]` stays on Node because Google OAuth's callback handshake isn't Edge-safe.
 
 **Every request and response is validated by Zod schemas** in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — the source of truth for the wire format. The save and leaderboard routes both `safeParse()` request bodies and reject malformed input with `{ error: "validation_failed", issues: [...] }` at status 400. The client (`sync.ts`) parses server responses through `RemoteSaveSchema` so a server-side schema drift can't corrupt local state. Path strings are centralized in [src/lib/routes.ts](src/lib/routes.ts) (`ROUTES.api.save`, etc.) — never hard-code `"/api/..."` strings in components.
+
+## 4a. Leaderboard score queue (resilient delivery)
+
+Every victory must end up on the leaderboard. The naive flow — fire-and-forget POST in `submitScore()` — silently lost scores when:
+
+- The player wasn't signed in at the moment of the win.
+- Network was flaky or the leaderboard route returned a transient 5xx.
+- The save POST hadn't propagated yet and the leaderboard's mission-completion guard 422'd with `mission_not_completed`.
+- The tab was closed before the POST resolved.
+
+The score queue ([src/game/state/scoreQueue.ts](src/game/state/scoreQueue.ts)) is the durability layer that closes all four. It is the **source of truth for "this score must reach the leaderboard eventually"**.
+
+**Storage.** A versioned localStorage key (`spacepotatis:scoreQueue:v1`) holds an array of `{ missionId, score, timeSeconds, firstSeenMs, attempts }`. Validated by Zod on read; a malformed blob from a future schema is logged and dropped rather than silently re-posted. Storage failures (private mode, quota) degrade to in-memory only; the next reload starts fresh, no exception bubbles.
+
+**Enqueue.** `GameCanvas.handleMissionComplete` calls `enqueueScore(...)` BEFORE any network I/O — so even if the player closes the tab the moment combat ends, the queue persists their score for the next visit. Anonymous wins enqueue too; the drain becomes a no-op until they sign in.
+
+**Drain.** `drainScoreQueue()` walks the queue and POSTs each entry. Outcomes per entry:
+
+| Outcome | Behavior |
+|---|---|
+| 2xx success | Drop the entry. |
+| 401 (anonymous) | Pause the entire drain — every other entry would 401 too. Keep entries untouched, don't burn `attempts`. Drain runs again on the next sign-in. |
+| 5xx / network failure / 422 `mission_not_completed` | **Transient**. Increment `attempts`; retry on next drain. |
+| 400 / 422 with any other error code | **Permanent**. Drop with `console.warn` so a real regression surfaces. |
+| `attempts >= 50` or entry older than 30 days | Drop up front, before issuing any HTTP, so a stuck entry doesn't burn bandwidth. |
+
+**Drain triggers.** A `useEffect` in `GameCanvas` drains:
+
+1. On mount + every transition to `authStatus === "authenticated"`. Anonymous wins from a prior session catch up the moment the player signs in.
+2. On `visibilitychange → visible`. Covers "I closed the tab while the submit was in flight" — the next visit reposts.
+3. On `window.online`. Mobile out-of-coverage → coverage automatically clears the backlog.
+
+**Dedupe.** `enqueueScore` skips appending if the exact `{missionId, score, timeSeconds}` triple is already queued (rapid double-fire of mission complete, the user explicitly clicking "Continue" twice). Two clears of the same mission with different scores DO both enqueue — players can post multiple attempts.
+
+**Modal feedback.** The Victory modal's `SyncStatusLine` ([src/components/galaxy/VictoryModal.tsx](src/components/galaxy/VictoryModal.tsx)) reflects the drain outcome:
+- `ok` (green) — drained successfully.
+- `queued` (amber) — durably saved, will retry automatically.
+- `unauthenticated` (amber) — saved locally, will post the moment you sign in.
+- `save_failed` / `score_failed` (red) — permanent rejection, with the humanized reason.
+
+**Why localStorage over sessionStorage.** A tab close shouldn't drop the queue. Players close the tab thinking their score posted; the next visit drains in the background, transparently.
+
+**Why client-side queue and not a server-side outbox.** Every other approach moves more state to the server. The queue is small (KB), durable across tab closes, and triggers off events the server can't see (visibility change, sign-in). Total Vercel CPU surface stays unchanged.
+
+The queue is forward-only — scores from runs **before** this layer landed can't be retroactively posted (their score number was never persisted client-side). From this commit onward, every win lands on the leaderboard or sits in the queue waiting for a successful retry.
 
 ### 4.1 Server-side cheat guards
 
