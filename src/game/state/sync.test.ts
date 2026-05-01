@@ -189,16 +189,40 @@ describe("saveNow", () => {
     expect(body).toHaveProperty("completedMissions");
   });
 
-  it("does not throw on a non-2xx response", async () => {
-    fetchImpl.current = async () => new Response(null, { status: 500 });
-    await expect(saveNow()).resolves.toBeUndefined();
+  it("returns ok=true on a 2xx response", async () => {
+    fetchImpl.current = async () => new Response(null, { status: 204 });
+    await expect(saveNow()).resolves.toEqual({ ok: true });
   });
 
-  it("does not throw on a network error", async () => {
+  it("returns ok=false with status + humanized message on a non-2xx response", async () => {
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify({ error: "credits_delta_invalid" }), {
+        status: 422,
+        headers: { "content-type": "application/json" }
+      });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await saveNow();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(422);
+        expect(result.message).toContain("credits delta");
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not throw on a network error and returns ok=false with status=0", async () => {
     fetchImpl.current = async () => {
       throw new TypeError("network down");
     };
-    await expect(saveNow()).resolves.toBeUndefined();
+    const result = await saveNow();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(0);
+      expect(result.message).toMatch(/Network error/);
+    }
   });
 });
 
@@ -212,35 +236,78 @@ describe("submitScore", () => {
   };
   const losing: CombatSummary = { ...winning, victory: false };
 
-  it("does NOT post when the run was a loss", async () => {
-    await submitScore(losing);
+  it("does NOT post when the run was a loss; returns ok=true (nothing-to-do)", async () => {
+    const result = await submitScore(losing);
     expect(fetchCalls).toHaveLength(0);
+    expect(result).toEqual({ ok: true });
   });
 
-  it("posts mission/score/time on a victory", async () => {
-    await submitScore(winning);
+  it("posts mission/score/time on a victory and returns ok=true", async () => {
+    fetchImpl.current = async () => new Response(null, { status: 201 });
+    const result = await submitScore(winning);
     expect(fetchCalls).toHaveLength(1);
     const c = fetchCalls[0];
     expect(c?.input).toBe("/api/leaderboard");
     expect(c?.init?.method).toBe("POST");
     const body = JSON.parse((c?.init?.body as string) ?? "{}");
     expect(body).toEqual({ missionId: "tutorial", score: 1234, timeSeconds: 60 });
+    expect(result).toEqual({ ok: true });
   });
 
-  it("does not throw when the leaderboard rejects with 401 (anonymous)", async () => {
+  it("returns ok=false with sign-in message on 401 (anonymous)", async () => {
     fetchImpl.current = async () => new Response(null, { status: 401 });
-    await expect(submitScore(winning)).resolves.toBeUndefined();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await submitScore(winning);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(401);
+        expect(result.message).toMatch(/[Ss]ign in/);
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
-  it("does not throw on a 500 response", async () => {
+  it("returns ok=false with mission_not_completed hint on 422", async () => {
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify({ error: "mission_not_completed" }), {
+        status: 422,
+        headers: { "content-type": "application/json" }
+      });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await submitScore(winning);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(422);
+        expect(result.message).toContain("doesn't see this mission as completed");
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("returns ok=false on a 500 response", async () => {
     fetchImpl.current = async () => new Response(null, { status: 500 });
-    await expect(submitScore(winning)).resolves.toBeUndefined();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await submitScore(winning);
+      expect(result.ok).toBe(false);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
-  it("does not throw on a network error", async () => {
+  it("does not throw on a network error and returns ok=false with status=0", async () => {
     fetchImpl.current = async () => {
       throw new TypeError("offline");
     };
-    await expect(submitScore(winning)).resolves.toBeUndefined();
+    const result = await submitScore(winning);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(0);
+      expect(result.message).toMatch(/Network error/);
+    }
   });
 });

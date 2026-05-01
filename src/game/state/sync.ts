@@ -98,7 +98,17 @@ async function doLoadSave(): Promise<boolean> {
   }
 }
 
-export async function saveNow(): Promise<void> {
+// Structured outcome from saveNow / submitScore. Callers (today: GameCanvas)
+// surface this in the VictoryModal so the player gets feedback when their
+// score didn't post — silent failure used to make "I won but my score
+// isn't on the leaderboard" undebuggable from the user's seat. The
+// `error.message` field is intentionally short and human-readable; the
+// raw server response goes to console.warn for developer-side detail.
+export type SyncResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly status: number; readonly message: string };
+
+export async function saveNow(): Promise<SyncResult> {
   const snap = toSnapshot();
   try {
     const res = await fetch(ROUTES.api.save, {
@@ -110,23 +120,29 @@ export async function saveNow(): Promise<void> {
     // so any future loadSave() should report hasSave=true without re-fetching.
     if (res.ok) {
       cached = true;
-      return;
+      return { ok: true };
     }
     // Surface server rejections (422 cheat-guard, 400 schema) to the
-    // console so a legitimate player who somehow trips a guard has SOME
-    // breadcrumb to follow — silent failure used to make "my progress
-    // isn't saving" undebuggable. Cheat attempts also show up here, but
+    // console for developer detail. Cheat attempts show up here too, but
     // that's fine: a determined cheater can read network responses
     // anyway, this just keeps honest players informed.
     const detail = await res.text().catch(() => "");
     console.warn("saveNow: server rejected save", res.status, detail);
-  } catch {
-    // ignore — snapshot stays in memory
+    return { ok: false, status: res.status, message: humanizeSaveError(res.status, detail) };
+  } catch (err) {
+    // Network unreachable, CORS, etc. The snapshot stays in memory; next
+    // save attempt will retry.
+    return {
+      ok: false,
+      status: 0,
+      message: `Network error — couldn't reach the save server (${describeError(err)})`
+    };
   }
 }
 
-export async function submitScore(summary: CombatSummary): Promise<void> {
-  if (!summary.victory) return;
+export async function submitScore(summary: CombatSummary): Promise<SyncResult> {
+  // Treat a loss as a successful no-op: nothing to submit, nothing failed.
+  if (!summary.victory) return { ok: true };
   try {
     const res = await fetch(ROUTES.api.leaderboard, {
       method: "POST",
@@ -137,11 +153,66 @@ export async function submitScore(summary: CombatSummary): Promise<void> {
         timeSeconds: summary.timeSeconds
       })
     });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.warn("submitScore: server rejected score", res.status, detail);
-    }
-  } catch {
-    // ignore
+    if (res.ok) return { ok: true };
+    const detail = await res.text().catch(() => "");
+    console.warn("submitScore: server rejected score", res.status, detail);
+    return { ok: false, status: res.status, message: humanizeScoreError(res.status, detail) };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      message: `Network error — couldn't reach the leaderboard server (${describeError(err)})`
+    };
   }
+}
+
+// Status-code → short human-readable message. Reads the JSON `error` field
+// from the route's error responses when present so a writer of a new guard
+// (e.g. mission_not_completed) gets informative output without changing
+// this code. Falls back to a generic per-status hint.
+function humanizeSaveError(status: number, body: string): string {
+  const errCode = parseErrorCode(body);
+  if (status === 401) return "Sign in to save your progress.";
+  if (status === 400) return `Save rejected (validation failed${errCode ? `: ${errCode}` : ""}).`;
+  if (status === 422) {
+    if (errCode === "mission_graph_invalid") {
+      return "Save rejected (mission unlock chain mismatch).";
+    }
+    if (errCode === "playtime_delta_invalid") {
+      return "Save rejected (playtime delta too large).";
+    }
+    if (errCode === "credits_delta_invalid") {
+      return "Save rejected (credits delta too large).";
+    }
+    return `Save rejected${errCode ? ` (${errCode})` : ""}.`;
+  }
+  return `Save failed (HTTP ${status}${errCode ? ` ${errCode}` : ""}).`;
+}
+
+function humanizeScoreError(status: number, body: string): string {
+  const errCode = parseErrorCode(body);
+  if (status === 401) return "Sign in to post scores to the leaderboard.";
+  if (status === 400) return `Score rejected (validation failed${errCode ? `: ${errCode}` : ""}).`;
+  if (status === 422) {
+    if (errCode === "mission_not_completed") {
+      return "Score rejected — server doesn't see this mission as completed yet. Try saving again.";
+    }
+    return `Score rejected${errCode ? ` (${errCode})` : ""}.`;
+  }
+  return `Score post failed (HTTP ${status}${errCode ? ` ${errCode}` : ""}).`;
+}
+
+function parseErrorCode(body: string): string | null {
+  if (!body) return null;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed.error === "string" ? parsed.error : null;
+  } catch {
+    return null;
+  }
+}
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }

@@ -24,6 +24,7 @@ import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { getStoryEntry } from "@/game/data/story";
 import { saveNow, submitScore } from "@/game/state/sync";
+import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 
@@ -42,6 +43,10 @@ export default function GameCanvas() {
   const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
   const [launching, setLaunching] = useState<MissionDefinition | null>(null);
   const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
+  // Sync status for the Victory modal — surfaces save / score-post outcomes
+  // so a 422 (cheat-guard rejection) or unauthenticated session doesn't lead
+  // to "I won, where's my leaderboard entry?" silent confusion.
+  const [syncStatus, setSyncStatus] = useState<VictorySyncStatus>({ kind: "idle" });
   const [warpOpen, setWarpOpen] = useState(false);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
@@ -163,13 +168,40 @@ export default function GameCanvas() {
   const handleMissionComplete = useCallback(
     async (summary: CombatSummary) => {
       setLastSummary(summary);
-      if (authStatus === "authenticated") {
+      // Reset to "pending" while the modal mounts; the awaits below resolve
+      // it to ok / save_failed / score_failed / unauthenticated. A loss
+      // (summary.victory === false) goes straight to "idle" since there's
+      // nothing to submit.
+      if (!summary.victory) {
+        setSyncStatus({ kind: "idle" });
+      } else if (authStatus !== "authenticated") {
+        setSyncStatus({ kind: "unauthenticated" });
+      } else {
+        setSyncStatus({ kind: "pending" });
         // Order matters: saveNow() must commit before submitScore() so the
         // /api/leaderboard mission-completion guard sees the new mission in
-        // the player's save row. Both are best-effort and never throw, so
-        // awaiting saveNow doesn't risk blocking the UI on a network hang.
-        await saveNow();
-        void submitScore(summary);
+        // the player's save row. Both calls now return SyncResult so we can
+        // surface failures to the modal — they still never throw, so the
+        // UI flow below isn't blocked.
+        const saveResult = await saveNow();
+        if (!saveResult.ok) {
+          setSyncStatus({
+            kind: "save_failed",
+            status: saveResult.status,
+            message: saveResult.message
+          });
+        } else {
+          const scoreResult = await submitScore(summary);
+          if (scoreResult.ok) {
+            setSyncStatus({ kind: "ok" });
+          } else {
+            setSyncStatus({
+              kind: "score_failed",
+              status: scoreResult.status,
+              message: scoreResult.message
+            });
+          }
+        }
       }
       await fadeOverlay(1);
       setLaunching(null);
@@ -249,6 +281,7 @@ export default function GameCanvas() {
             <VictoryModal
               summary={lastSummary}
               missionName={getMission(lastSummary.missionId).name}
+              syncStatus={syncStatus}
               onClose={() => setLastSummary(null)}
             />
           )}
