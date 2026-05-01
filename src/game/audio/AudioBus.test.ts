@@ -185,17 +185,16 @@ describe("AudioBus.subscribe", () => {
     expect(b).toHaveBeenCalledTimes(2);
 
     // Mutate subscriber A's most recent snapshot's `muted` object. (It's
-    // declared readonly at the type level, but the runtime object is a
-    // fresh shallow copy per notify(); typecasting through `as` is the
-    // only way to test this contract.)
+    // declared readonly at the type level; the cast is the only way to test
+    // the runtime contract.)
     const aSnap = a.mock.calls[1]?.[0] as AudioBusState;
     const bSnap = b.mock.calls[1]?.[0] as AudioBusState;
     (aSnap.muted as { music: boolean }).music = true;
-    // B's snapshot must not reflect A's mutation. (Same notify() call
-    // shares the snapshot reference, so this DOES propagate today — pin
-    // the actual behavior so a future "deep copy per subscriber" change
-    // is intentional, not silent.)
-    expect(bSnap.muted.music).toBe(aSnap.muted.music);
+    // B's snapshot must NOT reflect A's mutation. notify() calls getState()
+    // once per subscriber, so each subscriber gets its own fresh outer +
+    // fresh `muted` object — A's mutation can't bleed into B.
+    expect(bSnap.muted.music).toBe(false);
+    expect(aSnap.muted.music).toBe(true);
     // What absolutely must hold: both subscribers were called with the
     // correct semantic state at notify time.
     expect(aSnap.masterMuted).toBe(true);
