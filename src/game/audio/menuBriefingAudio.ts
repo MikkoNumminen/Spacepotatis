@@ -34,9 +34,8 @@ class MenuBriefingAudio {
   playSequence(items: readonly MenuBriefingItem[]): void {
     this.stop();
     if (items.length === 0) return;
-    if (typeof window !== "undefined") {
-      this.muted = window.localStorage.getItem("spacepotatis:muted") === "1";
-    }
+    // Mute state is owned by setMuted() (called from setAllMuted via the
+    // MuteToggle). localStorage persistence was dropped — see MuteToggle.tsx.
     this.queue = items;
     this.queueIdx = 0;
     this.scheduleNext();

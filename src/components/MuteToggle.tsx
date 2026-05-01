@@ -4,34 +4,30 @@ import { useEffect, useState } from "react";
 import { sfx } from "@/game/audio/sfx";
 import { setAllMuted } from "@/game/audio/music";
 
-const STORAGE_KEY = "spacepotatis:muted";
-
-// Lazy initializer keeps the very first render in sync with localStorage so
-// the button doesn't flash "♪ on" for one paint while a returning muted
-// player's effect catches up. The `typeof window` guard is required because
-// "use client" components still render on the server during streaming SSR.
-function readStoredMuted(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(STORAGE_KEY) === "1";
-}
-
+// Mute is SESSION-ONLY by design. Every page load starts with audio on;
+// clicking the toggle silences for the current session only. We do NOT
+// persist to localStorage and we do NOT read it on cold load. The previous
+// design (persist via `spacepotatis:muted`) was a recurring source of
+// "no music after refresh" bugs during testing — stale "1" values from
+// prior sessions silenced the page with no recovery beyond noticing the
+// toggle visual or manually clearing storage. The cost of dropping
+// persistence is one click per visit for users who want quiet; the
+// upside is the page never lies about whether music is on.
+//
+// On re-mount within the same session (e.g. /play → / nav), the lazy
+// initializer reads the singleton `sfx` engine's current muted state so
+// the button visual matches whatever the user toggled before navigating.
 export default function MuteToggle() {
-  const [muted, setMuted] = useState<boolean>(readStoredMuted);
+  const [muted, setMuted] = useState<boolean>(() => sfx.isMuted());
 
   useEffect(() => {
-    sfx.setMuted(muted);
-    setAllMuted(muted);
     return sfx.subscribe(setMuted);
-    // Empty deps: initial mute application + subscription is a one-time
-    // mount concern; subsequent toggles flow through `toggle` below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggle = () => {
     const next = !muted;
     sfx.setMuted(next);
     setAllMuted(next);
-    window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
   };
 
   return (
