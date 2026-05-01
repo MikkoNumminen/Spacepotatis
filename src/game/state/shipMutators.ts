@@ -159,111 +159,107 @@ export function buyWeaponSlot(): boolean {
   return true;
 }
 
-export function buyShieldUpgrade(): boolean {
+// Shared engine for the 4 ship-stat level upgrades (shield, armor, reactor
+// capacity, reactor recharge). Each has a buy-variant (debits credits via
+// the matching cost curve) and a grant-variant (free, used by mission-clear
+// rewards). MAX_LEVEL cap and credit-affordability check live here once.
+type LevelField = "shield" | "armor" | "reactorCapacity" | "reactorRecharge";
+
+function getLevel(state: GameStateForUpgrade, field: LevelField): number {
+  const ship = state.ship;
+  switch (field) {
+    case "shield":
+      return ship.shieldLevel;
+    case "armor":
+      return ship.armorLevel;
+    case "reactorCapacity":
+      return ship.reactor.capacityLevel;
+    case "reactorRecharge":
+      return ship.reactor.rechargeLevel;
+  }
+}
+
+function withIncrementedLevel(
+  state: GameStateForUpgrade,
+  field: LevelField
+): GameStateForUpgrade {
+  const ship = state.ship;
+  switch (field) {
+    case "shield":
+      return { ...state, ship: { ...ship, shieldLevel: ship.shieldLevel + 1 } };
+    case "armor":
+      return { ...state, ship: { ...ship, armorLevel: ship.armorLevel + 1 } };
+    case "reactorCapacity":
+      return {
+        ...state,
+        ship: {
+          ...ship,
+          reactor: { ...ship.reactor, capacityLevel: ship.reactor.capacityLevel + 1 }
+        }
+      };
+    case "reactorRecharge":
+      return {
+        ...state,
+        ship: {
+          ...ship,
+          reactor: { ...ship.reactor, rechargeLevel: ship.reactor.rechargeLevel + 1 }
+        }
+      };
+  }
+}
+
+type GameStateForUpgrade = ReturnType<typeof getState>;
+
+function applyLevelUpgrade(
+  field: LevelField,
+  costFn: (currentLevel: number) => number,
+  charge: boolean
+): boolean {
   const state = getState();
-  if (state.ship.shieldLevel >= MAX_LEVEL) return false;
-  const cost = shieldUpgradeCost(state.ship.shieldLevel);
-  if (!spendCredits(cost)) return false;
+  const current = getLevel(state, field);
+  if (current >= MAX_LEVEL) return false;
+  if (charge) {
+    const cost = costFn(current);
+    if (!spendCredits(cost)) return false;
+  }
   const post = getState();
-  commit({
-    ...post,
-    ship: { ...post.ship, shieldLevel: post.ship.shieldLevel + 1 }
-  });
+  commit(withIncrementedLevel(post, field));
   return true;
+}
+
+export function buyShieldUpgrade(): boolean {
+  return applyLevelUpgrade("shield", shieldUpgradeCost, true);
 }
 
 export function buyArmorUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.armorLevel >= MAX_LEVEL) return false;
-  const cost = armorUpgradeCost(state.ship.armorLevel);
-  if (!spendCredits(cost)) return false;
-  const post = getState();
-  commit({
-    ...post,
-    ship: { ...post.ship, armorLevel: post.ship.armorLevel + 1 }
-  });
-  return true;
+  return applyLevelUpgrade("armor", armorUpgradeCost, true);
 }
 
 export function buyReactorCapacityUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.reactor.capacityLevel >= MAX_LEVEL) return false;
-  const cost = reactorCapacityCost(state.ship.reactor.capacityLevel);
-  if (!spendCredits(cost)) return false;
-  const post = getState();
-  commit({
-    ...post,
-    ship: {
-      ...post.ship,
-      reactor: { ...post.ship.reactor, capacityLevel: post.ship.reactor.capacityLevel + 1 }
-    }
-  });
-  return true;
+  return applyLevelUpgrade("reactorCapacity", reactorCapacityCost, true);
 }
 
 export function buyReactorRechargeUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.reactor.rechargeLevel >= MAX_LEVEL) return false;
-  const cost = reactorRechargeCost(state.ship.reactor.rechargeLevel);
-  if (!spendCredits(cost)) return false;
-  const post = getState();
-  commit({
-    ...post,
-    ship: {
-      ...post.ship,
-      reactor: { ...post.ship.reactor, rechargeLevel: post.ship.reactor.rechargeLevel + 1 }
-    }
-  });
-  return true;
+  return applyLevelUpgrade("reactorRecharge", reactorRechargeCost, true);
 }
 
 // Free-grant variants used by mission-clear rewards. Same MAX_LEVEL caps
 // as the buy-* counterparts; no credit cost. Returns false when already
 // maxed so the reward roller can avoid handing out no-op rewards.
 export function grantShieldUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.shieldLevel >= MAX_LEVEL) return false;
-  commit({
-    ...state,
-    ship: { ...state.ship, shieldLevel: state.ship.shieldLevel + 1 }
-  });
-  return true;
+  return applyLevelUpgrade("shield", shieldUpgradeCost, false);
 }
 
 export function grantArmorUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.armorLevel >= MAX_LEVEL) return false;
-  commit({
-    ...state,
-    ship: { ...state.ship, armorLevel: state.ship.armorLevel + 1 }
-  });
-  return true;
+  return applyLevelUpgrade("armor", armorUpgradeCost, false);
 }
 
 export function grantReactorCapacityUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.reactor.capacityLevel >= MAX_LEVEL) return false;
-  commit({
-    ...state,
-    ship: {
-      ...state.ship,
-      reactor: { ...state.ship.reactor, capacityLevel: state.ship.reactor.capacityLevel + 1 }
-    }
-  });
-  return true;
+  return applyLevelUpgrade("reactorCapacity", reactorCapacityCost, false);
 }
 
 export function grantReactorRechargeUpgrade(): boolean {
-  const state = getState();
-  if (state.ship.reactor.rechargeLevel >= MAX_LEVEL) return false;
-  commit({
-    ...state,
-    ship: {
-      ...state.ship,
-      reactor: { ...state.ship.reactor, rechargeLevel: state.ship.reactor.rechargeLevel + 1 }
-    }
-  });
-  return true;
+  return applyLevelUpgrade("reactorRecharge", reactorRechargeCost, false);
 }
 
 // Bump the targeted instance's level by one. Cost scales via

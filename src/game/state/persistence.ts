@@ -1,23 +1,13 @@
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { isKnownStoryId, type StoryId } from "@/game/data/story";
 import type {
-  AugmentId,
   MissionId,
-  SolarSystemId,
-  WeaponId
+  SolarSystemId
 } from "@/types/game";
 import {
-  DEFAULT_SHIP,
-  MAX_LEVEL,
-  MAX_WEAPON_SLOTS,
-  newWeaponInstance,
   type ShipConfig,
-  type WeaponInstance,
-  type WeaponInventory,
-  type WeaponSlots
+  type WeaponInstance
 } from "./ShipConfig";
-import { AUGMENT_IDS, MAX_AUGMENTS_PER_WEAPON } from "../data/augments";
-import { WEAPON_IDS } from "@/lib/schemas/save";
 import {
   INITIAL_STATE,
   SYSTEM_UNLOCK_GATES,
@@ -25,6 +15,23 @@ import {
   getState,
   readSeenStoriesLocal
 } from "./stateCore";
+import {
+  clampUpgradeLevel,
+  isKnownAugment,
+  KNOWN_AUGMENT_IDS
+} from "./persistence/helpers";
+import type { LegacyShipSnapshot, SlotsAndInventory } from "./persistence/types";
+import { looksLikeNewShape, migrateNewShape } from "./persistence/migrateNewShape";
+import { migrateLegacyIdArray } from "./persistence/migrateLegacyIdArray";
+import { migrateNamedSlots } from "./persistence/migrateNamedSlots";
+import { migratePrimaryWeapon } from "./persistence/migratePrimaryWeapon";
+import { seedStarterIfEmpty } from "./persistence/safetyNet";
+import { sanitizeAugmentList } from "./persistence/helpers";
+import type { AugmentId } from "@/types/game";
+
+// Re-export for callers that previously imported these from persistence.ts.
+export { isKnownAugment, KNOWN_AUGMENT_IDS };
+export type { LegacyShipSnapshot };
 
 export interface StateSnapshot {
   credits: number;
@@ -114,80 +121,6 @@ export function hydrate(snapshot: Partial<StateSnapshot>): void {
   });
 }
 
-// Loose snapshot accepted by migrateShip. Covers every historical ship shape
-// the persistence layer may see in a save row. Every field is optional and
-// permissive (string / number rather than the union types) because untrusted
-// jsonb may carry partial or garbled data — the strict cleanup happens inside
-// migrateShip, not at the type boundary.
-//
-// Supported shapes:
-//   - new instance shape: { slots: (WeaponInstance | null)[], inventory: WeaponInstance[], ... }
-//   - legacy id-string slots: { slots: (WeaponId | null)[], unlockedWeapons, weaponLevels, weaponAugments, ... }
-//   - four-named-slot object: { slots: { front, rear, sidekickLeft, sidekickRight }, ... }
-//   - pre-loadout primaryWeapon: { primaryWeapon, ... }
-export interface LegacyShipSnapshot {
-  primaryWeapon?: WeaponId | string;
-  slots?:
-    | readonly (WeaponInstance | WeaponId | string | null | LegacyWeaponInstanceLike)[]
-    | LegacyNamedSlots;
-  inventory?: readonly (WeaponInstance | LegacyWeaponInstanceLike)[];
-  unlockedWeapons?: readonly (WeaponId | string)[];
-  weaponLevels?: Readonly<Record<string, number>>;
-  weaponAugments?: Readonly<Record<string, readonly (AugmentId | string)[]>>;
-  augmentInventory?: readonly (AugmentId | string)[];
-  shieldLevel?: number;
-  armorLevel?: number;
-  reactor?: Partial<ShipConfig["reactor"]>;
-}
-
-interface LegacyNamedSlots {
-  front?: WeaponId | string | null;
-  rear?: WeaponId | string | null;
-  sidekickLeft?: WeaponId | string | null;
-  sidekickRight?: WeaponId | string | null;
-}
-
-// Permissive instance shape. A persisted instance may have partial fields if
-// it was written by an older client; migrateShip fills the gaps.
-interface LegacyWeaponInstanceLike {
-  id?: WeaponId | string;
-  level?: number;
-  augments?: readonly (AugmentId | string)[];
-}
-
-export const KNOWN_AUGMENT_IDS = new Set<AugmentId>(AUGMENT_IDS);
-const KNOWN_WEAPON_IDS = new Set<WeaponId>(WEAPON_IDS);
-
-export function isKnownAugment(id: unknown): id is AugmentId {
-  return typeof id === "string" && KNOWN_AUGMENT_IDS.has(id as AugmentId);
-}
-
-function isKnownWeapon(id: unknown): id is WeaponId {
-  return typeof id === "string" && KNOWN_WEAPON_IDS.has(id as WeaponId);
-}
-
-function clampLevel(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
-  return Math.max(1, Math.min(MAX_LEVEL, Math.trunc(value)));
-}
-
-function clampUpgradeLevel(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(MAX_LEVEL, Math.trunc(value)));
-}
-
-function sanitizeAugmentList(input: unknown): AugmentId[] {
-  if (!Array.isArray(input)) return [];
-  const out: AugmentId[] = [];
-  for (const aid of input) {
-    if (!isKnownAugment(aid)) continue;
-    if (out.includes(aid)) continue;
-    out.push(aid);
-    if (out.length >= MAX_AUGMENTS_PER_WEAPON) break;
-  }
-  return out;
-}
-
 // Deep clone a ShipConfig. Slots/inventory are arrays of plain objects, so a
 // per-instance clone keeps the snapshot immutable from the live state.
 function cloneShip(ship: ShipConfig): ShipConfig {
@@ -203,26 +136,6 @@ function cloneShip(ship: ShipConfig): ShipConfig {
 
 function cloneInstance(inst: WeaponInstance): WeaponInstance {
   return { id: inst.id, level: inst.level, augments: [...inst.augments] };
-}
-
-// A value looks like a WeaponInstance if it's a non-null object (and not an
-// array) with at least an `id` field — even if level/augments are missing.
-function looksLikeInstance(value: unknown): value is LegacyWeaponInstanceLike {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "id" in (value as Record<string, unknown>)
-  );
-}
-
-function buildInstance(raw: LegacyWeaponInstanceLike): WeaponInstance | null {
-  if (!isKnownWeapon(raw.id)) return null;
-  return {
-    id: raw.id,
-    level: clampLevel(raw.level),
-    augments: sanitizeAugmentList(raw.augments)
-  };
 }
 
 export function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
@@ -262,37 +175,15 @@ function sanitizeStandaloneAugmentInventory(
   return out;
 }
 
-interface SlotsAndInventory {
-  slots: WeaponSlots;
-  inventory: WeaponInventory;
+// Resolves all four input shapes into the canonical (slots, inventory) pair
+// by dispatching to the per-shape migrator, then applying the empty-ship
+// safety net so the player always has at least the starter weapon.
+function migrateSlotsAndInventory(raw: LegacyShipSnapshot): SlotsAndInventory {
+  const result = dispatchByShape(raw);
+  return seedStarterIfEmpty(result);
 }
 
-// Resolves all four input shapes into the canonical (slots, inventory) pair:
-//
-//   1. NEW SHAPE — slots is an array of (WeaponInstance | null), inventory is
-//      an array of WeaponInstance. Validate each instance; drop any with an
-//      unknown id (slot becomes null, inventory entry is skipped).
-//
-//   2. LEGACY SHAPE A — slots is an array of WeaponId strings (or null) and
-//      the per-id state lives in unlockedWeapons + weaponLevels + weaponAugments.
-//      Synthesize one instance per unique unlocked id, then assign instances
-//      to slots by removing them from the inventory pool. The first slot
-//      referencing an id wins; subsequent slot references resolve to null
-//      because the legacy data only has one instance per id.
-//
-//   3. LEGACY SHAPE B — slots is the four-named-slot object. Only `front`
-//      survives as a slot reference; otherwise treat as Shape A.
-//
-//   4. LEGACY SHAPE C — pre-loadout, only `primaryWeapon` exists. Treat
-//      slots as [primaryWeapon]; otherwise as Shape A.
-//
-//   5. EMPTY — fall back to a fresh DEFAULT_SHIP slot layout.
-//
-// In all cases: cap slots at MAX_WEAPON_SLOTS, guarantee at least one slot,
-// and if the result has every slot null AND empty inventory, fall back to
-// the starter `[newWeaponInstance("rapid-fire")]` so the player isn't
-// stranded with no weapons at all.
-function migrateSlotsAndInventory(raw: LegacyShipSnapshot): SlotsAndInventory {
+function dispatchByShape(raw: LegacyShipSnapshot): SlotsAndInventory {
   // Path 1: new instance shape — detect by any slot/inventory entry that
   // looks like an instance object. If we see one, the entire ship is
   // assumed to be on the new model; legacy maps are ignored.
@@ -300,133 +191,28 @@ function migrateSlotsAndInventory(raw: LegacyShipSnapshot): SlotsAndInventory {
     return migrateNewShape(raw);
   }
 
-  // Path 2/3/4: legacy. Build an instance pool from per-id state, then assign
-  // to slots from the slot ids found in the snapshot.
-  const instancePool = buildLegacyInstancePool(raw);
-  const slotIds = extractLegacySlotIds(raw);
-
-  const slots: (WeaponInstance | null)[] = [];
-  const limit = Math.min(slotIds.length, MAX_WEAPON_SLOTS);
-  for (let i = 0; i < limit; i++) {
-    const id = slotIds[i];
-    if (id && isKnownWeapon(id)) {
-      const idx = instancePool.findIndex((inst) => inst.id === id);
-      if (idx >= 0) {
-        const taken = instancePool[idx];
-        instancePool.splice(idx, 1);
-        slots.push(taken ?? null);
-        continue;
-      }
-    }
-    slots.push(null);
-  }
-
-  // Always at least one slot.
-  if (slots.length === 0) slots.push(null);
-
-  const inventory: WeaponInstance[] = instancePool;
-
-  // Empty / unparseable safety net: if no slot is filled and there's nothing
-  // in inventory, the player would be weaponless. Drop in the starter.
-  if (slots.every((s) => s === null) && inventory.length === 0) {
-    return {
-      slots: [newWeaponInstance("rapid-fire")],
-      inventory: []
-    };
-  }
-
-  return { slots, inventory };
-}
-
-function looksLikeNewShape(raw: LegacyShipSnapshot): boolean {
-  if (Array.isArray(raw.inventory) && raw.inventory.some(looksLikeInstance)) {
-    return true;
-  }
-  if (Array.isArray(raw.slots) && raw.slots.some(looksLikeInstance)) {
-    return true;
-  }
-  return false;
-}
-
-function migrateNewShape(raw: LegacyShipSnapshot): SlotsAndInventory {
-  const slotInputs = Array.isArray(raw.slots) ? raw.slots : [];
-  const slots: (WeaponInstance | null)[] = [];
-  for (let i = 0; i < Math.min(slotInputs.length, MAX_WEAPON_SLOTS); i++) {
-    const entry = slotInputs[i];
-    if (entry === null || entry === undefined) {
-      slots.push(null);
-      continue;
-    }
-    if (looksLikeInstance(entry)) {
-      slots.push(buildInstance(entry));
-      continue;
-    }
-    // A bare string in the new shape is treated as "id with default level
-    // and no augments" — a permissive nicety so a partially-migrated row
-    // doesn't lose its slot.
-    if (typeof entry === "string") {
-      slots.push(isKnownWeapon(entry) ? newWeaponInstance(entry) : null);
-      continue;
-    }
-    slots.push(null);
-  }
-  if (slots.length === 0) slots.push(null);
-
-  const inventoryInput = Array.isArray(raw.inventory) ? raw.inventory : [];
-  const inventory: WeaponInstance[] = [];
-  for (const entry of inventoryInput) {
-    if (!looksLikeInstance(entry)) continue;
-    const inst = buildInstance(entry);
-    if (inst) inventory.push(inst);
-  }
-
-  // New-shape safety net mirrors the legacy path.
-  if (slots.every((s) => s === null) && inventory.length === 0) {
-    return {
-      slots: [newWeaponInstance("rapid-fire")],
-      inventory: []
-    };
-  }
-
-  return { slots, inventory };
-}
-
-// Synthesize one WeaponInstance per unique id in unlockedWeapons, populated
-// from weaponLevels / weaponAugments. Dedupes by first occurrence so the
-// instance pool reflects "one per unlocked id" — that's the legacy invariant.
-function buildLegacyInstancePool(raw: LegacyShipSnapshot): WeaponInstance[] {
-  const pool: WeaponInstance[] = [];
-  const seen = new Set<WeaponId>();
-  if (!Array.isArray(raw.unlockedWeapons)) return pool;
-  for (const id of raw.unlockedWeapons) {
-    if (!isKnownWeapon(id) || seen.has(id)) continue;
-    seen.add(id);
-    const level = clampLevel(raw.weaponLevels?.[id]);
-    const augments = sanitizeAugmentList(raw.weaponAugments?.[id]);
-    pool.push({ id, level, augments });
-  }
-  return pool;
-}
-
-// Returns the ordered list of slot id references in the legacy snapshot.
-// Strings (or null) only — instance objects are handled by the new-shape
-// branch and never reach here.
-function extractLegacySlotIds(raw: LegacyShipSnapshot): (string | null)[] {
+  // Path 2: legacy id-array. slots is an array (possibly empty) of strings.
   if (Array.isArray(raw.slots)) {
-    return raw.slots.map((entry) => {
-      if (typeof entry === "string") return entry;
-      return null;
-    });
+    return migrateLegacyIdArray(raw);
   }
 
+  // Path 3: legacy named-slots. slots is the four-named-slot object.
   if (raw.slots && typeof raw.slots === "object") {
-    const named = raw.slots as LegacyNamedSlots;
-    return [typeof named.front === "string" ? named.front : null];
+    return migrateNamedSlots(raw);
   }
 
+  // Path 4: pre-loadout primaryWeapon shape.
   if (typeof raw.primaryWeapon === "string") {
-    return [raw.primaryWeapon];
+    return migratePrimaryWeapon(raw);
   }
 
-  return [...DEFAULT_SHIP.slots.map((s) => (s ? s.id : null))];
+  // Path 5: empty / no recognizable slot reference — fall back to the
+  // default ship slot layout via the legacy id-array path. assignSlotsFromPool
+  // will resolve it against an empty instance pool.
+  return migrateLegacyIdArray(raw);
 }
+
+// Re-export the sanitizeAugmentList helper so tests / unrelated callers can
+// import it from the persistence barrel as before. (It's used internally by
+// shape migrators; this re-export preserves the previous module surface.)
+export { sanitizeAugmentList };

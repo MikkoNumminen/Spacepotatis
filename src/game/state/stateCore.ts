@@ -4,8 +4,17 @@ import type {
   MissionId,
   SolarSystemId
 } from "@/types/game";
-import { isKnownStoryId, type StoryId } from "@/game/data/story";
+import { type StoryId } from "@/game/data/story";
 import { DEFAULT_SHIP, type ShipConfig } from "./ShipConfig";
+import {
+  SEEN_STORIES_LOCAL_KEY,
+  readSeenStoriesLocal,
+  writeSeenStoriesLocal
+} from "./seenStoriesLocal";
+
+// Re-exported for persistence.ts (imports `readSeenStoriesLocal` from here)
+// and any historical call sites pointing at SEEN_STORIES_LOCAL_KEY.
+export { SEEN_STORIES_LOCAL_KEY, readSeenStoriesLocal };
 
 // Module-level singleton. Phaser and React both read/write here. Persistence
 // happens at boundaries (mission complete, shop purchase, initial load) — see
@@ -35,36 +44,6 @@ export const INITIAL_UNLOCKED: readonly MissionId[] = MISSIONS.filter(
 export const SYSTEM_UNLOCK_GATES: ReadonlyMap<MissionId, SolarSystemId> = new Map([
   ["boss-1", "tubernovae"]
 ]);
-
-// Browser-local backup of the seen-story list. Read at module init so
-// INITIAL_STATE has the right value before any cloud-save logic runs —
-// the popup must NEVER re-fire on the same device after the player has
-// already watched it. Hydrate merges this with the server list too, so
-// cross-device sync still works once persistence is healthy.
-export const SEEN_STORIES_LOCAL_KEY = "spacepotatis:seenStoryEntries";
-
-export function readSeenStoriesLocal(): readonly StoryId[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SEEN_STORIES_LOCAL_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isKnownStoryId);
-  } catch {
-    return [];
-  }
-}
-
-function writeSeenStoriesLocal(ids: readonly StoryId[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(SEEN_STORIES_LOCAL_KEY, JSON.stringify(ids));
-  } catch {
-    // localStorage may be disabled (private mode, quota); the in-memory
-    // session-level fire-once guard in GameCanvas covers this case.
-  }
-}
 
 export const INITIAL_STATE: GameStateShape = {
   credits: 0,
