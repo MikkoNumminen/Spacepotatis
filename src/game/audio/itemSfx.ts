@@ -5,8 +5,17 @@ import type { PerkId } from "@/game/data/perks";
 // Item-acquisition voice cues. Plays a short Grandma voice clip when the
 // player receives an item or buff — fired from the Victory modal's
 // first-clear reveal, every shop purchase, and the in-combat drop pickups
-// (credit, weapon, shield, perk). Templates are cached and cloned per fire
-// so back-to-back plays overlap cleanly. Honors the master mute toggle.
+// (credit, weapon, shield, perk). One fresh `Audio` per fire, released
+// on `ended` / `error` / play() rejection. Honors the master mute toggle.
+//
+// Why no template cache: iOS Safari caps simultaneous HTMLAudioElement
+// instances at ~6 per page; ANY element with src set + readyState > 0
+// counts toward the budget even if not playing. The previous design held
+// 8 persistent template elements purely to enable cloneNode-based fast
+// spawning, which alone exceeded the iOS budget when stacked with the
+// menuMusic + combatMusic engines. Spawning fresh per fire trades a
+// tiny per-call overhead (the browser HTTP-caches the file after first
+// fetch) for zero persistent slots.
 
 const PATHS = {
   weapon: "/audio/sfx/ui_shop_gun.mp3",
@@ -32,31 +41,30 @@ const MONEY_COOLDOWN_MS = 1800;
 
 class ItemSfxEngine {
   private muted = false;
-  private templates = new Map<string, HTMLAudioElement>();
   private lastMoneyAt = 0;
 
   private play(src: string): void {
     if (typeof window === "undefined") return;
     if (this.muted) return;
-    let tmpl = this.templates.get(src);
-    if (!tmpl) {
-      tmpl = new Audio(src);
-      tmpl.preload = "auto";
-      this.templates.set(src, tmpl);
-    }
-    const clone = tmpl.cloneNode(true) as HTMLAudioElement;
-    clone.volume = 1.0;
-    // iOS Safari caps simultaneous HTMLAudioElement instances at ~6 per page.
-    // Drop the clone's src as soon as it finishes (or errors) so the element
-    // becomes GC-eligible immediately instead of lingering as a "live" slot.
+    const el = new Audio(src);
+    el.volume = 1.0;
+    // preload="none" skips the metadata pre-fetch; the actual file fetches
+    // on play(). Once the browser HTTP-caches the response, subsequent
+    // fires for the same src play immediately. This costs a tiny first-
+    // fire delay in exchange for not paying eager-fetch bandwidth on
+    // session start.
+    el.preload = "none";
+    // Release the slot the moment playback finishes (or fails) so the
+    // element becomes GC-eligible and stops counting toward iOS Safari's
+    // ~6 simultaneous-element budget.
     const release = (): void => {
-      clone.removeEventListener("ended", release);
-      clone.removeEventListener("error", release);
-      clone.src = "";
+      el.removeEventListener("ended", release);
+      el.removeEventListener("error", release);
+      el.src = "";
     };
-    clone.addEventListener("ended", release);
-    clone.addEventListener("error", release);
-    void clone.play().catch(release);
+    el.addEventListener("ended", release);
+    el.addEventListener("error", release);
+    void el.play().catch(release);
   }
 
   weapon(): void {
