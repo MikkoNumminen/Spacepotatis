@@ -1,12 +1,14 @@
 "use client";
 
 import type { PerkId } from "@/game/data/perks";
+import { audioBus } from "./AudioBus";
 
 // Item-acquisition voice cues. Plays a short Grandma voice clip when the
 // player receives an item or buff — fired from the Victory modal's
 // first-clear reveal, every shop purchase, and the in-combat drop pickups
 // (credit, weapon, shield, perk). One fresh `Audio` per fire, released
-// on `ended` / `error` / play() rejection. Honors the master mute toggle.
+// on `ended` / `error` / play() rejection. Mute state owned by AudioBus
+// (category: voice).
 //
 // Why no template cache: iOS Safari caps simultaneous HTMLAudioElement
 // instances at ~6 per page; ANY element with src set + readyState > 0
@@ -42,6 +44,10 @@ const MONEY_COOLDOWN_MS = 1800;
 class ItemSfxEngine {
   private muted = false;
   private lastMoneyAt = 0;
+
+  constructor() {
+    audioBus.register("voice", this);
+  }
 
   private play(src: string): void {
     if (typeof window === "undefined") return;

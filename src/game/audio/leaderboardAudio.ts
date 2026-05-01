@@ -1,9 +1,11 @@
 "use client";
 
+import { audioBus } from "./AudioBus";
+
 // One-shot voice cue for the Leaderboard page ("Hall of Mediocrity").
 // Plays once per page mount with a configurable lead-in delay; cancels on
 // unmount so a quick Back-out before the delay fires doesn't leak audio
-// onto another page. Honors the master mute toggle.
+// onto another page. Mute state owned by AudioBus (category: voice).
 //
 // Mirrors the menuBriefingAudio shape but simpler — there's only one clip,
 // no queue, no autoplay-arming retry (the player must click "Leaderboard"
@@ -17,13 +19,15 @@ class LeaderboardAudio {
   private muted = false;
   private leadInTimerId: number | null = null;
 
+  constructor() {
+    audioBus.register("voice", this);
+  }
+
   // Schedule the voice to start `delayMs` after this call. If a previous
   // schedule is still pending, it's cancelled — the latest call wins.
   play(delayMs: number): void {
     this.stop();
     if (typeof window === "undefined") return;
-    // Mute state is owned by setMuted() (called from setAllMuted via the
-    // MuteToggle). localStorage persistence was dropped — see MuteToggle.tsx.
     this.leadInTimerId = window.setTimeout(() => {
       this.leadInTimerId = null;
       this.startVoice();

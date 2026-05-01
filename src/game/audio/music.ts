@@ -1,5 +1,7 @@
 "use client";
 
+import { audioBus, type AudioCategory } from "./AudioBus";
+
 // Music controller. One HTMLAudioElement per engine, manual loop with a
 // fade-out → silence → fade-in seam so a long stay on one track sounds like
 // the music takes a breath rather than restarting on a hard cut.
@@ -9,6 +11,11 @@
 //    between root layout pages. Ducks when combat starts.
 //  - combatMusic: src is set per-mission via loadTrack(); calling stop()
 //    fades it out and unloads.
+//
+// Mute state is owned by AudioBus. The engine implements AudioBusEngine
+// (setMuted) and registers itself in the constructor; the bus calls back
+// in whenever the effective mute for the engine's category flips. There
+// is no `setAllMuted` hub anymore — call `audioBus.setMasterMuted` instead.
 //
 // Autoplay note: browsers block .play() until a user gesture. Menu engine is
 // armed once on first input by MenuMusic.tsx; combat engine inherits the
@@ -54,9 +61,11 @@ interface EngineOptions {
   // ducking can never strand them in a paused state requiring a fresh user
   // gesture to resume.
   readonly keepAlive?: boolean;
+  // AudioBus category to register under. Defaults to "music"; combat / menu
+  // beds both register as music. Pass "voice" if a future MusicEngine
+  // instance is actually a voice surface.
+  readonly category?: AudioCategory;
 }
-
-type Listener = (state: { muted: boolean; armed: boolean }) => void;
 
 class MusicEngine {
   private el: HTMLAudioElement | null = null;
@@ -85,7 +94,6 @@ class MusicEngine {
   private readonly silenceMs: number;
   private readonly loop: boolean;
   private readonly keepAlive: boolean;
-  private readonly listeners = new Set<Listener>();
 
   constructor(opts: EngineOptions = {}) {
     this.src = opts.src ?? null;
@@ -95,6 +103,7 @@ class MusicEngine {
     this.silenceMs = opts.silenceMs ?? SILENCE_MS;
     this.loop = opts.loop ?? false;
     this.keepAlive = opts.keepAlive ?? false;
+    audioBus.register(opts.category ?? "music", this);
   }
 
   init(): void {
@@ -137,7 +146,6 @@ class MusicEngine {
     }
     this.armed = true;
     if (!this.muted && !this.ducked) void this.startPlayback();
-    this.notify();
   }
 
   // First user gesture unlocks autoplay. Idempotent.
@@ -145,7 +153,6 @@ class MusicEngine {
     if (!this.el || this.armed) return;
     this.armed = true;
     if (!this.muted && !this.ducked) void this.startPlayback();
-    this.notify();
   }
 
   // Forceful resume — if shouldBePlaying() is true but the element is
@@ -159,6 +166,9 @@ class MusicEngine {
     this.kickIfShouldBePlaying();
   }
 
+  // Called by AudioBus when the effective mute for this engine's category
+  // changes. The bus is the only caller — UI changes mute via
+  // `audioBus.setMasterMuted` / `audioBus.setCategoryMuted`.
   setMuted(muted: boolean): void {
     if (this.muted === muted) return;
     this.muted = muted;
@@ -167,11 +177,6 @@ class MusicEngine {
     } else if (this.armed && !this.ducked && this.src) {
       void this.startPlayback();
     }
-    this.notify();
-  }
-
-  isMuted(): boolean {
-    return this.muted;
   }
 
   duck(): void {
@@ -213,19 +218,6 @@ class MusicEngine {
       el.load();
       if (this.el === el) this.el = null;
     });
-  }
-
-  subscribe(cb: Listener): () => void {
-    this.listeners.add(cb);
-    cb({ muted: this.muted, armed: this.armed });
-    return () => {
-      this.listeners.delete(cb);
-    };
-  }
-
-  private notify(): void {
-    const snap = { muted: this.muted, armed: this.armed };
-    for (const cb of this.listeners) cb(snap);
   }
 
   private attachElement(src: string): void {
@@ -437,19 +429,4 @@ export const combatMusic = new MusicEngine({
   targetVolume: 0.55,
   fadeInSec: 0.15
 });
-
-export function setAllMuted(muted: boolean): void {
-  menuMusic.setMuted(muted);
-  combatMusic.setMuted(muted);
-  // Lazily import to avoid a circular module-init issue.
-  void import("./story").then(({ storyAudio }) => storyAudio.setMuted(muted));
-  void import("./storyLogAudio").then(({ storyLogAudio }) => storyLogAudio.setMuted(muted));
-  void import("./menuBriefingAudio").then(({ menuBriefingAudio }) =>
-    menuBriefingAudio.setMuted(muted)
-  );
-  void import("./itemSfx").then(({ itemSfx }) => itemSfx.setMuted(muted));
-  void import("./leaderboardAudio").then(({ leaderboardAudio }) =>
-    leaderboardAudio.setMuted(muted)
-  );
-}
 

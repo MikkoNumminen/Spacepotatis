@@ -1,11 +1,12 @@
 "use client";
 
+import { audioBus } from "./AudioBus";
+
 // Dedicated music engine for the Story log experience. Plays a single
 // looping bed while the Story menu is open OR while the player is replaying
 // any entry from the log — calling play() while already playing is a no-op,
 // so the bed never restarts when the user transitions between the list view
-// and a replay popup. Honors the master mute toggle just like the other
-// engines.
+// and a replay popup. Mute state owned by AudioBus (category: music).
 //
 // The replay voice goes through `storyAudio` (with musicSrc: null) so it
 // layers on top of this bed without touching it.
@@ -19,11 +20,12 @@ class StoryLogAudio {
   private muted = false;
   private fadeRaf: number | null = null;
 
+  constructor() {
+    audioBus.register("music", this);
+  }
+
   play(): void {
     if (this.music) return;
-    // Mute state is owned by setMuted() (called from setAllMuted via the
-    // MuteToggle). localStorage persistence of mute was dropped — see
-    // comment in MuteToggle.tsx for the full rationale.
     const music = new Audio(STORY_LOG_MUSIC_PATH);
     music.loop = true;
     music.volume = 0;

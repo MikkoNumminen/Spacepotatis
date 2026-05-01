@@ -118,6 +118,13 @@ class FakeAudioParam {
   setValueAtTime(_v: number, _t: number): void {}
   exponentialRampToValueAtTime(_v: number, _t: number): void {}
   linearRampToValueAtTime(_v: number, _t: number): void {}
+  // The real API ramps toward `target` over the supplied time constant; the
+  // fake collapses to an immediate set so tests can assert the post-state
+  // without running the audio clock. Sufficient for verifying that the
+  // engine called the param at all.
+  setTargetAtTime(target: number, _startTime: number, _timeConstant: number): void {
+    this.value = target;
+  }
 }
 
 class FakeAudioNode {
