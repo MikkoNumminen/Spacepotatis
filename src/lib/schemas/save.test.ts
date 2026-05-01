@@ -457,6 +457,166 @@ describe("SavePayloadSchema", () => {
   it("rejects negative credits", () => {
     expect(SavePayloadSchema.safeParse({ credits: -1 }).success).toBe(false);
   });
+
+  it("rejects negative playedTimeSeconds (z.number().int().nonnegative())", () => {
+    expect(
+      SavePayloadSchema.safeParse({ playedTimeSeconds: -1 }).success
+    ).toBe(false);
+  });
+
+  it("rejects non-integer playedTimeSeconds", () => {
+    expect(
+      SavePayloadSchema.safeParse({ playedTimeSeconds: 0.5 }).success
+    ).toBe(false);
+  });
+
+  it("rejects non-integer saveSlot (z.number().int().positive())", () => {
+    expect(SavePayloadSchema.safeParse({ saveSlot: 1.5 }).success).toBe(false);
+  });
+
+  it("rejects saveSlot of 0 (must be positive)", () => {
+    expect(SavePayloadSchema.safeParse({ saveSlot: 0 }).success).toBe(false);
+  });
+
+  it("rejects negative saveSlot", () => {
+    expect(SavePayloadSchema.safeParse({ saveSlot: -1 }).success).toBe(false);
+  });
+
+  it("rejects an unknown currentPlanet (not in MissionId enum)", () => {
+    expect(
+      SavePayloadSchema.safeParse({ currentPlanet: "evil" }).success
+    ).toBe(false);
+  });
+
+  it("accepts currentPlanet: null (the field is nullable)", () => {
+    expect(
+      SavePayloadSchema.safeParse({ currentPlanet: null }).success
+    ).toBe(true);
+  });
+
+  it("rejects an unknown currentSolarSystemId", () => {
+    expect(
+      SavePayloadSchema.safeParse({ currentSolarSystemId: "nowhere" }).success
+    ).toBe(false);
+  });
+
+  it("rejects unknown system ids inside unlockedSolarSystems", () => {
+    expect(
+      SavePayloadSchema.safeParse({
+        unlockedSolarSystems: ["tutorial", "nowhere"]
+      }).success
+    ).toBe(false);
+  });
+
+  it("round-trips a minimal payload via parse() (no thrown ZodError)", () => {
+    const parsed = SavePayloadSchema.parse({ credits: 0 });
+    expect(parsed.credits).toBe(0);
+  });
+});
+
+describe("RemoteSaveSchema additional rejection contracts", () => {
+  const validShipConfig = {
+    slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+    inventory: [],
+    augmentInventory: [],
+    shieldLevel: 0,
+    armorLevel: 0,
+    reactor: { capacityLevel: 0, rechargeLevel: 0 }
+  };
+
+  it("rejects when updatedAt is not a string (e.g. null)", () => {
+    expect(
+      RemoteSaveSchema.safeParse({
+        slot: 1,
+        credits: 0,
+        currentPlanet: null,
+        shipConfig: validShipConfig,
+        completedMissions: [],
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        updatedAt: null
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects when updatedAt is a number (Postgres driver returning epoch ms)", () => {
+    // The schema declares updatedAt as z.string() — anything else fails.
+    expect(
+      RemoteSaveSchema.safeParse({
+        slot: 1,
+        credits: 0,
+        currentPlanet: null,
+        shipConfig: validShipConfig,
+        completedMissions: [],
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        updatedAt: 1714000000000
+      }).success
+    ).toBe(false);
+  });
+
+  it("accepts a malformed-but-string updatedAt at the schema layer (validation deferred to validatePlaytimeDelta)", () => {
+    // The schema only checks z.string(); the actual ISO-8601 parsing is
+    // deferred to the validators. Pinning this so changing it later is a
+    // deliberate decision rather than a quiet drift.
+    expect(
+      RemoteSaveSchema.safeParse({
+        slot: 1,
+        credits: 0,
+        currentPlanet: null,
+        shipConfig: validShipConfig,
+        completedMissions: [],
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        updatedAt: "not-a-date"
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects negative credits in a remote save", () => {
+    expect(
+      RemoteSaveSchema.safeParse({
+        slot: 1,
+        credits: -100,
+        currentPlanet: null,
+        shipConfig: validShipConfig,
+        completedMissions: [],
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        updatedAt: "2026-04-26T00:00:00.000Z"
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects non-integer slot", () => {
+    expect(
+      RemoteSaveSchema.safeParse({
+        slot: 1.5,
+        credits: 0,
+        currentPlanet: null,
+        shipConfig: validShipConfig,
+        completedMissions: [],
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        updatedAt: "2026-04-26T00:00:00.000Z"
+      }).success
+    ).toBe(false);
+  });
+
+  it("round-trips a remote save via parse()", () => {
+    const parsed = RemoteSaveSchema.parse({
+      slot: 1,
+      credits: 0,
+      currentPlanet: null,
+      shipConfig: validShipConfig,
+      completedMissions: [],
+      unlockedPlanets: ["tutorial"],
+      playedTimeSeconds: 0,
+      updatedAt: "2026-04-26T00:00:00.000Z"
+    });
+    expect(parsed.slot).toBe(1);
+    expect(parsed.unlockedPlanets).toEqual(["tutorial"]);
+  });
 });
 
 describe("RemoteSaveSchema", () => {
