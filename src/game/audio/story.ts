@@ -1,3 +1,5 @@
+"use client";
+
 // Story audio controller. Plays a music bed and a delayed voiceover for a
 // single narrative beat at a time. Honors the master mute toggle: while
 // muted, play() is a no-op (the popup just shows the text). Toggling the

@@ -1,3 +1,5 @@
+"use client";
+
 // Voice queue for the landing page. Plays a series of nudge clips with a
 // configurable gap between each, ending with the system-briefing lecture.
 // The full sequence runs once per browser session (sessionStorage gate set
