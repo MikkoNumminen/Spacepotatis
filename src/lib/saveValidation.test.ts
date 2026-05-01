@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CREDITS_DELTA_SLACK,
   GLOBAL_CREDIT_CAPS,
@@ -341,5 +341,39 @@ describe("validateCreditsDelta with per-player caps", () => {
         caps: tubernovaeCaps
       }).ok
     ).toBe(true);
+  });
+});
+
+describe("module-load diagnostics", () => {
+  // The cold-start console.log block must NOT fire on Vercel Edge
+  // production (process is shimmed there and NODE_ENV === "production"),
+  // otherwise every cold start of /api/save and /api/leaderboard logs.
+  // It SHOULD still fire in development as a regression aid.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("does NOT log on cold start when NODE_ENV is production", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "production");
+    vi.resetModules();
+    await import("./saveValidation");
+    const fired = logSpy.mock.calls.some(
+      (args) => typeof args[0] === "string" && args[0].includes("[saveValidation]")
+    );
+    expect(fired).toBe(false);
+  });
+
+  it("DOES log on cold start when NODE_ENV is development", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "development");
+    vi.resetModules();
+    await import("./saveValidation");
+    const fired = logSpy.mock.calls.some(
+      (args) => typeof args[0] === "string" && args[0].includes("[saveValidation]")
+    );
+    expect(fired).toBe(true);
   });
 });

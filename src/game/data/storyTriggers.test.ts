@@ -70,10 +70,41 @@ describe("selectOnSystemEnterEntry", () => {
     ).toBe("tubernovae-cluster-intro");
   });
 
+  it("repeatable=true bypass holds even with a fully-loaded seen-set", () => {
+    // Stronger pin on the PR #62 contract: regardless of how much save
+    // state the player has accumulated, the repeatable on-system-enter
+    // cinematic still fires fresh. Uses the real tubernovae-cluster-intro
+    // fixture (story.ts:215 ships with `repeatable: true`).
+    const everySeenId = new Set<StoryId>([
+      "tubernovae-cluster-intro",
+      "great-potato-awakening",
+      "spud-prime-arrival",
+      "yamsteroid-belt-arrival",
+      "dreadfruit-arrival",
+      "sol-spudensis-cleared"
+    ]);
+    expect(
+      selectOnSystemEnterEntry("tubernovae", everySeenId, empty<StoryId>())?.id
+    ).toBe("tubernovae-cluster-intro");
+  });
+
   it("returns null when the entry has already auto-fired this session", () => {
     // Even with repeatable=true, autoFired blocks within the same
     // residency in the system. The hook clears autoFired on system
     // transition so re-entering re-fires.
+    expect(
+      selectOnSystemEnterEntry(
+        "tubernovae",
+        empty<StoryId>(),
+        new Set(["tubernovae-cluster-intro"])
+      )
+    ).toBeNull();
+  });
+
+  it("autoFired gates a repeatable entry even when seen-set is empty", () => {
+    // Mirror of the gate above but with the freshest possible save state:
+    // seen-set empty, autoFired populated. Pins the "modal can't loop while
+    // idle in-system" guarantee independently of any seen-set interaction.
     expect(
       selectOnSystemEnterEntry(
         "tubernovae",
@@ -101,6 +132,16 @@ describe("selectOnMissionSelectEntry", () => {
     // pirate-beacon has no on-mission-select story today; if you wire one
     // up, this assertion will need updating along with the entry.
     expect(selectOnMissionSelectEntry("pirate-beacon" as MissionId)).toBeNull();
+  });
+
+  it("returns null for an unknown missionId — the helper only matches on the trigger's missionId", () => {
+    // Pinning the exact invariant: selectOnMissionSelectEntry takes only a
+    // missionId. It does NOT consult unlockedPlanets, completedMissions, or
+    // any other gating state — that's the hook's job. This test guards
+    // against accidentally adding a side-channel filter to the helper.
+    expect(
+      selectOnMissionSelectEntry("not-a-real-mission" as MissionId)
+    ).toBeNull();
   });
 });
 

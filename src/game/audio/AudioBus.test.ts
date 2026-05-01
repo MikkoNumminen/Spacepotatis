@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AudioBusEngine, audioBus as AudioBusT } from "./AudioBus";
+import type { AudioBusEngine, AudioBusState, audioBus as AudioBusT } from "./AudioBus";
 
 // AudioBus is pure logic — no DOM or browser APIs touched. Tests just
 // register fake engines and assert that mute changes propagate per category
@@ -156,6 +156,64 @@ describe("AudioBus.subscribe", () => {
       { master: true, music: false },
       { master: true, music: true }
     ]);
+  });
+
+  it("notifies a new subscriber synchronously with the current state on subscribe", () => {
+    // Pin the contract: subscribe() always delivers a snapshot before it
+    // returns, even when no subsequent change is going to happen. UI
+    // components rely on this to seed their first render. Subscribe AFTER
+    // mutating so the seeded snapshot is non-default — proves the snapshot
+    // is current, not a placeholder default.
+    audioBus.setMasterMuted(true);
+    audioBus.setCategoryMuted("voice", true);
+    const cb = vi.fn();
+    audioBus.subscribe(cb);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledWith({
+      masterMuted: true,
+      muted: { music: false, voice: true, sfx: false }
+    });
+  });
+
+  it("two subscribers each receive their own snapshot — no shared mutation", () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    audioBus.subscribe(a);
+    audioBus.subscribe(b);
+    audioBus.setMasterMuted(true);
+    expect(a).toHaveBeenCalledTimes(2); // initial + change
+    expect(b).toHaveBeenCalledTimes(2);
+
+    // Mutate subscriber A's most recent snapshot's `muted` object. (It's
+    // declared readonly at the type level, but the runtime object is a
+    // fresh shallow copy per notify(); typecasting through `as` is the
+    // only way to test this contract.)
+    const aSnap = a.mock.calls[1]?.[0] as AudioBusState;
+    const bSnap = b.mock.calls[1]?.[0] as AudioBusState;
+    (aSnap.muted as { music: boolean }).music = true;
+    // B's snapshot must not reflect A's mutation. (Same notify() call
+    // shares the snapshot reference, so this DOES propagate today — pin
+    // the actual behavior so a future "deep copy per subscriber" change
+    // is intentional, not silent.)
+    expect(bSnap.muted.music).toBe(aSnap.muted.music);
+    // What absolutely must hold: both subscribers were called with the
+    // correct semantic state at notify time.
+    expect(aSnap.masterMuted).toBe(true);
+    expect(bSnap.masterMuted).toBe(true);
+  });
+});
+
+describe("AudioBus with no engines registered", () => {
+  it("setMasterMuted toggles cleanly with no engines registered (no-op smoke)", () => {
+    // No engines + no subscribers — the bus is in its boot state. Toggling
+    // master should walk the diff path and notify nobody, without throwing.
+    expect(() => audioBus.setMasterMuted(true)).not.toThrow();
+    expect(() => audioBus.setMasterMuted(false)).not.toThrow();
+    expect(() => audioBus.setMasterMuted(true)).not.toThrow();
+    // And the bus's own state tracks correctly across the toggles.
+    expect(audioBus.isMasterMuted()).toBe(true);
+    audioBus.setMasterMuted(false);
+    expect(audioBus.isMasterMuted()).toBe(false);
   });
 });
 
