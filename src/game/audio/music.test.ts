@@ -105,13 +105,16 @@ describe("combatMusic (manual loop, releases on stop)", () => {
     expect(el.paused).toBe(false);
   });
 
-  it("loadTrack(null) tears the playback down without releasing the element", async () => {
+  it("loadTrack(null) pauses the element and clears its src attribute", async () => {
     combatMusic.loadTrack("/audio/music/combat-1.ogg");
     await flushMicrotasks();
     const el = fakes.audio();
     combatMusic.loadTrack(null);
     expect(el.pauseCalls).toBeGreaterThan(0);
     expect(el.paused).toBe(true);
+    // The engine calls `el.removeAttribute("src")` to fully detach the
+    // source; the fake mirrors the browser by emptying `el.src`.
+    expect(el.src).toBe("");
   });
 
   it("loadTrack swaps the src in place when the element already exists", async () => {
@@ -175,28 +178,35 @@ describe("watchdog + retry self-healing", () => {
     await flushMicrotasks();
     const el = fakes.audio();
     expect(el.playCalls).toBe(1);
-    // After the rejection, retry timer is armed.
+    // After the rejection, the retry timer is armed (RETRY_DELAY_MS=250).
+    // Make the next play() succeed so we can assert recovery.
     fakes.setNextPlayBehavior("resolve");
-    vi.advanceTimersByTime(300);
+    // 200ms in, the retry hasn't fired yet — pin the timing.
+    vi.advanceTimersByTime(200);
     await flushMicrotasks();
-    expect(el.playCalls).toBeGreaterThanOrEqual(2);
+    expect(el.playCalls).toBe(1);
+    vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(el.playCalls).toBe(2);
     expect(el.paused).toBe(false);
   });
 
-  it("watchdog kicks startPlayback() when shouldBePlaying but element is paused", async () => {
+  it("watchdog kicks startPlayback() at 2s when paused but should be playing", async () => {
     combatMusic.loadTrack("/audio/music/combat-1.ogg");
     await flushMicrotasks();
     const el = fakes.audio();
-    const playsBefore = el.playCalls;
-    // Simulate an external pause that the engine didn't initiate (e.g., OS
-    // audio session interrupt). The pause handler schedules a retry; if the
-    // retry doesn't take, the watchdog (~2s) backs it up.
-    fakes.setNextPlayBehavior("reject");
+    expect(el.playCalls).toBe(1);
+    // Manually flip paused without going through the pause-event path so
+    // the pause-handler retry doesn't compete with the watchdog. With no
+    // 250ms retry armed, only the 2000ms watchdog can resume playback.
     el.paused = true;
-    fakes.setNextPlayBehavior("resolve");
-    // Watchdog fires every 2000ms.
-    vi.advanceTimersByTime(2100);
+    // Just before the watchdog cadence — must NOT have kicked yet.
+    vi.advanceTimersByTime(1900);
     await flushMicrotasks();
-    expect(el.playCalls).toBeGreaterThan(playsBefore);
+    expect(el.playCalls).toBe(1);
+    vi.advanceTimersByTime(200);
+    await flushMicrotasks();
+    expect(el.playCalls).toBe(2);
+    expect(el.paused).toBe(false);
   });
 });

@@ -63,8 +63,11 @@ export class FakeAudio {
     this.listeners.get(type)?.delete(fn);
   }
 
-  removeAttribute(_name: string): void {
-    // Used by music.ts to clear src; we just no-op.
+  removeAttribute(name: string): void {
+    // Mirrors the browser: removing the "src" attribute empties the source.
+    // music.ts relies on this in `loadTrack(null)` to fully detach the
+    // element; without modeling it the fake would lie about the post-state.
+    if (name === "src") this.src = "";
   }
 
   load(): void {
@@ -356,6 +359,11 @@ export function uninstallAudioFakes(): void {
   const g = globalThis as unknown as Record<string, unknown>;
   delete g.Audio;
   delete g.AudioContext;
+  // rAF/cAF are polyfilled onto the node global by install; remove them so
+  // the next test file can either re-install (with a fresh setTimeout
+  // backing) or run without inheriting our shim.
+  delete g.requestAnimationFrame;
+  delete g.cancelAnimationFrame;
   // Leave window/document attached — re-creating per test is brittle and
   // `vi.resetModules()` already gives us fresh singletons.
 }
