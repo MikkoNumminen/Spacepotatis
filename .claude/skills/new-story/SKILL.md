@@ -79,7 +79,7 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
 7. `voiceDelayMs` — `3000` if music present, `0` if not.
 8. `autoTrigger`:
    - `null` — replay-only via Story log; never auto-fires. (Caveat: never reaches `seenStoryEntries`, so won't surface in the log unless something else marks it seen.)
-   - `{ kind: "first-time" }` — first galaxy load. Firing loop picks the FIRST unseen `first-time` entry; ship at most one usefully.
+   - `{ kind: "first-time" }` — first galaxy load. Firing loop picks the FIRST unseen `first-time` entry; ship at most one usefully. **No current entries use this kind** — `great-potato-awakening` migrated to `on-system-enter` repeatable for parity with `tubernovae-cluster-intro`. Helper is kept as scaffolding; prefer `on-system-enter` for new chapter openers.
    - `{ kind: "on-mission-select", missionId }` — fires once when the mission card opens; gated on `unlockedPlanets`.
    - `{ kind: "on-shop-open" }` — fires every time the player lands on `/shop` (any shop); audio replays unconditionally, seen-set marks once.
    - `{ kind: "on-system-enter", systemId, repeatable? }` — fires on first warp into the system. Pairs with `mode: "modal"` + custom music. Optional `repeatable: true` re-fires the cinematic every time the player transitions into the system (in-session `autoFired` still gates so it can't loop while idle in-system); leave unset / false for once-ever default. Shipping `repeatable: true` to players means they re-watch the chapter on every warp — fine for short beats, tedious for 30s+ chapters.
@@ -170,8 +170,7 @@ Mostly safe — `isKnownStoryId` drops unknown ids on hydrate. The danger is har
 |---|---|---|
 | `src/app/api/save/route.test.ts` (lines 102, 116) | `"great-potato-awakening"` test fixture for seen_story_entries roundtrip | Replace with another known id, OR drop the assertion. |
 | `src/game/audio/storyLogAudio.ts` (`STORY_LOG_MUSIC_PATH`) | Hard-coded `/audio/story/great-potato-awakening-music.ogg` — Story log + replay bed | **Blocker** on deleting the Awakening's music asset. Repoint `STORY_LOG_MUSIC_PATH` at another committed file first. |
-| `src/game/data/story.ts` (line 187) | `tubernovae-cluster-intro.musicTrack` ALSO points at `/audio/story/great-potato-awakening-music.ogg` (deliberate shared bed) | Repoint Tubernovae's `musicTrack` first, OR keep the Awakening music asset on disk. |
-| `src/game/data/storyTriggers.test.ts` (lines 23, 25, 30, 36) | `"great-potato-awakening"` fixture across `selectFirstTimeEntry` describe block | Replace with another `first-time` id, OR rewrite to assert `entry?.autoTrigger?.kind === "first-time"`. |
+| `src/game/data/storyTriggers.test.ts` (`selectOnSystemEnterEntry` block) | `"great-potato-awakening"` is asserted as the entry returned for `systemId: "tutorial"`. The `selectFirstTimeEntry` block now asserts `null` on an empty catalog (no current `first-time` entries — both shipping cinematics use `on-system-enter` repeatable). | Update the `selectOnSystemEnterEntry` assertion to point at the new tutorial cinematic, OR drop both. |
 
 Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, auth/save guards, or user-facing components.
 

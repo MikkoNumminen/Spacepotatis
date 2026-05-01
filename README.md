@@ -28,7 +28,7 @@ Once it's loaded into the game, the music behaves the way you'd want a thoughtfu
 
 When you launch into a combat mission, the music does a slow fade-out (a "duck", in audio terms — like ducking under a wave) so that the in-game sound effects of lasers and explosions have room to land. The moment you finish the mission and you're back in the galaxy view, the music fades back in.
 
-And if you'd rather play in silence — maybe you're at work, maybe you're listening to a podcast — the **♪ on / ♪ off** button in the top-right corner of every menu mutes both the music and the sound effects at once. It remembers your choice between visits, so you only have to set it once.
+And if you'd rather play in silence — maybe you're at work, maybe you're listening to a podcast — the **♪ on / ♪ off** button in the top-right corner of every menu mutes both the music and the sound effects at once. The mute is **for the current session only**: every fresh page load starts with sound on, and clicking mute silences everything until you reload. We deliberately don't remember the choice between visits — that one design decision saved a whole class of "no music after refresh" bugs that came from a stale preference quietly muting the page on cold load with no obvious recovery beyond noticing the toggle's icon. Click once, hear nothing for the rest of the visit; refresh, and the music is back.
 
 ## Audio storyline & audio-assisted gameplay (this is a big one)
 
