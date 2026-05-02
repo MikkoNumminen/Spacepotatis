@@ -16,7 +16,6 @@ const TARGET_VOLUME = 1.0;
 
 class LeaderboardAudio {
   private voice: HTMLAudioElement | null = null;
-  private muted = false;
   private leadInTimerId: number | null = null;
 
   constructor() {
@@ -47,8 +46,6 @@ class LeaderboardAudio {
   }
 
   setMuted(muted: boolean): void {
-    if (this.muted === muted) return;
-    this.muted = muted;
     if (!this.voice) return;
     this.voice.volume = muted ? 0 : TARGET_VOLUME;
   }
@@ -56,7 +53,7 @@ class LeaderboardAudio {
   private startVoice(): void {
     const voice = new Audio(VOICE_PATH);
     voice.loop = false;
-    voice.volume = this.muted ? 0 : TARGET_VOLUME;
+    voice.volume = audioBus.isMuted("voice") ? 0 : TARGET_VOLUME;
     voice.preload = "auto";
     voice.addEventListener("ended", () => {
       voice.src = "";

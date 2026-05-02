@@ -6,6 +6,7 @@ import {
   type AudioFakes
 } from "./__tests__/fakeAudio";
 import type { itemSfx as ItemSfxT } from "./itemSfx";
+import type { audioBus as AudioBusT } from "./AudioBus";
 
 // itemSfx must spawn a fresh Audio per fire and release it on `ended` /
 // `error` / play() rejection — the iOS HTMLAudioElement budget doesn't
@@ -14,11 +15,13 @@ import type { itemSfx as ItemSfxT } from "./itemSfx";
 
 let fakes: AudioFakes;
 let itemSfx: typeof ItemSfxT;
+let audioBus: typeof AudioBusT;
 
 beforeEach(async () => {
   fakes = installAudioFakes();
   vi.resetModules();
   ({ itemSfx } = await import("./itemSfx"));
+  ({ audioBus } = await import("./AudioBus"));
 });
 
 afterEach(() => {
@@ -60,13 +63,14 @@ describe("itemSfx fire-and-release", () => {
     expect(el.src).toBe("");
   });
 
-  it("setMuted(true) makes subsequent fires no-op (no Audio allocated)", async () => {
-    itemSfx.setMuted(true);
+  it("master mute makes subsequent fires no-op (no Audio allocated)", async () => {
+    audioBus.setMasterMuted(true);
     itemSfx.weapon();
     itemSfx.shield();
     itemSfx.augment();
     await flushMicrotasks();
     expect(fakes.audios()).toHaveLength(0);
+    audioBus.setMasterMuted(false);
   });
 });
 

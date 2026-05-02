@@ -43,7 +43,6 @@ interface SoundContext {
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private muted = false;
   // Reusable white-noise buffer for explosion(). Filled lazily on first
   // explosion; reused for every subsequent call. The buffer's contents
   // (white noise) don't need to vary per shot — the lowpass-fade envelope
@@ -61,7 +60,7 @@ class SoundEngine {
   // type system.
   private ensureCtx(): SoundContext | null {
     if (typeof window === "undefined") return null;
-    if (this.muted) return null;
+    if (audioBus.isMuted("sfx")) return null;
     if (!this.ctx) {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return null;
@@ -92,7 +91,6 @@ class SoundEngine {
   }
 
   setMuted(muted: boolean): void {
-    this.muted = muted;
     // Drop any in-flight sounds to silence immediately, with a short ramp to
     // avoid the click an abrupt `gain.value =` can produce mid-envelope. The
     // play* paths still schedule their own envelopes; leaving those running

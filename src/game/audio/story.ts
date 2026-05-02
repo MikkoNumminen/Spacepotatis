@@ -30,7 +30,6 @@ class StoryAudio {
   private voiceTimerId: number | null = null;
   private musicFadeRaf: number | null = null;
   private voiceFadeRaf: number | null = null;
-  private muted = false;
   private active = false;
 
   constructor() {
@@ -63,11 +62,11 @@ class StoryAudio {
 
     const voice = new Audio(opts.voiceSrc);
     voice.loop = false;
-    voice.volume = this.muted ? 0 : VOICE_TARGET_VOL;
+    voice.volume = audioBus.isMuted("music") ? 0 : VOICE_TARGET_VOL;
     voice.preload = "auto";
     this.voice = voice;
 
-    if (!this.muted) {
+    if (!audioBus.isMuted("music")) {
       if (this.music) {
         void this.music.play().catch(() => {
           // Autoplay can fail if the user hasn't interacted yet — silently OK.
@@ -76,7 +75,7 @@ class StoryAudio {
       }
       this.voiceTimerId = window.setTimeout(() => {
         this.voiceTimerId = null;
-        if (!this.active || !this.voice || this.muted) return;
+        if (!this.active || !this.voice || audioBus.isMuted("music")) return;
         void this.voice.play().catch(() => {});
       }, Math.max(0, opts.voiceDelayMs));
     }
@@ -111,8 +110,6 @@ class StoryAudio {
   }
 
   setMuted(muted: boolean): void {
-    if (this.muted === muted) return;
-    this.muted = muted;
     if (!this.active) return;
 
     if (muted) {
@@ -121,8 +118,10 @@ class StoryAudio {
       if (this.music) this.fadeMusic(0, VOICE_FADE_OUT_MS);
       if (this.voice) this.fadeVoice(0, VOICE_FADE_OUT_MS);
       // Pause after the fade so paused-state is reached only after silence.
+      // Re-check via the bus inside the timeout — if mute got toggled back
+      // off during the fade window, skip the pause so playback continues.
       window.setTimeout(() => {
-        if (!this.muted) return;
+        if (!audioBus.isMuted("music")) return;
         this.music?.pause();
         this.voice?.pause();
       }, VOICE_FADE_OUT_MS);

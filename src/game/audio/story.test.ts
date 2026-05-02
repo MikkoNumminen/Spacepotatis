@@ -6,6 +6,7 @@ import {
   type AudioFakes
 } from "./__tests__/fakeAudio";
 import type { storyAudio as StoryAudioT } from "./story";
+import type { audioBus as AudioBusT } from "./AudioBus";
 
 // storyAudio drives the cinematic popup audio: a music bed (optional, may be
 // null for replay-from-log entries that should layer onto storyLogAudio's
@@ -20,11 +21,13 @@ import type { storyAudio as StoryAudioT } from "./story";
 
 let fakes: AudioFakes;
 let storyAudio: typeof StoryAudioT;
+let audioBus: typeof AudioBusT;
 
 beforeEach(async () => {
   fakes = installAudioFakes();
   vi.resetModules();
   ({ storyAudio } = await import("./story"));
+  ({ audioBus } = await import("./AudioBus"));
 });
 
 afterEach(() => {
@@ -103,23 +106,24 @@ describe("storyAudio.stop", () => {
   });
 });
 
-describe("storyAudio.setMuted", () => {
-  it("setMuted(true) before the voice timer fires keeps voice silent on resume", async () => {
+describe("storyAudio mute via AudioBus", () => {
+  it("master mute before the voice timer fires keeps voice silent on resume", async () => {
     storyAudio.play({
       musicSrc: "/audio/story/music.ogg",
       voiceSrc: "/audio/story/voice.mp3",
       voiceDelayMs: 1000
     });
     await flushMicrotasks();
-    storyAudio.setMuted(true);
+    audioBus.setMasterMuted(true);
     // Even after the delay, voice must NOT auto-play because we're muted.
     vi.advanceTimersByTime(1500);
     await flushMicrotasks();
     const voice = fakes.audio(1);
     expect(voice.playCalls).toBe(0);
+    audioBus.setMasterMuted(false);
   });
 
-  it("setMuted(false) mid-playback resumes both tracks", async () => {
+  it("unmute mid-playback resumes both tracks", async () => {
     storyAudio.play({
       musicSrc: "/audio/story/music.ogg",
       voiceSrc: "/audio/story/voice.mp3",
@@ -127,12 +131,12 @@ describe("storyAudio.setMuted", () => {
     });
     await flushMicrotasks();
     const music = fakes.audio(0);
-    storyAudio.setMuted(true);
+    audioBus.setMasterMuted(true);
     // The mute path fades to 0 and pauses after VOICE_FADE_OUT_MS=300.
     vi.advanceTimersByTime(400);
     await flushMicrotasks();
     expect(music.paused).toBe(true);
-    storyAudio.setMuted(false);
+    audioBus.setMasterMuted(false);
     await flushMicrotasks();
     expect(music.paused).toBe(false);
   });

@@ -70,7 +70,6 @@ interface EngineOptions {
 class MusicEngine {
   private el: HTMLAudioElement | null = null;
   private src: string | null;
-  private muted = false;
   private armed = false;
   private ducked = false;
   private fadeRaf: number | null = null;
@@ -94,6 +93,7 @@ class MusicEngine {
   private readonly silenceMs: number;
   private readonly loop: boolean;
   private readonly keepAlive: boolean;
+  private readonly category: AudioCategory;
 
   constructor(opts: EngineOptions = {}) {
     this.src = opts.src ?? null;
@@ -103,7 +103,8 @@ class MusicEngine {
     this.silenceMs = opts.silenceMs ?? SILENCE_MS;
     this.loop = opts.loop ?? false;
     this.keepAlive = opts.keepAlive ?? false;
-    audioBus.register(opts.category ?? "music", this);
+    this.category = opts.category ?? "music";
+    audioBus.register(this.category, this);
   }
 
   init(): void {
@@ -145,14 +146,14 @@ class MusicEngine {
       this.el.load();
     }
     this.armed = true;
-    if (!this.muted && !this.ducked) void this.startPlayback();
+    if (!audioBus.isMuted(this.category) && !this.ducked) void this.startPlayback();
   }
 
   // First user gesture unlocks autoplay. Idempotent.
   arm(): void {
     if (!this.el || this.armed) return;
     this.armed = true;
-    if (!this.muted && !this.ducked) void this.startPlayback();
+    if (!audioBus.isMuted(this.category) && !this.ducked) void this.startPlayback();
   }
 
   // Forceful resume — if shouldBePlaying() is true but the element is
@@ -168,10 +169,9 @@ class MusicEngine {
 
   // Called by AudioBus when the effective mute for this engine's category
   // changes. The bus is the only caller — UI changes mute via
-  // `audioBus.setMasterMuted` / `audioBus.setCategoryMuted`.
+  // `audioBus.setMasterMuted` / `audioBus.setCategoryMuted`. The bus owns
+  // the mute value; the parameter is the freshly-changed value to react to.
   setMuted(muted: boolean): void {
-    if (this.muted === muted) return;
-    this.muted = muted;
     if (muted) {
       this.fadeAndPause();
     } else if (this.armed && !this.ducked && this.src) {
@@ -188,7 +188,7 @@ class MusicEngine {
   unduck(): void {
     if (!this.ducked) return;
     this.ducked = false;
-    if (this.armed && !this.muted && this.src) void this.startPlayback();
+    if (this.armed && !audioBus.isMuted(this.category) && this.src) void this.startPlayback();
   }
 
   // Fade out and pause. Combat scene calls this on shutdown so the next
@@ -246,7 +246,7 @@ class MusicEngine {
   };
 
   private shouldBePlaying(): boolean {
-    return this.armed && !this.muted && !this.ducked && this.src !== null;
+    return this.armed && !audioBus.isMuted(this.category) && !this.ducked && this.src !== null;
   }
 
   // The audio element should be actively playing right now AND it isn't.
@@ -326,7 +326,7 @@ class MusicEngine {
     this.cancelFadeOutTimer();
     this.fadeTo(0, this.fadeOutSec, () => {
       if (this.keepAlive) return;
-      if (this.muted || this.ducked || !this.src) el.pause();
+      if (audioBus.isMuted(this.category) || this.ducked || !this.src) el.pause();
     });
   }
 
@@ -349,7 +349,7 @@ class MusicEngine {
     this.fadeOutTimer = window.setTimeout(() => {
       this.fadeOutTimer = null;
       const cur = this.el;
-      if (!cur || cur.paused || this.muted || this.ducked || !this.src) return;
+      if (!cur || cur.paused || audioBus.isMuted(this.category) || this.ducked || !this.src) return;
       this.fadeTo(0, this.fadeOutSec);
     }, msUntilFade);
   }
@@ -365,7 +365,7 @@ class MusicEngine {
     this.cancelSilence();
     this.silenceTimer = window.setTimeout(() => {
       this.silenceTimer = null;
-      if (this.muted || this.ducked || !this.src) return;
+      if (audioBus.isMuted(this.category) || this.ducked || !this.src) return;
       void this.startPlayback();
     }, this.silenceMs);
   };
