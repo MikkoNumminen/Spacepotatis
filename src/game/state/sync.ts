@@ -13,7 +13,6 @@
 
 import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
 import { ROUTES } from "@/lib/routes";
-import { RemoteSaveSchema } from "@/lib/schemas/save";
 import {
   drainScoreQueue as drainQueueWith,
   type DrainResult,
@@ -27,48 +26,42 @@ import {
   type FlushResult,
   type SavePostFn
 } from "./saveQueue";
+import {
+  getInflightLoad,
+  setInflightLoad,
+  setSaveCache,
+  getSaveCache as getSaveCacheValue
+} from "./syncCache";
+
+// Re-export the cache surface for backwards compatibility with sites that
+// already import it from sync.ts. New callers should import directly from
+// syncCache.ts to avoid pulling Zod into their bundle (see syncCache.ts
+// header for the perf rationale).
+export {
+  clearLoadSaveCache,
+  isSaveCached,
+  getSaveCache
+} from "./syncCache";
 
 // Re-export FlushResult so tests / future external callers can type-check
 // against the narrow shape without reaching into saveQueue directly.
 export type { FlushResult };
 
-// Module-level cache + in-flight de-dup. Both useCloudSaveSync (which
-// hydrates the GameState) and useOptimisticAuth (which only needs to know
-// whether a save exists for the CONTINUE label) want the same /api/save
-// payload. Without this, both fired separate Edge invocations on every
-// authenticated mount — doubling the cold-start cost for no gain. Cleared
-// on sign-out so a different account doesn't see the previous one's save.
-let cached: boolean | null = null;
-let inflight: Promise<boolean> | null = null;
-
-export function clearLoadSaveCache(): void {
-  cached = null;
-  inflight = null;
-}
-
-// Read-only window into the module cache. Hooks consult this to seed their
-// React initial state so a hot remount (e.g. nav between / and /play) can
-// render with ready=true on the very first frame, skipping the splash.
-export function isSaveCached(): boolean {
-  return cached !== null;
-}
-
-export function getSaveCache(): boolean | null {
-  return cached;
-}
-
 export async function loadSave(): Promise<boolean> {
+  const cached = getSaveCacheValue();
   if (cached !== null) return cached;
-  if (inflight) return inflight;
-  inflight = (async () => {
+  const existing = getInflightLoad();
+  if (existing) return existing;
+  const promise = (async () => {
     try {
       return await doLoadSave();
     } finally {
-      inflight = null;
+      setInflightLoad(null);
     }
   })();
-  const result = await inflight;
-  cached = result;
+  setInflightLoad(promise);
+  const result = await promise;
+  setSaveCache(result);
   return result;
 }
 
@@ -91,6 +84,13 @@ async function doLoadSave(): Promise<boolean> {
     } else {
       const raw = (await res.json()) as unknown;
       if (raw !== null) {
+        // Lazy-load the Zod schema only when we actually have a payload to
+        // parse. Hoisting this import to module top would drag ~98 kB of
+        // Zod into every route that touches sync.ts (landing's SignInButton,
+        // /shop's useGameState, etc.) — verified by `ANALYZE=true npm run
+        // build`. Keep this dynamic so routes that never see a /api/save
+        // 200 don't pay the bundle cost.
+        const { RemoteSaveSchema } = await import("@/lib/schemas/save");
         const parsed = RemoteSaveSchema.safeParse(raw);
         if (!parsed.success) {
           console.warn(
@@ -206,7 +206,7 @@ export async function saveNow(): Promise<SyncResult> {
   const result = await flushSaveQueue();
 
   if (result.kind === "ok") {
-    cached = true;
+    setSaveCache(true);
     return { kind: "ok" };
   }
   if (result.kind === "noop") {

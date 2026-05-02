@@ -4,7 +4,7 @@ import { signIn, signOut } from "next-auth/react";
 import { clearAuthCache } from "@/lib/authCache";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 import { clearHandleCache } from "@/lib/useHandle";
-import { clearLoadSaveCache } from "@/game/state/sync";
+import { clearLoadSaveCache } from "@/game/state/syncCache";
 import { BUTTON_NAV } from "./ui/buttonClasses";
 
 // Simple auth control used on the landing page. Shows the handle (never the

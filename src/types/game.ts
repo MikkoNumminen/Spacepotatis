@@ -182,11 +182,3 @@ export interface MissionDefinition {
 // ShipConfig, WeaponSlots, and ReactorConfig live in src/game/state/ShipConfig.ts.
 // They are gameplay state, not shared cross-engine schema, so they stay alongside
 // the helpers that mutate them.
-
-export interface PlayerProgress {
-  credits: number;
-  currentPlanet: MissionId | null;
-  completedMissions: readonly MissionId[];
-  unlockedPlanets: readonly MissionId[];
-  playedTimeSeconds: number;
-}

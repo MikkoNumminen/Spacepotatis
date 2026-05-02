@@ -7,14 +7,12 @@ import type {
 import { type StoryId } from "@/game/data/story";
 import { DEFAULT_SHIP, type ShipConfig } from "./ShipConfig";
 import {
-  SEEN_STORIES_LOCAL_KEY,
   readSeenStoriesLocal,
   writeSeenStoriesLocal
 } from "./seenStoriesLocal";
 
-// Re-exported for persistence.ts (imports `readSeenStoriesLocal` from here)
-// and any historical call sites pointing at SEEN_STORIES_LOCAL_KEY.
-export { SEEN_STORIES_LOCAL_KEY, readSeenStoriesLocal };
+// Re-exported for persistence.ts which imports `readSeenStoriesLocal` from here.
+export { readSeenStoriesLocal };
 
 // Module-level singleton. Phaser and React both read/write here. Persistence
 // happens at boundaries (mission complete, shop purchase, initial load) — see
@@ -32,9 +30,9 @@ export interface GameStateShape {
   readonly seenStoryEntries: readonly StoryId[];
 }
 
-export const MISSIONS: readonly MissionDefinition[] = getAllMissions();
+const MISSIONS: readonly MissionDefinition[] = getAllMissions();
 
-export const INITIAL_UNLOCKED: readonly MissionId[] = MISSIONS.filter(
+const INITIAL_UNLOCKED: readonly MissionId[] = MISSIONS.filter(
   (m) => m.requires.length === 0
 ).map((m) => m.id);
 

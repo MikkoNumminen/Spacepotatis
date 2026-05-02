@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isSaveCached, loadSave } from "@/game/state/sync";
+import { loadSave } from "@/game/state/sync";
+import { isSaveCached } from "@/game/state/syncCache";
 import { useReliableSession } from "@/lib/useReliableSession";
 
 // Returns `loaded` so SplashGate can wait for the save to land before

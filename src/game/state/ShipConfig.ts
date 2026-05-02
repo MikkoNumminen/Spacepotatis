@@ -1,11 +1,5 @@
 import type { AugmentId, WeaponId } from "@/types/game";
 
-// Indices into ShipConfig.slots. Slot 0 is the ship's main weapon mount
-// (always present); higher indices are expansion mounts purchased from
-// the shop. All slots fire forward — there is no left/right/rear kind
-// any more.
-export type SlotIndex = number;
-
 // One physical weapon the player owns. Each instance has its OWN level
 // and augment list — owning two Pulse Cannons means each one is upgraded
 // independently. Instances live in exactly one place at a time: either a

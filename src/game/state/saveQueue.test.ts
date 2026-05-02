@@ -6,36 +6,10 @@ import {
   readPendingSaveForTest,
   type SavePostFn
 } from "./saveQueue";
-
-// Same FakeStorage shim scoreQueue.test.ts uses — vitest "node" environment
-// has no window/localStorage by default and the queue's SSR guards are
-// `typeof window` checks.
-class FakeStorage {
-  private store = new Map<string, string>();
-  getItem(key: string): string | null {
-    return this.store.has(key) ? (this.store.get(key) as string) : null;
-  }
-  setItem(key: string, value: string): void {
-    this.store.set(key, value);
-  }
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-  clear(): void {
-    this.store.clear();
-  }
-  get length(): number {
-    return this.store.size;
-  }
-  key(index: number): string | null {
-    return [...this.store.keys()][index] ?? null;
-  }
-}
+import { FakeStorage, installFakeLocalStorage } from "../../__tests__/fakeStorage";
 
 beforeEach(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (!g.window) g.window = globalThis;
-  (globalThis as unknown as { localStorage: FakeStorage }).localStorage = new FakeStorage();
+  installFakeLocalStorage();
 });
 
 afterEach(() => {

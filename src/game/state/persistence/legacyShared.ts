@@ -13,7 +13,7 @@ import type { LegacyShipSnapshot, SlotsAndInventory } from "./types";
 // Synthesize one WeaponInstance per unique id in unlockedWeapons, populated
 // from weaponLevels / weaponAugments. Dedupes by first occurrence so the
 // instance pool reflects "one per unlocked id" — that's the legacy invariant.
-export function buildLegacyInstancePool(raw: LegacyShipSnapshot): WeaponInstance[] {
+function buildLegacyInstancePool(raw: LegacyShipSnapshot): WeaponInstance[] {
   const pool: WeaponInstance[] = [];
   const seen = new Set<WeaponId>();
   if (!Array.isArray(raw.unlockedWeapons)) return pool;

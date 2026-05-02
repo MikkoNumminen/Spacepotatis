@@ -2,17 +2,32 @@
 // React shop can read weapon metadata without pulling Phaser into an SSG
 // bundle (Phaser touches `window` at import time).
 //
-// weapons.json is parsed through WeaponsFileSchema at module load so a
-// drifted entry (missing field, wrong type, unknown enum) throws here with a
-// helpful Zod path rather than feeding a NaN/undefined into the firing math
-// at runtime. Mirrors the missions.ts / enemies.ts / waves.ts /
-// solarSystems.ts boot-parse pattern.
+// JSON shape is validated by `WeaponsFileSchema` in [src/lib/schemas/weapons.ts]
+// via the CI test in [src/game/data/__tests__/jsonSchemaValidation.test.ts] —
+// not at module load. Keeps Zod out of this file's import graph (~98 kB
+// per-route bundle saving).
 import weaponsData from "./weapons.json";
 import type { WeaponDefinition, WeaponId } from "@/types/game";
-import { WeaponsFileSchema } from "@/lib/schemas/weapons";
 
-const PARSED = WeaponsFileSchema.parse(weaponsData);
-const ALL_WEAPONS: readonly WeaponDefinition[] = PARSED.weapons;
+const ALL_WEAPONS: readonly WeaponDefinition[] =
+  (weaponsData as { weapons: readonly WeaponDefinition[] }).weapons;
+
+// Canonical ID list. Lives next to the data so callers needing membership
+// checks (persistence helpers, etc.) can import a Zod-free const — the
+// equivalent in src/lib/schemas/save.ts is `WEAPON_IDS` used to build the
+// `z.enum`. Keep the two lists in lockstep; the save-schema test enforces
+// structural equality.
+export const WEAPON_IDS = [
+  "rapid-fire",
+  "spread-shot",
+  "heavy-cannon",
+  "spud-missile",
+  "tater-net",
+  "tail-gunner",
+  "side-spitter",
+  "plasma-whip",
+  "hailstorm"
+] as const satisfies readonly WeaponId[];
 
 const WEAPONS: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(
   ALL_WEAPONS.map((w) => [w.id, w])
