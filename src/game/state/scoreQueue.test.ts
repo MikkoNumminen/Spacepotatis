@@ -6,39 +6,12 @@ import {
   readScoreQueueForTest,
   type ScorePostFn
 } from "./scoreQueue";
-
-// Hand-rolled localStorage shim. Vitest's environment is "node" — no
-// `window` by default. The queue guards SSR via `typeof window` checks
-// AND uses `window.localStorage` for storage. Stubbing both keeps the
-// engine-level guards exercised under the same code path as production.
-class FakeStorage {
-  private store = new Map<string, string>();
-  getItem(key: string): string | null {
-    return this.store.has(key) ? (this.store.get(key) as string) : null;
-  }
-  setItem(key: string, value: string): void {
-    this.store.set(key, value);
-  }
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-  clear(): void {
-    this.store.clear();
-  }
-  get length(): number {
-    return this.store.size;
-  }
-  key(index: number): string | null {
-    return [...this.store.keys()][index] ?? null;
-  }
-}
+import { FakeStorage, installFakeLocalStorage } from "../../__tests__/fakeStorage";
 
 beforeEach(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (!g.window) g.window = globalThis;
   // Fresh store every test so a hand-edited entry in one test doesn't
   // bleed into the next.
-  (globalThis as unknown as { localStorage: FakeStorage }).localStorage = new FakeStorage();
+  installFakeLocalStorage();
 });
 
 afterEach(() => {

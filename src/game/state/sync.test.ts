@@ -3,6 +3,7 @@ import { clearLoadSaveCache, drainScoreQueue, loadSave, saveNow } from "./sync";
 import { getState, resetForTests } from "./GameState";
 import { clearScoreQueue, enqueueScore, readScoreQueueForTest } from "./scoreQueue";
 import { clearSaveQueue, readPendingSaveForTest } from "./saveQueue";
+import { FakeStorage, installFakeLocalStorage } from "../../__tests__/fakeStorage";
 
 // ----- loadSave / saveNow / drainScoreQueue: best-effort fetch wrappers -----
 //
@@ -20,40 +21,13 @@ const fetchImpl: { current: (input: string, init?: RequestInit) => Promise<Respo
   current: async () => new Response(null, { status: 200 })
 };
 
-// localStorage shim — saveNow goes through the durable save queue which
-// reads/writes localStorage. vitest "node" env has no window; the queue's
-// SSR guards check `typeof window` so we install a real-ish global.
-class FakeStorage {
-  private store = new Map<string, string>();
-  getItem(key: string): string | null {
-    return this.store.has(key) ? (this.store.get(key) as string) : null;
-  }
-  setItem(key: string, value: string): void {
-    this.store.set(key, value);
-  }
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-  clear(): void {
-    this.store.clear();
-  }
-  get length(): number {
-    return this.store.size;
-  }
-  key(index: number): string | null {
-    return [...this.store.keys()][index] ?? null;
-  }
-}
-
 beforeEach(() => {
   fetchCalls.length = 0;
   fetchImpl.current = async () => new Response(null, { status: 200 });
   resetForTests();
   // Fresh storage per test so a 5xx-induced pending save in one case doesn't
   // bleed into a clean fixture in the next.
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (!g.window) g.window = globalThis;
-  (globalThis as unknown as { localStorage: FakeStorage }).localStorage = new FakeStorage();
+  installFakeLocalStorage();
   clearSaveQueue();
   // loadSave caches at module level so consecutive calls dedupe — that's
   // the production behavior, but each test case needs a fresh slate so a
@@ -391,31 +365,7 @@ describe("saveNow", () => {
 // parses the JSON error code) by funneling through drainScoreQueue().
 describe("drainScoreQueue (via queueAwareSubmit fetch adapter)", () => {
   beforeEach(() => {
-    // localStorage shim — same node-no-window approach the queue tests use.
-    const g = globalThis as unknown as Record<string, unknown>;
-    if (!g.window) g.window = globalThis;
-    class FakeStorage {
-      private store = new Map<string, string>();
-      getItem(key: string): string | null {
-        return this.store.has(key) ? (this.store.get(key) as string) : null;
-      }
-      setItem(key: string, value: string): void {
-        this.store.set(key, value);
-      }
-      removeItem(key: string): void {
-        this.store.delete(key);
-      }
-      clear(): void {
-        this.store.clear();
-      }
-      get length(): number {
-        return this.store.size;
-      }
-      key(index: number): string | null {
-        return [...this.store.keys()][index] ?? null;
-      }
-    }
-    (globalThis as unknown as { localStorage: FakeStorage }).localStorage = new FakeStorage();
+    installFakeLocalStorage();
     clearScoreQueue();
   });
 

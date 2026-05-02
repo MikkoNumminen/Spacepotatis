@@ -17,8 +17,7 @@ import {
 } from "./stateCore";
 import {
   clampUpgradeLevel,
-  isKnownAugment,
-  KNOWN_AUGMENT_IDS
+  isKnownAugment
 } from "./persistence/helpers";
 import type { LegacyShipSnapshot, SlotsAndInventory } from "./persistence/types";
 import { looksLikeNewShape, migrateNewShape } from "./persistence/migrateNewShape";
@@ -26,12 +25,7 @@ import { migrateLegacyIdArray } from "./persistence/migrateLegacyIdArray";
 import { migrateNamedSlots } from "./persistence/migrateNamedSlots";
 import { migratePrimaryWeapon } from "./persistence/migratePrimaryWeapon";
 import { seedStarterIfEmpty } from "./persistence/safetyNet";
-import { sanitizeAugmentList } from "./persistence/helpers";
 import type { AugmentId } from "@/types/game";
-
-// Re-export for callers that previously imported these from persistence.ts.
-export { isKnownAugment, KNOWN_AUGMENT_IDS };
-export type { LegacyShipSnapshot };
 
 export interface StateSnapshot {
   credits: number;
@@ -138,7 +132,7 @@ function cloneInstance(inst: WeaponInstance): WeaponInstance {
   return { id: inst.id, level: inst.level, augments: [...inst.augments] };
 }
 
-export function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
+function migrateShip(input: ShipConfig | LegacyShipSnapshot): ShipConfig {
   const raw = input as LegacyShipSnapshot;
 
   const shieldLevel = clampUpgradeLevel(raw.shieldLevel);
@@ -212,7 +206,3 @@ function dispatchByShape(raw: LegacyShipSnapshot): SlotsAndInventory {
   return migrateLegacyIdArray(raw);
 }
 
-// Re-export the sanitizeAugmentList helper so tests / unrelated callers can
-// import it from the persistence barrel as before. (It's used internally by
-// shape migrators; this re-export preserves the previous module surface.)
-export { sanitizeAugmentList };

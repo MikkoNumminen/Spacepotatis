@@ -10,7 +10,7 @@
 // Shared by PlayerFireController (bullet spawn) and PodController (pod
 // sprite position) so bullets always emerge from where the pod is
 // drawn — visually the pod fires its own gun.
-export const SLOT_X_OFFSETS = [0, -36, 36, -72, 72, -108, 108] as const;
+const SLOT_X_OFFSETS = [0, -36, 36, -72, 72, -108, 108] as const;
 
 export function slotXOffset(index: number): number {
   return SLOT_X_OFFSETS[index] ?? 0;
