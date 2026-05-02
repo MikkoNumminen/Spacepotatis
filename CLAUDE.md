@@ -58,7 +58,7 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 | [src/components/hooks/](src/components/hooks/)            | Client-side React hooks (useGalaxyScene, usePhaserGame, useCloudSaveSync, useNextMissionAutoSelect) |
 | [src/game/phaser/](src/game/phaser/)                      | Phaser scenes, entities, systems, typed bus     |
 | [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/) | CombatScene helpers (CombatHud, CombatVfx, DropController, PerkController) |
-| [src/game/phaser/entities/player/](src/game/phaser/entities/player/) | Player helpers (SlotModResolver, PlayerCombatant, PlayerFireController) |
+| [src/game/phaser/entities/player/](src/game/phaser/entities/player/) | Player helpers (SlotModResolver, PlayerCombatant, PlayerFireController, PodController, slotLayout) |
 | [src/game/data/](src/game/data/)                          | Game balance JSON + accessors (weapons, enemies, waves, missions, perks, augments, solarSystems) — **shared content registry** |
 | [src/game/three/](src/game/three/)                        | Three.js galaxy overworld + shared `SceneRig`   |
 | [src/game/state/](src/game/state/)                        | GameState barrel + slices (stateCore, shipMutators, persistence, pricing), ShipConfig, sync, useGameState |
@@ -142,7 +142,7 @@ npm run dev
 # 5. The same checks CI runs
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint . (flat config; not next lint)
-npm test             # vitest run — 397 tests
+npm test             # vitest run — 808 tests
 npm run build        # next build (catches RSC/client-boundary errors)
 ```
 
@@ -222,10 +222,11 @@ The 2026-04-27 modularity audit broke up several god modules. Quick lookup of wh
 |---|---|
 | State singleton + listeners + `commit` | [src/game/state/stateCore.ts](src/game/state/stateCore.ts) |
 | Ship mutators (equip, buy, upgrade, augment) | [src/game/state/shipMutators.ts](src/game/state/shipMutators.ts) |
-| Snapshot / hydrate / migrateShip | [src/game/state/persistence.ts](src/game/state/persistence.ts) |
+| Snapshot / hydrate / migrateShip | [src/game/state/persistence.ts](src/game/state/persistence.ts) (orchestrator) + [src/game/state/persistence/](src/game/state/persistence/) (per-shape migrators: `migrateNewShape`, `migrateLegacyIdArray`, `migrateNamedSlots`, `migratePrimaryWeapon`, `safetyNet`, `helpers`, `legacyShared`) |
 | Sell pricing | [src/game/state/pricing.ts](src/game/state/pricing.ts) |
 | GameState public surface | [src/game/state/GameState.ts](src/game/state/GameState.ts) (barrel re-export) |
-| Wire-format Zod schemas | [src/lib/schemas/save.ts](src/lib/schemas/save.ts) |
+| Wire-format Zod schemas (save / leaderboard payloads) | [src/lib/schemas/save.ts](src/lib/schemas/save.ts) |
+| Boot-time Zod parse of `missions.json` | [src/lib/schemas/missions.ts](src/lib/schemas/missions.ts) |
 | Server-side cheat guards (mission graph, credits delta, playtime delta, per-player progression-aware caps) | [src/lib/saveValidation.ts](src/lib/saveValidation.ts) |
 | Leaderboard score queue (localStorage durability + auto-retry on mount/visibility/online) | [src/game/state/scoreQueue.ts](src/game/state/scoreQueue.ts) — see ARCHITECTURE.md §4a. **Never bypass the queue when posting a score** — `enqueueScore` first, then `drainScoreQueue` (or let the existing GameCanvas triggers handle it). The leaderboard is required to be eventually-consistent; fire-and-forget POSTs lose scores. |
 | Route constants | [src/lib/routes.ts](src/lib/routes.ts) |
@@ -233,7 +234,7 @@ The 2026-04-27 modularity audit broke up several god modules. Quick lookup of wh
 | Phaser event union + emit/on wrappers | [src/game/phaser/events.ts](src/game/phaser/events.ts) |
 | Phaser registry typed accessors | [src/game/phaser/registry.ts](src/game/phaser/registry.ts) |
 | Three.js scene scaffold (renderer, fog, lighting, starfield) | [src/game/three/SceneRig.ts](src/game/three/SceneRig.ts) |
-| Player helpers | [src/game/phaser/entities/player/{SlotModResolver,PlayerCombatant,PlayerFireController}.ts](src/game/phaser/entities/player/) |
+| Player helpers | [src/game/phaser/entities/player/{SlotModResolver,PlayerCombatant,PlayerFireController,PodController,slotLayout}.ts](src/game/phaser/entities/player/) |
 | Combat scene helpers | [src/game/phaser/scenes/combat/{CombatHud,CombatVfx,DropController,PerkController}.ts](src/game/phaser/scenes/combat/) |
 | Galaxy chrome | [src/components/galaxy/](src/components/galaxy/) + [src/components/hooks/](src/components/hooks/) |
 | Loadout chrome | [src/components/loadout/](src/components/loadout/) |

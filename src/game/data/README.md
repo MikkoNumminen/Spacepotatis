@@ -4,12 +4,18 @@ All game balance data lives here as JSON, deliberately separated from code.
 
 Editing these files changes damage numbers, wave patterns, enemy HP, mission difficulty, and planet layout without touching any TypeScript.
 
-| File                                   | Shape (see [src/types/game.ts](../../types/game.ts)) |
-| -------------------------------------- | ----------------------------------------------------- |
-| [weapons.json](weapons.json)           | `{ weapons: WeaponDefinition[] }`                     |
-| [enemies.json](enemies.json)           | `{ enemies: EnemyDefinition[] }`                      |
-| [waves.json](waves.json)               | `{ missions: MissionWaves[] }`                        |
-| [missions.json](missions.json)         | `{ missions: MissionDefinition[] }`                   |
+| File                                       | Shape (see [src/types/game.ts](../../types/game.ts)) |
+| ------------------------------------------ | ----------------------------------------------------- |
+| [weapons.json](weapons.json)               | `{ weapons: WeaponDefinition[] }`                     |
+| [enemies.json](enemies.json)               | `{ enemies: EnemyDefinition[] }`                      |
+| [waves.json](waves.json)                   | `{ missions: MissionWaves[] }`                        |
+| [missions.json](missions.json)             | `{ missions: MissionDefinition[] }` — boot-parsed by Zod via [src/lib/schemas/missions.ts](../../lib/schemas/missions.ts) |
+| [solarSystems.json](solarSystems.json)     | `{ systems: SolarSystemDefinition[] }`                |
+| [perks.ts](perks.ts)                       | `PERKS` record + `PERK_IDS` (TS, not JSON — schema-tied to runtime via Phaser HUD) |
+| [augments.ts](augments.ts)                 | `AUGMENTS_RECORD` + `AUGMENT_IDS` + `MAX_AUGMENTS_PER_WEAPON` |
+| [lootPools.ts](lootPools.ts)               | `POOLS` Map keyed by `SolarSystemId` (per-system mission-drop tables) |
+| [story.ts](story.ts)                       | `STORY_ENTRIES` + `StoryId` union + `StoryAutoTrigger` discriminated union |
+| [storyTriggers.ts](storyTriggers.ts)       | `select*Entry` helpers (read by `useStoryTriggers`) |
 
 ## Conventions
 

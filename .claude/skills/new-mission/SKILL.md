@@ -20,11 +20,12 @@ description: Scaffold a new combat mission across missions.json, waves.json, the
 # Steps
 1. Read `missions.json`; verify id unique; pick non-overlapping `orbitRadius`/`startAngle`/`orbitNode` **within the same `solarSystemId`** (different systems can't collide).
 2. Read `enemies.json`; confirm every spawn enemy id exists. Valid ids:
-   - **Aphids:** `aphid`, `aphid-giant`, `aphid-queen`, `aphid-empress` (tutorial boss)
+   - **Aphids:** `aphid`, `aphid-giant`, `aphid-queen`, `aphid-empress` (tutorial boss — wired into `boss-1`)
    - **Beetles:** `beetle-scarab`, `beetle-rhino`, `beetle-stag`
-   - **Caterpillars:** `caterpillar-hornworm`, `caterpillar-army`, `caterpillar-monarch` (tubernovae boss)
+   - **Caterpillars:** `caterpillar-hornworm`, `caterpillar-army`, `caterpillar-monarch` (defined as boss in `enemies.json` but not wired into any wave today)
    - **Spiders:** `spider-wolf`, `spider-widow`, `spider-jumper`
    - **Dragonflies:** `dragonfly-common`, `dragonfly-heli`, `dragonfly-damsel`
+   - **Pirates (tubernovae):** `pirate-skiff`, `pirate-cutlass`, `pirate-marauder`, `pirate-corsair`, `pirate-frigate`, `pirate-galleon`, `pirate-dreadnought` (tubernovae boss — wired into `burnt-spud`)
    New enemy needed? Stop and run `/new-enemy` first.
 3. Append to `missions.json` `missions` array using `MissionDefinition` from `src/types/game.ts`. Required: `id`, `kind`, `name`, `description`, `difficulty`, `solarSystemId`, `texture` (`/textures/planets/<id>.jpg`), `orbitRadius`, `orbitSpeed`, `startAngle`, `scale`, `requires` (existing mission ids), `musicTrack` (`/audio/music/<id>.ogg` or `null` for shops). Optional: `orbitTilt`, `orbitNode`, `ring`, `perksAllowed`, `orbitParentId` (a `MissionId` — body orbits that parent's world position instead of system origin; example: `id: "market"` orbiting `id: "shop"` at `missions.json:81`).
 4. Extend `MissionId` union in `src/types/game.ts` with the new literal (sort by appearance in `missions.json`).

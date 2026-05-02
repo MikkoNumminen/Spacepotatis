@@ -110,7 +110,7 @@ score / credits / first-clear loot rewards.
 - [src/game/state/GameState.ts](src/game/state/GameState.ts) — thin barrel that re-exports the slices below. `import * as GameState from "@/game/state/GameState"` still works for Phaser scenes and tests.
 - [src/game/state/stateCore.ts](src/game/state/stateCore.ts) — the singleton: `GameStateShape`, module-level `let state`, `listeners`, `getState`, `subscribe`, `commit`, plus non-ship mutators (`addCredits`, `spendCredits`, `addPlayedTime`, `completeMission`, `setSolarSystem`, `isMissionCompleted`, `isPlanetUnlocked`, `resetForTests`). Owns `INITIAL_STATE`, `MISSIONS`, `SYSTEM_UNLOCK_GATES` (mission-completion → solar-system-unlock).
 - [src/game/state/shipMutators.ts](src/game/state/shipMutators.ts) — every ship-shape mutator: `equipWeapon`, `grantWeapon`, `sellWeapon`, `buyWeapon`, `buyShieldUpgrade`, `buyArmorUpgrade`, `buyReactorCapacityUpgrade`, `buyReactorRechargeUpgrade`, `buyWeaponUpgrade`, `buyAugment`, `grantAugment`, `installAugment`. Imports `commit` and `getState` from `stateCore`.
-- [src/game/state/persistence.ts](src/game/state/persistence.ts) — `StateSnapshot`, `toSnapshot`, `hydrate`, `migrateShip`, `cloneWeaponAugments`, legacy-snapshot helpers. Migrates pre-multi-slot saves (`ship.primaryWeapon`) into the current shape.
+- [src/game/state/persistence.ts](src/game/state/persistence.ts) — `StateSnapshot`, `toSnapshot`, `hydrate`, `migrateShip`, `cloneWeaponAugments`. Per-shape migrators were extracted into [src/game/state/persistence/](src/game/state/persistence/) post-PR #76 (`migrateNewShape`, `migrateLegacyIdArray`, `migrateNamedSlots`, `migratePrimaryWeapon`, `safetyNet`, `helpers`, `legacyShared`, `types`). The orchestrator dispatches by detected shape; each migrator owns a single legacy format and has its own `*.test.ts`.
 - [src/game/state/pricing.ts](src/game/state/pricing.ts) — `SELL_RATE` constant + `getSellPrice(weapon)`. Pure.
 - [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — Tyrian-style modular loadout: `slots: { front, rear, sidekickLeft, sidekickRight }` (each `WeaponId | null`), `unlockedWeapons`, `shieldLevel`, `armorLevel`, `reactor: { capacityLevel, rechargeLevel }`, plus pure helpers for shield/armor/reactor max and upgrade pricing. Runtime energy value is NOT here — it's mutable per-mission state on `Player`.
 - [src/game/state/useGameState.ts](src/game/state/useGameState.ts) — `useSyncExternalStore` hook for React selectors.
@@ -157,6 +157,8 @@ All routes live under [src/app/api/](src/app/api/). Keep the list short — ever
 | `/api/save`                    | POST   | Edge    | req'd | Upsert the signed-in player's save game.   |
 | `/api/leaderboard?mission=X`   | GET    | Edge    | —     | Top N scores for a mission. Cached via `unstable_cache`, 60s revalidate. |
 | `/api/leaderboard`             | POST   | Edge    | req'd | Submit a score; `revalidateTag('leaderboard')`. |
+| `/api/handle`                  | GET    | Edge    | req'd | Read the signed-in player's chosen handle (display name on leaderboard). |
+| `/api/handle`                  | POST   | Edge    | req'd | Set/change the signed-in player's handle; rejects on uniqueness collision. |
 
 `/api/save` and `/api/leaderboard` run on the Edge runtime via `@neondatabase/serverless` (WebSocket-backed `Pool` that's API-compatible with `pg.Pool`). NextAuth's `auth()` is JWT-cookie based and works in Edge. `/api/auth/[...nextauth]` stays on Node because Google OAuth's callback handshake isn't Edge-safe.
 
@@ -279,7 +281,9 @@ mounted over the galaxy view, which gives us full Tailwind styling and
 React state for showing first-clear loot rewards. `BossScene` exists as
 a stub but is **not** in the scene list yet — boss encounters currently
 route through `CombatScene` with an enemy whose `behavior === "boss"`
-(today: the Monarch Caterpillar).
+(today: `aphid-empress` for `boss-1` and `pirate-dreadnought` for `burnt-spud`;
+`caterpillar-monarch` is defined as a boss in `enemies.json` but not yet wired
+into a wave).
 
 ```
 BootScene             CombatScene
@@ -305,7 +309,7 @@ BootScene             CombatScene
   procedurally with `Phaser.GameObjects.Graphics` and registered via
   `generateTexture`. Real PNGs can be dropped into `/public/sprites` later
   by rewriting this scene as a proper preloader.
-- **CombatScene** is now a thin orchestrator (~216 LOC after the audit) that wires together: `Player`, `BulletPool` (×2), `EnemyPool`, `PowerUpPool`, `WaveManager`, `ScoreSystem`, plus four extracted helpers under [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/):
+- **CombatScene** is now a thin orchestrator (~241 LOC) that wires together: `Player`, `BulletPool` (×2), `EnemyPool`, `PowerUpPool`, `WaveManager`, `ScoreSystem`, plus four extracted helpers under [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/):
   - **`CombatHud`** — score/credit/shield/armor/energy bars + perk chips.
   - **`CombatVfx`** — background, explosion particles, target-finding glue.
   - **`DropController`** — `rollDrop`, `applyPowerUp`, `flashPickup`, weapon-upgrade ladder.
@@ -356,7 +360,7 @@ Only one engine is live at a time — the other's canvas/parent is unmounted by 
 
 **Auth-flip invariant in `GameCanvas`.** The Phaser-mount effect captures `handleMissionComplete` indirectly through a `completeRef` so that a sign-in event during combat (`useSession` flips `"loading"` → `"authenticated"`) doesn't leave Phaser holding a stale closure that skips `saveNow()` / `submitScore()` on completion. Re-instantiating Phaser on auth changes would tear down the active game, so the ref pattern is the correct fix. **Don't refactor the Phaser-mount effect to inline `handleMissionComplete` directly** — that re-introduces the bug.
 
-`GameCanvas` itself is now a thin orchestrator (~159 LOC). The galaxy chrome (`HudFrame`, `WarpPicker`, `LoadoutModal`) lives under [src/components/galaxy/](src/components/galaxy/). The lifecycle effects are extracted into hooks under [src/components/hooks/](src/components/hooks/): `useGalaxyScene`, `usePhaserGame`, `useCloudSaveSync`, `useNextMissionAutoSelect`.
+`GameCanvas` is currently ~389 LOC (the modularity audit shrank it from 405 → 159; subsequent work — score-queue drain triggers, auth-flip ref pattern, victory-modal wiring — has grown it back). The galaxy chrome (`HudFrame`, `WarpPicker`, `LoadoutModal`) lives under [src/components/galaxy/](src/components/galaxy/). The lifecycle effects are extracted into hooks under [src/components/hooks/](src/components/hooks/): `useGalaxyScene`, `usePhaserGame`, `useCloudSaveSync`, `useNextMissionAutoSelect`.
 
 **Three.js scaffolding is shared.** `GalaxyScene` and `LandingScene` both call [src/game/three/SceneRig.ts](src/game/three/SceneRig.ts) `createSceneRig(canvas, opts)` for the renderer, scene+fog, ambient+rim light, starfield, sun, and planet add-loop. Each scene only owns its camera, controls, and per-scene specifics (raycaster + OrbitControls vs auto-orbit camera).
 
