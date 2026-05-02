@@ -13,11 +13,14 @@
 //    the clear gone.
 //
 // Lifecycle:
-//  - markSavePending(snapshot) — called from saveNow before the POST. The
-//    snapshot is now durable: tab close / refresh / network drop cannot lose
-//    it. firstSeenMs marks the snapshot identity used by the diff-write at
-//    the end of flush.
-//  - flushPendingSave(submit) — POSTs the pending snapshot. On success
+//  - markSavePending(snapshot, playerEmail) — called from saveNow before the
+//    POST. The snapshot is now durable: tab close / refresh / network drop
+//    cannot lose it. firstSeenMs marks the snapshot identity used by the
+//    diff-write at the end of flush. playerEmail stamps account ownership
+//    so a sign-out → sign-in on the same browser can't leak A's snapshot
+//    into B's session.
+//  - flushPendingSave({submit, playerEmail}) — POSTs the pending snapshot,
+//    but ONLY if its stamp matches the current `playerEmail`. On success
 //    clears the slot; on transient (5xx / network) bumps attempts; on
 //    permanent (400 / 422) drops with a console.warn; on 401 keeps the
 //    slot untouched (no attempt burned — sign-in will fix it).
@@ -40,15 +43,21 @@
 //    it: we never clear / mutate a snapshot we didn't try.
 //
 // Storage:
-//  - localStorage key is versioned (`:v1`) so a future shape change can read
-//    `:v1`, migrate, and write `:v2` without risk.
+//  - localStorage key is versioned (`:v2`). The `:v1` shape lacked a
+//    playerEmail stamp and could leak across accounts on shared browsers
+//    (sign-out → sign-in by another user would hydrate the new session
+//    with the prior account's snapshot and POST it as the new account).
+//    `:v2` adds the stamp and the read path silently drops any leftover
+//    `:v1` blob — losing one queued save per active user at deploy is
+//    acceptable cost for closing the cross-account leak.
 //  - Quota / private-mode failures are caught and ignored — the in-memory
 //    GameState is still authoritative for THIS session. Acceptable
 //    degradation; the next saveNow attempt will re-persist.
 //  - A schema-mismatched blob is removed on read so a future deploy with a
 //    schema change doesn't keep warning on the same poisoned blob.
 
-const STORAGE_KEY = "spacepotatis:pendingSave:v1";
+const STORAGE_KEY = "spacepotatis:pendingSave:v2";
+const LEGACY_STORAGE_KEY = "spacepotatis:pendingSave:v1";
 const MAX_ATTEMPTS = 50;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -62,7 +71,7 @@ export const SAVE_QUEUED_MESSAGE =
 // it as a plain JSON object so JSON.stringify round-trips losslessly.
 //
 // Hand-rolled validator instead of Zod: pulling Zod (~98 kB) into the client
-// bundle just to validate three fields wasn't worth the cost. The validator
+// bundle just to validate four fields wasn't worth the cost. The validator
 // is the only contract for what counts as a valid pending save — there is
 // no sibling schema to keep in lockstep, and the snapshot's shape (the
 // `snapshot` field's interior) is validated by the SERVER's
@@ -74,6 +83,13 @@ export interface PendingSave {
   readonly snapshot: Record<string, unknown>;
   readonly firstSeenMs: number;
   readonly attempts: number;
+  // The signed-in account that originally enqueued this snapshot. Read paths
+  // gate on this matching the current session's email — a snapshot stamped
+  // for a@example.com is invisible to b@example.com. Without this stamp,
+  // sign-out → sign-in by another account on the same browser would leak
+  // the prior account's snapshot into the new session (the 2026-05 cross-
+  // account leak).
+  readonly playerEmail: string;
 }
 
 function isPendingSave(raw: unknown): raw is PendingSave {
@@ -90,6 +106,7 @@ function isPendingSave(raw: unknown): raw is PendingSave {
   ) {
     return false;
   }
+  if (typeof obj.playerEmail !== "string" || obj.playerEmail.length === 0) return false;
   return true;
 }
 
@@ -101,8 +118,24 @@ export type SavePostFn = (snapshot: Record<string, unknown>) => Promise<{
   readonly errorCode: string | null;
 }>;
 
-function readPending(): PendingSave | null {
+// Drop any leftover `:v1` blob the moment we touch storage. The `:v1` shape
+// lacked the playerEmail stamp; treating it as a v2 read would leak the
+// snapshot to whoever happens to be signed in after the upgrade. One
+// queued save lost per active user is acceptable cost.
+function purgeLegacyBlob(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(LEGACY_STORAGE_KEY) !== null) {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+  } catch {
+    // ignore — quota / private mode
+  }
+}
+
+function readPendingRaw(): PendingSave | null {
   if (typeof window === "undefined") return null;
+  purgeLegacyBlob();
   let raw: string | null;
   try {
     raw = window.localStorage.getItem(STORAGE_KEY);
@@ -128,6 +161,19 @@ function readPending(): PendingSave | null {
   return parsed;
 }
 
+// Read the pending slot, but only return it if its stamp matches the current
+// signed-in email. If `currentPlayerEmail` is null (anonymous session) or
+// differs from the stamp, returns null — the snapshot belongs to a different
+// account and is invisible to this session. The blob is left in place
+// because a sign-in to the original account would still want to flush it.
+function readPendingForPlayer(currentPlayerEmail: string | null): PendingSave | null {
+  const pending = readPendingRaw();
+  if (!pending) return null;
+  if (currentPlayerEmail === null) return null;
+  if (pending.playerEmail !== currentPlayerEmail) return null;
+  return pending;
+}
+
 function writePending(pending: PendingSave | null): void {
   if (typeof window === "undefined") return;
   try {
@@ -143,10 +189,15 @@ function writePending(pending: PendingSave | null): void {
 
 export function clearSaveQueue(): void {
   writePending(null);
+  // Also nuke the legacy blob so a sign-out's "wipe everything" gesture
+  // doesn't leave the cross-account-leakable :v1 around for a future
+  // sign-in to inherit.
+  purgeLegacyBlob();
 }
 
 export function markSavePending(
   snapshot: Record<string, unknown>,
+  playerEmail: string,
   nowMs: number = Date.now()
 ): void {
   // Latest snapshot always wins. attempts resets to 0 because the new
@@ -156,12 +207,18 @@ export function markSavePending(
   writePending({
     snapshot,
     firstSeenMs: nowMs,
-    attempts: 0
+    attempts: 0,
+    playerEmail
   });
 }
 
-export function readPendingSaveForTest(): PendingSave | null {
-  return readPending();
+// Test helper. When `currentPlayerEmail` is omitted, returns whatever's in
+// storage regardless of stamp — useful for asserting that a write happened
+// without having to thread the email through the assertion. Production code
+// should never call this without an email.
+export function readPendingSaveForTest(currentPlayerEmail?: string | null): PendingSave | null {
+  if (currentPlayerEmail === undefined) return readPendingRaw();
+  return readPendingForPlayer(currentPlayerEmail);
 }
 
 // Outcome of a single flush. `kind` mirrors the SyncResult shape exposed by
@@ -175,22 +232,32 @@ export type FlushResult =
 
 let inflightFlush: Promise<FlushResult> | null = null;
 
+export interface FlushArgs {
+  readonly submit: SavePostFn;
+  // The currently signed-in account. A pending slot whose stamp doesn't
+  // match this is left untouched (it belongs to a different account that
+  // may sign back in later). Pass null for anonymous sessions — the slot
+  // is invisible until someone signs in.
+  readonly playerEmail: string | null;
+}
+
 // Drive the pending save through `submit`. Concurrent callers share the
 // in-flight promise (no parallel POSTs). Re-reads the slot at commit time
 // so a markSavePending mid-flight isn't clobbered.
 export async function flushPendingSave(
-  submit: SavePostFn,
+  args: FlushArgs,
   nowMs: number = Date.now()
 ): Promise<FlushResult> {
   if (inflightFlush) return inflightFlush;
-  inflightFlush = doFlush(submit, nowMs).finally(() => {
+  inflightFlush = doFlush(args, nowMs).finally(() => {
     inflightFlush = null;
   });
   return inflightFlush;
 }
 
-async function doFlush(submit: SavePostFn, nowMs: number): Promise<FlushResult> {
-  const initial = readPending();
+async function doFlush(args: FlushArgs, nowMs: number): Promise<FlushResult> {
+  const { submit, playerEmail } = args;
+  const initial = readPendingForPlayer(playerEmail);
   if (!initial) return { kind: "noop" };
 
   // Up-front purges. A pending save that's hit the attempt cap or aged out
@@ -214,8 +281,10 @@ async function doFlush(submit: SavePostFn, nowMs: number): Promise<FlushResult> 
 
   // Re-read NOW so a markSavePending that landed during the POST is visible.
   // We compare `firstSeenMs` to the snapshot we tried — if the slot has been
-  // overwritten with a fresher snapshot, we MUST NOT touch it.
-  const current = readPending();
+  // overwritten with a fresher snapshot, we MUST NOT touch it. Re-read goes
+  // through the per-player gate too: if the player signed out mid-flight,
+  // the slot is no longer "ours" to mutate.
+  const current = readPendingForPlayer(playerEmail);
   const sameSlot = current !== null && current.firstSeenMs === initial.firstSeenMs;
 
   if (result.ok) {

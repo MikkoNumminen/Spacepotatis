@@ -5,6 +5,7 @@ import { clearAuthCache } from "@/lib/authCache";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 import { clearHandleCache } from "@/lib/useHandle";
 import { clearLoadSaveCache } from "@/game/state/syncCache";
+import { clearSaveQueue } from "@/game/state/saveQueue";
 import { BUTTON_NAV } from "./ui/buttonClasses";
 
 // Simple auth control used on the landing page. Shows the handle (never the
@@ -20,9 +21,17 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
     // otherwise the next mount (potentially a different account) would briefly
     // render the previous account's handle / save state from stale module
     // caches.
+    //
+    // Also wipe the durable save queue. Without this, a snapshot stamped for
+    // the prior account would sit in localStorage; even though the email
+    // stamp would prevent the next signed-in account from reading it, an
+    // explicit sign-out is the user's "scrub this device" gesture and should
+    // leave nothing behind. (See saveQueue.ts header for the cross-account
+    // leak this defends against.)
     clearAuthCache();
     clearHandleCache();
     clearLoadSaveCache();
+    clearSaveQueue();
     void signOut();
   }
 

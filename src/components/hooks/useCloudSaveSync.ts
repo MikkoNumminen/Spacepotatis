@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { loadSave } from "@/game/state/sync";
-import { isSaveCached } from "@/game/state/syncCache";
+import { isSaveCached, setCurrentPlayerEmail } from "@/game/state/syncCache";
 import { useReliableSession } from "@/lib/useReliableSession";
 
 // Returns `loaded` so SplashGate can wait for the save to land before
@@ -14,9 +14,32 @@ import { useReliableSession } from "@/lib/useReliableSession";
 // (nav back into /play after a successful load) reports loaded=true on
 // the very first render — that's the signal SplashGate needs to skip
 // the splash entirely.
+//
+// Side effect: pushes the resolved player email into syncCache so saveQueue
+// stamps every pending snapshot with account ownership. A nullish email
+// (loading / unauthenticated) clears the cache, which also resets the
+// hydration flag so a subsequent saveNow can't POST INITIAL_STATE under a
+// different account on the same browser.
 export function useCloudSaveSync(): { loaded: boolean } {
-  const { status: authStatus } = useReliableSession();
+  const { status: authStatus, data: session } = useReliableSession();
+  const sessionEmail = session?.user?.email ?? null;
   const [loaded, setLoaded] = useState(() => isSaveCached());
+
+  useEffect(() => {
+    // Mirror the resolved auth state into syncCache. The setter is a no-op
+    // when the value is unchanged, so spamming this on every render is
+    // cheap. On account swap (different email or null), syncCache also
+    // resets hydrationCompleted so saveNow blocks until the new account's
+    // loadSave verifies.
+    if (authStatus === "authenticated") {
+      setCurrentPlayerEmail(sessionEmail);
+    } else if (authStatus === "unauthenticated") {
+      setCurrentPlayerEmail(null);
+    }
+    // authStatus === "loading" — leave the previous value in place. A flicker
+    // through "loading" during a session refresh shouldn't drop the email
+    // and reset hydration mid-flight.
+  }, [authStatus, sessionEmail]);
 
   useEffect(() => {
     if (authStatus === "loading") {

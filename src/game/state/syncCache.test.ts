@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   clearLoadSaveCache,
+  getCurrentPlayerEmail,
   getInflightLoad,
   getSaveCache,
   isHydrationCompleted,
   isSaveCached,
   markHydrationCompleted,
+  resetHydrationCompleted,
+  setCurrentPlayerEmail,
   setInflightLoad,
   setSaveCache
 } from "./syncCache";
@@ -75,5 +78,70 @@ describe("syncCache", () => {
     expect(isHydrationCompleted()).toBe(true);
     clearLoadSaveCache();
     expect(isHydrationCompleted()).toBe(false);
+  });
+
+  it("resetHydrationCompleted flips it back to false without touching the rest", () => {
+    setSaveCache(true);
+    markHydrationCompleted();
+    resetHydrationCompleted();
+    expect(isHydrationCompleted()).toBe(false);
+    // The save cache is independent — resetting hydration shouldn't blow it
+    // away. (Sign-in resets hydration to gate POSTs but the prior session's
+    // CONTINUE label can stay rendered until the new load finishes.)
+    expect(getSaveCache()).toBe(true);
+  });
+
+  // Player email — drives saveQueue's account-stamping and gates which
+  // pending snapshots are visible to the current session.
+  it("currentPlayerEmail starts null (no signed-in player)", () => {
+    expect(getCurrentPlayerEmail()).toBeNull();
+  });
+
+  it("setCurrentPlayerEmail round-trips through getCurrentPlayerEmail", () => {
+    setCurrentPlayerEmail("a@example.com");
+    expect(getCurrentPlayerEmail()).toBe("a@example.com");
+    setCurrentPlayerEmail(null);
+    expect(getCurrentPlayerEmail()).toBeNull();
+  });
+
+  it("setting the SAME email is a no-op (does NOT reset hydration)", () => {
+    setCurrentPlayerEmail("a@example.com");
+    markHydrationCompleted();
+    setCurrentPlayerEmail("a@example.com");
+    // Hydration was proven for THIS account; setting the same email again
+    // (e.g. a second hook firing on the same session) must not invalidate it.
+    expect(isHydrationCompleted()).toBe(true);
+  });
+
+  it("changing the email to a different value resets hydrationCompleted + cache + inflight", () => {
+    setCurrentPlayerEmail("a@example.com");
+    markHydrationCompleted();
+    setSaveCache(true);
+    const inflightPromise = Promise.resolve(true);
+    setInflightLoad(inflightPromise);
+
+    setCurrentPlayerEmail("b@example.com");
+
+    // Account swap: the previous account's load doesn't prove anything
+    // about this account's server state, so saveNow must block until a
+    // fresh loadSave verifies. Cache + inflight also belonged to the old
+    // account's response — clear them too.
+    expect(isHydrationCompleted()).toBe(false);
+    expect(getSaveCache()).toBeNull();
+    expect(getInflightLoad()).toBeNull();
+  });
+
+  it("changing the email to null (sign-out) resets hydration too", () => {
+    setCurrentPlayerEmail("a@example.com");
+    markHydrationCompleted();
+    setCurrentPlayerEmail(null);
+    expect(isHydrationCompleted()).toBe(false);
+    expect(getCurrentPlayerEmail()).toBeNull();
+  });
+
+  it("clearLoadSaveCache resets currentPlayerEmail too", () => {
+    setCurrentPlayerEmail("a@example.com");
+    clearLoadSaveCache();
+    expect(getCurrentPlayerEmail()).toBeNull();
   });
 });

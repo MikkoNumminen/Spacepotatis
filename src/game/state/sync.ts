@@ -27,6 +27,7 @@ import {
   type SavePostFn
 } from "./saveQueue";
 import {
+  getCurrentPlayerEmail,
   getInflightLoad,
   isHydrationCompleted,
   markHydrationCompleted,
@@ -68,6 +69,12 @@ export async function loadSave(): Promise<boolean> {
 }
 
 async function doLoadSave(): Promise<boolean> {
+  // Snapshot the player email at entry — every read/write to the save queue
+  // in this load uses the SAME identity. If the player signs out between
+  // the GET and the queue drain, we still scope the queue access to the
+  // account that owned this load.
+  const playerEmail = getCurrentPlayerEmail();
+
   // Step 1 — fetch whatever the server has. Done first (synchronous prefix
   // before any `await`) so concurrent loadSave callers all observe the
   // fetch as already in-flight by the time they consult `inflight`.
@@ -153,13 +160,19 @@ async function doLoadSave(): Promise<boolean> {
   // before the POST that eventually failed / was interrupted). Override
   // any server hydrate above — pending is strictly newer.
   //
+  // CROSS-ACCOUNT SAFETY: the read is gated by the current playerEmail. A
+  // snapshot left in localStorage by user A is invisible when user B is
+  // signed in (the stamp doesn't match), so B's session can never hydrate
+  // from A's data. Anonymous loads (playerEmail === null) also see null —
+  // an anonymous browser must never inherit a previous account's snapshot.
+  //
   // INVARIANT: never extend the saveQueue snapshot shape ahead of its
   // consumer. hydrate() REPLACES (missing keys fall back to INITIAL_STATE,
   // see persistence.ts). If a future deploy adds new StateSnapshot fields
   // to markSavePending BEFORE the matching reader lands, this hydrate would
   // clobber the just-loaded server state with INITIAL_STATE defaults. Bump
-  // the saveQueue `:v1` schema (with a migrator) when the shape changes.
-  const pending = readPendingSaveForTest();
+  // the saveQueue storage version (with a migrator) when the shape changes.
+  const pending = readPendingSaveForTest(playerEmail);
   if (pending) {
     hydrate(pending.snapshot as unknown as Partial<StateSnapshot>);
   }
@@ -215,8 +228,15 @@ const queueAwareSaveSubmit: SavePostFn = async (snapshot) => {
 // concurrent callers (no duplicate POSTs). GameCanvas auto-drives this on
 // mount, on visibilitychange→visible, on `online`, and on auth change to
 // authenticated, so a transient failure self-heals without user action.
+//
+// The flush is scoped to the CURRENT player email — a snapshot stamped for
+// a different account is left untouched (it'll fire when that account signs
+// back in). Anonymous sessions are no-ops at this layer; nothing to flush.
 export async function flushSaveQueue(): Promise<FlushResult> {
-  return flushPendingSave(queueAwareSaveSubmit);
+  return flushPendingSave({
+    submit: queueAwareSaveSubmit,
+    playerEmail: getCurrentPlayerEmail()
+  });
 }
 
 export async function saveNow(): Promise<SyncResult> {
@@ -240,13 +260,25 @@ export async function saveNow(): Promise<SyncResult> {
       message: "Save deferred — waiting for cloud sync to confirm server state."
     };
   }
+  // Anonymous saves never touch the queue. A stamp-less snapshot would be
+  // a footgun: the next signed-in session would treat it as not-mine and
+  // drop it on the floor anyway, AND we'd be holding mid-flight game state
+  // outside any account boundary. Cleaner to refuse up front.
+  const playerEmail = getCurrentPlayerEmail();
+  if (playerEmail === null) {
+    console.warn("saveNow: skipped — no signed-in player to stamp the snapshot");
+    return {
+      kind: "queued",
+      message: "Sign in to save your progress."
+    };
+  }
   const snap = toSnapshot();
   // Durability: the moment markSavePending returns, the snapshot SURVIVES
   // tab close, refresh, network drop, browser crash. Even if every retry
   // below fails, the next mount/visibility/online/sign-in trigger replays
   // it. This is what was missing before — saveNow used to return "ok=false"
   // on a 5xx and the snapshot evaporated; reload showed older server state.
-  markSavePending(snap as unknown as Record<string, unknown>);
+  markSavePending(snap as unknown as Record<string, unknown>, playerEmail);
 
   const result = await flushSaveQueue();
 
