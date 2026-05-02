@@ -13,6 +13,10 @@
 import missionsData from "./missions.json";
 import type { MissionDefinition, MissionId } from "@/types/game";
 import { MissionsFileSchema } from "@/lib/schemas/missions";
+import {
+  buildLiveIntegrityData,
+  runDataIntegrityCheck
+} from "./integrityCheck";
 
 const PARSED = MissionsFileSchema.parse(missionsData);
 const ALL_MISSIONS: readonly MissionDefinition[] = PARSED.missions;
@@ -40,3 +44,11 @@ export function getMission(id: MissionId): MissionDefinition {
 export function getCombatMissions(): readonly MissionDefinition[] {
   return COMBAT_MISSIONS;
 }
+
+// Run the cross-reference drift check at boot. missions.ts is the most
+// universally-imported data accessor (12+ call sites today), so wiring
+// the check here means every consumer of any mission/wave/loot data
+// triggers it before they read. The check is parameterized — we pass
+// our already-parsed missions list to avoid a load-time cycle through
+// ./missions. Throws on the first dangling cross-ref with a useful path.
+runDataIntegrityCheck(buildLiveIntegrityData(ALL_MISSIONS));
