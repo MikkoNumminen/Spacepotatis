@@ -61,12 +61,15 @@ export const SAVE_QUEUED_MESSAGE =
 // The snapshot is opaque to the queue; the server owns its schema. We hold
 // it as a plain JSON object so JSON.stringify round-trips losslessly.
 //
-// Hand-rolled validator instead of Zod: this is the only schema in the
-// module, and pulling Zod (~98 kB) into the client bundle just to validate
-// three fields wasn't worth the cost. The validator below is the same
-// shape as `z.object({ snapshot: z.record(z.string(), z.unknown()),
-// firstSeenMs: z.number(), attempts: z.number().int().nonnegative() })`
-// — keep them in lockstep if either side changes.
+// Hand-rolled validator instead of Zod: pulling Zod (~98 kB) into the client
+// bundle just to validate three fields wasn't worth the cost. The validator
+// is the only contract for what counts as a valid pending save — there is
+// no sibling schema to keep in lockstep, and the snapshot's shape (the
+// `snapshot` field's interior) is validated by the SERVER's
+// `SavePayloadSchema` in src/lib/schemas/save.ts when the snapshot is POSTed
+// to /api/save. Loosening this validator means a malformed local blob
+// round-trips one rejection before being dropped from the queue — no
+// integrity risk.
 export interface PendingSave {
   readonly snapshot: Record<string, unknown>;
   readonly firstSeenMs: number;

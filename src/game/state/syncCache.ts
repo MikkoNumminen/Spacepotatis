@@ -54,9 +54,3 @@ export function getInflightLoad(): Promise<boolean> | null {
 export function setInflightLoad(p: Promise<boolean> | null): void {
   inflight = p;
 }
-
-export function takeInflightLoad(): Promise<boolean> | null {
-  const p = inflight;
-  inflight = null;
-  return p;
-}
