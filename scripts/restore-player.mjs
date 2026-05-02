@@ -16,8 +16,17 @@
 // Usage: node --env-file=.env.local scripts/restore-player.mjs <email>
 //
 // Idempotent: re-running with the same email re-applies the same values.
-// The new server-side regression guard (PR #94) will accept the write
-// because the prevRow is the empty wipe state.
+//
+// IMPORTANT — this script bypasses /api/save and writes directly to Postgres
+// via the Pool driver. The server-side regression guard from PR #94 only
+// inspects POST requests; direct DB writes are NOT gated by it. Be careful
+// — the script can destroy progress as easily as it can restore it.
+//
+// VALUES FROZEN AT 2026-05-02. The RESTORE_CREDITS constant is calibrated
+// against the economy + cheat-delta caps as they existed on that date. If
+// you reuse this script after a balance change or a different incident,
+// review the constants before running — a stale 10000 might be either too
+// generous (post-rebalance) or too stingy (post-economy-rework).
 
 import { Pool } from "@neondatabase/serverless";
 
