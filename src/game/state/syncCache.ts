@@ -20,12 +20,22 @@
 // /shop's lazy-loaded chunks).
 //
 // State ownership rule: ONLY this file mutates `cached` / `inflight` /
-// `currentPlayerEmail`. sync.ts feeds them via the setters below — a single
-// source of truth so the cache invariant ("after a successful POST,
-// cached=true") can't be re-implemented in a stale shape elsewhere.
+// `currentPlayerEmail` / `lastLoadResult`. sync.ts feeds them via the
+// setters below — a single source of truth so the cache invariant
+// ("after a successful POST, cached=true") can't be re-implemented in a
+// stale shape elsewhere.
+//
+// The `inflight` and `lastLoadResult` slots are typed as `unknown` here so
+// this file stays Zod-free (typing them as `Promise<LoadResult>` /
+// `LoadResult` would require importing from sync.ts, which transitively
+// pulls Zod). The sync.ts caller narrows back on read.
 
 let cached: boolean | null = null;
-let inflight: Promise<boolean> | null = null;
+let inflight: Promise<unknown> | null = null;
+// Mirrors `cached` but carries the rich LoadResult shape (kind + reason).
+// Kept in lockstep with `cached` via setLastLoadResult / clearLoadSaveCache
+// so a stale rich result can never linger past a wipe (sign-out path).
+let lastLoadResult: unknown = null;
 // Set true ONLY when loadSave has positively determined the server's state
 // for THIS browser session — either via a successful schema-parsed hydrate,
 // a confirmed "no save row yet" (200 + null body), or an unauthenticated
@@ -52,6 +62,7 @@ let currentPlayerEmail: string | null = null;
 export function clearLoadSaveCache(): void {
   cached = null;
   inflight = null;
+  lastLoadResult = null;
   hydrationCompleted = false;
   currentPlayerEmail = null;
 }
@@ -88,11 +99,11 @@ export function setSaveCache(value: boolean): void {
   cached = value;
 }
 
-export function getInflightLoad(): Promise<boolean> | null {
+export function getInflightLoad(): Promise<unknown> | null {
   return inflight;
 }
 
-export function setInflightLoad(p: Promise<boolean> | null): void {
+export function setInflightLoad(p: Promise<unknown> | null): void {
   inflight = p;
 }
 
@@ -114,4 +125,18 @@ export function setCurrentPlayerEmail(email: string | null): void {
   hydrationCompleted = false;
   cached = null;
   inflight = null;
+  lastLoadResult = null;
+}
+
+// Rich LoadResult slot. Typed as `unknown` so this file stays Zod-free; the
+// only writer (sync.ts) provides a `LoadResult`, and the only readers
+// (sync.ts and the splash overlay's hook) narrow back. The hook layer
+// narrows defensively — an unrecognized shape is treated as "loading" so a
+// corrupted module-level slot can never silently render as "loaded".
+export function getLastLoadResultValue(): unknown {
+  return lastLoadResult;
+}
+
+export function setLastLoadResult(value: unknown): void {
+  lastLoadResult = value;
 }

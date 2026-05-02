@@ -57,30 +57,53 @@ afterEach(() => {
 });
 
 describe("loadSave", () => {
-  // None of these failure modes are allowed to throw — single-player must
-  // keep working when auth/network/server is degraded. Each branch lives in
-  // a distinct conditional inside loadSave (status check, transport catch,
-  // null-body guard), so we still hit each one — just from one table.
+  // Each failure mode now reports a distinct LoadResult.kind so the splash
+  // gate / error overlay can distinguish "fresh account" from "we couldn't
+  // read the server" — pre-fix, all of these collapsed into `false` and
+  // the player saw INITIAL_STATE without warning. Errors are also logged
+  // with console.error (not warn) on the load-failed branches.
   it.each([
-    { label: "API replies 401 (anonymous play)", respond: () => new Response("unauthorized", { status: 401 }) },
-    { label: "API replies 500", respond: () => new Response("oops", { status: 500 }) },
+    {
+      label: "API replies 401 (anonymous play)",
+      respond: () => new Response("unauthorized", { status: 401 }),
+      expectedKind: "anon" as const
+    },
+    {
+      label: "API replies 500",
+      respond: () => new Response("oops", { status: 500 }),
+      expectedKind: "load-failed" as const,
+      expectedReason: "http_error" as const,
+      expectedStatus: 500
+    },
     {
       label: "transport error",
       respond: () => {
         throw new TypeError("network down");
-      }
+      },
+      expectedKind: "load-failed" as const,
+      expectedReason: "network_error" as const,
+      expectedStatus: 0
     },
     {
       label: "body is null (no remote save yet)",
       respond: () =>
-        new Response("null", { status: 200, headers: { "content-type": "application/json" } })
+        new Response("null", { status: 200, headers: { "content-type": "application/json" } }),
+      expectedKind: "no-save" as const
     }
-  ])("returns false when $label", async ({ respond }) => {
-    fetchImpl.current = async () => respond();
-    expect(await loadSave()).toBe(false);
+  ])("returns kind=$expectedKind when $label", async (row) => {
+    // The load-failed branches use console.error (not warn) — silence it
+    // so the test output stays clean while still exercising the path.
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fetchImpl.current = async () => row.respond();
+    const result = await loadSave();
+    expect(result.kind).toBe(row.expectedKind);
+    if (row.expectedKind === "load-failed") {
+      expect(result.reason).toBe(row.expectedReason);
+      expect(result.status).toBe(row.expectedStatus);
+    }
   });
 
-  it("hydrates GameState from a valid remote save and returns true", async () => {
+  it("hydrates GameState from a valid remote save and returns kind=server-loaded", async () => {
     const remote = {
       slot: 1,
       credits: 4242,
@@ -103,7 +126,7 @@ describe("loadSave", () => {
         status: 200,
         headers: { "content-type": "application/json" }
       });
-    expect(await loadSave()).toBe(true);
+    expect((await loadSave()).kind).toBe("server-loaded");
     const s = getState();
     expect(s.credits).toBe(4242);
     expect(s.completedMissions).toEqual(["tutorial"]);
@@ -131,7 +154,7 @@ describe("loadSave", () => {
     };
     fetchImpl.current = async () =>
       new Response(JSON.stringify(remote), { status: 200 });
-    expect(await loadSave()).toBe(true);
+    expect((await loadSave()).kind).toBe("server-loaded");
     const s = getState();
     expect(s.credits).toBe(1170);
     expect(s.completedMissions).toEqual(["tutorial"]);
@@ -157,20 +180,25 @@ describe("loadSave", () => {
     const a = loadSave();
     const b = loadSave();
     expect(fetchCalls).toHaveLength(1);
-    holder.resolve?.(new Response(null, { status: 200 }));
-    expect(await a).toBe(false);
-    expect(await b).toBe(false);
+    holder.resolve?.(
+      new Response("null", {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    expect((await a).kind).toBe("no-save");
+    expect((await b).kind).toBe("no-save");
     expect(fetchCalls).toHaveLength(1);
   });
 
   it("subsequent loadSave calls hit the cache without re-fetching", async () => {
     fetchImpl.current = async () => new Response(null, { status: 401 });
-    expect(await loadSave()).toBe(false);
-    expect(await loadSave()).toBe(false);
+    expect((await loadSave()).kind).toBe("anon");
+    expect((await loadSave()).kind).toBe("anon");
     expect(fetchCalls).toHaveLength(1);
   });
 
-  it("hydrates from a pending save in localStorage even if the server returns 401", async () => {
+  it("hydrates from a pending save in localStorage even if the server returns 401 — kind=pending-only", async () => {
     // The exact regression that motivated the save queue: player completed
     // a mission, saveNow's POST hit a 5xx, snapshot was durably stored in
     // localStorage. They reload — the server still has the OLD save (or
@@ -199,11 +227,41 @@ describe("loadSave", () => {
         playerEmail: TEST_EMAIL
       })
     );
-    expect(await loadSave()).toBe(true);
+    expect((await loadSave()).kind).toBe("pending-only");
     const s = getState();
     expect(s.credits).toBe(4242);
     expect(s.completedMissions).toEqual(["tutorial", "combat-1"]);
     expect(s.playedTimeSeconds).toBe(88);
+  });
+
+  it("returns kind=pending-only when the server 5xx's but a pending save exists — overlay must NOT trigger", async () => {
+    // Critical: a pending localStorage save means the player has authoritative
+    // state on-disk. Even if the server load failed, GameState is hydrated
+    // from pending — rendering the load-failed overlay would falsely tell
+    // them their progress is at risk.
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fetchImpl.current = async () => new Response("oops", { status: 500 });
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v1",
+      JSON.stringify({
+        snapshot: {
+          credits: 1234,
+          completedMissions: ["tutorial"],
+          unlockedPlanets: ["tutorial"],
+          playedTimeSeconds: 50,
+          ship: {},
+          saveSlot: 1,
+          currentSolarSystemId: "tutorial",
+          unlockedSolarSystems: ["tutorial"],
+          seenStoryEntries: []
+        },
+        firstSeenMs: Date.now(),
+        attempts: 0
+      })
+    );
+    const result = await loadSave();
+    expect(result.kind).toBe("pending-only");
+    expect(getState().credits).toBe(1234);
   });
 
   it("pending save overrides server hydrate — pending is strictly newer", async () => {
@@ -248,27 +306,34 @@ describe("loadSave", () => {
         playerEmail: TEST_EMAIL
       })
     );
-    expect(await loadSave()).toBe(true);
+    // Server returned a valid save AND pending exists; server-loaded wins
+    // the kind classification (server is authoritative for "did the load
+    // succeed"), but pending overlays the actual GameState (newer wins).
+    expect((await loadSave()).kind).toBe("server-loaded");
     const s = getState();
     // Newer pending state wins.
     expect(s.credits).toBe(9999);
     expect(s.completedMissions).toContain("boss-1");
   });
 
-  it("logs and returns false when the remote save row fails RemoteSaveSchema", async () => {
+  it("logs error and returns kind=load-failed reason=schema_rejected when the remote save row fails RemoteSaveSchema", async () => {
     // RemoteSaveSchema requires `slot`, `credits`, `completedMissions`, etc.
-    // A row missing those keys exercises the safeParse-failure branch
-    // (sync.ts:67-76) which today is silent except for a console.warn.
+    // A row missing those keys exercises the safeParse-failure branch.
+    // The console output is now console.error (not warn) because the
+    // operator NEEDS this surfaced — the user is seeing INITIAL_STATE and
+    // panicking that their save is gone.
     const malformed = { not: "a save", credits: "definitely not a number" };
     fetchImpl.current = async () =>
       new Response(JSON.stringify(malformed), {
         status: 200,
         headers: { "content-type": "application/json" }
       });
-    const warnSpy = vi.mocked(console.warn);
-    expect(await loadSave()).toBe(false);
-    expect(warnSpy).toHaveBeenCalled();
-    const firstCall = warnSpy.mock.calls[0];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const result = await loadSave();
+    expect(result.kind).toBe("load-failed");
+    expect(result.reason).toBe("schema_rejected");
+    expect(errorSpy).toHaveBeenCalled();
+    const firstCall = errorSpy.mock.calls[0];
     expect(firstCall?.[0]).toMatch(/loadSave: schema rejected save row/);
   });
 });
@@ -408,6 +473,29 @@ describe("saveNow hydration guard", () => {
     const result = await saveNow();
     expect(fetchCalls).toHaveLength(1);
     expect(result.kind).toBe("ok");
+  });
+
+  it("STILL refuses to POST after a real load-failure path (overlay-dismissal can't unlock saveNow)", async () => {
+    // End-to-end: a real loadSave attempt hits a 5xx (load-failed branch
+    // does NOT call markHydrationCompleted). Even after the user dismisses
+    // the error overlay in the UI ("I understand the risk"), saveNow must
+    // STILL skip the POST — the overlay dismiss is purely visual; the
+    // hydration flag in syncCache is the source of truth and only flips on
+    // a path that proved the server's authoritative state.
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fetchImpl.current = async () => new Response("oops", { status: 500 });
+    const loadResult = await loadSave();
+    expect(loadResult.kind).toBe("load-failed");
+    // Reset the fetch counter so the saveNow assertion is unambiguous.
+    fetchCalls.length = 0;
+    fetchImpl.current = async () => new Response(null, { status: 204 });
+    const saveResult = await saveNow();
+    // No POST went out — saveNow refused at the gate.
+    expect(fetchCalls).toHaveLength(0);
+    // No localStorage pending save either — INITIAL_STATE must never
+    // become a durable snapshot.
+    expect(readPendingSaveForTest()).toBeNull();
+    expect(saveResult.kind).toBe("queued");
   });
 });
 

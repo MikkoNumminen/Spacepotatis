@@ -3,6 +3,7 @@ import {
   clearLoadSaveCache,
   getCurrentPlayerEmail,
   getInflightLoad,
+  getLastLoadResultValue,
   getSaveCache,
   isHydrationCompleted,
   isSaveCached,
@@ -10,6 +11,7 @@ import {
   resetHydrationCompleted,
   setCurrentPlayerEmail,
   setInflightLoad,
+  setLastLoadResult,
   setSaveCache
 } from "./syncCache";
 
@@ -113,10 +115,11 @@ describe("syncCache", () => {
     expect(isHydrationCompleted()).toBe(true);
   });
 
-  it("changing the email to a different value resets hydrationCompleted + cache + inflight", () => {
+  it("changing the email to a different value resets hydrationCompleted + cache + inflight + lastLoadResult", () => {
     setCurrentPlayerEmail("a@example.com");
     markHydrationCompleted();
     setSaveCache(true);
+    setLastLoadResult({ kind: "server-loaded" });
     const inflightPromise = Promise.resolve(true);
     setInflightLoad(inflightPromise);
 
@@ -124,11 +127,12 @@ describe("syncCache", () => {
 
     // Account swap: the previous account's load doesn't prove anything
     // about this account's server state, so saveNow must block until a
-    // fresh loadSave verifies. Cache + inflight also belonged to the old
-    // account's response — clear them too.
+    // fresh loadSave verifies. Cache + inflight + last-load-result also
+    // belonged to the old account's response — clear them all.
     expect(isHydrationCompleted()).toBe(false);
     expect(getSaveCache()).toBeNull();
     expect(getInflightLoad()).toBeNull();
+    expect(getLastLoadResultValue()).toBeNull();
   });
 
   it("changing the email to null (sign-out) resets hydration too", () => {
@@ -143,5 +147,29 @@ describe("syncCache", () => {
     setCurrentPlayerEmail("a@example.com");
     clearLoadSaveCache();
     expect(getCurrentPlayerEmail()).toBeNull();
+  });
+
+  // Rich LoadResult slot — drives the splash-error overlay's hot-remount
+  // behavior. Pinning the round-trip + clear semantics so a regression here
+  // can't silently revert the UI to the pre-fix "splash clears, INITIAL_STATE
+  // looks like a fresh save" failure mode.
+  it("lastLoadResult starts null (no load attempted yet)", () => {
+    expect(getLastLoadResultValue()).toBeNull();
+  });
+
+  it("setLastLoadResult / getLastLoadResultValue round-trip", () => {
+    const result = { kind: "load-failed", reason: "http_error", status: 500 };
+    setLastLoadResult(result);
+    expect(getLastLoadResultValue()).toBe(result);
+  });
+
+  it("clearLoadSaveCache wipes lastLoadResult alongside cached + inflight + hydrationCompleted", () => {
+    setSaveCache(true);
+    setLastLoadResult({ kind: "server-loaded" });
+    markHydrationCompleted();
+    clearLoadSaveCache();
+    expect(getSaveCache()).toBeNull();
+    expect(getLastLoadResultValue()).toBeNull();
+    expect(isHydrationCompleted()).toBe(false);
   });
 });

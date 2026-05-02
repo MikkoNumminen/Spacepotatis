@@ -14,7 +14,9 @@ import StoryModal from "@/components/story/StoryModal";
 import StoryListModal from "@/components/story/StoryListModal";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
+import SaveLoadErrorOverlay from "@/components/SaveLoadErrorOverlay";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
+import { clearLoadSaveCache } from "@/game/state/syncCache";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useStoryTriggers } from "@/components/hooks/useStoryTriggers";
@@ -74,7 +76,32 @@ export default function GameCanvas() {
     setWarpOpen(true);
   }, [completedMissions, currentSolarSystemId, unlockedSolarSystems]);
 
-  const { loaded: saveLoaded } = useCloudSaveSync();
+  const saveSync = useCloudSaveSync();
+  const saveLoaded = saveSync.status === "loaded";
+  // The overlay starts visible whenever the load fails. Dismissing it
+  // doesn't clear the underlying status — saveNow stays gated by the
+  // hydration flag in syncCache, so even an "I understand the risk"
+  // dismissal can't trigger an INITIAL_STATE POST that would wipe the
+  // server save. This bool just removes the visual blocker.
+  const [errorDismissed, setErrorDismissed] = useState(false);
+  const showLoadError = saveSync.status === "load-failed" && !errorDismissed;
+  // Reset the dismissal whenever a successful load happens (e.g. retry
+  // succeeds after an earlier failure), so a future failure cycle re-blocks
+  // instead of being silently dismissed from the previous one.
+  useEffect(() => {
+    if (saveSync.status === "loaded") setErrorDismissed(false);
+  }, [saveSync.status]);
+
+  const handleRetryLoad = useCallback(() => {
+    // clearLoadSaveCache wipes the cache + lastLoadResult + hydration flag.
+    // The simplest reliable retry is a full reload: it re-runs the splash
+    // gate's loadSave with a clean slate, and avoids needing to thread a
+    // re-fetch trigger through useReliableSession (which is what otherwise
+    // gates the useCloudSaveSync effect).
+    clearLoadSaveCache();
+    setErrorDismissed(false);
+    window.location.reload();
+  }, []);
 
   const {
     activeStory,
@@ -399,6 +426,13 @@ export default function GameCanvas() {
         className="pointer-events-none absolute inset-0 bg-black"
         style={{ opacity: 0 }}
       />
+      {showLoadError && (
+        <SaveLoadErrorOverlay
+          reason={saveSync.status === "load-failed" ? saveSync.reason : undefined}
+          onRetry={handleRetryLoad}
+          onDismiss={() => setErrorDismissed(true)}
+        />
+      )}
     </div>
     </SplashGate>
   );
