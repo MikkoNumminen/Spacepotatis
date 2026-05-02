@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { sql } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { auth } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb, type Database } from "@/lib/db";
 import { upsertPlayerId } from "@/lib/players";
 import { SavePayloadSchema } from "@/lib/schemas/save";
 import {
@@ -62,6 +62,51 @@ export async function GET(): Promise<Response> {
   }
 }
 
+// Forensic audit row written for every authenticated POST /api/save attempt
+// — success, validator rejection, or server error. Designed so the next data
+// loss incident has actual evidence to investigate instead of guesswork.
+//
+// Operator quick query (for diagnostics):
+//   SELECT * FROM spacepotatis.save_audit
+//   WHERE player_id = '<uuid>'
+//   ORDER BY created_at DESC
+//   LIMIT 50;
+//
+// Failure-mode contract: if the audit INSERT itself throws, the save MUST
+// still proceed. The audit table is for diagnostics, not the critical path.
+async function writeSaveAudit(
+  db: Kysely<Database>,
+  row: {
+    playerId: string;
+    requestPayload: Record<string, unknown>;
+    responseStatus: number;
+    responseError: string | null;
+    prevSnapshot: Record<string, unknown> | null;
+    requestIp: string | null;
+    userAgent: string | null;
+  }
+): Promise<void> {
+  try {
+    await db
+      .insertInto("spacepotatis.save_audit")
+      .values({
+        player_id: row.playerId,
+        slot: 1,
+        request_payload: row.requestPayload,
+        response_status: row.responseStatus,
+        response_error: row.responseError,
+        prev_snapshot: row.prevSnapshot,
+        request_ip: row.requestIp,
+        user_agent: row.userAgent
+      })
+      .execute();
+  } catch (err) {
+    // Never let an audit-table problem (missing migration, transient Neon
+    // outage, schema drift) block a save. Log and move on.
+    console.error("[/api/save] save_audit insert failed (save itself proceeds):", err);
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const session = await auth();
   if (!session?.user?.email) {
@@ -72,17 +117,47 @@ export async function POST(request: Request): Promise<Response> {
   try {
     raw = await request.json();
   } catch {
+    // Malformed JSON has no usable body to record and no parsed payload to
+    // audit; the route already 400s here. Skip audit for this path.
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
+
+  // Hold onto the raw body so the audit row preserves exactly what the
+  // client sent, even if Zod rejected it.
+  const requestPayload: Record<string, unknown> =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : { _nonObjectBody: raw };
+
+  const requestIp = request.headers.get("x-forwarded-for");
+  const userAgent = request.headers.get("user-agent");
 
   const parsed = SavePayloadSchema.safeParse(raw);
   if (!parsed.success) {
     // Surface only the issue list — Zod's full error object leaks internals
     // and makes the response harder for the client to log/inspect.
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: "validation_failed", issues: parsed.error.issues },
       { status: 400 }
     );
+    // Best-effort audit: we have a session so we can resolve player_id, but
+    // if the upsert fails (network blip), still return the validation error.
+    try {
+      const db = getDb();
+      const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
+      await writeSaveAudit(db, {
+        playerId,
+        requestPayload,
+        responseStatus: 400,
+        responseError: "validation_failed",
+        prevSnapshot: null,
+        requestIp,
+        userAgent
+      });
+    } catch (err) {
+      console.error("[/api/save] failed to audit validation_failed response:", err);
+    }
+    return response;
   }
   const body = parsed.data;
 
@@ -90,6 +165,78 @@ export async function POST(request: Request): Promise<Response> {
   const unlockedPlanets = body.unlockedPlanets ?? [];
   const credits = body.credits ?? 0;
   const playedTimeSeconds = body.playedTimeSeconds ?? 0;
+
+  // Resolve player + previous row up front so every audit path has the
+  // diagnostic context (prev_snapshot in particular). If this fails the
+  // request becomes 500 and we audit that too.
+  let db: Kysely<Database>;
+  let playerId: string;
+  let prevRow:
+    | {
+        credits: number;
+        current_planet: string | null;
+        ship_config: Record<string, unknown>;
+        played_time_seconds: number;
+        completed_missions: string[];
+        unlocked_planets: string[];
+        seen_story_entries: string[];
+        updated_at: Date;
+      }
+    | undefined;
+  try {
+    db = getDb();
+    playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
+    prevRow = await db
+      .selectFrom("spacepotatis.save_games")
+      .select([
+        "credits",
+        "current_planet",
+        "ship_config",
+        "played_time_seconds",
+        "completed_missions",
+        "unlocked_planets",
+        "seen_story_entries",
+        "updated_at"
+      ])
+      .where("player_id", "=", playerId)
+      .where("slot", "=", 1)
+      .executeTakeFirst();
+  } catch (err) {
+    console.error("POST /api/save failed (pre-validation lookup):", err);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
+  }
+
+  // Snapshot serialized for prev_snapshot — JSON-friendly shape with the
+  // updated_at field flattened to ISO string so the audit row is portable.
+  const prevSnapshot: Record<string, unknown> | null = prevRow
+    ? {
+        credits: prevRow.credits,
+        currentPlanet: prevRow.current_planet,
+        shipConfig: prevRow.ship_config,
+        completedMissions: prevRow.completed_missions,
+        unlockedPlanets: prevRow.unlocked_planets,
+        playedTimeSeconds: prevRow.played_time_seconds,
+        seenStoryEntries: prevRow.seen_story_entries ?? [],
+        updatedAt:
+          prevRow.updated_at instanceof Date
+            ? prevRow.updated_at.toISOString()
+            : String(prevRow.updated_at)
+      }
+    : null;
+
+  // All audit writes share the same context; build a small helper that
+  // captures prevSnapshot + headers + payload once and just needs the
+  // outcome at the call site.
+  const recordAudit = (status: number, error: string | null): Promise<void> =>
+    writeSaveAudit(db, {
+      playerId,
+      requestPayload,
+      responseStatus: status,
+      responseError: error,
+      prevSnapshot,
+      requestIp,
+      userAgent
+    });
 
   const graphResult = validateMissionGraph({
     completedMissions,
@@ -101,6 +248,7 @@ export async function POST(request: Request): Promise<Response> {
       session.user.email,
       graphResult.error
     );
+    await recordAudit(422, "mission_graph_invalid");
     return NextResponse.json(
       { error: "mission_graph_invalid", message: graphResult.error },
       { status: 422 }
@@ -108,26 +256,6 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const db = getDb();
-    const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
-
-    // Read the previous save to bound the credits + playtime deltas. A
-    // first save (no prior row) is allowed to claim only what the player's
-    // playtime + completion count budgets — the credits bound is recomputed
-    // against zero, and the playtime check is skipped.
-    const prevRow = await db
-      .selectFrom("spacepotatis.save_games")
-      .select([
-        "credits",
-        "played_time_seconds",
-        "completed_missions",
-        "unlocked_planets",
-        "updated_at"
-      ])
-      .where("player_id", "=", playerId)
-      .where("slot", "=", 1)
-      .executeTakeFirst();
-
     const prev = prevRow
       ? {
           credits: prevRow.credits,
@@ -141,9 +269,7 @@ export async function POST(request: Request): Promise<Response> {
     // Save-state regression guard. Catches the wipe pattern where a buggy
     // client POSTs INITIAL_STATE on top of an existing save (credits=0,
     // completedMissions=[], playtime=0). The cheat-delta guards below only
-    // catch INFLATION, not regression — this is the matching defense. We
-    // need prevRow's `unlocked_planets` here too, so the column has been
-    // added to the prevRow select above.
+    // catch INFLATION, not regression — this is the matching defense.
     const prevForRegression = prevRow
       ? {
           playedTimeSeconds: prevRow.played_time_seconds,
@@ -169,6 +295,7 @@ export async function POST(request: Request): Promise<Response> {
         session.user.email,
         regressionResult.error
       );
+      await recordAudit(422, "save_regression");
       return NextResponse.json(
         { error: "save_regression", message: regressionResult.error },
         { status: 422 }
@@ -191,6 +318,7 @@ export async function POST(request: Request): Promise<Response> {
         session.user.email,
         playtimeResult.error
       );
+      await recordAudit(422, "playtime_delta_invalid");
       return NextResponse.json(
         { error: "playtime_delta_invalid", message: playtimeResult.error },
         { status: 422 }
@@ -219,6 +347,7 @@ export async function POST(request: Request): Promise<Response> {
         session.user.email,
         creditsResult.error
       );
+      await recordAudit(422, "credits_delta_invalid");
       return NextResponse.json(
         { error: "credits_delta_invalid", message: creditsResult.error },
         { status: 422 }
@@ -261,9 +390,11 @@ export async function POST(request: Request): Promise<Response> {
       )
       .execute();
 
+    await recordAudit(204, null);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     console.error("POST /api/save failed:", err);
+    await recordAudit(500, "server_error");
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
