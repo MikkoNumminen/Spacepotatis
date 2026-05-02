@@ -117,7 +117,13 @@ export async function POST(request: Request): Promise<Response> {
     // against zero, and the playtime check is skipped.
     const prevRow = await db
       .selectFrom("spacepotatis.save_games")
-      .select(["credits", "played_time_seconds", "completed_missions", "updated_at"])
+      .select([
+        "credits",
+        "played_time_seconds",
+        "completed_missions",
+        "unlocked_planets",
+        "updated_at"
+      ])
       .where("player_id", "=", playerId)
       .where("slot", "=", 1)
       .executeTakeFirst();
@@ -135,22 +141,26 @@ export async function POST(request: Request): Promise<Response> {
     // Save-state regression guard. Catches the wipe pattern where a buggy
     // client POSTs INITIAL_STATE on top of an existing save (credits=0,
     // completedMissions=[], playtime=0). The cheat-delta guards below only
-    // catch INFLATION, not regression — this is the matching defense.
+    // catch INFLATION, not regression — this is the matching defense. We
+    // need prevRow's `unlocked_planets` here too, so the column has been
+    // added to the prevRow select above.
     const prevForRegression = prevRow
       ? {
-          credits: prevRow.credits,
           playedTimeSeconds: prevRow.played_time_seconds,
-          completedMissions: (Array.isArray(prevRow.completed_missions)
-            ? (prevRow.completed_missions as MissionId[])
-            : []) as readonly MissionId[]
+          completedMissions: Array.isArray(prevRow.completed_missions)
+            ? (prevRow.completed_missions as readonly MissionId[])
+            : [],
+          unlockedPlanets: Array.isArray(prevRow.unlocked_planets)
+            ? (prevRow.unlocked_planets as readonly MissionId[])
+            : []
         }
       : null;
     const regressionResult = validateNoRegression({
       prev: prevForRegression,
       next: {
-        credits,
         playedTimeSeconds,
-        completedMissions
+        completedMissions,
+        unlockedPlanets
       }
     });
     if (!regressionResult.ok) {

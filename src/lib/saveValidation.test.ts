@@ -495,13 +495,22 @@ describe("validatePlaytimeDelta boundary at exactly nowMs === prevUpdatedMs", ()
 // guard explicitly accepts). This test pins the regression scenarios.
 describe("validateNoRegression", () => {
   const realPrev = {
-    credits: 5000,
     playedTimeSeconds: 1800,
     completedMissions: [
       "tutorial",
       "combat-1",
       "boss-1",
       "pirate-beacon"
+    ] as const,
+    unlockedPlanets: [
+      "tutorial",
+      "shop",
+      "market",
+      "pirate-beacon",
+      "tubernovae-outpost",
+      "combat-1",
+      "boss-1",
+      "ember-run"
     ] as const
   };
 
@@ -510,21 +519,21 @@ describe("validateNoRegression", () => {
       validateNoRegression({
         prev: null,
         next: {
-          credits: 100,
           playedTimeSeconds: 60,
-          completedMissions: ["tutorial"]
+          completedMissions: ["tutorial"],
+          unlockedPlanets: ["tutorial", "shop", "market"]
         }
       }).ok
     ).toBe(true);
   });
 
-  it("rejects the INITIAL_STATE wipe — credits/playtime/missions all collapsed", () => {
+  it("rejects the INITIAL_STATE wipe — playtime/missions/unlocks all collapsed", () => {
     const result = validateNoRegression({
       prev: realPrev,
       next: {
-        credits: 0,
         playedTimeSeconds: 0,
-        completedMissions: []
+        completedMissions: [],
+        unlockedPlanets: []
       }
     });
     expect(result.ok).toBe(false);
@@ -536,22 +545,39 @@ describe("validateNoRegression", () => {
     const result = validateNoRegression({
       prev: realPrev,
       next: {
-        credits: 5000,
         playedTimeSeconds: 1800,
-        completedMissions: ["tutorial", "combat-1", "boss-1"] // pirate-beacon dropped
+        completedMissions: ["tutorial", "combat-1", "boss-1"], // pirate-beacon dropped
+        unlockedPlanets: [...realPrev.unlockedPlanets]
       }
     });
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.error).toMatch(/pirate-beacon/);
   });
 
-  it("rejects a playtime regression even if missions are intact", () => {
+  it("rejects an unlocks regression even if missions and playtime are intact", () => {
+    // Real wipe scenario for a player whose actual unlocks exceed
+    // INITIAL_UNLOCKED — e.g. they have ember-run unlocked but the wipe
+    // resets unlockedPlanets to the always-on default subset.
     const result = validateNoRegression({
       prev: realPrev,
       next: {
-        credits: 5000,
+        playedTimeSeconds: 1800,
+        completedMissions: [...realPrev.completedMissions],
+        unlockedPlanets: ["tutorial", "shop", "market", "pirate-beacon", "tubernovae-outpost"] // ember-run + combat-1 + boss-1 dropped
+      }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toMatch(/unlockedPlanets regressed/);
+    expect(result.ok === false && result.error).toMatch(/ember-run/);
+  });
+
+  it("rejects a playtime regression even if missions and unlocks are intact", () => {
+    const result = validateNoRegression({
+      prev: realPrev,
+      next: {
         playedTimeSeconds: 1000, // dropped from 1800
-        completedMissions: [...realPrev.completedMissions]
+        completedMissions: [...realPrev.completedMissions],
+        unlockedPlanets: [...realPrev.unlockedPlanets]
       }
     });
     expect(result.ok).toBe(false);
@@ -563,35 +589,37 @@ describe("validateNoRegression", () => {
       validateNoRegression({
         prev: realPrev,
         next: {
-          credits: realPrev.credits,
           playedTimeSeconds: realPrev.playedTimeSeconds,
-          completedMissions: [...realPrev.completedMissions]
+          completedMissions: [...realPrev.completedMissions],
+          unlockedPlanets: [...realPrev.unlockedPlanets]
         }
       }).ok
     ).toBe(true);
   });
 
-  it("accepts a legitimate shop spend (credits drop, missions intact, playtime grew)", () => {
+  it("accepts a legitimate shop spend (missions/unlocks intact, playtime grew)", () => {
+    // Credits aren't part of the regression guard at all — the market
+    // legitimately drains them and we don't want the guard to police that.
     expect(
       validateNoRegression({
         prev: realPrev,
         next: {
-          credits: 0, // spent all of it
           playedTimeSeconds: realPrev.playedTimeSeconds + 60,
-          completedMissions: [...realPrev.completedMissions]
+          completedMissions: [...realPrev.completedMissions],
+          unlockedPlanets: [...realPrev.unlockedPlanets]
         }
       }).ok
     ).toBe(true);
   });
 
-  it("accepts forward progress (credits up, missions added, playtime up)", () => {
+  it("accepts forward progress (missions added, unlocks added, playtime up)", () => {
     expect(
       validateNoRegression({
         prev: realPrev,
         next: {
-          credits: 6000,
           playedTimeSeconds: 2000,
-          completedMissions: [...realPrev.completedMissions, "ember-run"]
+          completedMissions: [...realPrev.completedMissions, "ember-run"],
+          unlockedPlanets: [...realPrev.unlockedPlanets, "burnt-spud"]
         }
       }).ok
     ).toBe(true);
@@ -603,12 +631,26 @@ describe("validateNoRegression", () => {
     const result = validateNoRegression({
       prev: realPrev,
       next: {
-        credits: 5000,
         playedTimeSeconds: 1800,
-        completedMissions: ["pirate-beacon", "boss-1", "tutorial"] // combat-1 dropped, others reordered
+        completedMissions: ["pirate-beacon", "boss-1", "tutorial"], // combat-1 dropped, others reordered
+        unlockedPlanets: [...realPrev.unlockedPlanets]
       }
     });
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.error).toMatch(/combat-1/);
+  });
+
+  it("accepts unlockedPlanets reordering with the same set", () => {
+    expect(
+      validateNoRegression({
+        prev: realPrev,
+        next: {
+          playedTimeSeconds: realPrev.playedTimeSeconds,
+          completedMissions: [...realPrev.completedMissions],
+          // Same set, different order
+          unlockedPlanets: [...realPrev.unlockedPlanets].reverse()
+        }
+      }).ok
+    ).toBe(true);
   });
 });

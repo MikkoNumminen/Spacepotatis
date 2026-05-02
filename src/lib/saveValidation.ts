@@ -349,39 +349,34 @@ export function validatePlaytimeDelta(input: PlaytimeDeltaInput): ValidationResu
 // 2026-05-02 21:51:54 — months of progression destroyed by a single POST that
 // the server happily accepted because the down-delta passed the cheat checks.
 //
-// This guard rejects three regression patterns a legitimate client never
-// produces. Each is "the new state is strictly less than the prior state in
-// a field that NEVER decreases under normal play":
+// This guard rejects three monotonic-field regressions. Each field NEVER
+// decreases under normal play, so a strictly-shrinking POST is a wipe signal:
 //
-//   1. completedMissions shrunk — once a mission is in the list it never
-//      leaves (no "un-complete" mutator exists in the client).
-//   2. playedTimeSeconds dropped — playtime is monotonic; only saveNow
-//      increments it via addPlayedTime.
-//   3. credits collapsed to 0 while prior credits were non-trivial AND
-//      completedMissions also shrunk — pure credits down-delta is allowed
-//      (shop), but credits→0 paired with a missions regression is the
-//      INITIAL_STATE wipe signature, not a legitimate spend.
+//   1. completedMissions shrunk — no "un-complete" mutator exists.
+//   2. unlockedPlanets shrunk — no "lock a planet" mutator exists.
+//   3. playedTimeSeconds dropped — only addPlayedTime ever moves it, and
+//      it's strictly additive (an equal value means "same save instant",
+//      a smaller value means a regression).
 //
-// Why all three together vs just a single check:
-//   - A player CAN spend their entire credits balance at the market — that
-//     alone is a valid down-delta. Don't reject it.
-//   - A player's playtime can be equal to the prior value (no time elapsed),
-//     but never less. The strict `<` catches the wipe without false positives.
-//   - completedMissions strictly never shrinks under any client flow.
+// We deliberately do NOT guard credits — the market drains credits and a
+// legitimate full-spend looks like a regression-to-zero. The three monotonic
+// fields above already catch every realistic wipe pattern: a player with
+// non-zero credits has played the game, so they have prior playtime and at
+// least one completed mission, both of which the wipe collapses to zero.
 //
 // Pure function so the route can call it after the existing graph/playtime/
 // credits guards without any I/O.
 
 export interface RegressionGuardInput {
   readonly prev: {
-    readonly credits: number;
     readonly playedTimeSeconds: number;
     readonly completedMissions: readonly MissionId[];
+    readonly unlockedPlanets: readonly MissionId[];
   } | null;
   readonly next: {
-    readonly credits: number;
     readonly playedTimeSeconds: number;
     readonly completedMissions: readonly MissionId[];
+    readonly unlockedPlanets: readonly MissionId[];
   };
 }
 
@@ -392,15 +387,22 @@ export function validateNoRegression(input: RegressionGuardInput): ValidationRes
 
   // Mission list shrank. Even one mission missing is a regression — clients
   // never un-complete missions.
-  const prevMissions = new Set(prev.completedMissions);
-  const missingMissions: MissionId[] = [];
-  for (const id of prevMissions) {
-    if (!next.completedMissions.includes(id)) missingMissions.push(id);
-  }
+  const missingMissions = setDifference(prev.completedMissions, next.completedMissions);
   if (missingMissions.length > 0) {
     return {
       ok: false,
       error: `completedMissions regressed — missing previously-completed: ${missingMissions.join(", ")}`
+    };
+  }
+
+  // Unlocks shrank. Symmetric to completedMissions — clients never lock a
+  // planet. Without this check, a wipe could erase a player's hard-earned
+  // unlocks even if their completedMissions list happened to survive.
+  const missingUnlocks = setDifference(prev.unlockedPlanets, next.unlockedPlanets);
+  if (missingUnlocks.length > 0) {
+    return {
+      ok: false,
+      error: `unlockedPlanets regressed — missing previously-unlocked: ${missingUnlocks.join(", ")}`
     };
   }
 
@@ -412,22 +414,19 @@ export function validateNoRegression(input: RegressionGuardInput): ValidationRes
     };
   }
 
-  // Credits collapsed to 0 while prior was substantial. Pair this with a
-  // missions check (already passed above by reaching here) so a legitimate
-  // shop spend that drains credits doesn't trip the guard.
-  //
-  // The "1 credit" threshold is the absolute minimum to distinguish "real
-  // collapse" from "player just spent everything to 0" — but at this point
-  // we already know completedMissions didn't shrink, so a credits=0 next
-  // alongside non-zero prev is a legit "spent everything" save.
-  //
-  // What we DO want to catch is the wipe pattern: credits collapsed AND
-  // playtime collapsed (caught above) — but the playtime check above is
-  // already strict, so any wipe with playtime=0 < prev_playtime > 0 is
-  // already rejected. This block stays as documentation; the playtime +
-  // missions checks together cover the wipe signature.
-
   return { ok: true };
+}
+
+function setDifference(
+  prev: readonly MissionId[],
+  next: readonly MissionId[]
+): MissionId[] {
+  const nextSet = new Set(next);
+  const missing: MissionId[] = [];
+  for (const id of prev) {
+    if (!nextSet.has(id)) missing.push(id);
+  }
+  return missing;
 }
 
 function safeGetMission(id: MissionId) {
