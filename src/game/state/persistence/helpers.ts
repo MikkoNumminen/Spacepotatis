@@ -1,5 +1,5 @@
 import type { AugmentId, WeaponId } from "@/types/game";
-import { WEAPON_IDS } from "@/lib/schemas/save";
+import { WEAPON_IDS } from "../../data/weapons";
 import {
   MAX_LEVEL,
   type WeaponInstance

@@ -13,8 +13,7 @@ import { z } from "zod";
 import type {
   AugmentId,
   MissionId,
-  SolarSystemId,
-  WeaponId
+  SolarSystemId
 } from "@/types/game";
 import type {
   ReactorConfig,
@@ -24,24 +23,18 @@ import type {
   WeaponSlots
 } from "@/game/state/ShipConfig";
 import { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
+import { WEAPON_IDS } from "@/game/data/weapons";
+
+// Re-export for tests + back-compat with existing imports.
+export { WEAPON_IDS };
 
 // ---------------------------------------------------------------------------
 // ID enums — mirror the literal unions in src/types/game.ts. If you add a new
 // id to either union, add it here too; the test file enforces equality via a
-// structural assertion.
+// structural assertion. WEAPON_IDS lives in src/game/data/weapons.ts so
+// client-side persistence helpers can do membership checks without pulling
+// Zod into their bundle (~98 kB saving).
 // ---------------------------------------------------------------------------
-
-export const WEAPON_IDS = [
-  "rapid-fire",
-  "spread-shot",
-  "heavy-cannon",
-  "spud-missile",
-  "tater-net",
-  "tail-gunner",
-  "side-spitter",
-  "plasma-whip",
-  "hailstorm"
-] as const satisfies readonly WeaponId[];
 
 export const AUGMENT_IDS = [
   "damage-up",
