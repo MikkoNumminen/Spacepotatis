@@ -3,6 +3,7 @@ import { clearLoadSaveCache, drainScoreQueue, loadSave, saveNow } from "./sync";
 import { getState, resetForTests } from "./GameState";
 import { clearScoreQueue, enqueueScore, readScoreQueueForTest } from "./scoreQueue";
 import { clearSaveQueue, readPendingSaveForTest } from "./saveQueue";
+import { markHydrationCompleted } from "./syncCache";
 import { FakeStorage, installFakeLocalStorage } from "../../__tests__/fakeStorage";
 
 // ----- loadSave / saveNow / drainScoreQueue: best-effort fetch wrappers -----
@@ -264,6 +265,13 @@ describe("loadSave", () => {
 });
 
 describe("saveNow", () => {
+  // Most saveNow tests assume hydration completed (the legitimate case after
+  // a successful loadSave). The wipe-prevention gate is exercised in its own
+  // dedicated `it` below.
+  beforeEach(() => {
+    markHydrationCompleted();
+  });
+
   it("POSTs the snapshot as JSON to /api/save", async () => {
     await saveNow();
     expect(fetchCalls).toHaveLength(1);
@@ -342,6 +350,33 @@ describe("saveNow", () => {
     const result = await saveNow();
     expect(result.kind).toBe("queued");
     expect(readPendingSaveForTest()?.attempts).toBe(1);
+  });
+});
+
+// Defends against the 2026-05-02 wipe pattern: when loadSave fails silently
+// (5xx, schema parse, network error), GameState may still be at INITIAL_STATE.
+// saveNow must NOT POST that — it would clobber the user's real save row.
+// This test exercises the gate from a clean slate where no hydration has
+// happened yet.
+describe("saveNow hydration guard", () => {
+  it("skips the POST entirely when hydration has not completed", async () => {
+    // No markHydrationCompleted call; the beforeEach above isn't this scope.
+    const result = await saveNow();
+    // No fetch should have been made.
+    expect(fetchCalls).toHaveLength(0);
+    // No localStorage pending save either — we must not persist INITIAL_STATE.
+    expect(readPendingSaveForTest()).toBeNull();
+    // Returns a queued-shaped result so callers (VictoryModal etc.) see a
+    // "save deferred" message rather than a misleading "ok".
+    expect(result.kind).toBe("queued");
+  });
+
+  it("POSTs normally once hydration completes", async () => {
+    fetchImpl.current = async () => new Response(null, { status: 204 });
+    markHydrationCompleted();
+    const result = await saveNow();
+    expect(fetchCalls).toHaveLength(1);
+    expect(result.kind).toBe("ok");
   });
 });
 

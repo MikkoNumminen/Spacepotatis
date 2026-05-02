@@ -335,6 +335,101 @@ export function validatePlaytimeDelta(input: PlaytimeDeltaInput): ValidationResu
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// Save-state regression guard
+// ---------------------------------------------------------------------------
+// `validateCreditsDelta` and `validatePlaytimeDelta` only catch INFLATION —
+// cheating UP. They explicitly allow regression (credits going down, playtime
+// going down) because spending credits in the shop is a legitimate down-delta
+// for credits, and the playtime guard short-circuits on negative deltas.
+//
+// The hole that left: any client path that POSTs an empty/default snapshot
+// (credits=0, completedMissions=[], playedTimeSeconds=0) blows away a real
+// save. This is exactly what wiped numminen.mikko.petteri@gmail.com's row at
+// 2026-05-02 21:51:54 — months of progression destroyed by a single POST that
+// the server happily accepted because the down-delta passed the cheat checks.
+//
+// This guard rejects three regression patterns a legitimate client never
+// produces. Each is "the new state is strictly less than the prior state in
+// a field that NEVER decreases under normal play":
+//
+//   1. completedMissions shrunk — once a mission is in the list it never
+//      leaves (no "un-complete" mutator exists in the client).
+//   2. playedTimeSeconds dropped — playtime is monotonic; only saveNow
+//      increments it via addPlayedTime.
+//   3. credits collapsed to 0 while prior credits were non-trivial AND
+//      completedMissions also shrunk — pure credits down-delta is allowed
+//      (shop), but credits→0 paired with a missions regression is the
+//      INITIAL_STATE wipe signature, not a legitimate spend.
+//
+// Why all three together vs just a single check:
+//   - A player CAN spend their entire credits balance at the market — that
+//     alone is a valid down-delta. Don't reject it.
+//   - A player's playtime can be equal to the prior value (no time elapsed),
+//     but never less. The strict `<` catches the wipe without false positives.
+//   - completedMissions strictly never shrinks under any client flow.
+//
+// Pure function so the route can call it after the existing graph/playtime/
+// credits guards without any I/O.
+
+export interface RegressionGuardInput {
+  readonly prev: {
+    readonly credits: number;
+    readonly playedTimeSeconds: number;
+    readonly completedMissions: readonly MissionId[];
+  } | null;
+  readonly next: {
+    readonly credits: number;
+    readonly playedTimeSeconds: number;
+    readonly completedMissions: readonly MissionId[];
+  };
+}
+
+export function validateNoRegression(input: RegressionGuardInput): ValidationResult {
+  const { prev, next } = input;
+  // No prior row → first save → nothing to regress from.
+  if (!prev) return { ok: true };
+
+  // Mission list shrank. Even one mission missing is a regression — clients
+  // never un-complete missions.
+  const prevMissions = new Set(prev.completedMissions);
+  const missingMissions: MissionId[] = [];
+  for (const id of prevMissions) {
+    if (!next.completedMissions.includes(id)) missingMissions.push(id);
+  }
+  if (missingMissions.length > 0) {
+    return {
+      ok: false,
+      error: `completedMissions regressed — missing previously-completed: ${missingMissions.join(", ")}`
+    };
+  }
+
+  // Playtime moved backwards. Equal is fine (no-op save), strictly less is not.
+  if (next.playedTimeSeconds < prev.playedTimeSeconds) {
+    return {
+      ok: false,
+      error: `playedTimeSeconds regressed from ${prev.playedTimeSeconds} to ${next.playedTimeSeconds}`
+    };
+  }
+
+  // Credits collapsed to 0 while prior was substantial. Pair this with a
+  // missions check (already passed above by reaching here) so a legitimate
+  // shop spend that drains credits doesn't trip the guard.
+  //
+  // The "1 credit" threshold is the absolute minimum to distinguish "real
+  // collapse" from "player just spent everything to 0" — but at this point
+  // we already know completedMissions didn't shrink, so a credits=0 next
+  // alongside non-zero prev is a legit "spent everything" save.
+  //
+  // What we DO want to catch is the wipe pattern: credits collapsed AND
+  // playtime collapsed (caught above) — but the playtime check above is
+  // already strict, so any wipe with playtime=0 < prev_playtime > 0 is
+  // already rejected. This block stays as documentation; the playtime +
+  // missions checks together cover the wipe signature.
+
+  return { ok: true };
+}
+
 function safeGetMission(id: MissionId) {
   try {
     return getMission(id);

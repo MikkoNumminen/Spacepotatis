@@ -10,6 +10,7 @@ import {
   getReachableSolarSystems,
   validateCreditsDelta,
   validateMissionGraph,
+  validateNoRegression,
   validatePlaytimeDelta
 } from "./saveValidation";
 
@@ -484,5 +485,130 @@ describe("validatePlaytimeDelta boundary at exactly nowMs === prevUpdatedMs", ()
       nowMs: T0_MS - 5000
     });
     expect(result.ok).toBe(false);
+  });
+});
+
+// validateNoRegression — defense against the INITIAL_STATE wipe pattern.
+// A buggy or stale client that POSTs default state on top of a real save
+// would otherwise pass every existing guard (the cheat-deltas only catch
+// inflation; missing/empty fields look like 0-deltas, which the credits
+// guard explicitly accepts). This test pins the regression scenarios.
+describe("validateNoRegression", () => {
+  const realPrev = {
+    credits: 5000,
+    playedTimeSeconds: 1800,
+    completedMissions: [
+      "tutorial",
+      "combat-1",
+      "boss-1",
+      "pirate-beacon"
+    ] as const
+  };
+
+  it("accepts the first save (no prior row)", () => {
+    expect(
+      validateNoRegression({
+        prev: null,
+        next: {
+          credits: 100,
+          playedTimeSeconds: 60,
+          completedMissions: ["tutorial"]
+        }
+      }).ok
+    ).toBe(true);
+  });
+
+  it("rejects the INITIAL_STATE wipe — credits/playtime/missions all collapsed", () => {
+    const result = validateNoRegression({
+      prev: realPrev,
+      next: {
+        credits: 0,
+        playedTimeSeconds: 0,
+        completedMissions: []
+      }
+    });
+    expect(result.ok).toBe(false);
+    // Mission regression catches first since it's the strongest signal.
+    expect(result.ok === false && result.error).toMatch(/completedMissions regressed/);
+  });
+
+  it("rejects a partial mission regression (one mission missing)", () => {
+    const result = validateNoRegression({
+      prev: realPrev,
+      next: {
+        credits: 5000,
+        playedTimeSeconds: 1800,
+        completedMissions: ["tutorial", "combat-1", "boss-1"] // pirate-beacon dropped
+      }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toMatch(/pirate-beacon/);
+  });
+
+  it("rejects a playtime regression even if missions are intact", () => {
+    const result = validateNoRegression({
+      prev: realPrev,
+      next: {
+        credits: 5000,
+        playedTimeSeconds: 1000, // dropped from 1800
+        completedMissions: [...realPrev.completedMissions]
+      }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toMatch(/playedTimeSeconds regressed/);
+  });
+
+  it("accepts an equal playtime (no-op save)", () => {
+    expect(
+      validateNoRegression({
+        prev: realPrev,
+        next: {
+          credits: realPrev.credits,
+          playedTimeSeconds: realPrev.playedTimeSeconds,
+          completedMissions: [...realPrev.completedMissions]
+        }
+      }).ok
+    ).toBe(true);
+  });
+
+  it("accepts a legitimate shop spend (credits drop, missions intact, playtime grew)", () => {
+    expect(
+      validateNoRegression({
+        prev: realPrev,
+        next: {
+          credits: 0, // spent all of it
+          playedTimeSeconds: realPrev.playedTimeSeconds + 60,
+          completedMissions: [...realPrev.completedMissions]
+        }
+      }).ok
+    ).toBe(true);
+  });
+
+  it("accepts forward progress (credits up, missions added, playtime up)", () => {
+    expect(
+      validateNoRegression({
+        prev: realPrev,
+        next: {
+          credits: 6000,
+          playedTimeSeconds: 2000,
+          completedMissions: [...realPrev.completedMissions, "ember-run"]
+        }
+      }).ok
+    ).toBe(true);
+  });
+
+  it("rejects a save with completedMissions reordered AND missing one (set semantics)", () => {
+    // Reordering alone is fine; missing one is not. This pins that the check
+    // is set-difference, not array equality.
+    const result = validateNoRegression({
+      prev: realPrev,
+      next: {
+        credits: 5000,
+        playedTimeSeconds: 1800,
+        completedMissions: ["pirate-beacon", "boss-1", "tutorial"] // combat-1 dropped, others reordered
+      }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toMatch(/combat-1/);
   });
 });

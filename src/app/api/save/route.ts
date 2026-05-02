@@ -8,6 +8,7 @@ import {
   computeCreditCapsForPlayer,
   validateCreditsDelta,
   validateMissionGraph,
+  validateNoRegression,
   validatePlaytimeDelta
 } from "@/lib/saveValidation";
 import type { MissionId } from "@/types/game";
@@ -130,6 +131,39 @@ export async function POST(request: Request): Promise<Response> {
             : 0
         }
       : null;
+
+    // Save-state regression guard. Catches the wipe pattern where a buggy
+    // client POSTs INITIAL_STATE on top of an existing save (credits=0,
+    // completedMissions=[], playtime=0). The cheat-delta guards below only
+    // catch INFLATION, not regression — this is the matching defense.
+    const prevForRegression = prevRow
+      ? {
+          credits: prevRow.credits,
+          playedTimeSeconds: prevRow.played_time_seconds,
+          completedMissions: (Array.isArray(prevRow.completed_missions)
+            ? (prevRow.completed_missions as MissionId[])
+            : []) as readonly MissionId[]
+        }
+      : null;
+    const regressionResult = validateNoRegression({
+      prev: prevForRegression,
+      next: {
+        credits,
+        playedTimeSeconds,
+        completedMissions
+      }
+    });
+    if (!regressionResult.ok) {
+      console.warn(
+        "[/api/save] regression rejected",
+        session.user.email,
+        regressionResult.error
+      );
+      return NextResponse.json(
+        { error: "save_regression", message: regressionResult.error },
+        { status: 422 }
+      );
+    }
 
     // Playtime first: the credits cap depends on `playedTimeSeconds`, so
     // catching an inflated playtime here prevents the inflated value from
