@@ -146,6 +146,10 @@ npm test             # vitest run — 397 tests
 npm run build        # next build (catches RSC/client-boundary errors)
 ```
 
+### Pre-commit hook
+
+`npm install` wires a husky-managed pre-commit hook (`.husky/pre-commit`) that runs `npx lint-staged` (ESLint with `--fix` on staged `*.{ts,tsx}` only) followed by `npm run typecheck`. Total overhead ~5s on a typical change. Tests are intentionally NOT in the hook — they still gate on push via CI. Lint-staged config lives in [package.json](package.json) under `"lint-staged"`. Do not add `--no-verify` to commits to bypass it; if the hook is firing on something it shouldn't, fix the rule, not the hook.
+
 ### Working without a database
 
 Local gameplay does NOT require a database. Save/load and leaderboard features degrade gracefully — the game uses in-memory state when auth + DB are absent. Only sign in / persistence flows need `DATABASE_URL` configured.
