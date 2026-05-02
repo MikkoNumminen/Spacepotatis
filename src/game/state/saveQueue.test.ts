@@ -192,6 +192,28 @@ describe("flushPendingSave", () => {
     expect(pending?.snapshot).toEqual(SNAP);
   });
 
+  it("RETAINS the slot on 422 save_regression — server snapshot more advanced, retry with fresher state", async () => {
+    // The regression guard from PR #94 fires when the server's stored
+    // snapshot is more advanced than the client's. Treating it as PERMANENT
+    // meant the defense itself DELETED the player's queued snapshot — the
+    // exact scenario the durability layer exists to prevent. Now classified
+    // TRANSIENT alongside playtime/credits_delta_invalid: a future saveNow
+    // with the freshest in-memory state will pass the regression check, OR
+    // the snapshot will age out cleanly via MAX_ATTEMPTS / MAX_AGE_MS.
+    markSavePending(SNAP, NOW);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 422,
+      errorCode: "save_regression"
+    }));
+    const result = await flushPendingSave(submit, NOW);
+    expect(result).toEqual({ kind: "queued", status: 422 });
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
+    expect(pending?.snapshot).toEqual(SNAP);
+  });
+
   it("drops the slot up front when attempts >= MAX_ATTEMPTS (no POST)", async () => {
     (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
       "spacepotatis:pendingSave:v1",
