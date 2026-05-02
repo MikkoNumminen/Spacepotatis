@@ -61,6 +61,26 @@ describe("WeaponDefinitionSchema", () => {
     expect(() => WeaponDefinitionSchema.parse(bad)).toThrow();
   });
 
+  it("rejects damage of 0 (a bullet that can't hurt anything is meaningless)", () => {
+    const bad = { ...VALID_WEAPON, damage: 0 };
+    expect(() => WeaponDefinitionSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects negative damage", () => {
+    const bad = { ...VALID_WEAPON, damage: -1 };
+    expect(() => WeaponDefinitionSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects bulletSpeed of 0 (a bullet that doesn't move can't hit anything)", () => {
+    const bad = { ...VALID_WEAPON, bulletSpeed: 0 };
+    expect(() => WeaponDefinitionSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects negative bulletSpeed", () => {
+    const bad = { ...VALID_WEAPON, bulletSpeed: -100 };
+    expect(() => WeaponDefinitionSchema.parse(bad)).toThrow();
+  });
+
   it("rejects a stringified number for a numeric field", () => {
     const bad = { ...VALID_WEAPON, damage: "6" };
     expect(() => WeaponDefinitionSchema.parse(bad)).toThrow();

@@ -19,11 +19,14 @@ export const WeaponDefinitionSchema = z.object({
   id: WeaponIdSchema,
   name: z.string(),
   description: z.string(),
-  damage: z.number(),
+  // Damage of 0 (or negative) is never a valid game state — a bullet that
+  // can't hurt anything has no reason to exist. Mirrors enemies.ts hp.positive().
+  damage: z.number().positive(),
   // Bullets-per-fire cooldown — must be > 0 because weaponDps() divides by
   // it. A typo'd 0 would yield Infinity DPS and crash the HUD.
   fireRateMs: z.number().positive(),
-  bulletSpeed: z.number(),
+  // A bullet that doesn't move makes no sense. Mirrors enemies.ts speed.positive().
+  bulletSpeed: z.number().positive(),
   projectileCount: z.number().int().min(1),
   spreadDegrees: z.number().min(0).max(180),
   cost: z.number().nonnegative(),
