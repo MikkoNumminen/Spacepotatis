@@ -131,8 +131,11 @@ class AudioBus {
   }
 
   private notify(): void {
-    const snap = this.getState();
-    for (const cb of this.listeners) cb(snap);
+    // One snapshot per subscriber — getState() returns a fresh outer + fresh
+    // nested `muted` object each call, so subscribers can't bleed mutations
+    // into each other through a shared reference. Tiny allocation cost,
+    // pays for itself the first time someone writes to a received snapshot.
+    for (const cb of this.listeners) cb(this.getState());
   }
 }
 
