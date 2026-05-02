@@ -188,6 +188,19 @@ Two more commands you might want while you work:
 - `npm run test:watch` — runs the tests and re-runs them automatically every time you save a file. Useful when you're writing or fixing a test.
 - `npm run coverage` — runs the tests once and produces a report showing which lines of code were exercised. Helps you see what's untested.
 
+### A safety net at commit time (the pre-commit hook)
+
+A "pre-commit hook" is a little script that Git runs automatically every time you make a commit, just before the commit is recorded. If the script fails, the commit is cancelled — so you can't accidentally save broken code. The first time you run `npm install` after cloning, that hook is set up for you automatically (we use a tool called **husky** to install it).
+
+What the hook does, in order:
+
+1. Runs the linter on **only the files you actually changed in this commit** (that's what **lint-staged** does — it filters the linter down to your staged files instead of the whole project, which keeps things fast). If the linter can auto-fix something safely (a missing semicolon, a stray import), it does, and re-stages the fixed file.
+2. Runs `npm run typecheck` across the whole project to make sure your change didn't break a type somewhere else.
+
+The whole thing usually finishes in about five seconds. If either step fails, your commit is rejected and you get to see exactly what's wrong before it ever reaches CI. Fix the problem, `git add` your changes again, and re-commit.
+
+Tests are deliberately **not** part of the pre-commit hook — they still run on every push via CI. The goal of the hook is to catch the cheap mistakes (typos, type errors) instantly, while letting the slower, more thorough checks live on the build server.
+
 ## Recent quality push (April 2026)
 
 Hello! If you're reading the codebase right now, you're catching it just after a big tidy-up. Over a few days the project went through a four-wave "modularity audit" — basically, a sweep that looks for files that have grown too big or rules that are easy to break by accident, and shrinks or tightens them. Here's what changed and, more importantly, why it makes the project nicer to poke at.
