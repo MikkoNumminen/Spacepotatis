@@ -1,0 +1,14 @@
+{
+  "$schema": "./schema/obstacles.schema.json",
+  "obstacles": [
+    {
+      "id": "asteroid-small",
+      "name": "Pebble Asteroid",
+      "speed": 110,
+      "behavior": "drift",
+      "spriteKey": "obstacle-asteroid-small",
+      "collisionDamage": 12,
+      "hitboxRadius": 18
+    }
+  ]
+}

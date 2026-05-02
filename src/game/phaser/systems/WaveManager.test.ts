@@ -14,6 +14,7 @@ import { WaveManager } from "./WaveManager";
 import { createFakeScene, type FakeScene } from "../__tests__/fakeScene";
 import type { BulletPool } from "../entities/Bullet";
 import type { EnemyPool } from "../entities/Enemy";
+import type { ObstaclePool } from "../entities/Obstacle";
 import { getWavesForMission } from "../../data/waves";
 
 // WaveManager schedules every spawn through scene.time.delayedCall and emits
@@ -21,19 +22,29 @@ import { getWavesForMission } from "../../data/waves";
 // fakeScene's controllable delayedCall queue and verify both the schedule
 // shape and the lifecycle predicates.
 
-function setup(missionId: "tutorial" | "combat-1" | "boss-1") {
+type SetupOpts = { withObstacles?: boolean };
+
+function setup(
+  missionId: "tutorial" | "combat-1" | "boss-1" | "pirate-beacon",
+  opts: SetupOpts = {}
+) {
   const scene = createFakeScene();
   const enemySpawn = vi.fn();
   const enemies = { spawn: enemySpawn } as unknown as EnemyPool;
   const enemyBullets = {} as unknown as BulletPool;
+  const obstacleSpawn = vi.fn();
+  const obstacles = opts.withObstacles
+    ? ({ spawn: obstacleSpawn } as unknown as ObstaclePool)
+    : null;
   const wm = new WaveManager(
     scene as never,
     enemies,
     enemyBullets,
     () => ({ x: 0, y: 0 }),
-    missionId
+    missionId,
+    obstacles
   );
-  return { scene, wm, enemySpawn };
+  return { scene, wm, enemySpawn, obstacleSpawn };
 }
 
 function emittedTypes(scene: FakeScene): readonly string[] {
@@ -169,5 +180,64 @@ describe("WaveManager wave progression", () => {
     wm.finishEarly();
     scene.time.fireAll();
     expect(emittedTypes(scene).filter((t) => t === "allWavesComplete")).toHaveLength(1);
+  });
+});
+
+describe("WaveManager obstacle scheduling", () => {
+  it("schedules pirate-beacon wave 0's obstacleSpawns when an ObstaclePool is provided", () => {
+    const { scene, wm, obstacleSpawn } = setup("pirate-beacon", { withObstacles: true });
+    wm.start();
+
+    const waves = getWavesForMission("pirate-beacon");
+    const wave0 = waves[0];
+    if (!wave0) throw new Error("expected pirate-beacon wave 0; fixture broken");
+    const enemyTotal = wave0.spawns.reduce((s, x) => s + x.count, 0);
+    const obstacleTotal = (wave0.obstacleSpawns ?? []).reduce((s, x) => s + x.count, 0);
+    // enemy spawn callbacks + obstacle spawn callbacks + 1 wave-end timer
+    expect(scene.time.delayedCall).toHaveBeenCalledTimes(enemyTotal + obstacleTotal + 1);
+
+    // Fire all queued callbacks; obstacles.spawn should have been called once per
+    // obstacle scheduled in this wave (we don't advance to wave 1 — fireAll keeps
+    // tripping callbacks but the obstacle count we care about is wave 0's).
+    scene.time.fireAll();
+    expect(obstacleSpawn.mock.calls.length).toBeGreaterThanOrEqual(obstacleTotal);
+  });
+
+  it("ignores obstacleSpawns when no ObstaclePool is provided (graceful fallback)", () => {
+    const { scene, wm } = setup("pirate-beacon");
+    wm.start();
+    const waves = getWavesForMission("pirate-beacon");
+    const wave0 = waves[0];
+    if (!wave0) throw new Error("expected pirate-beacon wave 0; fixture broken");
+    const enemyTotal = wave0.spawns.reduce((s, x) => s + x.count, 0);
+    // Obstacle spawns are skipped entirely when obstacles=null — only enemy
+    // spawns + the wave-end timer hit the queue.
+    expect(scene.time.delayedCall).toHaveBeenCalledTimes(enemyTotal + 1);
+  });
+
+  it("obstacle scheduling does not bump enemy-completion counters", () => {
+    const { scene, wm } = setup("pirate-beacon", { withObstacles: true });
+    wm.start();
+    // Fire only obstacle delayed calls — fast-path check by firing the FIRST
+    // obstacle entry and confirming allSpawnsFired stays consumer of enemy
+    // counters only. We can't cleanly isolate obstacle entries from enemy
+    // entries in the queue, so instead we fire all spawn callbacks and confirm
+    // allSpawnsFired matches enemy count progression.
+    const waves = getWavesForMission("pirate-beacon");
+    const wave0 = waves[0];
+    if (!wave0) throw new Error("expected pirate-beacon wave 0; fixture broken");
+    const enemyTotal = wave0.spawns.reduce((s, x) => s + x.count, 0);
+    const obstacleTotal = (wave0.obstacleSpawns ?? []).reduce((s, x) => s + x.count, 0);
+
+    // Fire only enemy-spawn entries: they are scheduled BEFORE obstacle entries
+    // in advance(), so the first `enemyTotal` items are enemy spawns.
+    const enemyEntries = scene.time.queue.slice(0, enemyTotal);
+    for (const entry of enemyEntries) {
+      entry.fired = true;
+      entry.callback();
+    }
+    // Obstacles haven't fired yet, but allSpawnsFired only tracks enemies.
+    expect(wm.allSpawnsFired()).toBe(true);
+    expect(obstacleTotal).toBeGreaterThan(0); // sanity: the fixture really has obstacles
   });
 });

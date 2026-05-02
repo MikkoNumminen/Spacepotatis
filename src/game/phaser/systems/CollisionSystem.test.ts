@@ -4,10 +4,12 @@ import { createFakeScene } from "../__tests__/fakeScene";
 import type { Player } from "../entities/Player";
 import type { BulletPool, Bullet } from "../entities/Bullet";
 import type { EnemyPool, Enemy } from "../entities/Enemy";
+import type { Obstacle, ObstaclePool } from "../entities/Obstacle";
 import type { PowerUpPool, PowerUp } from "../entities/PowerUp";
 
 // CollisionSystem is mostly registration glue. The valuable tests are:
-//   1. that it registers exactly four overlap pairs in the right order, and
+//   1. that it registers exactly four overlap pairs in the right order
+//      (seven when an obstacle pool is passed), and
 //   2. that the callbacks it wires up correctly delegate to the handlers and
 //      mutate the colliding entities (deactivate bullet, damage enemy, etc).
 
@@ -22,7 +24,7 @@ function captureOverlaps(): OverlapCall[] {
 }
 
 describe("wireCollisions", () => {
-  function setup() {
+  function setup(opts: { withObstacles?: boolean } = {}) {
     const scene = createFakeScene();
     const captured: OverlapCall[] = captureOverlaps();
     scene.physics.add.overlap.mockImplementation(
@@ -36,20 +38,43 @@ describe("wireCollisions", () => {
     const enemyBullets = { kind: "enemyBullets" } as unknown as BulletPool;
     const enemies = { kind: "enemies" } as unknown as EnemyPool;
     const powerUps = { kind: "powerUps" } as unknown as PowerUpPool;
+    const obstacles = opts.withObstacles
+      ? ({ kind: "obstacles" } as unknown as ObstaclePool)
+      : null;
 
     const handlers: CollisionHandlers = {
       onEnemyHit: vi.fn(),
       onPlayerHitByBullet: vi.fn(),
       onPlayerTouchEnemy: vi.fn(),
-      onPlayerGetPowerUp: vi.fn()
+      onPlayerGetPowerUp: vi.fn(),
+      onPlayerHitByObstacle: vi.fn()
     };
 
-    wireCollisions(scene as never, player, playerBullets, enemyBullets, enemies, powerUps, handlers);
+    wireCollisions(
+      scene as never,
+      player,
+      playerBullets,
+      enemyBullets,
+      enemies,
+      powerUps,
+      handlers,
+      obstacles
+    );
 
-    return { scene, captured, player, playerBullets, enemyBullets, enemies, powerUps, handlers };
+    return {
+      scene,
+      captured,
+      player,
+      playerBullets,
+      enemyBullets,
+      enemies,
+      powerUps,
+      obstacles,
+      handlers
+    };
   }
 
-  it("registers four overlap pairs", () => {
+  it("registers four overlap pairs when no obstacle pool is provided", () => {
     const { captured } = setup();
     expect(captured).toHaveLength(4);
   });
@@ -162,5 +187,117 @@ describe("wireCollisions", () => {
     captured[3]?.cb(player, power);
     expect(handlers.onPlayerGetPowerUp).not.toHaveBeenCalled();
     expect(power.disableBody).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Obstacle pairs (registered only when an ObstaclePool is passed). They
+  // come AFTER the four base pairs so the indices 0..3 above stay stable.
+  // -------------------------------------------------------------------------
+
+  it("registers seven overlap pairs when an obstacle pool is provided", () => {
+    const { captured } = setup({ withObstacles: true });
+    expect(captured).toHaveLength(7);
+  });
+
+  it("wires playerBullets↔obstacles fifth, enemyBullets↔obstacles sixth, player↔obstacles seventh", () => {
+    const { captured, playerBullets, enemyBullets, player, obstacles } = setup({
+      withObstacles: true
+    });
+    expect(captured[4]?.groupA).toBe(playerBullets);
+    expect(captured[4]?.groupB).toBe(obstacles);
+    expect(captured[5]?.groupA).toBe(enemyBullets);
+    expect(captured[5]?.groupB).toBe(obstacles);
+    expect(captured[6]?.groupA).toBe(player);
+    expect(captured[6]?.groupB).toBe(obstacles);
+  });
+
+  it("playerBullet↔obstacle absorbs the bullet without damaging the obstacle", () => {
+    const { captured } = setup({ withObstacles: true });
+    const bullet = { active: true, deactivate: vi.fn() } as unknown as Bullet;
+    // Obstacles are indestructible by type — Obstacle.ts has no takeDamage
+    // method. We attach a never-called spy here so the indestructibility
+    // contract is asserted explicitly rather than implied by absence.
+    const takeDamage = vi.fn();
+    const obstacle = {
+      active: true,
+      lastHitPlayerAt: 0,
+      takeDamage
+    } as unknown as Obstacle;
+    captured[4]?.cb(bullet, obstacle);
+    expect(bullet.deactivate).toHaveBeenCalled();
+    expect(takeDamage).not.toHaveBeenCalled();
+  });
+
+  it("playerBullet↔obstacle skips inactive bullets/obstacles", () => {
+    const { captured } = setup({ withObstacles: true });
+    const inactive = { active: false, deactivate: vi.fn() } as unknown as Bullet;
+    const obstacle = { active: true, lastHitPlayerAt: 0 } as unknown as Obstacle;
+    captured[4]?.cb(inactive, obstacle);
+    expect(inactive.deactivate).not.toHaveBeenCalled();
+  });
+
+  it("enemyBullet↔obstacle absorbs the bullet (cover blocks both directions)", () => {
+    const { captured } = setup({ withObstacles: true });
+    const bullet = { active: true, deactivate: vi.fn() } as unknown as Bullet;
+    const obstacle = { active: true, lastHitPlayerAt: 0 } as unknown as Obstacle;
+    captured[5]?.cb(bullet, obstacle);
+    expect(bullet.deactivate).toHaveBeenCalled();
+  });
+
+  it("player↔obstacle calls onPlayerHitByObstacle and stamps lastHitPlayerAt", () => {
+    const { scene, captured, handlers, player } = setup({ withObstacles: true });
+    scene.time.now = 1000;
+    const obstacle = {
+      active: true,
+      lastHitPlayerAt: Number.NEGATIVE_INFINITY
+    } as unknown as Obstacle;
+    captured[6]?.cb(player, obstacle);
+    expect(handlers.onPlayerHitByObstacle).toHaveBeenCalledWith(obstacle);
+    expect(obstacle.lastHitPlayerAt).toBe(1000);
+  });
+
+  it("player↔obstacle: first hit lands at scene.time.now=0 (cooldown init must be -Infinity)", () => {
+    const { scene, captured, handlers, player } = setup({ withObstacles: true });
+    scene.time.now = 0;
+    // Real Obstacle.ts initializes lastHitPlayerAt to NEGATIVE_INFINITY for
+    // exactly this reason — at scene start, the first collision must fire
+    // even though `now - 0 = 0 < 400` would gate it.
+    const obstacle = {
+      active: true,
+      lastHitPlayerAt: Number.NEGATIVE_INFINITY
+    } as unknown as Obstacle;
+    captured[6]?.cb(player, obstacle);
+    expect(handlers.onPlayerHitByObstacle).toHaveBeenCalledWith(obstacle);
+  });
+
+  it("player↔obstacle gates re-fires within the cooldown window", () => {
+    const { scene, captured, handlers, player } = setup({ withObstacles: true });
+    scene.time.now = 1000;
+    const obstacle = {
+      active: true,
+      lastHitPlayerAt: Number.NEGATIVE_INFINITY
+    } as unknown as Obstacle;
+    captured[6]?.cb(player, obstacle);
+    expect(handlers.onPlayerHitByObstacle).toHaveBeenCalledTimes(1);
+
+    // Within cooldown — no re-fire.
+    scene.time.now = 1300;
+    captured[6]?.cb(player, obstacle);
+    expect(handlers.onPlayerHitByObstacle).toHaveBeenCalledTimes(1);
+
+    // Past 400ms cooldown — fires again.
+    scene.time.now = 1500;
+    captured[6]?.cb(player, obstacle);
+    expect(handlers.onPlayerHitByObstacle).toHaveBeenCalledTimes(2);
+  });
+
+  it("player↔obstacle skips inactive obstacles without bumping the cooldown", () => {
+    const { scene, captured, handlers, player } = setup({ withObstacles: true });
+    scene.time.now = 1000;
+    const initial = Number.NEGATIVE_INFINITY;
+    const obstacle = { active: false, lastHitPlayerAt: initial } as unknown as Obstacle;
+    captured[6]?.cb(player, obstacle);
+    expect(handlers.onPlayerHitByObstacle).not.toHaveBeenCalled();
+    expect(obstacle.lastHitPlayerAt).toBe(initial);
   });
 });

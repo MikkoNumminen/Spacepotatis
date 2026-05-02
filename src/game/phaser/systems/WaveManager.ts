@@ -1,7 +1,13 @@
 import * as Phaser from "phaser";
-import type { MissionId, WaveDefinition, WaveSpawn } from "@/types/game";
+import type {
+  MissionId,
+  ObstacleSpawn,
+  WaveDefinition,
+  WaveSpawn
+} from "@/types/game";
 import type { BulletPool } from "../entities/Bullet";
 import type { EnemyPool } from "../entities/Enemy";
+import type { ObstaclePool } from "../entities/Obstacle";
 import { VIRTUAL_WIDTH } from "../config";
 import { emit } from "../events";
 import { getWavesForMission } from "../../data/waves";
@@ -12,6 +18,7 @@ export class WaveManager {
   private readonly scene: Phaser.Scene;
   private readonly enemies: EnemyPool;
   private readonly enemyBullets: BulletPool;
+  private readonly obstacles: ObstaclePool | null;
   private readonly getPlayer: () => { x: number; y: number } | null;
   private readonly waves: readonly WaveDefinition[];
   private waveIndex = -1;
@@ -20,6 +27,9 @@ export class WaveManager {
   // Critical for boss fights: the boss wave used to be padded to 110s so
   // the boss had time to die, which left the player staring at an empty
   // sky for ~80s after killing it.
+  // Counters track ENEMY spawns only — obstacles can't be killed and don't
+  // gate wave completion. The "clear" condition is "all enemies dead",
+  // unchanged by obstacles.
   private scheduledThisWave = 0;
   private firedThisWave = 0;
   private completed = false;
@@ -29,11 +39,13 @@ export class WaveManager {
     enemies: EnemyPool,
     enemyBullets: BulletPool,
     getPlayer: () => { x: number; y: number } | null,
-    missionId: MissionId
+    missionId: MissionId,
+    obstacles: ObstaclePool | null = null
   ) {
     this.scene = scene;
     this.enemies = enemies;
     this.enemyBullets = enemyBullets;
+    this.obstacles = obstacles;
     this.getPlayer = getPlayer;
     this.waves = getWavesForMission(missionId);
   }
@@ -77,6 +89,9 @@ export class WaveManager {
     this.scheduledThisWave = 0;
     this.firedThisWave = 0;
     for (const spawn of wave.spawns) this.schedule(spawn);
+    if (this.obstacles) {
+      for (const spawn of wave.obstacleSpawns ?? []) this.scheduleObstacle(spawn);
+    }
 
     this.scene.time.delayedCall(wave.durationMs, () => {
       // Per-wave completion has no live consumer; only the terminal
@@ -97,6 +112,17 @@ export class WaveManager {
       this.scene.time.delayedCall(delay, () => {
         this.spawnOne(spawn, i);
         this.firedThisWave += 1;
+      });
+    }
+  }
+
+  private scheduleObstacle(spawn: ObstacleSpawn): void {
+    // Obstacles do NOT increment scheduledThisWave / firedThisWave — the
+    // wave-complete predicate gates on enemies only.
+    for (let i = 0; i < spawn.count; i++) {
+      const delay = spawn.delayMs + i * spawn.intervalMs;
+      this.scene.time.delayedCall(delay, () => {
+        this.spawnOneObstacle(spawn, i);
       });
     }
   }
@@ -126,5 +152,27 @@ export class WaveManager {
       getPlayer: this.getPlayer,
       enemyBullets: this.enemyBullets
     });
+  }
+
+  private spawnOneObstacle(spawn: ObstacleSpawn, index: number): void {
+    if (!this.obstacles) return;
+    const baseX = spawn.xPercent * VIRTUAL_WIDTH;
+    let x = baseX;
+    const y = -40;
+
+    switch (spawn.formation) {
+      case "line":
+        x = baseX - 60 + (index % 5) * 30;
+        break;
+      case "scatter":
+        x = baseX - 180 + Math.random() * 360;
+        break;
+      case "column":
+        x = baseX;
+        break;
+    }
+
+    const clampedX = Phaser.Math.Clamp(x, 40, VIRTUAL_WIDTH - 40);
+    this.obstacles.spawn(spawn.obstacle, clampedX, y);
   }
 }

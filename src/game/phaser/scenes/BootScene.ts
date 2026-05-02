@@ -67,6 +67,8 @@ export class BootScene extends Phaser.Scene {
     this.drawPirateShip("enemy-pirate-galleon",     { size: 60,  body: 0x5a4030, accent: 0x2a1c10, variant: "galleon",     cannons: 4, sail: 0xc8a87a });
     this.drawPirateShip("enemy-pirate-dreadnought", { size: 110, body: 0x7a1010, accent: 0x2a0606, variant: "dreadnought", cannons: 6, sail: 0x1a0606, skull: true });
 
+    this.drawAsteroid("obstacle-asteroid-small", { size: 40, body: 0x6a5a4a, accent: 0x3a2e22 });
+
     this.drawPotatoPowerUp("powerup-shield", 0x4fd1ff, "ring");
     this.drawPotatoPowerUp("powerup-credit", 0xffcc33, "coin");
     this.drawPotatoPowerUp("powerup-weapon", 0x5effa7, "gear");
@@ -189,6 +191,45 @@ export class BootScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(0xffffff, 1);
     g.fillCircle(size / 2, size / 2, size / 2);
+    g.generateTexture(key, size, size);
+    g.destroy();
+  }
+
+  // Irregular polygon "rock" silhouette for indestructible space junk. The
+  // outline is a fixed 8-vertex pattern (deterministic so test snapshots
+  // don't drift); the inner accents are two darker craters offset from
+  // center so the shape doesn't read as a perfect circle.
+  private drawAsteroid(
+    key: string,
+    opts: { size: number; body: number; accent: number }
+  ): void {
+    const { size, body, accent } = opts;
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = size / 2 - 1;
+    const g = this.add.graphics();
+
+    // Lumpy outline: 8 vertices around the center with stable per-index
+    // radius offsets. Avoids Math.random so the texture is reproducible.
+    const offsets = [1.0, 0.82, 0.95, 0.78, 1.02, 0.85, 0.92, 0.8];
+    g.fillStyle(body, 1);
+    g.beginPath();
+    for (let i = 0; i < offsets.length; i++) {
+      const angle = (i / offsets.length) * Math.PI * 2;
+      const radius = r * (offsets[i] ?? 1);
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+      if (i === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.closePath();
+    g.fillPath();
+
+    // Two darker craters give the rock readable surface depth.
+    g.fillStyle(accent, 1);
+    g.fillCircle(cx - r * 0.25, cy - r * 0.2, r * 0.18);
+    g.fillCircle(cx + r * 0.18, cy + r * 0.28, r * 0.13);
+
     g.generateTexture(key, size, size);
     g.destroy();
   }

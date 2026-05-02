@@ -5,6 +5,13 @@ import { getSummary, setBootData } from "./registry";
 export const VIRTUAL_WIDTH = 960;
 export const VIRTUAL_HEIGHT = 720;
 
+// Render-depth constants. Default scene depth is 0; higher numbers render on
+// top. Obstacles sit ABOVE enemies so the visual "enemy hiding behind cover"
+// reads correctly. Bullets stay at default 0 — they're absorbed by obstacles
+// via collision, so the rare frame where a bullet visually overlaps a rock
+// before the overlap callback fires is invisible at 60 fps.
+export const OBSTACLE_DEPTH = 5;
+
 export const SCENE_KEYS = {
   Boot: "BootScene",
   Combat: "CombatScene",

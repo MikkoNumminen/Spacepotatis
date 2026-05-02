@@ -13,13 +13,18 @@ import { z } from "zod";
 
 import type {
   MissionWaves,
+  ObstacleSpawn,
   WaveDefinition,
   WaveSpawn
 } from "@/types/game";
 import { EnemyIdSchema } from "./enemies";
+import { ObstacleIdSchema } from "./obstacles";
 import { MissionIdSchema } from "./save";
 
 const FormationSchema = z.enum(["line", "vee", "scatter", "column"]);
+// Obstacles drop "vee" — rocks in a v-formation read as fleet maneuver, not
+// drifting space junk.
+const ObstacleFormationSchema = z.enum(["line", "scatter", "column"]);
 
 export const WaveSpawnSchema = z.object({
   enemy: EnemyIdSchema,
@@ -30,10 +35,20 @@ export const WaveSpawnSchema = z.object({
   xPercent: z.number().min(0).max(1)
 });
 
+export const ObstacleSpawnSchema = z.object({
+  obstacle: ObstacleIdSchema,
+  count: z.number().int().positive(),
+  delayMs: z.number().nonnegative(),
+  intervalMs: z.number().nonnegative(),
+  formation: ObstacleFormationSchema,
+  xPercent: z.number().min(0).max(1)
+});
+
 export const WaveDefinitionSchema = z.object({
   id: z.string().min(1),
   durationMs: z.number().positive(),
-  spawns: z.array(WaveSpawnSchema)
+  spawns: z.array(WaveSpawnSchema),
+  obstacleSpawns: z.array(ObstacleSpawnSchema).optional()
 });
 
 export const MissionWavesSchema = z.object({
@@ -53,11 +68,14 @@ export const WavesFileSchema = z.object({
 // only purpose is to make tsc fail if the schema's inferred type stops being
 // assignable to the canonical TS interface.
 type _WaveSpawn = z.infer<typeof WaveSpawnSchema>;
+type _ObstacleSpawn = z.infer<typeof ObstacleSpawnSchema>;
 type _WaveDefinition = z.infer<typeof WaveDefinitionSchema>;
 type _MissionWaves = z.infer<typeof MissionWavesSchema>;
 const _waveSpawnCheck = (x: _WaveSpawn): WaveSpawn => x;
+const _obstacleSpawnCheck = (x: _ObstacleSpawn): ObstacleSpawn => x;
 const _waveDefCheck = (x: _WaveDefinition): WaveDefinition => x;
 const _missionWavesCheck = (x: _MissionWaves): MissionWaves => x;
 void _waveSpawnCheck;
+void _obstacleSpawnCheck;
 void _waveDefCheck;
 void _missionWavesCheck;
