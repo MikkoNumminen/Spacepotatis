@@ -14,22 +14,41 @@
 // accessor); tests inject synthetic data via the parameter to exercise
 // the failure paths without breaking the live data.
 //
-// Cross-references covered:
-//   waves.json:        spawn.enemy            → enemies.json id
-//   waves.json:        missionId              → missions.json id
-//   missions.json:     solarSystemId          → solarSystems.json id
-//   missions.json:     requires[]             → missions.json id
-//   missions.json:     orbitParentId          → missions.json id (same system)
-//   lootPools.ts:      systemId               → solarSystems.json id
-//   lootPools.ts:      weapons[]              → weapons.json id
-//   lootPools.ts:      augments[]             → augments.ts id
-//   story.ts:          on-mission-select      → missions.json id
-//   story.ts:          on-system-enter        → solarSystems.json id
-//   story.ts:          on-system-cleared-idle → solarSystems.json id
+// Cross-references covered today:
+//   - waves[].spawn.enemy                  → enemies
+//   - missionWaves.missionId               → missions
+//   - missions.solarSystemId               → solarSystems
+//   - missions.requires[]                  → missions  (+ self-ref guard)
+//   - missions.orbitParentId               → missions  (+ same-system guard)
+//   - lootPools.systemId                   → solarSystems
+//   - lootPools.weapons[]                  → weapons
+//   - lootPools.augments[]                 → augments
+//   - story (on-mission-select)            → missions
+//   - story (on-system-enter)              → solarSystems
+//   - story (on-system-cleared-idle)       → solarSystems
 //
-// NOT covered (intentional): texture file paths, audio file paths.
-// Filesystem checks are too brittle for module-load — tests in
-// public/textures and public/audio are the right layer for that.
+// EXTENDING THIS CHECK: when you add a new `*Id` field to ANY content
+// schema (e.g. `mission.rewardWeapon: WeaponId`,
+// `enemy.dropAugmentId: AugmentId`, a new perks-by-mission link, a new
+// story trigger kind), extend this file too. The check does NOT
+// auto-discover new FKs from schemas or types — drift here means
+// dangling refs only surface at runtime via saveValidation.ts's
+// try/catch, silently skipping the broken entry. The /new-mission,
+// /new-enemy, /equipment, /new-perk, /new-story, and /new-solar-system
+// skills should remind contributors to update this file when they
+// introduce a new cross-reference.
+//
+// NOT covered (intentional, today):
+//   - Perks referenced by missions (no such link exists yet — perks are
+//     selected at mission start, not declared per mission).
+//   - Ship-default weapons (none — defaults live in shipMutators code,
+//     not in data).
+//   - Enemy `spriteKey` → BootScene texture identifiers (sprites are
+//     coded in BootScene, not declared in JSON; out of the data layer's
+//     scope).
+//   - Texture / audio file paths under public/. Filesystem checks are
+//     too brittle for module-load — tests in public/textures and
+//     public/audio are the right layer for that.
 
 import { getAllEnemies } from "./enemies";
 import { getAllSolarSystems } from "./solarSystems";
