@@ -7,7 +7,7 @@ import { useReliableSession } from "./useReliableSession";
 // Shape returned by GET /api/handle. See src/app/api/handle/route.ts — the
 // route either returns { handle: string | null } on success, or an
 // { error: string } body with a 401/500 status.
-export interface HandleResponse {
+interface HandleResponse {
   handle: string | null;
 }
 
