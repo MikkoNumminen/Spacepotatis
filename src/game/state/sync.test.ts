@@ -308,9 +308,35 @@ describe("saveNow", () => {
     expect(readPendingSaveForTest()).toBeNull();
   });
 
-  it("returns kind=failed with status + humanized message on a 422 (cheat-guard)", async () => {
+  it("returns kind=queued on a 422 credits_delta_invalid — slot persists for a fresher snapshot to pass", async () => {
+    // saveQueue classifies playtime/credits_delta_invalid as TRANSIENT — the
+    // server's comparison baseline may simply be stale (e.g. an earlier save
+    // got dropped), so a future attempt with a fresher snapshot might pass.
     fetchImpl.current = async () =>
       new Response(JSON.stringify({ error: "credits_delta_invalid" }), {
+        status: 422,
+        headers: { "content-type": "application/json" }
+      });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await saveNow();
+      expect(result.kind).toBe("queued");
+      if (result.kind === "queued") {
+        expect(result.message).toMatch(/sync automatically/);
+      }
+      const pending = readPendingSaveForTest();
+      expect(pending).not.toBeNull();
+      expect(pending?.attempts).toBe(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("returns kind=failed on a 422 mission_graph_invalid — slot dropped (permanent)", async () => {
+    // Schema/graph violations can't be fixed by retrying — drop the slot so
+    // the same bad snapshot doesn't burn attempts forever.
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify({ error: "mission_graph_invalid" }), {
         status: 422,
         headers: { "content-type": "application/json" }
       });
@@ -320,10 +346,7 @@ describe("saveNow", () => {
       expect(result.kind).toBe("failed");
       if (result.kind === "failed") {
         expect(result.status).toBe(422);
-        expect(result.message).toContain("credits delta");
       }
-      // Permanent rejection drops the pending slot — the same snapshot can't
-      // pass on retry against the server's last-saved row.
       expect(readPendingSaveForTest()).toBeNull();
     } finally {
       warnSpy.mockRestore();
