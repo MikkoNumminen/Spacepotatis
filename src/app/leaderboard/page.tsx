@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { getCombatMissions } from "@/game/data/missions";
 import Leaderboard from "@/components/Leaderboard";
 import LeaderboardBriefing from "@/components/LeaderboardBriefing";
 import TopPilots from "@/components/TopPilots";
-import { BUTTON_BACK } from "@/components/ui/buttonClasses";
+import StickyHeader from "@/components/ui/StickyHeader";
 import { ROUTES } from "@/lib/routes";
 
 // ISR: re-render at most every 60s. Each render goes through the cached
@@ -15,17 +14,9 @@ const COMBAT_MISSIONS = getCombatMissions();
 
 export default function LeaderboardPage() {
   return (
-    <main className="relative mx-auto flex min-h-dvh max-w-4xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10">
+    <main className="relative mx-auto flex min-h-dvh max-w-4xl flex-col gap-6 px-4 pb-6 sm:gap-8 sm:px-6 sm:pb-10">
       <LeaderboardBriefing />
-      <header className="flex flex-wrap items-center gap-4 sm:gap-5">
-        <Link
-          href={ROUTES.page.home}
-          className={BUTTON_BACK}
-        >
-          ← Back
-        </Link>
-        <h1 className="font-display text-2xl tracking-widest sm:text-3xl">LEADERBOARD</h1>
-      </header>
+      <StickyHeader backHref={ROUTES.page.home} title="LEADERBOARD" />
 
       <TopPilots limit={10} />
 
