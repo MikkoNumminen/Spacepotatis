@@ -9,10 +9,9 @@ import { z } from "zod";
 import {
   HANDLE_MAX_LENGTH,
   HANDLE_MIN_LENGTH,
+  HANDLE_PATTERN,
   type HandleValidation
 } from "@/lib/handle";
-
-const HANDLE_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 // .trim() runs as a transform so the parsed output is the cleaned handle,
 // which is exactly what the route writes to the DB. Length + pattern checks
