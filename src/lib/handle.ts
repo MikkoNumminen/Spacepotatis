@@ -4,7 +4,7 @@
 
 export const HANDLE_MIN_LENGTH = 3;
 export const HANDLE_MAX_LENGTH = 16;
-const HANDLE_PATTERN = /^[a-zA-Z0-9_-]+$/;
+export const HANDLE_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export type HandleValidation = { ok: true; handle: string } | { ok: false; reason: string };
 

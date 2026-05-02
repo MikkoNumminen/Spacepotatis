@@ -2,15 +2,11 @@ import { NextResponse } from "next/server";
 import { sql } from "kysely";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { validateHandle } from "@/lib/handle";
 import { upsertPlayerId } from "@/lib/players";
+import { HandlePayloadSchema } from "@/lib/schemas/handle";
 
 // Edge runtime — same reasoning as /api/save: Neon serverless + JWT auth().
 export const runtime = "edge";
-
-interface HandlePayload {
-  handle?: unknown;
-}
 
 // Postgres unique_violation. The Neon serverless driver surfaces pg-style
 // errors with `code` and `constraint` (constraint name) properties; check
@@ -54,17 +50,21 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let body: HandlePayload;
+  let raw: unknown;
   try {
-    body = (await request.json()) as HandlePayload;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
 
-  const result = validateHandle(body.handle);
-  if (!result.ok) {
-    return NextResponse.json({ error: "invalid_handle", reason: result.reason }, { status: 400 });
+  const parsed = HandlePayloadSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "validation_failed", issues: parsed.error.issues },
+      { status: 400 }
+    );
   }
+  const handle = parsed.data.handle;
 
   try {
     const db = getDb();
@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
     const conflict = await db
       .selectFrom("spacepotatis.players")
       .select("id")
-      .where(sql`LOWER(handle)`, "=", result.handle.toLowerCase())
+      .where(sql`LOWER(handle)`, "=", handle.toLowerCase())
       .where("id", "!=", playerId)
       .executeTakeFirst();
     if (conflict) {
@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
     try {
       await db
         .updateTable("spacepotatis.players")
-        .set({ handle: result.handle })
+        .set({ handle })
         .where("id", "=", playerId)
         .execute();
     } catch (err) {
@@ -101,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    return NextResponse.json({ handle: result.handle });
+    return NextResponse.json({ handle });
   } catch (err) {
     console.error("POST /api/handle failed:", err);
     const message = err instanceof Error ? err.message : String(err);
