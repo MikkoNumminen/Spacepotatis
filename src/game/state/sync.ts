@@ -28,6 +28,8 @@ import {
 } from "./saveQueue";
 import {
   getInflightLoad,
+  isHydrationCompleted,
+  markHydrationCompleted,
   setInflightLoad,
   setSaveCache,
   getSaveCache as getSaveCacheValue
@@ -69,21 +71,37 @@ async function doLoadSave(): Promise<boolean> {
   // Step 1 — fetch whatever the server has. Done first (synchronous prefix
   // before any `await`) so concurrent loadSave callers all observe the
   // fetch as already in-flight by the time they consult `inflight`.
+  //
+  // CRITICAL INVARIANT: only call `markHydrationCompleted()` on paths where
+  // we KNOW the server's authoritative state for this session. saveNow gates
+  // on the flag — leaving it false on a transient failure means saveNow
+  // skips the POST rather than clobbering the server save with INITIAL_STATE.
   let serverHydrated = false;
   try {
     const res = await fetch(ROUTES.api.save, { cache: "no-store" });
     if (res.status === 401) {
+      // Unauthenticated. saveNow handles 401 separately (queues without POST)
+      // and there is no server save to clobber for an anonymous user, so it
+      // is safe to mark hydration complete here.
       serverHydrated = false;
+      markHydrationCompleted();
     } else if (!res.ok) {
       // Surface server-side failures to the console — silent fallback to
       // INITIAL_STATE used to make a 500 indistinguishable from "no save yet"
       // and the user couldn't tell their save was actually unreachable.
+      // DO NOT mark hydration complete — saveNow must skip POSTs until a
+      // future load succeeds, otherwise INITIAL_STATE clobbers the real save.
       const detail = await res.text().catch(() => "");
       console.warn("loadSave: non-OK response", res.status, detail);
       serverHydrated = false;
     } else {
       const raw = (await res.json()) as unknown;
-      if (raw !== null) {
+      if (raw === null) {
+        // 200 + null body = no save row exists yet. Fresh authenticated user.
+        // GameState's INITIAL_STATE is the correct starting point; future
+        // saveNow calls are creating the first save, not clobbering one.
+        markHydrationCompleted();
+      } else {
         // Lazy-load the Zod schema only when we actually have a payload to
         // parse. Hoisting this import to module top would drag ~98 kB of
         // Zod into every route that touches sync.ts (landing's SignInButton,
@@ -99,6 +117,10 @@ async function doLoadSave(): Promise<boolean> {
             "\nraw:",
             JSON.stringify(raw, null, 2)
           );
+          // DELIBERATELY do not markHydrationCompleted: a parse failure means
+          // GameState was NOT hydrated from the server, so it's still at
+          // INITIAL_STATE. Letting saveNow POST that would wipe the real
+          // (just-unparseable-by-this-client) save row.
         } else {
           const body = parsed.data;
           const snapshot: Partial<StateSnapshot> = {
@@ -116,10 +138,13 @@ async function doLoadSave(): Promise<boolean> {
           };
           hydrate(snapshot);
           serverHydrated = true;
+          markHydrationCompleted();
         }
       }
     }
   } catch {
+    // Network error — leave hydrationCompleted at false so saveNow refuses
+    // to POST. The user's existing save (if any) stays intact on the server.
     serverHydrated = false;
   }
 
@@ -195,6 +220,26 @@ export async function flushSaveQueue(): Promise<FlushResult> {
 }
 
 export async function saveNow(): Promise<SyncResult> {
+  // Hydration guard. If loadSave hasn't positively determined the server's
+  // state for this session — schema rejection, 5xx, network error, or just
+  // "haven't tried yet" — the in-memory GameState may still be at
+  // INITIAL_STATE. POSTing it would wipe the player's real save server-side.
+  // The 2026-05-02 wipe (numminen.mikko.petteri@gmail.com) proved this
+  // happens in production; this gate is the matching defense to the
+  // server-side regression guard in saveValidation.ts.
+  //
+  // We do NOT markSavePending here either — the local pending queue would
+  // then persist INITIAL_STATE across reloads and override the next
+  // legitimate server load (see sync.ts step 2 in doLoadSave). Skip both.
+  if (!isHydrationCompleted()) {
+    console.warn(
+      "saveNow: skipped — hydration not complete; refusing to POST INITIAL_STATE"
+    );
+    return {
+      kind: "queued",
+      message: "Save deferred — waiting for cloud sync to confirm server state."
+    };
+  }
   const snap = toSnapshot();
   // Durability: the moment markSavePending returns, the snapshot SURVIVES
   // tab close, refresh, network drop, browser crash. Even if every retry

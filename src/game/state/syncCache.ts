@@ -24,10 +24,30 @@
 
 let cached: boolean | null = null;
 let inflight: Promise<boolean> | null = null;
+// Set true ONLY when loadSave has positively determined the server's state
+// for THIS browser session — either via a successful schema-parsed hydrate,
+// a confirmed "no save row yet" (200 + null body), or an unauthenticated
+// session (401). Failed parses, 5xx, and network errors leave it false.
+//
+// saveNow gates on this flag: when false, the in-memory GameState may still
+// be at INITIAL_STATE (load failed silently, leaving GameState untouched),
+// and POSTing that would WIPE the server's real save. The server-side
+// regression guard in saveValidation.ts is the matching defense — if this
+// flag fails open for any reason, the server still rejects the wipe.
+let hydrationCompleted = false;
 
 export function clearLoadSaveCache(): void {
   cached = null;
   inflight = null;
+  hydrationCompleted = false;
+}
+
+export function isHydrationCompleted(): boolean {
+  return hydrationCompleted;
+}
+
+export function markHydrationCompleted(): void {
+  hydrationCompleted = true;
 }
 
 // Read-only window into the cache. Hooks seed React initial state from

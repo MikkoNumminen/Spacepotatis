@@ -335,6 +335,100 @@ export function validatePlaytimeDelta(input: PlaytimeDeltaInput): ValidationResu
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// Save-state regression guard
+// ---------------------------------------------------------------------------
+// `validateCreditsDelta` and `validatePlaytimeDelta` only catch INFLATION —
+// cheating UP. They explicitly allow regression (credits going down, playtime
+// going down) because spending credits in the shop is a legitimate down-delta
+// for credits, and the playtime guard short-circuits on negative deltas.
+//
+// The hole that left: any client path that POSTs an empty/default snapshot
+// (credits=0, completedMissions=[], playedTimeSeconds=0) blows away a real
+// save. This is exactly what wiped numminen.mikko.petteri@gmail.com's row at
+// 2026-05-02 21:51:54 — months of progression destroyed by a single POST that
+// the server happily accepted because the down-delta passed the cheat checks.
+//
+// This guard rejects three monotonic-field regressions. Each field NEVER
+// decreases under normal play, so a strictly-shrinking POST is a wipe signal:
+//
+//   1. completedMissions shrunk — no "un-complete" mutator exists.
+//   2. unlockedPlanets shrunk — no "lock a planet" mutator exists.
+//   3. playedTimeSeconds dropped — only addPlayedTime ever moves it, and
+//      it's strictly additive (an equal value means "same save instant",
+//      a smaller value means a regression).
+//
+// We deliberately do NOT guard credits — the market drains credits and a
+// legitimate full-spend looks like a regression-to-zero. The three monotonic
+// fields above already catch every realistic wipe pattern: a player with
+// non-zero credits has played the game, so they have prior playtime and at
+// least one completed mission, both of which the wipe collapses to zero.
+//
+// Pure function so the route can call it after the existing graph/playtime/
+// credits guards without any I/O.
+
+export interface RegressionGuardInput {
+  readonly prev: {
+    readonly playedTimeSeconds: number;
+    readonly completedMissions: readonly MissionId[];
+    readonly unlockedPlanets: readonly MissionId[];
+  } | null;
+  readonly next: {
+    readonly playedTimeSeconds: number;
+    readonly completedMissions: readonly MissionId[];
+    readonly unlockedPlanets: readonly MissionId[];
+  };
+}
+
+export function validateNoRegression(input: RegressionGuardInput): ValidationResult {
+  const { prev, next } = input;
+  // No prior row → first save → nothing to regress from.
+  if (!prev) return { ok: true };
+
+  // Mission list shrank. Even one mission missing is a regression — clients
+  // never un-complete missions.
+  const missingMissions = setDifference(prev.completedMissions, next.completedMissions);
+  if (missingMissions.length > 0) {
+    return {
+      ok: false,
+      error: `completedMissions regressed — missing previously-completed: ${missingMissions.join(", ")}`
+    };
+  }
+
+  // Unlocks shrank. Symmetric to completedMissions — clients never lock a
+  // planet. Without this check, a wipe could erase a player's hard-earned
+  // unlocks even if their completedMissions list happened to survive.
+  const missingUnlocks = setDifference(prev.unlockedPlanets, next.unlockedPlanets);
+  if (missingUnlocks.length > 0) {
+    return {
+      ok: false,
+      error: `unlockedPlanets regressed — missing previously-unlocked: ${missingUnlocks.join(", ")}`
+    };
+  }
+
+  // Playtime moved backwards. Equal is fine (no-op save), strictly less is not.
+  if (next.playedTimeSeconds < prev.playedTimeSeconds) {
+    return {
+      ok: false,
+      error: `playedTimeSeconds regressed from ${prev.playedTimeSeconds} to ${next.playedTimeSeconds}`
+    };
+  }
+
+  return { ok: true };
+}
+
+function setDifference(
+  prev: readonly MissionId[],
+  next: readonly MissionId[]
+): MissionId[] {
+  const nextSet = new Set(next);
+  const missing: MissionId[] = [];
+  for (const id of prev) {
+    if (!nextSet.has(id)) missing.push(id);
+  }
+  return missing;
+}
+
 function safeGetMission(id: MissionId) {
   try {
     return getMission(id);

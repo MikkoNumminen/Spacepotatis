@@ -8,6 +8,7 @@ import {
   computeCreditCapsForPlayer,
   validateCreditsDelta,
   validateMissionGraph,
+  validateNoRegression,
   validatePlaytimeDelta
 } from "@/lib/saveValidation";
 import type { MissionId } from "@/types/game";
@@ -116,7 +117,13 @@ export async function POST(request: Request): Promise<Response> {
     // against zero, and the playtime check is skipped.
     const prevRow = await db
       .selectFrom("spacepotatis.save_games")
-      .select(["credits", "played_time_seconds", "completed_missions", "updated_at"])
+      .select([
+        "credits",
+        "played_time_seconds",
+        "completed_missions",
+        "unlocked_planets",
+        "updated_at"
+      ])
       .where("player_id", "=", playerId)
       .where("slot", "=", 1)
       .executeTakeFirst();
@@ -130,6 +137,43 @@ export async function POST(request: Request): Promise<Response> {
             : 0
         }
       : null;
+
+    // Save-state regression guard. Catches the wipe pattern where a buggy
+    // client POSTs INITIAL_STATE on top of an existing save (credits=0,
+    // completedMissions=[], playtime=0). The cheat-delta guards below only
+    // catch INFLATION, not regression — this is the matching defense. We
+    // need prevRow's `unlocked_planets` here too, so the column has been
+    // added to the prevRow select above.
+    const prevForRegression = prevRow
+      ? {
+          playedTimeSeconds: prevRow.played_time_seconds,
+          completedMissions: Array.isArray(prevRow.completed_missions)
+            ? (prevRow.completed_missions as readonly MissionId[])
+            : [],
+          unlockedPlanets: Array.isArray(prevRow.unlocked_planets)
+            ? (prevRow.unlocked_planets as readonly MissionId[])
+            : []
+        }
+      : null;
+    const regressionResult = validateNoRegression({
+      prev: prevForRegression,
+      next: {
+        playedTimeSeconds,
+        completedMissions,
+        unlockedPlanets
+      }
+    });
+    if (!regressionResult.ok) {
+      console.warn(
+        "[/api/save] regression rejected",
+        session.user.email,
+        regressionResult.error
+      );
+      return NextResponse.json(
+        { error: "save_regression", message: regressionResult.error },
+        { status: 422 }
+      );
+    }
 
     // Playtime first: the credits cap depends on `playedTimeSeconds`, so
     // catching an inflated playtime here prevents the inflated value from

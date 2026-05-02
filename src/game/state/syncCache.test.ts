@@ -3,7 +3,9 @@ import {
   clearLoadSaveCache,
   getInflightLoad,
   getSaveCache,
+  isHydrationCompleted,
   isSaveCached,
+  markHydrationCompleted,
   setInflightLoad,
   setSaveCache
 } from "./syncCache";
@@ -54,5 +56,24 @@ describe("syncCache", () => {
     expect(getInflightLoad()).toBe(promise);
     setInflightLoad(null);
     expect(getInflightLoad()).toBeNull();
+  });
+
+  // Hydration flag — the saveNow gate that prevents INITIAL_STATE wipes
+  // when loadSave hasn't proven the server's state for this session.
+  it("hydrationCompleted starts false (load not yet attempted)", () => {
+    expect(isHydrationCompleted()).toBe(false);
+  });
+
+  it("markHydrationCompleted flips it true", () => {
+    expect(isHydrationCompleted()).toBe(false);
+    markHydrationCompleted();
+    expect(isHydrationCompleted()).toBe(true);
+  });
+
+  it("clearLoadSaveCache resets hydrationCompleted to false", () => {
+    markHydrationCompleted();
+    expect(isHydrationCompleted()).toBe(true);
+    clearLoadSaveCache();
+    expect(isHydrationCompleted()).toBe(false);
   });
 });
