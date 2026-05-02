@@ -10,13 +10,6 @@ vi.mock("@/lib/players", () => ({
   upsertPlayerId: (...args: unknown[]) => upsertMock(...args)
 }));
 
-vi.mock("@/lib/handle", () => ({
-  validateHandle: (raw: unknown) => {
-    if (typeof raw !== "string") return { ok: false, reason: "Handle is required." };
-    if (raw.length < 3) return { ok: false, reason: "too short" };
-    return { ok: true, handle: raw };
-  }
-}));
 
 const dbStub: {
   selectHandleRow: { handle: string | null } | undefined;
@@ -150,16 +143,43 @@ describe("POST /api/handle", () => {
     expect(await res.json()).toEqual({ error: "bad_json" });
   });
 
-  it("returns 400 invalid_handle when validateHandle rejects", async () => {
+  it("returns 400 validation_failed when the schema rejects (too short)", async () => {
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
     const { POST } = await loadRoute();
     const res = await POST(
       new Request("http://x/api/handle", { method: "POST", body: JSON.stringify({ handle: "ab" }) })
     );
     expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string; reason: string };
-    expect(body.error).toBe("invalid_handle");
-    expect(body.reason).toBe("too short");
+    const body = (await res.json()) as { error: string; issues: { message: string }[] };
+    expect(body.error).toBe("validation_failed");
+    expect(Array.isArray(body.issues)).toBe(true);
+    expect(body.issues.length).toBeGreaterThan(0);
+  });
+
+  it("returns 400 validation_failed when the handle field is missing", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/handle", { method: "POST", body: JSON.stringify({}) })
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; issues: unknown[] };
+    expect(body.error).toBe("validation_failed");
+    expect(Array.isArray(body.issues)).toBe(true);
+  });
+
+  it("returns 400 validation_failed when the handle contains disallowed characters", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/handle", {
+        method: "POST",
+        body: JSON.stringify({ handle: "spud king!" })
+      })
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("validation_failed");
   });
 
   it("returns 409 handle_taken when the case-insensitive probe finds a conflict", async () => {
