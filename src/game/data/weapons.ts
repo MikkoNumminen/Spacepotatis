@@ -1,11 +1,21 @@
 // Pure data accessors for weapons.json. Separated from WeaponSystem so the
 // React shop can read weapon metadata without pulling Phaser into an SSG
 // bundle (Phaser touches `window` at import time).
+//
+// weapons.json is parsed through WeaponsFileSchema at module load so a
+// drifted entry (missing field, wrong type, unknown enum) throws here with a
+// helpful Zod path rather than feeding a NaN/undefined into the firing math
+// at runtime. Mirrors the missions.ts / enemies.ts / waves.ts /
+// solarSystems.ts boot-parse pattern.
 import weaponsData from "./weapons.json";
 import type { WeaponDefinition, WeaponId } from "@/types/game";
+import { WeaponsFileSchema } from "@/lib/schemas/weapons";
+
+const PARSED = WeaponsFileSchema.parse(weaponsData);
+const ALL_WEAPONS: readonly WeaponDefinition[] = PARSED.weapons;
 
 const WEAPONS: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(
-  (weaponsData.weapons as readonly WeaponDefinition[]).map((w) => [w.id, w])
+  ALL_WEAPONS.map((w) => [w.id, w])
 );
 
 export function getWeapon(id: WeaponId): WeaponDefinition {
@@ -15,7 +25,7 @@ export function getWeapon(id: WeaponId): WeaponDefinition {
 }
 
 export function getAllWeapons(): readonly WeaponDefinition[] {
-  return weaponsData.weapons as readonly WeaponDefinition[];
+  return ALL_WEAPONS;
 }
 
 // Pure stat derivations — kept here so UI never recomputes them inline.
