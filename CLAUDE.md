@@ -175,7 +175,26 @@ Migrations are run **out-of-band** against the Neon direct (non-pooled) URL:
 
 ```bash
 DATABASE_URL="<neon-direct-url>" npm run db:migrate
+# or, if dbmate isn't installed:
+node --env-file=.env.local scripts/migrate.mjs
 ```
+
+### 7a. Migration shipping rule (HARD RULE)
+
+**Any PR that adds a new file under [db/migrations/](db/migrations/) is NOT done until the migration has been applied to production.** Period. Merging schema-referencing code without applying the migration produces 500s on every API call that hits the new column/table — and unlike a code bug, it can't be diagnosed from the modal alone (the catch block returns `{error: "server_error"}` and the only signal in Vercel logs is `console.error` output that's easy to miss).
+
+This bit us once already: PR #89 (the story-log feature) added `seen_story_entries TEXT[]` and the migration sat unapplied for 3 days. Every save POST 500'd; players' progression silently failed to persist. The recovery cost was hours of log-spelunking and a separate save-durability layer to mask future occurrences.
+
+The contract:
+
+1. **Adding a migration in a PR.** PR description MUST include a checkbox "Migration applied to prod" alongside the usual ones. The reviewer's merge button is gated on that checkbox.
+2. **Applying the migration.** Run before — or at the latest **immediately after** — merging the PR:
+   ```bash
+   node --env-file=.env.local scripts/migrate.mjs
+   ```
+   The runner is idempotent (tracks applied versions in `public.spacepotatis_schema_migrations`), so re-running after a failure or partial apply is safe.
+3. **Verifying.** Run [scripts/check-schema.mjs](scripts/check-schema.mjs) to confirm the new column / table is present. Output is read-only.
+4. **If you can't apply it now, don't merge yet.** Migrations and the code referencing them must land on prod together. A merge that ships the code first is broken-by-design until the migration runs — and Vercel's deploy-on-push will publish the broken code seconds after the merge.
 
 ## 8. Commit and PR hygiene
 
@@ -193,6 +212,7 @@ DATABASE_URL="<neon-direct-url>" npm run db:migrate
 - **No heavy server compute.** If a task requires server-side game logic, pause and ask.
 - **No game balance constants in code.** They belong in [src/game/data/](src/game/data/).
 - **No `any` types.** Full stop. **No `as` casts at the network edge** — use Zod schemas in [src/lib/schemas/](src/lib/schemas/).
+- **No merging schema-touching code without applying the migration to prod.** See §7a — adding a SQL file under `db/migrations/` is half the work; running it on prod is the other half. PRs that add a migration are not done until both halves land. Every save POST will 500 if the column doesn't exist, and the symptom (modal saying `server_error`) is easy to mistake for a code bug.
 - **Don't bypass the cheat guards.** `/api/save` and `/api/leaderboard` enforce mission-graph + credits-delta + playtime-delta + leaderboard-completion checks via [src/lib/saveValidation.ts](src/lib/saveValidation.ts). The credit caps auto-derive from `enemies.json` + `lootPools.ts` + the player's stored `completedMissions` — a 10× balance change scales the caps 10× automatically. **Don't replace the derivation with hard-coded constants** "for simplicity" — that's exactly the rake we already stepped on once.
 - **No string-keyed Phaser events or registry access.** Use the typed wrappers in [src/game/phaser/events.ts](src/game/phaser/events.ts) and [src/game/phaser/registry.ts](src/game/phaser/registry.ts).
 - **MVP scope is capped.** See [TODO.md](TODO.md) "Out of scope for MVP".

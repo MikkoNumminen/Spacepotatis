@@ -3,6 +3,13 @@
 // Save/load sync against /api/save and /api/leaderboard.
 // Every call is best-effort — a missing auth session or failed fetch must not
 // break gameplay. The game stays playable offline; persistence is a bonus.
+//
+// Save durability — see saveQueue.ts. Every saveNow() goes through the
+// pending-save slot in localStorage so a network drop, 5xx, or tab close
+// can't lose the snapshot. On boot (loadSave), we flush the slot before
+// hitting the server so the server's GET reflects the freshest state, and
+// fall back to hydrating from the local snapshot if the flush couldn't
+// reach the network.
 
 import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
 import { ROUTES } from "@/lib/routes";
@@ -12,6 +19,18 @@ import {
   type DrainResult,
   type ScorePostFn
 } from "./scoreQueue";
+import {
+  flushPendingSave,
+  markSavePending,
+  readPendingSaveForTest,
+  SAVE_QUEUED_MESSAGE,
+  type FlushResult,
+  type SavePostFn
+} from "./saveQueue";
+
+// Re-export FlushResult so tests / future external callers can type-check
+// against the narrow shape without reaching into saveQueue directly.
+export type { FlushResult };
 
 // Module-level cache + in-flight de-dup. Both useCloudSaveSync (which
 // hydrates the GameState) and useOptimisticAuth (which only needs to know
@@ -54,52 +73,78 @@ export async function loadSave(): Promise<boolean> {
 }
 
 async function doLoadSave(): Promise<boolean> {
+  // Step 1 — fetch whatever the server has. Done first (synchronous prefix
+  // before any `await`) so concurrent loadSave callers all observe the
+  // fetch as already in-flight by the time they consult `inflight`.
+  let serverHydrated = false;
   try {
     const res = await fetch(ROUTES.api.save, { cache: "no-store" });
-    if (res.status === 401) return false;
-    if (!res.ok) {
+    if (res.status === 401) {
+      serverHydrated = false;
+    } else if (!res.ok) {
       // Surface server-side failures to the console — silent fallback to
       // INITIAL_STATE used to make a 500 indistinguishable from "no save yet"
       // and the user couldn't tell their save was actually unreachable.
       const detail = await res.text().catch(() => "");
       console.warn("loadSave: non-OK response", res.status, detail);
-      return false;
+      serverHydrated = false;
+    } else {
+      const raw = (await res.json()) as unknown;
+      if (raw !== null) {
+        const parsed = RemoteSaveSchema.safeParse(raw);
+        if (!parsed.success) {
+          console.warn(
+            "loadSave: schema rejected save row\nissues:",
+            JSON.stringify(parsed.error.issues, null, 2),
+            "\nraw:",
+            JSON.stringify(raw, null, 2)
+          );
+        } else {
+          const body = parsed.data;
+          const snapshot: Partial<StateSnapshot> = {
+            credits: body.credits,
+            completedMissions: [...body.completedMissions],
+            unlockedPlanets: [...body.unlockedPlanets],
+            playedTimeSeconds: body.playedTimeSeconds,
+            // The schema accepts both new and legacy ship shapes via union;
+            // hydrate → migrateShip handles the runtime narrowing into the
+            // strict ShipConfig. The cast through unknown is the standard
+            // "trust runtime validation" pattern at this boundary.
+            ship: body.shipConfig as unknown as StateSnapshot["ship"],
+            saveSlot: body.slot,
+            seenStoryEntries: (body.seenStoryEntries ?? []) as StateSnapshot["seenStoryEntries"]
+          };
+          hydrate(snapshot);
+          serverHydrated = true;
+        }
+      }
     }
-    const raw = (await res.json()) as unknown;
-    if (raw === null) return false;
-
-    const parsed = RemoteSaveSchema.safeParse(raw);
-    if (!parsed.success) {
-      console.warn(
-        "loadSave: schema rejected save row\nissues:",
-        JSON.stringify(parsed.error.issues, null, 2),
-        "\nraw:",
-        JSON.stringify(raw, null, 2)
-      );
-      return false;
-    }
-    const body = parsed.data;
-
-    // shipConfig already passes the legacy-or-new union; hydrate -> migrateShip
-    // does the real cleanup (drops unknown ids, clamps levels).
-    const snapshot: Partial<StateSnapshot> = {
-      credits: body.credits,
-      completedMissions: [...body.completedMissions],
-      unlockedPlanets: [...body.unlockedPlanets],
-      playedTimeSeconds: body.playedTimeSeconds,
-      // The schema accepts both new and legacy ship shapes via union; hydrate
-      // → migrateShip handles the runtime narrowing into the strict
-      // ShipConfig. The cast through unknown is the standard "trust runtime
-      // validation" pattern at this boundary.
-      ship: body.shipConfig as unknown as StateSnapshot["ship"],
-      saveSlot: body.slot,
-      seenStoryEntries: (body.seenStoryEntries ?? []) as StateSnapshot["seenStoryEntries"]
-    };
-    hydrate(snapshot);
-    return true;
   } catch {
-    return false;
+    serverHydrated = false;
   }
+
+  // Step 2 — if there's a pending save in localStorage, it represents the
+  // FRESHEST player state (it was written by saveNow's markSavePending
+  // before the POST that eventually failed / was interrupted). Override
+  // any server hydrate above — pending is strictly newer.
+  //
+  // INVARIANT: never extend the saveQueue snapshot shape ahead of its
+  // consumer. hydrate() REPLACES (missing keys fall back to INITIAL_STATE,
+  // see persistence.ts). If a future deploy adds new StateSnapshot fields
+  // to markSavePending BEFORE the matching reader lands, this hydrate would
+  // clobber the just-loaded server state with INITIAL_STATE defaults. Bump
+  // the saveQueue `:v1` schema (with a migrator) when the shape changes.
+  const pending = readPendingSaveForTest();
+  if (pending) {
+    hydrate(pending.snapshot as unknown as Partial<StateSnapshot>);
+  }
+
+  // Step 3 — kick a background flush so the pending save catches up to the
+  // server without blocking the splash. Failures self-heal on the next
+  // visibility / online / mount trigger.
+  void flushSaveQueue();
+
+  return serverHydrated || pending !== null;
 }
 
 // Structured outcome from saveNow. GameCanvas surfaces this in the
@@ -108,40 +153,80 @@ async function doLoadSave(): Promise<boolean> {
 // undebuggable from the user's seat. The `message` field is intentionally
 // short and human-readable; the raw server response goes to console.warn
 // for developer detail.
+//
+// Three outcomes:
+//  - kind: "ok"      — server accepted the save. Slot is empty.
+//  - kind: "queued"  — POST didn't land (network / 5xx / 401), but the
+//                      snapshot is durable in localStorage. Will retry on
+//                      mount / visibility / online / sign-in. Player can
+//                      reload, kill the tab, etc. without losing progress.
+//  - kind: "failed"  — server permanently rejected (400 schema, 422
+//                      cheat-guard). Replay of THIS snapshot can't pass.
+//                      Slot is empty.
 export type SyncResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly status: number; readonly message: string };
+  | { readonly kind: "ok" }
+  | { readonly kind: "queued"; readonly message: string }
+  | { readonly kind: "failed"; readonly status: number; readonly message: string };
 
-export async function saveNow(): Promise<SyncResult> {
-  const snap = toSnapshot();
+const queueAwareSaveSubmit: SavePostFn = async (snapshot) => {
   try {
     const res = await fetch(ROUTES.api.save, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(snap)
+      body: JSON.stringify(snapshot)
     });
-    // After a successful POST, the server now definitely has a save row,
-    // so any future loadSave() should report hasSave=true without re-fetching.
-    if (res.ok) {
-      cached = true;
-      return { ok: true };
-    }
-    // Surface server rejections (422 cheat-guard, 400 schema) to the
-    // console for developer detail. Cheat attempts show up here too, but
-    // that's fine: a determined cheater can read network responses
-    // anyway, this just keeps honest players informed.
+    if (res.ok) return { ok: true };
     const detail = await res.text().catch(() => "");
     console.warn("saveNow: server rejected save", res.status, detail);
-    return { ok: false, status: res.status, message: humanizeSaveError(res.status, detail) };
+    return { ok: false, status: res.status, errorCode: parseErrorCode(detail) };
   } catch (err) {
-    // Network unreachable, CORS, etc. The snapshot stays in memory; next
-    // save attempt will retry.
-    return {
-      ok: false,
-      status: 0,
-      message: `Network error — couldn't reach the save server (${describeError(err)})`
-    };
+    console.warn("saveNow: network error", describeError(err));
+    return { ok: false, status: 0, errorCode: null };
   }
+};
+
+// Push the pending save (if any) to the server. Safe to call from anywhere —
+// no-op when the slot is empty, never throws, shares an in-flight flush with
+// concurrent callers (no duplicate POSTs). GameCanvas auto-drives this on
+// mount, on visibilitychange→visible, on `online`, and on auth change to
+// authenticated, so a transient failure self-heals without user action.
+export async function flushSaveQueue(): Promise<FlushResult> {
+  return flushPendingSave(queueAwareSaveSubmit);
+}
+
+export async function saveNow(): Promise<SyncResult> {
+  const snap = toSnapshot();
+  // Durability: the moment markSavePending returns, the snapshot SURVIVES
+  // tab close, refresh, network drop, browser crash. Even if every retry
+  // below fails, the next mount/visibility/online/sign-in trigger replays
+  // it. This is what was missing before — saveNow used to return "ok=false"
+  // on a 5xx and the snapshot evaporated; reload showed older server state.
+  markSavePending(snap as unknown as Record<string, unknown>);
+
+  const result = await flushSaveQueue();
+
+  if (result.kind === "ok") {
+    cached = true;
+    return { kind: "ok" };
+  }
+  if (result.kind === "noop") {
+    // Defensive: shouldn't happen — we just markSavePending'd. If the slot
+    // disappeared (concurrent clearSaveQueue?), treat as ok since there's
+    // no work outstanding.
+    return { kind: "ok" };
+  }
+  if (result.kind === "queued" || result.kind === "anonymous") {
+    // Network / 5xx / 401 — snapshot is durable and will retry. Player-facing
+    // message is centralized in saveQueue.ts.
+    return { kind: "queued", message: SAVE_QUEUED_MESSAGE };
+  }
+  // result.kind === "failed" — permanent rejection (400 / 422). Snapshot
+  // dropped from the queue.
+  return {
+    kind: "failed",
+    status: result.status,
+    message: humanizeSaveError(result.status, result.errorCode)
+  };
 }
 
 // Single-source-of-truth POST to /api/leaderboard. Returns the raw shape
@@ -178,8 +263,7 @@ export async function drainScoreQueue(): Promise<DrainResult> {
 // from the route's error responses when present so a writer of a new guard
 // (e.g. mission_not_completed) gets informative output without changing
 // this code. Falls back to a generic per-status hint.
-function humanizeSaveError(status: number, body: string): string {
-  const errCode = parseErrorCode(body);
+function humanizeSaveError(status: number, errCode: string | null): string {
   if (status === 401) return "Sign in to save your progress.";
   if (status === 400) return `Save rejected (validation failed${errCode ? `: ${errCode}` : ""}).`;
   if (status === 422) {
