@@ -10,14 +10,14 @@ Invoke on `/content-audit`, "is the content safe to commit," or before a PR touc
 1. **Smoke check (covered by vitest)** — Build `enemyIds = Set(enemies[].id)` from `enemies.json`; for every `missions[].waves[].spawns[].enemy` in `waves.json`, verify membership. Covered by `data.test.ts` — re-report so a skipped-test run still flags drift.
 2. **Orphan weapon refs in shop entries** — From `weapons.json` build `weaponIds`. In `missions.json`, for every `kind: "shop"` mission scan any weapon-listing field (`shopWeapons`, `inventory`, …). If absent on every shop, report "no shop weapon list yet — skipped" (today's shop sources inventory dynamically via `lootPools.ts` — see step 9). Otherwise verify each id.
 3. **Sprite-key coverage** — Grep `BootScene.generateTextures()` for the first arg of every `draw*("key", …)` to build `bootSceneKeys`. Required keys:
-   - `enemy.spriteKey` from `enemies.json` (today: 16 — `enemy-aphid{,-giant,-queen,-empress}`, `enemy-beetle-{scarab,rhino,stag}`, `enemy-caterpillar-{hornworm,army,monarch}`, `enemy-spider-{wolf,widow,jumper}`, `enemy-dragonfly-{common,heli,damsel}`).
+   - `enemy.spriteKey` from `enemies.json` (today: 23 — `enemy-aphid{,-giant,-queen,-empress}`, `enemy-beetle-{scarab,rhino,stag}`, `enemy-caterpillar-{hornworm,army,monarch}`, `enemy-spider-{wolf,widow,jumper}`, `enemy-dragonfly-{common,heli,damsel}`, `enemy-pirate-{skiff,cutlass,marauder,corsair,frigate,galleon,dreadnought}`).
    - perk `textureKey` from `perks.ts` (today: `perk-overdrive`, `perk-hardened`, `perk-emp`).
    - `bulletSprite` + `podSprite` from `weapons.json` (today bullets: `bullet-potato{,-idaho,-yukon,-redbliss}`, `bullet-carrot-{chantenay,imperator,nantes}`, `bullet-turnip-{tokyo,milan}`; pods: `pod-{potato,carrot,turnip}`).
    - hard-coded combat keys: `player-ship`, `bullet-friendly`, `bullet-hostile`, `powerup-{shield,credit,weapon}`, `particle-spark`.
    Pass if key is in `bootSceneKeys` OR a file at `public/sprites/**` matches it.
 4. **Bullet/pod sprite orphan refs** — For each weapon with explicit `bulletSprite` / `podSprite`, verify generated in `BootScene.ts`. Default `bulletSprite` is `bullet-friendly`; `podSprite` is optional (omitted = invisible). Most common breakage today since every weapon ships a bespoke bullet sprite.
 5. **Active-perk handler coverage** — `perks.ts` schema is `type: "active" | "passive"` (NOT `kind`). For every `type === "active"` id, confirm in `src/game/phaser/scenes/combat/PerkController.ts`: (a) a `case "<id>":` in `apply()` increments the resource, (b) `triggerActive()` consumes it. Also confirm `keydown-CTRL` in `CombatScene.ts` calls `perks.triggerActive()` (keybind lives outside PerkController).
-6. **Behavior-string coverage** — Distinct `behavior` values in `enemies.json` (today: `straight`, `zigzag`, `homing`, `boss`) must each have a `case` in `Enemy.preUpdate`'s `switch (def.behavior)` (around `Enemy.ts:105-126`).
+6. **Behavior-string coverage** — Distinct `behavior` values in `enemies.json` (today: `straight`, `zigzag`, `homing`, `boss`) must each have a `case` in `Enemy.preUpdate`'s `switch (def.behavior)` (around `Enemy.ts:104-130`).
 7. **Perk drop-weight sanity** — Current schema has NO `weight` field; `randomPerkId()` is uniform. Pass with note "uniform — N perks at 1/N each." If `weight` is added: each must be positive, sum > 0, flag any perk holding >80% of total.
 8. **Mission prereq DAG** — Build `missionIds`. For each mission, every `requires[]` entry must resolve. DFS for cycles; flag the cycle path. Confirm ≥1 mission has `requires: []`. First three are vitest-covered; cycle check is NOT — re-run defensively.
 9. **Loot-pool integrity** — For every `POOLS` entry in `lootPools.ts`:
@@ -33,8 +33,8 @@ Invoke on `/content-audit`, "is the content safe to commit," or before a PR touc
     - If `musicTrack !== null`, file must exist (most modal entries reuse `/audio/story/great-potato-awakening-music.ogg`).
     - `autoTrigger.kind === "on-mission-select"` → `missionId` resolves in `missions.json`.
     - `autoTrigger.kind` ∈ `{"on-system-enter", "on-system-cleared-idle"}` → `systemId` resolves in `solarSystems.json`.
-    - Every `StoryId` union member (`story.ts:37-44`) has an entry, and vice versa.
-12. **storyTriggers helper coverage** — `StoryAutoTrigger` kinds (`story.ts:46-56`): `first-time`, `on-mission-select`, `on-shop-open`, `on-system-enter`, `on-system-cleared-idle`. Galaxy-view kinds need a matching `select*Entry` exported from `storyTriggers.ts` (today: `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`). `on-shop-open` is the documented exception — fired inline by `src/components/ShopUI.tsx` (see comment at `useStoryTriggers.ts:29`). Flag any new galaxy-view kind without a helper.
+    - Every `StoryId` union member (`story.ts:43-50`) has an entry, and vice versa.
+12. **storyTriggers helper coverage** — `StoryAutoTrigger` kinds (`story.ts:52-68`): `first-time`, `on-mission-select`, `on-shop-open`, `on-system-enter`, `on-system-cleared-idle`. Galaxy-view kinds need a matching `select*Entry` exported from `storyTriggers.ts` (today: `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`). `on-shop-open` is the documented exception — fired inline by `src/components/ShopUI.tsx` (see comment at `useStoryTriggers.ts:29`). Flag any new galaxy-view kind without a helper.
 13. **Music track refs** — For every mission with `musicTrack !== null`, check `public/<musicTrack>` exists; same for story `musicTrack`. Missing mission music = "no audio file yet (placeholder)" (soft) — list each missing path. Missing story voice file IS a hard fail (voice files exist today). Also check every `solarSystems.json` `galaxyMusicTrack` resolves under `public/audio/music/` — that file is REQUIRED (the menu/galaxy bed swaps to it on system enter via `MenuMusic.tsx`); missing IS a hard fail.
 
 # Invariants this skill enforces
@@ -108,7 +108,7 @@ Markdown report, this shape:
 
 `✓` pass, `✗` fail, `⚠` placeholder/note. Cite file paths + line numbers when fact lives at a specific line. End with `**Summary: PASS**` or `**Summary: FAIL (N issues)**` (N counts only `✗`; `⚠` doesn't count).
 
-Today's totals (sanity baseline; verify via `grep -c '"id":' …` if diff suggests drift): **16 enemies, 9 weapons, 9 missions, 2 solar systems, 7 stories, 5 augments, 3 perks**.
+Today's totals (sanity baseline; verify via `grep -c '"id":' …` if diff suggests drift): **23 enemies, 9 weapons, 9 missions, 2 solar systems, 7 stories, 5 augments, 3 perks**.
 
 # Constraints
 - Read-only. Never edit/stage/commit.

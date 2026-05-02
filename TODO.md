@@ -151,7 +151,7 @@ A 4-wave audit (foundation → safety net → god-module splits → polish) land
 
 - ~~**`.claude/skills/*/SKILL.md`** still reference the pre-rename `src/game/phaser/data/` paths.~~ **DONE** — all current `.claude/skills/*/SKILL.md` files point at `src/game/data/`. (Stale references survive only inside `.claude/worktrees/` agent snapshots, which never load.)
 - ~~**Optional Zod boot-time parse of `src/game/data/missions.json`**~~ **DONE** — `MissionsFileSchema` in [src/lib/schemas/missions.ts](src/lib/schemas/missions.ts) parses `missions.json` at module load via [src/game/data/missions.ts](src/game/data/missions.ts); negative-case contract tests in [src/lib/schemas/missions.test.ts](src/lib/schemas/missions.test.ts). The other accessors (weapons / enemies / waves / solarSystems) still rely on plain `as` casts; if/when one drifts in the wild, adopt the same pattern.
-- **CombatScene at 216 LOC** is at the suggested 300-LOC ceiling — justified by its orchestrator role, but worth flagging. If it grows further, split out the next responsibility (likely spawn or HUD wiring) rather than letting it drift.
+- **CombatScene at ~241 LOC** is below the suggested 300-LOC ceiling but climbing — justified by its orchestrator role, but worth flagging. If it grows further, split out the next responsibility (likely spawn or HUD wiring) rather than letting it drift. (216 was the immediate post-audit baseline.)
 
 ---
 
