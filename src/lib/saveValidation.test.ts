@@ -13,6 +13,11 @@ import {
   validatePlaytimeDelta
 } from "./saveValidation";
 
+// Fixed reference point so all wall-clock math is deterministic. Used by
+// every validatePlaytimeDelta test.
+const T0 = new Date("2026-04-28T12:00:00.000Z");
+const T0_MS = T0.getTime();
+
 describe("validateMissionGraph", () => {
   it("accepts an empty save", () => {
     expect(
@@ -159,10 +164,6 @@ describe("validateCreditsDelta", () => {
 });
 
 describe("validatePlaytimeDelta", () => {
-  // Fixed reference point so all wall-clock math is deterministic.
-  const T0 = new Date("2026-04-28T12:00:00.000Z");
-  const T0_MS = T0.getTime();
-
   it("allows the first save (no prev row)", () => {
     expect(
       validatePlaytimeDelta({
@@ -448,9 +449,6 @@ describe("validatePlaytimeDelta boundary at exactly nowMs === prevUpdatedMs", ()
   // wallClockSeconds = max(0, (nowMs - prevUpdatedMs) / 1000) → 0 for a
   // simultaneous-millisecond double-save. allowedDelta is exactly the
   // PLAYTIME_DELTA_SLACK_SECONDS slack.
-  const T0 = new Date("2026-04-28T12:00:00.000Z");
-  const T0_MS = T0.getTime();
-
   it("accepts a delta within the slack when nowMs === prevUpdatedMs", () => {
     expect(
       validatePlaytimeDelta({

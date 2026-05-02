@@ -21,6 +21,10 @@ const fetchImpl: { current: (input: string, init?: RequestInit) => Promise<Respo
   current: async () => new Response(null, { status: 200 })
 };
 
+// Most cases either expect or tolerate a console.warn from the failure-path
+// branches; spying once in beforeEach avoids re-spying in every individual
+// test (and the cases that assert on the warning use vi.mocked(console.warn)
+// directly).
 beforeEach(() => {
   fetchCalls.length = 0;
   fetchImpl.current = async () => new Response(null, { status: 200 });
@@ -33,6 +37,7 @@ beforeEach(() => {
   // the production behavior, but each test case needs a fresh slate so a
   // 401 fixture in one case doesn't leak into a 200 fixture in the next.
   clearLoadSaveCache();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
   vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     fetchCalls.push({ input: url, init });
@@ -42,29 +47,30 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("loadSave", () => {
-  it("returns false when the API replies 401 (anonymous play)", async () => {
-    fetchImpl.current = async () => new Response("unauthorized", { status: 401 });
-    expect(await loadSave()).toBe(false);
-  });
-
-  it("returns false on a 500 response", async () => {
-    fetchImpl.current = async () => new Response("oops", { status: 500 });
-    expect(await loadSave()).toBe(false);
-  });
-
-  it("returns false on a network/transport error", async () => {
-    fetchImpl.current = async () => {
-      throw new TypeError("network down");
-    };
-    expect(await loadSave()).toBe(false);
-  });
-
-  it("returns false when the body is null (no remote save yet)", async () => {
-    fetchImpl.current = async () =>
-      new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+  // None of these failure modes are allowed to throw — single-player must
+  // keep working when auth/network/server is degraded. Each branch lives in
+  // a distinct conditional inside loadSave (status check, transport catch,
+  // null-body guard), so we still hit each one — just from one table.
+  it.each([
+    { label: "API replies 401 (anonymous play)", respond: () => new Response("unauthorized", { status: 401 }) },
+    { label: "API replies 500", respond: () => new Response("oops", { status: 500 }) },
+    {
+      label: "transport error",
+      respond: () => {
+        throw new TypeError("network down");
+      }
+    },
+    {
+      label: "body is null (no remote save yet)",
+      respond: () =>
+        new Response("null", { status: 200, headers: { "content-type": "application/json" } })
+    }
+  ])("returns false when $label", async ({ respond }) => {
+    fetchImpl.current = async () => respond();
     expect(await loadSave()).toBe(false);
   });
 
@@ -249,15 +255,11 @@ describe("loadSave", () => {
         status: 200,
         headers: { "content-type": "application/json" }
       });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      expect(await loadSave()).toBe(false);
-      expect(warnSpy).toHaveBeenCalled();
-      const firstCall = warnSpy.mock.calls[0];
-      expect(firstCall?.[0]).toMatch(/loadSave: schema rejected save row/);
-    } finally {
-      warnSpy.mockRestore();
-    }
+    const warnSpy = vi.mocked(console.warn);
+    expect(await loadSave()).toBe(false);
+    expect(warnSpy).toHaveBeenCalled();
+    const firstCall = warnSpy.mock.calls[0];
+    expect(firstCall?.[0]).toMatch(/loadSave: schema rejected save row/);
   });
 });
 
@@ -291,19 +293,14 @@ describe("saveNow", () => {
         status: 422,
         headers: { "content-type": "application/json" }
       });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      const result = await saveNow();
-      expect(result.kind).toBe("queued");
-      if (result.kind === "queued") {
-        expect(result.message).toMatch(/sync automatically/);
-      }
-      const pending = readPendingSaveForTest();
-      expect(pending).not.toBeNull();
-      expect(pending?.attempts).toBe(1);
-    } finally {
-      warnSpy.mockRestore();
+    const result = await saveNow();
+    expect(result.kind).toBe("queued");
+    if (result.kind === "queued") {
+      expect(result.message).toMatch(/sync automatically/);
     }
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
   });
 
   it("returns kind=failed on a 422 mission_graph_invalid — slot dropped (permanent)", async () => {
@@ -314,45 +311,34 @@ describe("saveNow", () => {
         status: 422,
         headers: { "content-type": "application/json" }
       });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      const result = await saveNow();
-      expect(result.kind).toBe("failed");
-      if (result.kind === "failed") {
-        expect(result.status).toBe(422);
-      }
-      expect(readPendingSaveForTest()).toBeNull();
-    } finally {
-      warnSpy.mockRestore();
+    const result = await saveNow();
+    expect(result.kind).toBe("failed");
+    if (result.kind === "failed") {
+      expect(result.status).toBe(422);
     }
+    expect(readPendingSaveForTest()).toBeNull();
   });
 
   it("returns kind=queued on a network error — snapshot persists for retry", async () => {
     fetchImpl.current = async () => {
       throw new TypeError("network down");
     };
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      const result = await saveNow();
-      expect(result.kind).toBe("queued");
-      if (result.kind === "queued") {
-        expect(result.message).toMatch(/sync automatically/);
-      }
-      // The whole point of the durability layer: the snapshot is STILL in
-      // localStorage. A reload would pick it up; a visibility/online retry
-      // would push it. Pre-fix, this returned ok=false and the snapshot
-      // evaporated on the next render.
-      const pending = readPendingSaveForTest();
-      expect(pending).not.toBeNull();
-      expect(pending?.attempts).toBe(1);
-    } finally {
-      warnSpy.mockRestore();
+    const result = await saveNow();
+    expect(result.kind).toBe("queued");
+    if (result.kind === "queued") {
+      expect(result.message).toMatch(/sync automatically/);
     }
+    // The whole point of the durability layer: the snapshot is STILL in
+    // localStorage. A reload would pick it up; a visibility/online retry
+    // would push it. Pre-fix, this returned ok=false and the snapshot
+    // evaporated on the next render.
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
   });
 
   it("returns kind=queued on a 5xx — same retry semantics as network error", async () => {
     fetchImpl.current = async () => new Response("oops", { status: 503 });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const result = await saveNow();
     expect(result.kind).toBe("queued");
     expect(readPendingSaveForTest()?.attempts).toBe(1);
@@ -381,46 +367,42 @@ describe("drainScoreQueue (via queueAwareSubmit fetch adapter)", () => {
     expect(readScoreQueueForTest()).toHaveLength(0);
   });
 
-  it("on 401 (anonymous): keeps the entry, doesn't burn attempts", async () => {
+  // Each transient branch keeps the entry on the queue. The 401 case leaves
+  // attempts at 0 (anonymous play — never burn the budget); the others bump
+  // attempts so MAX_ATTEMPTS eventually drops a permanently-broken entry.
+  it.each([
+    {
+      label: "on 401 (anonymous): keeps the entry, doesn't burn attempts",
+      respond: () => new Response("unauthorized", { status: 401 }),
+      expectedAttempts: 0
+    },
+    {
+      label: "on 422 mission_not_completed: keeps the entry with attempts++",
+      respond: () =>
+        new Response(JSON.stringify({ error: "mission_not_completed" }), {
+          status: 422,
+          headers: { "content-type": "application/json" }
+        }),
+      expectedAttempts: 1
+    },
+    {
+      label: "on 5xx: keeps with attempts++ (transient)",
+      respond: () => new Response(null, { status: 500 }),
+      expectedAttempts: 1
+    },
+    {
+      label: "on network error: keeps with attempts++, no throw",
+      respond: () => {
+        throw new TypeError("offline");
+      },
+      expectedAttempts: 1
+    }
+  ])("$label", async ({ respond, expectedAttempts }) => {
     enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
-    fetchImpl.current = async () => new Response("unauthorized", { status: 401 });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    fetchImpl.current = async () => respond();
     const result = await drainScoreQueue();
     expect(result.remaining).toBe(1);
-    expect(readScoreQueueForTest()[0]?.attempts).toBe(0);
-  });
-
-  it("on 422 mission_not_completed: keeps the entry with attempts++", async () => {
-    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
-    fetchImpl.current = async () =>
-      new Response(JSON.stringify({ error: "mission_not_completed" }), {
-        status: 422,
-        headers: { "content-type": "application/json" }
-      });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const result = await drainScoreQueue();
-    expect(result.remaining).toBe(1);
-    expect(readScoreQueueForTest()[0]?.attempts).toBe(1);
-  });
-
-  it("on 5xx: keeps with attempts++ (transient)", async () => {
-    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
-    fetchImpl.current = async () => new Response(null, { status: 500 });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const result = await drainScoreQueue();
-    expect(result.remaining).toBe(1);
-    expect(readScoreQueueForTest()[0]?.attempts).toBe(1);
-  });
-
-  it("on network error: keeps with attempts++, no throw", async () => {
-    enqueueScore({ missionId: "tutorial", score: 1234, timeSeconds: 60 }, Date.now());
-    fetchImpl.current = async () => {
-      throw new TypeError("offline");
-    };
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const result = await drainScoreQueue();
-    expect(result.remaining).toBe(1);
-    expect(readScoreQueueForTest()[0]?.attempts).toBe(1);
+    expect(readScoreQueueForTest()[0]?.attempts).toBe(expectedAttempts);
   });
 
   it("on 422 with a non-mission-not-completed code: drops as permanent", async () => {
@@ -430,7 +412,6 @@ describe("drainScoreQueue (via queueAwareSubmit fetch adapter)", () => {
         status: 422,
         headers: { "content-type": "application/json" }
       });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const result = await drainScoreQueue();
     expect(result.remaining).toBe(0);
   });

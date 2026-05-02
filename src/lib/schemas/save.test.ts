@@ -31,15 +31,32 @@ void _augmentIds;
 void _missionIds;
 void _systemIds;
 
+// Hoisted reusable fixtures — these well-formed shapes appear in many
+// describes; inlining them per-test obscures the deviation each case is
+// testing.
+const VALID_INSTANCE = { id: "rapid-fire", level: 1, augments: [] } as const;
+const VALID_SHIP_CONFIG = {
+  slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+  inventory: [],
+  augmentInventory: [],
+  shieldLevel: 0,
+  armorLevel: 0,
+  reactor: { capacityLevel: 0, rechargeLevel: 0 }
+} as const;
+const VALID_REMOTE_SAVE = {
+  slot: 1,
+  credits: 0,
+  currentPlanet: null,
+  shipConfig: VALID_SHIP_CONFIG,
+  completedMissions: [],
+  unlockedPlanets: ["tutorial"],
+  playedTimeSeconds: 0,
+  updatedAt: "2026-04-26T00:00:00.000Z"
+} as const;
+
 describe("WeaponInstanceSchema", () => {
   it("accepts a well-formed instance", () => {
-    expect(
-      WeaponInstanceSchema.safeParse({
-        id: "rapid-fire",
-        level: 1,
-        augments: []
-      }).success
-    ).toBe(true);
+    expect(WeaponInstanceSchema.safeParse(VALID_INSTANCE).success).toBe(true);
   });
 
   it("accepts an instance with augments", () => {
@@ -59,44 +76,13 @@ describe("WeaponInstanceSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects level 0 (below minimum)", () => {
-    expect(
-      WeaponInstanceSchema.safeParse({
-        id: "rapid-fire",
-        level: 0,
-        augments: []
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects level above MAX_LEVEL (6 > 5)", () => {
-    expect(
-      WeaponInstanceSchema.safeParse({
-        id: "rapid-fire",
-        level: 6,
-        augments: []
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects unknown weapon id", () => {
-    expect(
-      WeaponInstanceSchema.safeParse({
-        id: "death-laser",
-        level: 1,
-        augments: []
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects unknown augment id", () => {
-    expect(
-      WeaponInstanceSchema.safeParse({
-        id: "rapid-fire",
-        level: 1,
-        augments: ["bogus-augment"]
-      }).success
-    ).toBe(false);
+  it.each([
+    { label: "level 0 (below minimum)", input: { id: "rapid-fire", level: 0, augments: [] } },
+    { label: "level above MAX_LEVEL (6 > 5)", input: { id: "rapid-fire", level: 6, augments: [] } },
+    { label: "unknown weapon id", input: { id: "death-laser", level: 1, augments: [] } },
+    { label: "unknown augment id", input: { id: "rapid-fire", level: 1, augments: ["bogus-augment"] } }
+  ])("rejects $label", ({ input }) => {
+    expect(WeaponInstanceSchema.safeParse(input).success).toBe(false);
   });
 });
 
@@ -143,29 +129,14 @@ describe("WeaponSlotsSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects an empty array", () => {
-    expect(WeaponSlotsSchema.safeParse([]).success).toBe(false);
-  });
-
-  it("rejects an unknown weapon id", () => {
-    expect(
-      WeaponSlotsSchema.safeParse([
-        { id: "death-laser", level: 1, augments: [] }
-      ]).success
-    ).toBe(false);
-  });
-
-  it("rejects a numeric slot value", () => {
-    expect(WeaponSlotsSchema.safeParse([42]).success).toBe(false);
-  });
-
-  it("rejects a bare string slot value (must be an instance object now)", () => {
-    expect(WeaponSlotsSchema.safeParse(["rapid-fire"]).success).toBe(false);
-  });
-
-  it("rejects an array longer than MAX_WEAPON_SLOTS", () => {
-    const oversized = new Array<null>(10).fill(null);
-    expect(WeaponSlotsSchema.safeParse(oversized).success).toBe(false);
+  it.each([
+    { label: "an empty array", input: [] },
+    { label: "an unknown weapon id", input: [{ id: "death-laser", level: 1, augments: [] }] },
+    { label: "a numeric slot value", input: [42] },
+    { label: "a bare string slot value (must be an instance object now)", input: ["rapid-fire"] },
+    { label: "an array longer than MAX_WEAPON_SLOTS", input: new Array<null>(10).fill(null) }
+  ])("rejects $label", ({ input }) => {
+    expect(WeaponSlotsSchema.safeParse(input).success).toBe(false);
   });
 });
 
@@ -446,66 +417,26 @@ describe("SavePayloadSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects unknown mission ids in completedMissions", () => {
-    expect(
-      SavePayloadSchema.safeParse({
-        completedMissions: ["totally-fake-mission"]
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects negative credits", () => {
-    expect(SavePayloadSchema.safeParse({ credits: -1 }).success).toBe(false);
-  });
-
-  it("rejects negative playedTimeSeconds (z.number().int().nonnegative())", () => {
-    expect(
-      SavePayloadSchema.safeParse({ playedTimeSeconds: -1 }).success
-    ).toBe(false);
-  });
-
-  it("rejects non-integer playedTimeSeconds", () => {
-    expect(
-      SavePayloadSchema.safeParse({ playedTimeSeconds: 0.5 }).success
-    ).toBe(false);
-  });
-
-  it("rejects non-integer saveSlot (z.number().int().positive())", () => {
-    expect(SavePayloadSchema.safeParse({ saveSlot: 1.5 }).success).toBe(false);
-  });
-
-  it("rejects saveSlot of 0 (must be positive)", () => {
-    expect(SavePayloadSchema.safeParse({ saveSlot: 0 }).success).toBe(false);
-  });
-
-  it("rejects negative saveSlot", () => {
-    expect(SavePayloadSchema.safeParse({ saveSlot: -1 }).success).toBe(false);
-  });
-
-  it("rejects an unknown currentPlanet (not in MissionId enum)", () => {
-    expect(
-      SavePayloadSchema.safeParse({ currentPlanet: "evil" }).success
-    ).toBe(false);
+  // Each row pins one rejected enum / numeric-bound branch in SavePayloadSchema.
+  // Nothing here is a "same invariant from a different angle" — every case
+  // exercises a distinct field constraint.
+  it.each([
+    { label: "unknown mission id in completedMissions", input: { completedMissions: ["totally-fake-mission"] } },
+    { label: "negative credits", input: { credits: -1 } },
+    { label: "negative playedTimeSeconds (z.number().int().nonnegative())", input: { playedTimeSeconds: -1 } },
+    { label: "non-integer playedTimeSeconds", input: { playedTimeSeconds: 0.5 } },
+    { label: "non-integer saveSlot (z.number().int().positive())", input: { saveSlot: 1.5 } },
+    { label: "saveSlot of 0 (must be positive)", input: { saveSlot: 0 } },
+    { label: "negative saveSlot", input: { saveSlot: -1 } },
+    { label: "unknown currentPlanet (not in MissionId enum)", input: { currentPlanet: "evil" } },
+    { label: "unknown currentSolarSystemId", input: { currentSolarSystemId: "nowhere" } },
+    { label: "unknown system id inside unlockedSolarSystems", input: { unlockedSolarSystems: ["tutorial", "nowhere"] } }
+  ])("rejects $label", ({ input }) => {
+    expect(SavePayloadSchema.safeParse(input).success).toBe(false);
   });
 
   it("accepts currentPlanet: null (the field is nullable)", () => {
-    expect(
-      SavePayloadSchema.safeParse({ currentPlanet: null }).success
-    ).toBe(true);
-  });
-
-  it("rejects an unknown currentSolarSystemId", () => {
-    expect(
-      SavePayloadSchema.safeParse({ currentSolarSystemId: "nowhere" }).success
-    ).toBe(false);
-  });
-
-  it("rejects unknown system ids inside unlockedSolarSystems", () => {
-    expect(
-      SavePayloadSchema.safeParse({
-        unlockedSolarSystems: ["tutorial", "nowhere"]
-      }).success
-    ).toBe(false);
+    expect(SavePayloadSchema.safeParse({ currentPlanet: null }).success).toBe(true);
   });
 
   it("round-trips a minimal payload via parse() (no thrown ZodError)", () => {
@@ -515,43 +446,18 @@ describe("SavePayloadSchema", () => {
 });
 
 describe("RemoteSaveSchema additional rejection contracts", () => {
-  const validShipConfig = {
-    slots: [{ id: "rapid-fire", level: 1, augments: [] }],
-    inventory: [],
-    augmentInventory: [],
-    shieldLevel: 0,
-    armorLevel: 0,
-    reactor: { capacityLevel: 0, rechargeLevel: 0 }
-  };
-
-  it("rejects when updatedAt is not a string (e.g. null)", () => {
+  it.each([
+    { label: "updatedAt is not a string (e.g. null)", overrides: { updatedAt: null } },
+    {
+      // The schema declares updatedAt as z.string() — anything else fails.
+      label: "updatedAt is a number (Postgres driver returning epoch ms)",
+      overrides: { updatedAt: 1714000000000 }
+    },
+    { label: "negative credits in a remote save", overrides: { credits: -100 } },
+    { label: "non-integer slot", overrides: { slot: 1.5 } }
+  ])("rejects when $label", ({ overrides }) => {
     expect(
-      RemoteSaveSchema.safeParse({
-        slot: 1,
-        credits: 0,
-        currentPlanet: null,
-        shipConfig: validShipConfig,
-        completedMissions: [],
-        unlockedPlanets: [],
-        playedTimeSeconds: 0,
-        updatedAt: null
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects when updatedAt is a number (Postgres driver returning epoch ms)", () => {
-    // The schema declares updatedAt as z.string() — anything else fails.
-    expect(
-      RemoteSaveSchema.safeParse({
-        slot: 1,
-        credits: 0,
-        currentPlanet: null,
-        shipConfig: validShipConfig,
-        completedMissions: [],
-        unlockedPlanets: [],
-        playedTimeSeconds: 0,
-        updatedAt: 1714000000000
-      }).success
+      RemoteSaveSchema.safeParse({ ...VALID_REMOTE_SAVE, ...overrides }).success
     ).toBe(false);
   });
 
@@ -560,60 +466,12 @@ describe("RemoteSaveSchema additional rejection contracts", () => {
     // deferred to the validators. Pinning this so changing it later is a
     // deliberate decision rather than a quiet drift.
     expect(
-      RemoteSaveSchema.safeParse({
-        slot: 1,
-        credits: 0,
-        currentPlanet: null,
-        shipConfig: validShipConfig,
-        completedMissions: [],
-        unlockedPlanets: [],
-        playedTimeSeconds: 0,
-        updatedAt: "not-a-date"
-      }).success
+      RemoteSaveSchema.safeParse({ ...VALID_REMOTE_SAVE, updatedAt: "not-a-date" }).success
     ).toBe(true);
   });
 
-  it("rejects negative credits in a remote save", () => {
-    expect(
-      RemoteSaveSchema.safeParse({
-        slot: 1,
-        credits: -100,
-        currentPlanet: null,
-        shipConfig: validShipConfig,
-        completedMissions: [],
-        unlockedPlanets: [],
-        playedTimeSeconds: 0,
-        updatedAt: "2026-04-26T00:00:00.000Z"
-      }).success
-    ).toBe(false);
-  });
-
-  it("rejects non-integer slot", () => {
-    expect(
-      RemoteSaveSchema.safeParse({
-        slot: 1.5,
-        credits: 0,
-        currentPlanet: null,
-        shipConfig: validShipConfig,
-        completedMissions: [],
-        unlockedPlanets: [],
-        playedTimeSeconds: 0,
-        updatedAt: "2026-04-26T00:00:00.000Z"
-      }).success
-    ).toBe(false);
-  });
-
   it("round-trips a remote save via parse()", () => {
-    const parsed = RemoteSaveSchema.parse({
-      slot: 1,
-      credits: 0,
-      currentPlanet: null,
-      shipConfig: validShipConfig,
-      completedMissions: [],
-      unlockedPlanets: ["tutorial"],
-      playedTimeSeconds: 0,
-      updatedAt: "2026-04-26T00:00:00.000Z"
-    });
+    const parsed = RemoteSaveSchema.parse(VALID_REMOTE_SAVE);
     expect(parsed.slot).toBe(1);
     expect(parsed.unlockedPlanets).toEqual(["tutorial"]);
   });
@@ -712,22 +570,16 @@ describe("ScorePayloadSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects an empty mission id", () => {
-    expect(
-      ScorePayloadSchema.safeParse({ missionId: "", score: 1 }).success
-    ).toBe(false);
-  });
-
-  it("rejects a non-integer score", () => {
-    expect(
-      ScorePayloadSchema.safeParse({ missionId: "combat-1", score: 1.5 }).success
-    ).toBe(false);
-  });
-
-  it("rejects mission ids not in the enum (closes hand-crafted POST hole)", () => {
-    expect(
-      ScorePayloadSchema.safeParse({ missionId: "evil-cheat-mission", score: 1 })
-        .success
-    ).toBe(false);
+  it.each([
+    { label: "an empty mission id", input: { missionId: "", score: 1 } },
+    { label: "a non-integer score", input: { missionId: "combat-1", score: 1.5 } },
+    {
+      // Closes a hand-crafted POST hole — without the enum check, an attacker
+      // could submit fake mission ids to top the leaderboard.
+      label: "mission ids not in the enum",
+      input: { missionId: "evil-cheat-mission", score: 1 }
+    }
+  ])("rejects $label", ({ input }) => {
+    expect(ScorePayloadSchema.safeParse(input).success).toBe(false);
   });
 });
