@@ -7,7 +7,8 @@ import {
   writeAuthCache,
   type AuthSnapshot
 } from "./authCache";
-import { getSaveCache, loadSave } from "@/game/state/sync";
+import { loadSave } from "@/game/state/sync";
+import { getSaveCache } from "@/game/state/syncCache";
 import { useHandle, type HandleStatus } from "./useHandle";
 import { useReliableSession } from "./useReliableSession";
 
