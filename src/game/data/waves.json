@@ -79,6 +79,9 @@
             { "enemy": "pirate-skiff", "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",     "xPercent": 0.35 },
             { "enemy": "pirate-skiff", "count": 6, "delayMs": 1000,  "intervalMs": 1600, "formation": "vee",     "xPercent": 0.65 },
             { "enemy": "pirate-corsair",   "count": 3, "delayMs": 12000, "intervalMs": 1800, "formation": "scatter", "xPercent": 0.5 }
+          ],
+          "obstacleSpawns": [
+            { "obstacle": "asteroid-small", "count": 3, "delayMs": 4000, "intervalMs": 6000, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {
@@ -111,6 +114,9 @@
             { "enemy": "pirate-skiff",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.15 },
             { "enemy": "pirate-skiff",        "count": 6, "delayMs": 0,     "intervalMs": 1500, "formation": "column",  "xPercent": 0.85 },
             { "enemy": "pirate-marauder",   "count": 4, "delayMs": 10000, "intervalMs": 1900, "formation": "scatter", "xPercent": 0.5 }
+          ],
+          "obstacleSpawns": [
+            { "obstacle": "asteroid-small", "count": 4, "delayMs": 3000, "intervalMs": 5500, "formation": "scatter", "xPercent": 0.5 }
           ]
         },
         {

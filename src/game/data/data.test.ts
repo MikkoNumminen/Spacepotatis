@@ -1,22 +1,27 @@
 import { describe, expect, it } from "vitest";
 
 import enemiesJson from "./enemies.json";
+import obstaclesJson from "./obstacles.json";
 import weaponsJson from "./weapons.json";
 import missionsJson from "./missions.json";
 import solarSystemsJson from "./solarSystems.json";
 import { getAllEnemies, getEnemy } from "./enemies";
+import { getAllObstacles, getObstacle } from "./obstacles";
 import { getAllWeapons, getWeapon } from "./weapons";
 import { getAllMissionWaves, getWavesForMission } from "./waves";
 import { getAllSolarSystems, getSolarSystem } from "./solarSystems";
 import type {
   EnemyDefinition,
   MissionDefinition,
+  ObstacleDefinition,
   SolarSystemDefinition,
   WeaponDefinition
 } from "@/types/game";
 
 const KNOWN_FORMATIONS = new Set(["line", "vee", "scatter", "column"]);
+const KNOWN_OBSTACLE_FORMATIONS = new Set(["line", "scatter", "column"]);
 const KNOWN_BEHAVIORS = new Set(["straight", "zigzag", "homing", "boss"]);
+const KNOWN_OBSTACLE_BEHAVIORS = new Set(["drift"]);
 const KNOWN_KINDS = new Set(["mission", "shop", "scenery"]);
 
 describe("enemies.json", () => {
@@ -205,8 +210,43 @@ describe("solarSystems.json", () => {
   });
 });
 
+describe("obstacles.json", () => {
+  const obstacles = obstaclesJson.obstacles as readonly ObstacleDefinition[];
+
+  it("declares at least one obstacle", () => {
+    expect(obstacles.length).toBeGreaterThan(0);
+  });
+
+  it("has unique obstacle ids", () => {
+    const ids = obstacles.map((o) => o.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it.each(obstacles.map((o) => [o.id, o] as const))(
+    "%s has sane numeric fields and a known behavior",
+    (_id, o) => {
+      expect(o.speed).toBeGreaterThan(0);
+      expect(o.collisionDamage).toBeGreaterThanOrEqual(0);
+      expect(o.hitboxRadius).toBeGreaterThan(0);
+      expect(o.spriteKey.length).toBeGreaterThan(0);
+      expect(KNOWN_OBSTACLE_BEHAVIORS.has(o.behavior)).toBe(true);
+    }
+  );
+
+  it("getObstacle returns the matching definition", () => {
+    expect(getObstacle("asteroid-small").id).toBe("asteroid-small");
+  });
+
+  it("getAllObstacles exposes the same set as the JSON", () => {
+    expect(getAllObstacles().length).toBe(obstacles.length);
+  });
+});
+
 describe("waves.json referential integrity", () => {
   const enemyIds = new Set((enemiesJson.enemies as readonly EnemyDefinition[]).map((e) => e.id));
+  const obstacleIds = new Set(
+    (obstaclesJson.obstacles as readonly ObstacleDefinition[]).map((o) => o.id)
+  );
   const missionIds = new Set(
     (missionsJson.missions as readonly MissionDefinition[]).map((m) => m.id)
   );
@@ -228,6 +268,16 @@ describe("waves.json referential integrity", () => {
     }
   });
 
+  it("every obstacle spawn references an obstacle that exists in obstacles.json", () => {
+    for (const m of allWaves) {
+      for (const w of m.waves) {
+        for (const o of w.obstacleSpawns ?? []) {
+          expect(obstacleIds.has(o.obstacle)).toBe(true);
+        }
+      }
+    }
+  });
+
   it("waves and spawns have sane numeric / formation fields", () => {
     for (const m of allWaves) {
       for (const w of m.waves) {
@@ -241,6 +291,14 @@ describe("waves.json referential integrity", () => {
           expect(s.xPercent).toBeLessThanOrEqual(1);
           expect(KNOWN_FORMATIONS.has(s.formation)).toBe(true);
         }
+        for (const o of w.obstacleSpawns ?? []) {
+          expect(o.count).toBeGreaterThan(0);
+          expect(o.delayMs).toBeGreaterThanOrEqual(0);
+          expect(o.intervalMs).toBeGreaterThanOrEqual(0);
+          expect(o.xPercent).toBeGreaterThanOrEqual(0);
+          expect(o.xPercent).toBeLessThanOrEqual(1);
+          expect(KNOWN_OBSTACLE_FORMATIONS.has(o.formation)).toBe(true);
+        }
       }
     }
   });
@@ -250,6 +308,10 @@ describe("waves.json referential integrity", () => {
       for (const w of m.waves) {
         for (const s of w.spawns) {
           const lastSpawnAt = s.delayMs + Math.max(0, s.count - 1) * s.intervalMs;
+          expect(lastSpawnAt).toBeLessThanOrEqual(w.durationMs);
+        }
+        for (const o of w.obstacleSpawns ?? []) {
+          const lastSpawnAt = o.delayMs + Math.max(0, o.count - 1) * o.intervalMs;
           expect(lastSpawnAt).toBeLessThanOrEqual(w.durationMs);
         }
       }

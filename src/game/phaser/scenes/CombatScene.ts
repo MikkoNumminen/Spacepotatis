@@ -4,6 +4,7 @@ import { SCENE_KEYS, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from "../config";
 import { BulletPool } from "../entities/Bullet";
 import { EnemyPool } from "../entities/Enemy";
 import type { Enemy } from "../entities/Enemy";
+import { ObstaclePool } from "../entities/Obstacle";
 import { Player } from "../entities/Player";
 import * as GameState from "@/game/state/GameState";
 import { on } from "../events";
@@ -27,6 +28,7 @@ export class CombatScene extends Phaser.Scene {
   private playerBullets!: BulletPool;
   private enemyBullets!: BulletPool;
   private enemies!: EnemyPool;
+  private obstacles!: ObstaclePool;
   private powerUps!: PowerUpPool;
   private waves!: WaveManager;
   private score!: ScoreSystem;
@@ -63,6 +65,7 @@ export class CombatScene extends Phaser.Scene {
     });
     this.enemyBullets = new BulletPool(this, 160);
     this.enemies = new EnemyPool(this);
+    this.obstacles = new ObstaclePool(this);
     this.powerUps = new PowerUpPool(this);
 
     this.player = new Player(
@@ -128,8 +131,11 @@ export class CombatScene extends Phaser.Scene {
         },
         onPlayerHitByBullet: (bullet) => this.player.takeDamage(bullet.damage),
         onPlayerTouchEnemy: (enemy) => this.player.takeDamage(enemy.definition.collisionDamage),
-        onPlayerGetPowerUp: (power) => this.dropController.applyPowerUp(power)
-      }
+        onPlayerGetPowerUp: (power) => this.dropController.applyPowerUp(power),
+        onPlayerHitByObstacle: (obstacle) =>
+          this.player.takeDamage(obstacle.definition.collisionDamage)
+      },
+      this.obstacles
     );
 
     this.waves = new WaveManager(
@@ -137,7 +143,8 @@ export class CombatScene extends Phaser.Scene {
       this.enemies,
       this.enemyBullets,
       getPlayerPos,
-      this.bootData.missionId
+      this.bootData.missionId,
+      this.obstacles
     );
 
     on(this, "allWavesComplete", () => {

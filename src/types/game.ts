@@ -95,6 +95,28 @@ export interface EnemyDefinition {
 }
 
 // ---------------------------------------------------------------------------
+// Obstacles (indestructible space junk — asteroids, structure walls, debris)
+// ---------------------------------------------------------------------------
+// Obstacles scroll down the playfield like enemies but cannot be destroyed by
+// player fire — they absorb bullets (theirs and the player's), block the
+// player's ship for collision damage, and act as cover that enemies can hide
+// behind. The MVP ships one type ("asteroid-small") and one behavior
+// ("drift"); the union is the extension point for future variants.
+
+export type ObstacleId = "asteroid-small";
+export type ObstacleBehavior = "drift";
+
+export interface ObstacleDefinition {
+  readonly id: ObstacleId;
+  readonly name: string;
+  readonly speed: number;            // px/s downward scroll
+  readonly behavior: ObstacleBehavior;
+  readonly spriteKey: string;
+  readonly collisionDamage: number;  // damage dealt to player ship on contact
+  readonly hitboxRadius: number;     // physics body radius in px
+}
+
+// ---------------------------------------------------------------------------
 // Waves
 // ---------------------------------------------------------------------------
 
@@ -107,10 +129,25 @@ export interface WaveSpawn {
   readonly xPercent: number;       // 0..1, horizontal anchor across viewport
 }
 
+// Obstacle scheduling parallels WaveSpawn. We drop "vee" — rocks in a v-formation
+// reads as "fleet maneuver", not space junk. Otherwise identical shape so the
+// scheduler can share the placement helper.
+export interface ObstacleSpawn {
+  readonly obstacle: ObstacleId;
+  readonly count: number;
+  readonly delayMs: number;
+  readonly intervalMs: number;
+  readonly formation: "line" | "scatter" | "column";
+  readonly xPercent: number;
+}
+
 export interface WaveDefinition {
   readonly id: string;
   readonly durationMs: number;
   readonly spawns: readonly WaveSpawn[];
+  // Optional — waves without obstacles omit this entirely. Mission completion
+  // never gates on obstacles being cleared (they can't be killed).
+  readonly obstacleSpawns?: readonly ObstacleSpawn[];
 }
 
 export interface MissionWaves {
