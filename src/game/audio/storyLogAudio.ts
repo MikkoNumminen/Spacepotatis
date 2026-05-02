@@ -17,7 +17,6 @@ const FADE_MS = 800;
 
 class StoryLogAudio {
   private music: HTMLAudioElement | null = null;
-  private muted = false;
   private fadeRaf: number | null = null;
 
   constructor() {
@@ -31,7 +30,7 @@ class StoryLogAudio {
     music.volume = 0;
     music.preload = "auto";
     this.music = music;
-    if (!this.muted) {
+    if (!audioBus.isMuted("music")) {
       void music.play().catch(() => {
         // Autoplay blocked — silent fallback. The user has clicked the
         // Story menu item to get here, so a gesture has happened, but
@@ -56,8 +55,6 @@ class StoryLogAudio {
   }
 
   setMuted(muted: boolean): void {
-    if (this.muted === muted) return;
-    this.muted = muted;
     if (!this.music) return;
     if (muted) {
       this.music.pause();

@@ -24,7 +24,6 @@ export interface MenuBriefingItem {
 
 class MenuBriefingAudio {
   private voice: HTMLAudioElement | null = null;
-  private muted = false;
   private queue: readonly MenuBriefingItem[] = [];
   private queueIdx = 0;
   private gapTimerId: number | null = null;
@@ -73,8 +72,6 @@ class MenuBriefingAudio {
   }
 
   setMuted(muted: boolean): void {
-    if (this.muted === muted) return;
-    this.muted = muted;
     if (!this.voice) return;
     this.voice.volume = muted ? 0 : TARGET_VOLUME;
   }
@@ -97,7 +94,7 @@ class MenuBriefingAudio {
   private startVoice(src: string): void {
     const voice = new Audio(src);
     voice.loop = false;
-    voice.volume = this.muted ? 0 : TARGET_VOLUME;
+    voice.volume = audioBus.isMuted("voice") ? 0 : TARGET_VOLUME;
     voice.preload = "auto";
     voice.addEventListener("ended", () => {
       // Release the element promptly so it stops counting against iOS

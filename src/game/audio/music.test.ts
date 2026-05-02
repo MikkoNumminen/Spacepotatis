@@ -6,6 +6,7 @@ import {
   type AudioFakes
 } from "./__tests__/fakeAudio";
 import type { menuMusic as MenuMusicT, combatMusic as CombatMusicT } from "./music";
+import type { audioBus as AudioBusT } from "./AudioBus";
 
 // MusicEngine is a stateful, retry-driven thing. The tests below pin the
 // contracts that other engines (and the upcoming AudioBus refactor) will
@@ -24,11 +25,13 @@ import type { menuMusic as MenuMusicT, combatMusic as CombatMusicT } from "./mus
 let fakes: AudioFakes;
 let menuMusic: typeof MenuMusicT;
 let combatMusic: typeof CombatMusicT;
+let audioBus: typeof AudioBusT;
 
 beforeEach(async () => {
   fakes = installAudioFakes();
   vi.resetModules();
   ({ menuMusic, combatMusic } = await import("./music"));
+  ({ audioBus } = await import("./AudioBus"));
 });
 
 afterEach(() => {
@@ -158,14 +161,14 @@ describe("combatMusic (manual loop, releases on stop)", () => {
     expect(el.playCalls).toBe(playsBefore + 1);
   });
 
-  it("setMuted(true) pauses the (non-keepAlive) element after the fade resolves", async () => {
+  it("master mute pauses the (non-keepAlive) element after the fade resolves", async () => {
     combatMusic.loadTrack("/audio/music/combat-1.ogg");
     await flushMicrotasks();
     const el = fakes.audio();
-    combatMusic.setMuted(true);
+    audioBus.setMasterMuted(true);
     vi.advanceTimersByTime(5000);
     expect(el.paused).toBe(true);
-    combatMusic.setMuted(false);
+    audioBus.setMasterMuted(false);
     await flushMicrotasks();
     expect(el.paused).toBe(false);
   });

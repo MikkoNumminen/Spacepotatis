@@ -42,7 +42,6 @@ const PERK_PATHS: Readonly<Record<PerkId, string>> = {
 const MONEY_COOLDOWN_MS = 1800;
 
 class ItemSfxEngine {
-  private muted = false;
   private lastMoneyAt = 0;
 
   constructor() {
@@ -51,7 +50,7 @@ class ItemSfxEngine {
 
   private play(src: string): void {
     if (typeof window === "undefined") return;
-    if (this.muted) return;
+    if (audioBus.isMuted("voice")) return;
     const el = new Audio(src);
     el.volume = 1.0;
     // preload="none" skips the metadata pre-fetch; the actual file fetches
@@ -100,8 +99,12 @@ class ItemSfxEngine {
     this.play(PERK_PATHS[id]);
   }
 
-  setMuted(muted: boolean): void {
-    this.muted = muted;
+  setMuted(_muted: boolean): void {
+    // Intentionally empty. AudioBus owns the mute value; play() queries it
+    // directly to early-return before allocating an HTMLAudioElement (the
+    // iOS ~6-element budget defense). No engine-side reaction is needed —
+    // this engine has no in-flight elements to silence on toggle (each fire
+    // is spawn-and-release).
   }
 }
 
