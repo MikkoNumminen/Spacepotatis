@@ -1,8 +1,6 @@
 "use client";
 
-import { z } from "zod";
 import type { MissionId } from "@/types/game";
-import { MissionIdSchema } from "@/lib/schemas/save";
 
 // Persistent retry queue for leaderboard score posts. The leaderboard MUST
 // stay accurate — a score that wins a mission has to land on the board
@@ -55,20 +53,45 @@ const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export const QUEUED_MESSAGE =
   "Score saved locally — will post automatically as soon as the leaderboard is reachable.";
 
-const QueuedScoreSchema = z.object({
-  missionId: MissionIdSchema,
-  score: z.number().int(),
-  timeSeconds: z.number().int().nonnegative(),
+// Hand-rolled validator instead of Zod. The queue stores only its own
+// shape; full mission-id validation belongs to the server (the leaderboard
+// route's ScorePayloadSchema enforces the enum, and a stale id from an old
+// build will be rejected as a permanent 400 there). Avoiding Zod here keeps
+// ~98 kB of Zod runtime out of /play's import graph (and out of any other
+// page that transitively imports sync.ts).
+export interface QueuedScore {
+  readonly missionId: MissionId;
+  readonly score: number;
+  readonly timeSeconds: number;
   // Wall-clock ms when the score was first enqueued. Used to age out
   // entries that have been sitting in the queue forever.
-  firstSeenMs: z.number(),
+  readonly firstSeenMs: number;
   // Number of failed drain attempts so far. Capped at MAX_ATTEMPTS.
-  attempts: z.number().int().nonnegative()
-});
+  readonly attempts: number;
+}
 
-const QueueSchema = z.array(QueuedScoreSchema);
-
-export type QueuedScore = z.infer<typeof QueuedScoreSchema>;
+function isQueuedScore(raw: unknown): raw is QueuedScore {
+  if (raw === null || typeof raw !== "object") return false;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.missionId !== "string") return false;
+  if (typeof obj.score !== "number" || !Number.isInteger(obj.score)) return false;
+  if (
+    typeof obj.timeSeconds !== "number" ||
+    !Number.isInteger(obj.timeSeconds) ||
+    obj.timeSeconds < 0
+  ) {
+    return false;
+  }
+  if (typeof obj.firstSeenMs !== "number" || !Number.isFinite(obj.firstSeenMs)) return false;
+  if (
+    typeof obj.attempts !== "number" ||
+    !Number.isInteger(obj.attempts) ||
+    obj.attempts < 0
+  ) {
+    return false;
+  }
+  return true;
+}
 
 export interface ScorePostInput {
   readonly missionId: MissionId;
@@ -111,14 +134,13 @@ function readQueue(): QueuedScore[] {
   } catch {
     return [];
   }
-  const result = QueueSchema.safeParse(parsed);
-  if (!result.success) {
+  if (!Array.isArray(parsed) || !parsed.every(isQueuedScore)) {
     // A stray entry from a future schema or hand-edit can't be repaired
     // safely; drop the whole queue rather than risk silently posting
     // half-broken payloads. console.warn so a real regression surfaces,
     // and explicitly removeItem so the next read doesn't warn again on
     // the same poisoned blob.
-    console.warn("[scoreQueue] dropped queue: schema mismatch", result.error.issues);
+    console.warn("[scoreQueue] dropped queue: schema mismatch", parsed);
     try {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -126,7 +148,7 @@ function readQueue(): QueuedScore[] {
     }
     return [];
   }
-  return result.data;
+  return [...parsed];
 }
 
 function writeQueue(items: readonly QueuedScore[]): void {

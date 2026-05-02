@@ -1,7 +1,5 @@
 "use client";
 
-import { z } from "zod";
-
 // Persistent durability layer for the player save snapshot. Mirrors the
 // design of scoreQueue.ts but holds at most ONE entry — the latest snapshot
 // always wins (a save is a snapshot, not an event log; older versions are
@@ -62,13 +60,35 @@ export const SAVE_QUEUED_MESSAGE =
 
 // The snapshot is opaque to the queue; the server owns its schema. We hold
 // it as a plain JSON object so JSON.stringify round-trips losslessly.
-const PendingSaveSchema = z.object({
-  snapshot: z.record(z.string(), z.unknown()),
-  firstSeenMs: z.number(),
-  attempts: z.number().int().nonnegative()
-});
+//
+// Hand-rolled validator instead of Zod: this is the only schema in the
+// module, and pulling Zod (~98 kB) into the client bundle just to validate
+// three fields wasn't worth the cost. The validator below is the same
+// shape as `z.object({ snapshot: z.record(z.string(), z.unknown()),
+// firstSeenMs: z.number(), attempts: z.number().int().nonnegative() })`
+// — keep them in lockstep if either side changes.
+export interface PendingSave {
+  readonly snapshot: Record<string, unknown>;
+  readonly firstSeenMs: number;
+  readonly attempts: number;
+}
 
-export type PendingSave = z.infer<typeof PendingSaveSchema>;
+function isPendingSave(raw: unknown): raw is PendingSave {
+  if (raw === null || typeof raw !== "object") return false;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.snapshot !== "object" || obj.snapshot === null || Array.isArray(obj.snapshot)) {
+    return false;
+  }
+  if (typeof obj.firstSeenMs !== "number" || !Number.isFinite(obj.firstSeenMs)) return false;
+  if (
+    typeof obj.attempts !== "number" ||
+    !Number.isInteger(obj.attempts) ||
+    obj.attempts < 0
+  ) {
+    return false;
+  }
+  return true;
+}
 
 export type SavePostFn = (snapshot: Record<string, unknown>) => Promise<{
   readonly ok: true;
@@ -93,9 +113,8 @@ function readPending(): PendingSave | null {
   } catch {
     return null;
   }
-  const result = PendingSaveSchema.safeParse(parsed);
-  if (!result.success) {
-    console.warn("[saveQueue] dropped pending: schema mismatch", result.error.issues);
+  if (!isPendingSave(parsed)) {
+    console.warn("[saveQueue] dropped pending: schema mismatch", parsed);
     try {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -103,7 +122,7 @@ function readPending(): PendingSave | null {
     }
     return null;
   }
-  return result.data;
+  return parsed;
 }
 
 function writePending(pending: PendingSave | null): void {
