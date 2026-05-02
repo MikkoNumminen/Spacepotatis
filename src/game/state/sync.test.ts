@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearLoadSaveCache, drainScoreQueue, loadSave, saveNow } from "./sync";
 import { getState, resetForTests } from "./GameState";
 import { clearScoreQueue, enqueueScore, readScoreQueueForTest } from "./scoreQueue";
+import { clearSaveQueue, readPendingSaveForTest } from "./saveQueue";
 
 // ----- loadSave / saveNow / drainScoreQueue: best-effort fetch wrappers -----
 //
@@ -19,10 +20,41 @@ const fetchImpl: { current: (input: string, init?: RequestInit) => Promise<Respo
   current: async () => new Response(null, { status: 200 })
 };
 
+// localStorage shim — saveNow goes through the durable save queue which
+// reads/writes localStorage. vitest "node" env has no window; the queue's
+// SSR guards check `typeof window` so we install a real-ish global.
+class FakeStorage {
+  private store = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.store.has(key) ? (this.store.get(key) as string) : null;
+  }
+  setItem(key: string, value: string): void {
+    this.store.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+  clear(): void {
+    this.store.clear();
+  }
+  get length(): number {
+    return this.store.size;
+  }
+  key(index: number): string | null {
+    return [...this.store.keys()][index] ?? null;
+  }
+}
+
 beforeEach(() => {
   fetchCalls.length = 0;
   fetchImpl.current = async () => new Response(null, { status: 200 });
   resetForTests();
+  // Fresh storage per test so a 5xx-induced pending save in one case doesn't
+  // bleed into a clean fixture in the next.
+  const g = globalThis as unknown as Record<string, unknown>;
+  if (!g.window) g.window = globalThis;
+  (globalThis as unknown as { localStorage: FakeStorage }).localStorage = new FakeStorage();
+  clearSaveQueue();
   // loadSave caches at module level so consecutive calls dedupe — that's
   // the production behavior, but each test case needs a fresh slate so a
   // 401 fixture in one case doesn't leak into a 200 fixture in the next.
@@ -152,6 +184,87 @@ describe("loadSave", () => {
     expect(fetchCalls).toHaveLength(1);
   });
 
+  it("hydrates from a pending save in localStorage even if the server returns 401", async () => {
+    // The exact regression that motivated the save queue: player completed
+    // a mission, saveNow's POST hit a 5xx, snapshot was durably stored in
+    // localStorage. They reload — the server still has the OLD save (or
+    // returns 401 because the cookie expired). loadSave must NOT show stale
+    // server state; the pending snapshot is the freshest progression.
+    fetchImpl.current = async () => new Response("unauthorized", { status: 401 });
+    // Hand-write a pending save with one more clear than INITIAL_STATE.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v1",
+      JSON.stringify({
+        snapshot: {
+          credits: 4242,
+          completedMissions: ["tutorial", "combat-1"],
+          unlockedPlanets: ["tutorial", "combat-1"],
+          playedTimeSeconds: 88,
+          ship: {},
+          saveSlot: 1,
+          currentSolarSystemId: "tutorial",
+          unlockedSolarSystems: ["tutorial"],
+          seenStoryEntries: []
+        },
+        firstSeenMs: Date.now(),
+        attempts: 0
+      })
+    );
+    expect(await loadSave()).toBe(true);
+    const s = getState();
+    expect(s.credits).toBe(4242);
+    expect(s.completedMissions).toEqual(["tutorial", "combat-1"]);
+    expect(s.playedTimeSeconds).toBe(88);
+  });
+
+  it("pending save overrides server hydrate — pending is strictly newer", async () => {
+    // Even if the server has a save (older), pending wins. This is what
+    // protects against "I cleared pirate-beacon but the save POST hit a
+    // 5xx; on reload the server still shows my older state".
+    const remote = {
+      slot: 1,
+      credits: 100, // older
+      currentPlanet: null,
+      shipConfig: {
+        slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+        inventory: [],
+        augmentInventory: [],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      },
+      completedMissions: ["tutorial"], // older
+      unlockedPlanets: ["tutorial"],
+      playedTimeSeconds: 30,
+      updatedAt: "2025-01-01T00:00:00.000Z"
+    };
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify(remote), { status: 200 });
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v1",
+      JSON.stringify({
+        snapshot: {
+          credits: 9999, // newer
+          completedMissions: ["tutorial", "combat-1", "boss-1"], // newer
+          unlockedPlanets: ["tutorial", "combat-1", "boss-1"],
+          playedTimeSeconds: 600,
+          ship: {},
+          saveSlot: 1,
+          currentSolarSystemId: "tutorial",
+          unlockedSolarSystems: ["tutorial"],
+          seenStoryEntries: []
+        },
+        firstSeenMs: Date.now(),
+        attempts: 0
+      })
+    );
+    expect(await loadSave()).toBe(true);
+    const s = getState();
+    // Newer pending state wins.
+    expect(s.credits).toBe(9999);
+    expect(s.completedMissions).toContain("boss-1");
+  });
+
   it("logs and returns false when the remote save row fails RemoteSaveSchema", async () => {
     // RemoteSaveSchema requires `slot`, `credits`, `completedMissions`, etc.
     // A row missing those keys exercises the safeParse-failure branch
@@ -189,12 +302,13 @@ describe("saveNow", () => {
     expect(body).toHaveProperty("completedMissions");
   });
 
-  it("returns ok=true on a 2xx response", async () => {
+  it("returns kind=ok and clears the pending slot on a 2xx response", async () => {
     fetchImpl.current = async () => new Response(null, { status: 204 });
-    await expect(saveNow()).resolves.toEqual({ ok: true });
+    await expect(saveNow()).resolves.toEqual({ kind: "ok" });
+    expect(readPendingSaveForTest()).toBeNull();
   });
 
-  it("returns ok=false with status + humanized message on a non-2xx response", async () => {
+  it("returns kind=failed with status + humanized message on a 422 (cheat-guard)", async () => {
     fetchImpl.current = async () =>
       new Response(JSON.stringify({ error: "credits_delta_invalid" }), {
         status: 422,
@@ -203,26 +317,48 @@ describe("saveNow", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
       const result = await saveNow();
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
+      expect(result.kind).toBe("failed");
+      if (result.kind === "failed") {
         expect(result.status).toBe(422);
         expect(result.message).toContain("credits delta");
       }
+      // Permanent rejection drops the pending slot — the same snapshot can't
+      // pass on retry against the server's last-saved row.
+      expect(readPendingSaveForTest()).toBeNull();
     } finally {
       warnSpy.mockRestore();
     }
   });
 
-  it("does not throw on a network error and returns ok=false with status=0", async () => {
+  it("returns kind=queued on a network error — snapshot persists for retry", async () => {
     fetchImpl.current = async () => {
       throw new TypeError("network down");
     };
-    const result = await saveNow();
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.status).toBe(0);
-      expect(result.message).toMatch(/Network error/);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const result = await saveNow();
+      expect(result.kind).toBe("queued");
+      if (result.kind === "queued") {
+        expect(result.message).toMatch(/sync automatically/);
+      }
+      // The whole point of the durability layer: the snapshot is STILL in
+      // localStorage. A reload would pick it up; a visibility/online retry
+      // would push it. Pre-fix, this returned ok=false and the snapshot
+      // evaporated on the next render.
+      const pending = readPendingSaveForTest();
+      expect(pending).not.toBeNull();
+      expect(pending?.attempts).toBe(1);
+    } finally {
+      warnSpy.mockRestore();
     }
+  });
+
+  it("returns kind=queued on a 5xx — same retry semantics as network error", async () => {
+    fetchImpl.current = async () => new Response("oops", { status: 503 });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await saveNow();
+    expect(result.kind).toBe("queued");
+    expect(readPendingSaveForTest()?.attempts).toBe(1);
   });
 });
 

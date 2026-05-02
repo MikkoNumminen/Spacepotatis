@@ -13,6 +13,10 @@ import { describeMissionReward } from "@/game/state/rewards";
 //  - queued: score is durably enqueued but couldn't post right now (offline,
 //    transient 5xx). The queue auto-retries on next mount / visibility
 //    change / network-online event, so the player needs to do nothing.
+//  - save_queued: SAVE snapshot didn't land (network / 5xx / 401) but is
+//    durably stored in localStorage. Auto-retries on the same triggers as
+//    the score queue. The win + progression are NOT lost — they will sync
+//    as soon as the server is reachable.
 //  - unauthenticated: not signed in. Score is in the queue locally; will
 //    auto-post the moment they sign in.
 //  - save_failed / score_failed: server rejected with a permanent error.
@@ -22,6 +26,7 @@ export type VictorySyncStatus =
   | { readonly kind: "pending" }
   | { readonly kind: "ok" }
   | { readonly kind: "queued"; readonly message: string }
+  | { readonly kind: "save_queued"; readonly message: string }
   | { readonly kind: "unauthenticated" }
   | { readonly kind: "save_failed"; readonly status: number; readonly message: string }
   | { readonly kind: "score_failed"; readonly status: number; readonly message: string };
@@ -186,7 +191,7 @@ function SyncStatusLine({ status }: { status: VictorySyncStatus }) {
       </div>
     );
   }
-  if (status.kind === "queued") {
+  if (status.kind === "queued" || status.kind === "save_queued") {
     return (
       <div className="mt-6 rounded border border-hud-amber/40 bg-hud-amber/5 px-3 py-2 text-center text-xs text-hud-amber/90">
         ⏳ {status.message}

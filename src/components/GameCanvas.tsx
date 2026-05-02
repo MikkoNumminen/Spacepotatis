@@ -23,7 +23,7 @@ import { setSolarSystem } from "@/game/state/GameState";
 import { getAllMissions, getMission } from "@/game/data/missions";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { getStoryEntry } from "@/game/data/story";
-import { drainScoreQueue, saveNow } from "@/game/state/sync";
+import { drainScoreQueue, flushSaveQueue, saveNow } from "@/game/state/sync";
 import { enqueueScore, QUEUED_MESSAGE } from "@/game/state/scoreQueue";
 import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
@@ -203,20 +203,29 @@ export default function GameCanvas() {
       }
 
       // Authenticated: save first (the leaderboard guard requires the new
-      // mission visible in completed_missions). The queue drain after
-      // saveNow handles the score POST — including a retry if the immediate
-      // submit hit a transient failure. Drain is non-blocking on the fade,
-      // so the mode switch isn't gated on score-post latency.
+      // mission visible in completed_missions). saveNow now goes through
+      // the durable save queue — its return reflects three outcomes:
+      //   - "ok": server accepted; proceed to score post.
+      //   - "queued": POST didn't land (network / 5xx / 401), but the
+      //     snapshot is durable in localStorage and will retry on mount /
+      //     visibility / online / sign-in. Modal surfaces the queued banner.
+      //   - "failed": permanent rejection (400 / 422 cheat-guard); snapshot
+      //     was dropped. Modal surfaces the red error banner.
+      // The queue drain after saveNow handles the score POST. Drain is
+      // non-blocking on the fade so the mode switch isn't gated on
+      // score-post latency.
       setSyncStatus({ kind: "pending" });
       const saveResult = await saveNow();
       if (missionSeqRef.current !== seq) return;
 
-      if (!saveResult.ok) {
+      if (saveResult.kind === "failed") {
         setSyncStatus({
           kind: "save_failed",
           status: saveResult.status,
           message: saveResult.message
         });
+      } else if (saveResult.kind === "queued") {
+        setSyncStatus({ kind: "save_queued", message: saveResult.message });
       } else if (!summary.victory) {
         // Loss: save committed, nothing to post. Modal goes back to idle.
         setSyncStatus({ kind: "idle" });
@@ -254,23 +263,30 @@ export default function GameCanvas() {
     [fadeOverlay, authStatus]
   );
 
-  // Drain the score queue on three triggers so a missing leaderboard entry
-  // self-heals without user action:
-  //   1. Mount + every transition to authenticated (anonymous wins from a
-  //      prior session catch up the moment the player signs in).
-  //   2. Tab returns to foreground (covers the "I closed the tab while the
-  //      submit was in flight" case — the next visit reposts).
+  // Drive both the save queue AND the score queue on three triggers so a
+  // pending save / missing leaderboard entry self-heals without user action:
+  //   1. Mount + every transition to authenticated (offline saves and
+  //      anonymous wins from a prior session catch up the moment the
+  //      player signs in).
+  //   2. Tab returns to foreground (covers "closed the tab mid-flight" —
+  //      the next visit reposts).
   //   3. Network-online events (mobile out-of-coverage → coverage).
-  // Drain is a no-op when the queue is empty, so spamming the trigger is
+  // Save flush runs BEFORE score drain so the leaderboard's mission-graph
+  // guard sees the freshest completed_missions in the same trigger pass.
+  // Both are no-ops when their queue is empty, so spamming triggers is
   // cheap.
   useEffect(() => {
     if (authStatus !== "authenticated") return;
-    void drainScoreQueue();
+    const drainBoth = async (): Promise<void> => {
+      await flushSaveQueue();
+      await drainScoreQueue();
+    };
+    void drainBoth();
     const onVisibility = (): void => {
-      if (document.visibilityState === "visible") void drainScoreQueue();
+      if (document.visibilityState === "visible") void drainBoth();
     };
     const onOnline = (): void => {
-      void drainScoreQueue();
+      void drainBoth();
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("online", onOnline);
