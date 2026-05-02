@@ -2,15 +2,15 @@
 // so non-Phaser callers (tests, data validators) can resolve enemy definitions
 // without importing the Phaser-bound Enemy class.
 //
-// enemies.json is parsed through EnemiesFileSchema at module load so a
-// drifted entry (missing field, wrong type, unknown enum) throws here with a
-// helpful Zod path rather than leaking a NaN/undefined into spawn math.
+// JSON shape is validated by `EnemiesFileSchema` in [src/lib/schemas/enemies.ts]
+// via the CI test in [src/game/data/__tests__/jsonSchemaValidation.test.ts] —
+// not at module load. Keeps Zod out of this file's import graph (~98 kB
+// per-route bundle saving).
 import enemiesData from "./enemies.json";
 import type { EnemyDefinition, EnemyId } from "@/types/game";
-import { EnemiesFileSchema } from "@/lib/schemas/enemies";
 
-const PARSED = EnemiesFileSchema.parse(enemiesData);
-const ALL_ENEMIES: readonly EnemyDefinition[] = PARSED.enemies;
+const ALL_ENEMIES: readonly EnemyDefinition[] =
+  (enemiesData as { enemies: readonly EnemyDefinition[] }).enemies;
 
 const ENEMIES: ReadonlyMap<EnemyId, EnemyDefinition> = new Map(
   ALL_ENEMIES.map((e) => [e.id, e])

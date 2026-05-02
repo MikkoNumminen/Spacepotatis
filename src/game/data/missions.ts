@@ -3,23 +3,21 @@
 // repeat `missionsData.missions as readonly MissionDefinition[]` casts and
 // inline `kind === "mission"` filters at every site.
 //
-// missions.json is parsed through MissionsFileSchema at module load so a
-// drifted entry (missing field, wrong type, unknown enum) throws here with a
-// helpful Zod path rather than leaking a NaN/undefined into orbit math at
-// runtime. The other JSON-backed accessors (weapons / enemies / waves /
-// solarSystems) still rely on plain `as` casts; if/when one of those drifts
-// in the wild, they should grow the same boot-parse pattern. Today this is
-// the only data file singled out by the audit follow-up.
+// JSON shape is validated by `MissionsFileSchema` in [src/lib/schemas/missions.ts]
+// — the runtime parse runs in CI via [src/game/data/__tests__/jsonSchemaValidation.test.ts],
+// not at module load. Keeping Zod out of this file's import graph saves
+// ~98 kB on every route's first-load JS (every page touches game data via
+// useGameState/MenuMusic). Tests run on every push and gate merges, so a
+// drifted JSON edit fails CI before it reaches users.
 import missionsData from "./missions.json";
 import type { MissionDefinition, MissionId } from "@/types/game";
-import { MissionsFileSchema } from "@/lib/schemas/missions";
 import {
   buildLiveIntegrityData,
   runDataIntegrityCheck
 } from "./integrityCheck";
 
-const PARSED = MissionsFileSchema.parse(missionsData);
-const ALL_MISSIONS: readonly MissionDefinition[] = PARSED.missions;
+const ALL_MISSIONS: readonly MissionDefinition[] =
+  (missionsData as { missions: readonly MissionDefinition[] }).missions;
 
 const MISSIONS: ReadonlyMap<MissionId, MissionDefinition> = new Map(
   ALL_MISSIONS.map((m) => [m.id, m])
