@@ -187,19 +187,8 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     id: "tubernovae-cluster-intro",
     title: "The Armed Harvest",
     body: [
-      "For a thousand harvests, the Spud knew only victory.",
-      "We rooted into worlds and they yielded. Soil softened. Skies thickened with our spores. Civilizations bowed their heads, and we, in our gentle, starchy way, ate them. Not cruelly. Just thoroughly.",
-      "But the Tubernovae Cluster is not soil. It is rust.",
-      "The pirates do not bleed sap. They bleed coolant. Their ships are not grown — they are welded. Their weapons do not wither in our atmospheres; they cut, and what they cut does not regrow. Three of our scouts came back as mash. The fourth came back as nothing.",
-      "And so, in the quiet hum of the Tubernovae Outpost — surrounded by the wares of dead races and the soft glow of stolen reactors — the Spud has made a decision that no Spud before has ever had to make.",
-      "We will take what they have.",
-      "Not eat it. Wear it.",
-      "The first volunteers are already in the surgery vats. Plating, bolted into skin that was meant to be peeled. Servos, threaded through stolons. A targeting array, salvaged from a pirate cruiser, grafted directly into the eye of an old, proud tuber who once won the Kepler Sprouting Championships three years running.",
-      "He says he is honored. He says he can see the heat of stars now.",
-      "Some of us are afraid this is the end of who we are.",
-      "Most of us are afraid of mash.",
-      "Captain — your potato_pilot designation has been upgraded. Your hull is no longer purely biological. The pirates wired their stars together with that beacon out there; cut it down, and we begin the harder work — learning to be what we eat.",
-      "And what we eat, now, has teeth."
+      "For a thousand harvests, the Spud knew only victory. The Tubernovae Cluster is not soil — it is rust.",
+      "Captain, your hull is no longer purely biological. What we eat now has teeth."
     ],
     logSummary: [
       "For a thousand harvests, the Spud knew only victory. We rooted into worlds and they yielded. Soil softened. Skies thickened with our spores. Civilizations bowed their heads, and we, in our gentle, starchy way, ate them. Not cruelly. Just thoroughly.",

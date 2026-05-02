@@ -92,7 +92,7 @@ export default function StoryModal({
         <div className="text-center font-display text-lg tracking-widest text-hud-amber">
           {entry.title}
         </div>
-        <div className="mt-6 space-y-4 text-xs leading-relaxed text-hud-green/90">
+        <div className="mt-6 space-y-4 text-sm leading-relaxed text-hud-green/90">
           {entry.body.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}
