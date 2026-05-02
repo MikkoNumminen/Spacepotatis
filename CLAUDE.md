@@ -183,7 +183,7 @@ node --env-file=.env.local scripts/migrate.mjs
 
 **Any PR that adds a new file under [db/migrations/](db/migrations/) is NOT done until the migration has been applied to production.** Period. Merging schema-referencing code without applying the migration produces 500s on every API call that hits the new column/table — and unlike a code bug, it can't be diagnosed from the modal alone (the catch block returns `{error: "server_error"}` and the only signal in Vercel logs is `console.error` output that's easy to miss).
 
-This bit us once already: PR #X (the story-log feature) added `seen_story_entries TEXT[]` and the migration sat unapplied for 3 days. Every save POST 500'd; players' progression silently failed to persist. The recovery cost was hours of log-spelunking and a separate save-durability layer to mask future occurrences.
+This bit us once already: PR #89 (the story-log feature) added `seen_story_entries TEXT[]` and the migration sat unapplied for 3 days. Every save POST 500'd; players' progression silently failed to persist. The recovery cost was hours of log-spelunking and a separate save-durability layer to mask future occurrences.
 
 The contract:
 

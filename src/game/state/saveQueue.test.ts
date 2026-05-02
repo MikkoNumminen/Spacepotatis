@@ -158,7 +158,7 @@ describe("flushPendingSave", () => {
     expect(readPendingSaveForTest()).toBeNull();
   });
 
-  it("DROPS the slot on 422 (cheat-guard) — replay of same snapshot can't pass", async () => {
+  it("DROPS the slot on 422 mission_graph_invalid — unlock chain is wrong, replay can't pass", async () => {
     markSavePending(SNAP, NOW);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
@@ -169,6 +169,53 @@ describe("flushPendingSave", () => {
     const result = await flushPendingSave(submit, NOW);
     expect(result).toMatchObject({ kind: "failed", status: 422 });
     expect(readPendingSaveForTest()).toBeNull();
+  });
+
+  it("DROPS the slot on 422 validation_failed — schema-side rejection, permanent", async () => {
+    markSavePending(SNAP, NOW);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 422,
+      errorCode: "validation_failed"
+    }));
+    const result = await flushPendingSave(submit, NOW);
+    expect(result).toMatchObject({ kind: "failed", status: 422 });
+    expect(readPendingSaveForTest()).toBeNull();
+  });
+
+  it("RETAINS the slot on 422 playtime_delta_invalid — baseline may be stale, retry", async () => {
+    // The server compares deltas against its last-saved row. If a previous
+    // save was lost (the very thing this queue exists to prevent going
+    // forward), the row is stale and our delta looks too large. A retry
+    // after a fresher row lands can pass.
+    markSavePending(SNAP, NOW);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 422,
+      errorCode: "playtime_delta_invalid"
+    }));
+    const result = await flushPendingSave(submit, NOW);
+    expect(result).toEqual({ kind: "queued", status: 422 });
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
+    expect(pending?.snapshot).toEqual(SNAP);
+  });
+
+  it("RETAINS the slot on 422 credits_delta_invalid — baseline may be stale, retry", async () => {
+    markSavePending(SNAP, NOW);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 422,
+      errorCode: "credits_delta_invalid"
+    }));
+    const result = await flushPendingSave(submit, NOW);
+    expect(result).toEqual({ kind: "queued", status: 422 });
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
+    expect(pending?.snapshot).toEqual(SNAP);
   });
 
   it("drops the slot up front when attempts >= MAX_ATTEMPTS (no POST)", async () => {

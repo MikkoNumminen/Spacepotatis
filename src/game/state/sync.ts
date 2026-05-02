@@ -127,6 +127,13 @@ async function doLoadSave(): Promise<boolean> {
   // FRESHEST player state (it was written by saveNow's markSavePending
   // before the POST that eventually failed / was interrupted). Override
   // any server hydrate above — pending is strictly newer.
+  //
+  // INVARIANT: never extend the saveQueue snapshot shape ahead of its
+  // consumer. hydrate() REPLACES (missing keys fall back to INITIAL_STATE,
+  // see persistence.ts). If a future deploy adds new StateSnapshot fields
+  // to markSavePending BEFORE the matching reader lands, this hydrate would
+  // clobber the just-loaded server state with INITIAL_STATE defaults. Bump
+  // the saveQueue `:v1` schema (with a migrator) when the shape changes.
   const pending = readPendingSaveForTest();
   if (pending) {
     hydrate(pending.snapshot as unknown as Partial<StateSnapshot>);

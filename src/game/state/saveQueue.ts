@@ -226,14 +226,23 @@ async function doFlush(submit: SavePostFn, nowMs: number): Promise<FlushResult> 
   return { kind: "queued", status: result.status };
 }
 
-function isPermanent(status: number, _errorCode: string | null): boolean {
+function isPermanent(status: number, errorCode: string | null): boolean {
   // 400 (schema rejection) — payload shape can't become valid by retrying.
   if (status === 400) return true;
-  // 422 — every cheat-guard rejection (mission_graph_invalid /
-  // playtime_delta_invalid / credits_delta_invalid / etc.) is deterministic
-  // against the server's last-saved row. Replaying THIS snapshot won't pass.
-  // A fresher snapshot might, but markSavePending overwriting will reset
-  // the slot's attempts on its own — no need to keep the failing one alive.
-  if (status === 422) return true;
+  // 422 has sub-cases. Mirrors scoreQueue.ts mission_not_completed pattern.
+  //  - playtime_delta_invalid / credits_delta_invalid → TRANSIENT. The
+  //    server's comparison baseline is its last-saved row; if intervening
+  //    saves never landed, our snapshot's delta looks too large from the
+  //    server's stale viewpoint. A fresher baseline (next saveNow, or this
+  //    snapshot landing after retries that re-anchor the row) might pass.
+  //  - mission_graph_invalid / validation_failed / other → PERMANENT.
+  //    The unlock chain or schema is wrong in the snapshot itself; replay
+  //    can't fix it.
+  if (status === 422) {
+    return (
+      errorCode !== "playtime_delta_invalid" &&
+      errorCode !== "credits_delta_invalid"
+    );
+  }
   return false;
 }
