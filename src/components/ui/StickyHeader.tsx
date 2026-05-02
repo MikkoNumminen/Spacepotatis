@@ -20,13 +20,6 @@ import { BUTTON_BACK } from "./buttonClasses";
 //
 // The right-side slot is optional. /shop fills it with a live credits
 // readout; /leaderboard leaves it empty.
-//
-// `mainPaddingY` defaults to the value /shop and /leaderboard use — the
-// page-level <main> originally owned the top padding, but with a sticky
-// header the bar is what creates the visible "header band" so the page's
-// content needs only a small gap from the bar's bottom edge. Consumers
-// pass the original padding through so the header band breathes the same
-// way the original non-sticky header did.
 export interface StickyHeaderProps {
   readonly backHref: string;
   readonly title: string;

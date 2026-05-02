@@ -14,7 +14,7 @@ export default function ShopCreditsTicker() {
   const credits = useGameState((s) => s.credits);
   return (
     <div className="font-mono text-sm text-hud-amber sm:text-base">
-      ¢ {credits.toLocaleString()}
+      ¢ {credits}
     </div>
   );
 }
