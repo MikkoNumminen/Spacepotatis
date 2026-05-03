@@ -430,3 +430,12 @@ export const combatMusic = new MusicEngine({
   fadeInSec: 0.15
 });
 
+// Shop bed. Native loop (gapless) like menuMusic so a long browse never
+// hits a silence window. src is set per-shop via loadTrack() so different
+// shops can carry different music in the future; today every shop uses
+// /audio/music/shop.ogg.
+export const shopMusic = new MusicEngine({
+  loop: true,
+  targetVolume: 0.4
+});
+
