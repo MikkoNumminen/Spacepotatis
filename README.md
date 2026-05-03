@@ -6,17 +6,17 @@
 >
 > Runs in your browser. No install, no sign-up. (Sign in with Google only if you want your progress saved across devices and your score on the leaderboard.)
 
-Welcome! Spacepotatis is a small browser game where you fly a tiny spaceship around the galaxy, pick a planet, and then shoot enemies in space. Yes, you are also a potato. The little badge above tells you whether the latest version of the code is healthy — when it's green, everything builds and the tests pass.
+Welcome! Spacepotatis is a small browser game where you fly a tiny spaceship around the galaxy, pick a planet, and then shoot enemies in space. Yes, you are also a potato. (Specifically: an angry one with thrust nozzles where its roots used to be.) The little badge above is the project's heartbeat — when it's green, everything builds and the tests pass; when it's red, somebody (probably the author) just broke something and is busy unbreaking it.
 
 ## What it looks like
 
-The **main menu** is the front door. The dark backdrop is a real, slowly spinning 3D galaxy scene running behind the title — the game's actual rendering engine, used here just for atmosphere. From here you sign in, pick PLAY (or CONTINUE if you have a save), or browse the leaderboard.
+The **front door** is a tiny system-boot sequence: a green terminal panel warms the reactors, verifies your pilot session, and only then hands you the actual menu. It's a few seconds of theatre at most, but it sets the tone — you are operating a slightly-too-old spaceship with cathode-ray sensibilities, and it would like you to wait while it remembers how to be a spaceship.
 
-![Main menu showing the SPACEPOTATIS title over a slowly spinning galaxy backdrop](docs/screenshots/landing.png)
+![Boot sequence on the landing page — a terminal-style "SPACEPOTATIS / SYSTEM BOOT" panel with checklist items "warm reactors" (✓) and "verify pilot session", overlaid on a faded galaxy backdrop](docs/screenshots/landing.png)
 
-The **galaxy view** is where you choose what to do next. You're looking at a real solar system — drag with the mouse to rotate, scroll to zoom, click a planet to open its mission panel and launch. The HUD around the edges is your menu (top-left), credits + missions cleared (left), audio + your handle (top-right).
+The **galaxy view** is where you decide what to do next. You're looking at an actual 3D solar system — drag with the mouse to spin the camera around, scroll the wheel to zoom, click a planet to open its mission panel. The HUD keeps the bookkeeping out of the way: top-left for the Menu and Warp buttons, just under that your credits and missions cleared, top-right for the audio toggle and your callsign. (HUD is short for "heads-up display", a term arcades and aircraft folk use for "stuff drawn on top of the world to tell you things you need to know without taking your eyes off the action".) The shot below is the **Tubernovae Cluster**, the second system you'll visit, snapped at the moment everything in it has been cleared and the game is gently prodding you toward the next system.
 
-![Galaxy view of Sol Spudensis with the star, three planets, and the mission info panel for Spud Prime](docs/screenshots/galaxy.png)
+![Galaxy view of a fully-cleared Tubernovae Cluster — the quests panel reads "SYSTEM CLEAR" with a "WARP TO NEXT SYSTEM" button, and Pirate Beacon, Ember Hut, and Burnt Spud are all checked off below it. The Tubernovae Outpost shop sits docked on the left](docs/screenshots/galaxy.png)
 
 ## Music
 
@@ -24,11 +24,11 @@ The calm, ambient music in the menus is original, written specifically for this 
 
 Once loaded, the music behaves the way a thoughtful background score should. The first time you click or press a key, the track quietly starts. (Browsers don't allow websites to play sound on their own — they wait for user input first, so opening a tab doesn't blast noise at you. We respect that and arm the music on your first input.) The same track keeps playing as you move between the main menu, the galaxy view, and the shop. If a song reaches its end it doesn't snap back to the start — it fades out, holds a brief silence, and fades back in, so the music draws a breath rather than reboots. Launching a combat mission ducks the music so lasers and explosions have room to land; finishing fades it back in.
 
-The **♪ on / ♪ off** button in the top-right of every menu mutes both music and sound effects. The mute is **session-only**: every fresh page load starts with sound on, and clicking mute silences everything until you reload. We deliberately don't remember the choice between visits — that saved a whole class of "no music after refresh" bugs from a stale preference quietly muting the page on cold load.
+The **♪ on / ♪ off** button in the top-right of every menu mutes both music and sound effects. The mute is **session-only**: every fresh page load starts with sound on, and clicking mute silences everything until you reload. We deliberately don't remember the choice between visits — that saved a whole class of "why is the page silent again" bugs caused by a stale preference quietly muting things on cold load. Click for silence, refresh for music. Your call each visit.
 
 ## Audio storyline & audio-assisted gameplay (this is a big one)
 
-This section gets its own headline because it's not a small touch — Spacepotatis ships a **fully-voiced narrative layer** that runs end to end, and every spoken line is original, machine-generated on Mikko's machine, and 100% copyright-free. No commercial voice actor, no licensed voice model. The voice work isn't sprinkled across a couple of cutscenes — it's the connective tissue from the front page through to the end of the campaign.
+This section gets its own headline because it isn't a small touch — Spacepotatis ships a **fully-voiced narrative layer** that runs end to end, and every spoken line is original, machine-generated on Mikko's machine, and 100% copyright-free. No commercial voice actor, no licensed voice model, no tubers were harmed in the making of this audio. The voice work isn't sprinkled across a couple of cutscenes — it's the connective tissue from the front page through to the end of the campaign.
 
 The voice does **two jobs at once**: an audiobook-style storyline that frames the game in narrative, *and* audio-assisted gameplay feedback. *"You bought a new gun." "You cleared the system — there's more out there." "Welcome back to the Market."* The line between narration and UI feedback is blurred on purpose; the player doesn't have to read a tooltip because the voice already said so.
 
@@ -71,7 +71,7 @@ The same four cues are reused everywhere a permanent item changes hands, so once
 
 ### The Story log
 
-Open the **user menu** in the top-right of the galaxy view and pick **Story log** to replay anything you've unlocked. Entries you haven't reached stay hidden so the path doesn't spoil itself. The log has its own music bed that ducks the menu music while browsing — opening a replay doesn't restart the bed, so music plays continuously across the list and any replay opened from it. Each entry shows a **written synopsis** under its title; Grandma's spoken narration is short and read-aloud-friendly, while the synopsis is the deeper written version with room for lore that wouldn't fit comfortably in spoken text.
+If you missed a beat — or you just want to hear Grandma tell it again — open the **user menu** in the top-right of the galaxy view and pick **Story log**. Every storyline entry you've already unlocked sits in here, ready to replay with its music and voiceover. Entries you haven't reached stay hidden so the next chapter doesn't get spoiled. The log has its own music bed that ducks the menu music while you're browsing it, and opening a replay doesn't restart that bed — the music plays continuously across the list and any replay you open from it. Each entry also shows a **written synopsis** under its title; Grandma's spoken narration is short and read-aloud-friendly, while the synopsis is the deeper written version with room for lore that wouldn't fit comfortably in spoken text.
 
 ### How the audio is put together
 
@@ -81,16 +81,20 @@ The **voiceover** is generated by Mikko's own **AudiobookMaker** app: **<https:/
 
 ## What kind of game is this?
 
-It's a **vertical scrolling space shooter**. That's a genre where your ship sits near the bottom of the screen, the world scrolls past you from top to bottom, and waves of enemies come down toward you. You move left and right (and a bit up and down), you shoot upward, and you try not to get hit. Think of the old arcade game *Galaga* — same idea.
+It's a **vertical scrolling space shooter**. That's a genre where your ship sits near the bottom of the screen, the world scrolls past you from top to bottom, and waves of enemies come down toward you. You move left and right (and a bit up and down), you shoot upward, and you try very hard not to get hit. Think of the old arcade game *Galaga* — same idea, just with more potatoes and worse manners.
 
-The specific inspiration is **Tyrian 2000**, a 1995 PC space shooter that was famous for its giant catalog of weapons, ship modules, and a between-mission "shop" where you'd kit out your ship before the next fight. Spacepotatis is going for the same feel, just modernized and running in your web browser.
+The specific inspiration is **Tyrian 2000**, a 1995 PC space shooter famous for its giant catalog of weapons, ship modules, and a between-mission "shop" where you'd kit out your ship before the next fight. Spacepotatis is going for the same feel, just modernized, running in your web browser, and starring a slightly more agricultural protagonist.
+
+![Combat scene — the player's potato ship near the bottom inside a blue shield bubble, two pirate ships drifting down from above, with score, credits, and the shield/hull/reactor HUD bars in the corners](docs/screenshots/combat.png)
+
+The HUD bars stacked in the top-right are, top to bottom: **shield** (blue, recharges over time), **hull integrity** (red, no recharge — once it's gone, you're vapour), and **reactor energy** (yellow, drains while you fire and recovers when you let go). The reactor is why you can't just hold Space forever — empty it and your guns lock out for a moment, which is a polite way of saying *"this is when you should probably dodge"*.
 
 There are two big screens you'll see while playing:
 
-1. **The galaxy view.** A real, rotatable 3D solar system. Each planet you can see is a thing you can do — most of them are missions (a fight), some are shops (where you spend money on upgrades), and a few are hubs. You drag the camera around with your mouse to look at planets, scroll to zoom in and out, and click a planet to open its info panel.
-2. **Combat.** Once you launch into a mission, the camera switches to the classic top-down shooter view. Your ship flies up the screen, enemies pour down, you shoot them, you dodge. Survive long enough and you complete the mission, get rewards, and end up back in the galaxy view to pick what's next.
+1. **The galaxy view.** A real, rotatable 3D solar system. Each planet you can see is a thing you can do — most of them are missions (a fight), some are shops (where you spend money on upgrades), and a few are hubs. You drag the camera around with your mouse to look at planets, scroll to zoom, and click a planet to open its info panel.
+2. **Combat.** Once you launch into a mission, the camera switches to the classic top-down shooter view. Your ship flies up the screen, enemies pour down, you shoot them, you dodge, you mutter at the screen. Survive long enough and you complete the mission, collect rewards, and end up back in the galaxy view to pick what's next.
 
-The basic loop is: **galaxy → pick a planet → fight → return with money and loot → upgrade your ship at a shop → pick the next planet**. Repeat.
+The basic loop is: **galaxy → pick a planet → fight → return with money and loot → upgrade your ship at a shop → pick the next planet**. Repeat until you've thoroughly inconvenienced the bugs.
 
 ## How do I play?
 
@@ -105,7 +109,7 @@ That's the whole input scheme. There used to be separate keys for rear-firing an
 
 ## What's under the hood?
 
-Spacepotatis is a website that runs a game in your browser, so the technology is mostly web stuff. Here's what each piece does, in plain English:
+Spacepotatis is a website that runs a game in your browser, so the technology is mostly web stuff stitched together with a generous layer of TypeScript. Here's what each piece does, in plain English:
 
 - **Next.js 15** — the framework that serves the website itself. It handles things like "what URL shows what page" and is also responsible for serving the icons and the social-media preview image (the OG image — short for "Open Graph", the standard chat apps like Discord and WhatsApp use to fetch a thumbnail when someone pastes a link). React 19 is the UI library Next.js uses to build the menus and HUD on top of the game canvas.
 - **Phaser 3** — a 2D game engine that runs in the browser. It handles the combat scenes: drawing the ship, drawing the bullets, moving everything every frame, and detecting when one thing collides with another.
