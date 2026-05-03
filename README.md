@@ -20,76 +20,64 @@ The **galaxy view** is where you choose what to do next. You're looking at a rea
 
 ## Music
 
-The calm, ambient music you hear while you're in the menus is original — written specifically for this game. We owe a big thank-you to a sister project that lives in its own repository on GitHub: **<https://github.com/MikkoNumminen/strudel-patterns>**. If you like the music and want to hear more of it (or take the underlying recipe and turn it into something of your own), that's the place to look.
+The calm, ambient music in the menus is original, written specifically for this game in **Strudel** — a tool where you describe music by typing short text snippets (think "play these four drum sounds in this order, twice as fast"), press a button, and hear what you wrote. It's like writing a tiny program whose output is a song; you iterate quickly and share a "song" as a few lines of text. The Strudel output is exported as a regular audio file and that's what you hear in-game. The patterns live in a sister repo: **<https://github.com/MikkoNumminen/strudel-patterns>**.
 
-A quick word about how it was made, because it's a fun corner of music tech that not everyone has bumped into yet. Most people picture music being made with a microphone in front of a guitar, or a person dragging notes around in a program like GarageBand. The strudel-patterns repo uses a different approach called **Strudel** — a tool where you describe music by typing very short text snippets (think a sentence like "play these four drum sounds in this order, twice as fast"), then press a button and hear what you wrote. It's a bit like writing a tiny program whose output is a song. The advantages are that you can iterate very quickly, share the "song" as a few lines of text rather than a giant audio file, and tweak any tiny detail by just editing the text. The output of those Strudel patterns is exported as a regular audio file, and that file is what you hear in Spacepotatis.
+Once loaded, the music behaves the way a thoughtful background score should. The first time you click or press a key, the track quietly starts. (Browsers don't allow websites to play sound on their own — they wait for user input first, so opening a tab doesn't blast noise at you. We respect that and arm the music on your first input.) The same track keeps playing as you move between the main menu, the galaxy view, and the shop. If a song reaches its end it doesn't snap back to the start — it fades out, holds a brief silence, and fades back in, so the music draws a breath rather than reboots. Launching a combat mission ducks the music so lasers and explosions have room to land; finishing fades it back in.
 
-Once it's loaded into the game, the music behaves the way you'd want a thoughtful background score to behave. The first time you click or press a key, the track quietly starts. (Web browsers don't allow websites to play sound on their own — they wait for you to interact with the page first, so that opening a tab doesn't suddenly blast noise at you. We respect that rule and arm the music on your first input.) From that point on, the same track keeps playing as you move between the main menu, the galaxy view (where you pick a planet), and the shop. If you stay in the menus long enough for the song to reach its end, it doesn't snap back to the start — instead it gently fades out, holds a brief silence, and fades back in, so it feels like the music drew a breath rather than rebooted.
-
-When you launch into a combat mission, the music does a slow fade-out (a "duck", in audio terms — like ducking under a wave) so that the in-game sound effects of lasers and explosions have room to land. The moment you finish the mission and you're back in the galaxy view, the music fades back in.
-
-And if you'd rather play in silence — maybe you're at work, maybe you're listening to a podcast — the **♪ on / ♪ off** button in the top-right corner of every menu mutes both the music and the sound effects at once. The mute is **for the current session only**: every fresh page load starts with sound on, and clicking mute silences everything until you reload. We deliberately don't remember the choice between visits — that one design decision saved a whole class of "no music after refresh" bugs that came from a stale preference quietly muting the page on cold load with no obvious recovery beyond noticing the toggle's icon. Click once, hear nothing for the rest of the visit; refresh, and the music is back.
+The **♪ on / ♪ off** button in the top-right of every menu mutes both music and sound effects. The mute is **session-only**: every fresh page load starts with sound on, and clicking mute silences everything until you reload. We deliberately don't remember the choice between visits — that saved a whole class of "no music after refresh" bugs from a stale preference quietly muting the page on cold load.
 
 ## Audio storyline & audio-assisted gameplay (this is a big one)
 
-This section gets its own headline because it's not a small touch — Spacepotatis ships a **fully-voiced narrative layer** that runs the entire length of the game, end to end, and every spoken line you hear is original, machine-generated on Mikko's own machine, and 100% copyright-free. There is no commercial voice actor and no licensed voice model anywhere in this audio chain. The voice work isn't sprinkled across a couple of cutscenes — it's the connective tissue of the game, present from the first second of the front page through to the end of the campaign and back.
+This section gets its own headline because it's not a small touch — Spacepotatis ships a **fully-voiced narrative layer** that runs end to end, and every spoken line is original, machine-generated on Mikko's machine, and 100% copyright-free. No commercial voice actor, no licensed voice model. The voice work isn't sprinkled across a couple of cutscenes — it's the connective tissue from the front page through to the end of the campaign.
 
-And it's doing **two jobs at once**. On one hand it's a proper audiobook-style storyline that frames the whole game in narrative — there's a plot, a setting, a tone. On the other hand it's **audio-assisted gameplay**: the same voice that tells you the story also tells you what just happened, what to do next, and where the game is nudging you. *"You bought a new gun." "You cleared the system — there's more out there." "Welcome back to the Market."* The line between narration and UI feedback is blurred on purpose; the player doesn't have to read a tooltip to know what they just got, because the voice already said so.
+The voice does **two jobs at once**: an audiobook-style storyline that frames the game in narrative, *and* audio-assisted gameplay feedback. *"You bought a new gun." "You cleared the system — there's more out there." "Welcome back to the Market."* The line between narration and UI feedback is blurred on purpose; the player doesn't have to read a tooltip because the voice already said so.
 
 ### Meet the narrator — Grandma
 
-Every spoken line in the game — the menu nudges, the system briefing, the per-mission setups, the item-acquisition cues, every story popup — is read by the same character: **Grandma**. She's the in-character voice of the entire storyline, the warm-but-no-nonsense narrator who tells the player how the universe works, what the bugs are up to, and what just landed in the cargo hold. Casting one consistent voice across every audio surface is a deliberate choice — it keeps the game feeling like a single read-aloud story rather than a stack of unrelated voiceovers, and it makes the audio cues immediately recognizable as part of the narrative rather than as game system noise.
+Every spoken line — menu nudges, system briefing, mission setups, item-acquisition cues, story popups — is read by the same character: **Grandma**, the warm-but-no-nonsense narrator who tells you how the universe works, what the bugs are up to, and what just landed in the cargo hold. Casting one consistent voice keeps the game feeling like a single read-aloud story rather than a stack of unrelated voiceovers.
 
 Here's a tour of every surface where Grandma's voice plays, in the order you'd encounter them.
 
 ### The main-menu briefing queue
 
-The very first thing that happens when you arrive at the front page — signed in or not — is a **voice queue** starts playing softly under the music. It's a sequence of short clips with measured silence between them, scripted to feel like a calm voice nudging you to hit PLAY (or CONTINUE, if you already have a save). The first clip is keyed to the visible button label, so a returning player hears a slightly different opening line than a first-time visitor. After the nudge sequence the queue rolls into a longer **system briefing** — essentially the audiobook prologue — that frames the whole game's premise. The moment you click PLAY (or CONTINUE), the entire queue is cancelled instantly so you don't sit through the rest. The queue replays on every menu visit (a fresh tab, a refresh, or coming back from the galaxy view) because the goal is for an idle player to always hear something happening.
-
-A note on the browser autoplay rules that govern all of this. By default a website cannot play audio until you've interacted with the page, which is a sensible rule designed to stop ads from blasting noise the moment a tab opens. Spacepotatis respects that — the queue arms itself optimistically, and if the browser blocks the first clip then the very first click or keypress anywhere on the page restarts it from the top.
+The first thing that happens on the front page is a **voice queue** under the music: short clips with measured silence between them, nudging you toward PLAY (or CONTINUE if you already have a save). The first clip is keyed to the visible button label, so a returning player hears a different opening than a first-timer. The queue then rolls into a longer **system briefing** — essentially the audiobook prologue. Clicking PLAY cancels the queue instantly. It replays on every menu visit so an idle player always hears something happening. If the browser blocks autoplay on the first clip, your first click or keypress anywhere restarts it from the top.
 
 ### The opening cinematic — "The Great Potato Awakening"
 
-Once you press PLAY for the first time and reach the galaxy view, a popup fades up over the scene: a quiet music bed comes in, the title card reads "The Great Potato Awakening", and a narrator reads you the origin story of the potato-pilot and why the bugs need shooting. The popup also shows the same words on screen so anyone playing muted, or who simply prefers to read along, gets the same content. After this first play, the entry slides into the **Story log** (described below) so you can replay it whenever you like.
+The first time you press PLAY and reach the galaxy view, a popup fades up: a quiet music bed, the title card "The Great Potato Awakening", and a narrator reading the origin story of the potato-pilot and why the bugs need shooting. The popup also shows the words on screen for muted playback. After this first play, the entry slides into the **Story log** (below) so you can replay it.
 
 ### Per-mission briefings
 
-Every mission planet in the galaxy view has its own short voice briefing tied to it. The briefing fires when you click the mission card — with a deliberate two-second debounce so casually shuffling between cards doesn't stack briefings on top of each other. Click one card, then immediately click another, and the first one cancels so only the latest plays. Locked planets ("?") never reveal their briefing. Each briefing is keyed to the specific mission (Spud Prime, the Yamsteroid Belt, Dreadfruit, and so on) and only auto-plays the first time you encounter it.
+Every mission planet has its own short voice briefing that fires when you click the mission card. A two-second debounce stops casual shuffling between cards from stacking briefings — click one, then another, and the first cancels. Locked planets never reveal their briefing. Each one only auto-plays the first time.
 
-### Shop arrival — "Market arrival"
+### Shop arrival
 
-Every time you dock at a Market planet, a short voice line greets you: *"You've docked at the Market — Mission Control runs through what's on the shelves."* This one plays on **every** visit, not just the first, because a returning player still appreciates the welcome.
+Docking at a Market planet plays a short *"You've docked at the Market"* line — on **every** visit, not just the first.
 
 ### System-cleared idle voice
 
-Once you've completed every combat mission in a solar system, the game starts noticing if you're just sitting in the galaxy view with nothing to do. Five seconds after the last mission is cleared, a "Sol Spudensis cleared" voice plays — and it loops every 20 seconds for as long as you idle there. The moment you open the shop, the Story log, or warp to another system, the voice cancels. It's a gentle nudge that says *"there's more to find — go look".*
+Once you've cleared every combat mission in a system, a "Sol Spudensis cleared" voice plays five seconds after the last mission and loops every 20 seconds while you idle in the galaxy view. Opening the shop, the Story log, or warping cancels it. It's a gentle nudge that says *"there's more to find — go look".*
 
 ### Item-acquisition voice cues
 
-Four short voice clips, one per item category, fire whenever you receive a permanent item — either as the **first-clear reward** of a mission (shown in the Victory popup) or when you **buy** something at the shop:
+Four short cues, one per category, fire whenever you receive a permanent item — first-clear mission rewards or shop purchases:
 
-- A **weapon** (a new gun for your loadout) → weapon cue
-- An **augment** (a permanent modifier you bind to a specific weapon) → augment cue
-- A **ship upgrade** (shield capacity, armor plating, reactor capacity, or reactor recharge) → upgrade cue
+- A **weapon** → weapon cue
+- An **augment** (a permanent modifier bound to a weapon) → augment cue
+- A **ship upgrade** (shield, armor, reactor) → upgrade cue
 - A **credits bonus** → money cue
 
-The same four cues are reused everywhere a permanent item changes hands, so the audio you hear in the Victory popup is identical to the audio you hear at the shop — once the player learns *"that line means I just got a gun",* the language is consistent across the whole game. This is the audio-assisted-gameplay angle in its clearest form: the player doesn't need to glance at the popup or read a tooltip to know what they were awarded, because Grandma already said so.
+The same four cues are reused everywhere a permanent item changes hands, so once the player learns *"that line means I just got a gun"*, the language stays consistent across the whole game.
 
 ### The Story log
 
-If you miss a beat — or you just want to hear it again — open the **user menu** in the top-right corner of the galaxy view and pick **Story log**. Every storyline entry you've already unlocked sits in there, ready to replay from the beginning, music and voice and all. Entries you haven't reached yet stay hidden so the path ahead doesn't spoil itself. The log has its own dedicated music bed that ducks the menu music while you're browsing it — opening a replay does not restart the bed, so the music plays continuously across the list view and any replay you open from inside it.
-
-Each entry in the log shows a **written synopsis** under its title — usually two or three short paragraphs. Grandma's spoken narration in the cinematic is intentionally short and read-aloud-friendly; the synopsis is the deeper, written version, with room for lore, context, and what's at stake that wouldn't fit comfortably in spoken text. Read the synopsis if you want the longer version of the story; press REPLAY to hear the spoken version again with its music bed.
+Open the **user menu** in the top-right of the galaxy view and pick **Story log** to replay anything you've unlocked. Entries you haven't reached stay hidden so the path doesn't spoil itself. The log has its own music bed that ducks the menu music while browsing — opening a replay doesn't restart the bed, so music plays continuously across the list and any replay opened from it. Each entry shows a **written synopsis** under its title; Grandma's spoken narration is short and read-aloud-friendly, while the synopsis is the deeper written version with room for lore that wouldn't fit comfortably in spoken text.
 
 ### How the audio is put together
 
-A short word on the pipeline, because two of the pieces are interesting open-source corners of recent tech.
+The **music** for menus and story beats is written in Strudel (described in the Music section). Story beds are deliberately sparser than the menu track so narration has room to breathe.
 
-The **music** for the menus and for each story beat is written in **Strudel** — the same text-based music tool described in the Music section above. Same recipe: tap out a few lines of code, press a button, hear what you wrote, iterate, export the result as a regular audio file. The story beds are deliberately sparser than the menu track so the narration has room to breathe. All the patterns for this project live in their own repository: **<https://github.com/MikkoNumminen/strudel-patterns>**.
-
-The **voiceover** is generated by Mikko's own **AudiobookMaker** app, which lives in its own repository on GitHub: **<https://github.com/MikkoNumminen/AudiobookMaker>**. It's a small tool he built that feeds a written script through **Chatterbox**, an open-source text-to-speech model (a piece of software that turns written sentences into natural-sounding spoken audio). The whole pipeline runs locally on Mikko's machine — no commercial voice actor and no licensed voice model is involved, so every spoken line in the game is fully copyright-free. A practical side-effect is that dialogue becomes cheap to iterate: edit the script, regenerate the audio in seconds, drop the new file into the project. If a line doesn't land, it gets rewritten and re-spoken without anyone needing to book a recording session.
-
-The result is a game where the audio is doing real narrative *and* gameplay work — not just background atmosphere — and every minute of voice you hear was scripted, spoken by Grandma, and shipped within the same week, by one person, with no licensing strings attached.
+The **voiceover** is generated by Mikko's own **AudiobookMaker** app: **<https://github.com/MikkoNumminen/AudiobookMaker>**. It feeds a written script through **Chatterbox**, an open-source text-to-speech model. The whole pipeline runs locally — no commercial voice actor, no licensed voice model, every line fully copyright-free. A practical side-effect: dialogue is cheap to iterate. Edit the script, regenerate in seconds, drop the file in. If a line doesn't land, it gets rewritten and re-spoken without booking a recording session.
 
 ## What kind of game is this?
 
