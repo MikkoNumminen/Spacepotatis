@@ -201,6 +201,24 @@ The whole thing usually finishes in about five seconds. If either step fails, yo
 
 Tests are deliberately **not** part of the pre-commit hook — they still run on every push via CI. The goal of the hook is to catch the cheap mistakes (typos, type errors) instantly, while letting the slower, more thorough checks live on the build server.
 
+### Save audit readiness check
+
+There's a small operational helper at `scripts/check-audit-readiness.mjs` that you (or, more likely, a daily robot — see below) can run to ask the database one question: "have we collected enough save-attempt forensic data yet to inform the next big upgrade to how saves work?" The "forensic data" here is a table called `spacepotatis.save_audit` that records, for every save the game tries to push to the server, what the player sent, what the server had stored before, and what the server replied. That table was added because of a 2026-05-02 incident where a player's progress disappeared and we had no recording of what happened — like a flight-data recorder for save games.
+
+The check applies three thresholds and prints a verdict. The thresholds are: at least 100 audit rows (so the sample is big enough to spot odd payload shapes), at least 2 distinct players (so we're not just looking at one person's data), and at least 3 days of history (covers a weekend cycle, where player behaviour differs from weekdays). If all three pass, the script prints `STATUS: READY` and exits with code 0; if any fail, it prints `STATUS: NOT YET (waiting for: ...)` and exits 1; if the database is unreachable or `DATABASE_URL` isn't set, it exits 2 so a broken cron stands out from a healthy "not yet" cron.
+
+To run it manually from your machine (you'll need `DATABASE_URL` in `.env.local`, same as for migrations):
+
+```bash
+# Connects to the database, runs one read-only query, and prints the
+# readiness report. Exit code is what the GitHub Actions cron reads.
+node --env-file=.env.local scripts/check-audit-readiness.mjs
+```
+
+You usually won't need to run it by hand. There's a **GitHub Actions workflow** (`.github/workflows/audit-readiness-check.yml`) — that's a small script GitHub runs for you on a schedule — that runs the check every day at 07:00 UTC (late morning Helsinki time, after a full overnight cycle of saves). When the script reports `READY`, the workflow opens a GitHub issue in this repo with the report attached, so the next time you check your notifications you'll see "save_audit ready — start Phase Save-Architecture" and know it's time to begin the next round of work. The workflow is careful to only open one issue at a time (it checks for an existing open issue with the `save-architecture-ready` label first), so it can't spam.
+
+For the cron to actually work, the repo needs a secret called `DATABASE_URL` configured. A "secret" in GitHub is an environment variable that's encrypted at rest and only exposed to your workflow runs — it's not visible in the repo's source. To add it, go to **Settings → Secrets and variables → Actions** in the GitHub web UI for this repo (the URL is `https://github.com/MikkoNumminen/Spacepotatis/settings/secrets/actions`), click **New repository secret**, name it `DATABASE_URL`, and paste in the same Neon connection string you use locally. After that, the cron will be able to query the database; until then the daily run will fail loudly with a clear error message so you know to wire it up.
+
 ## Recent quality push (April 2026)
 
 Hello! If you're reading the codebase right now, you're catching it just after a big tidy-up. Over a few days the project went through a four-wave "modularity audit" — basically, a sweep that looks for files that have grown too big or rules that are easy to break by accident, and shrinks or tightens them. Here's what changed and, more importantly, why it makes the project nicer to poke at.
