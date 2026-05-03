@@ -43,7 +43,7 @@ export default function SaveLoadErrorOverlay({
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="save-load-error-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-space-bg/90 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-space-bg/90 p-4 backdrop-blur-sm"
     >
       <div className="select-none rounded border border-hud-red/40 bg-space-bg/90 p-5 shadow-[0_0_30px_rgba(255,94,94,0.25)] sm:p-6">
         <div

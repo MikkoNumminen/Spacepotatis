@@ -353,7 +353,12 @@ export default function GameCanvas() {
   const ready = isVerified && saveLoaded && sceneReady;
 
   return (
-    <SplashGate ready={ready} splash={<Splash steps={splashSteps} />}>
+    <>
+    <SplashGate
+      ready={ready}
+      failed={saveSync.status === "load-failed"}
+      splash={<Splash steps={splashSteps} />}
+    >
     <div className="relative h-dvh w-dvw overflow-hidden bg-space-bg">
       {mode === "galaxy" && <canvas ref={galaxyCanvasRef} className="block h-full w-full" />}
       {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
@@ -426,14 +431,22 @@ export default function GameCanvas() {
         className="pointer-events-none absolute inset-0 bg-black"
         style={{ opacity: 0 }}
       />
-      {showLoadError && (
-        <SaveLoadErrorOverlay
-          reason={saveSync.status === "load-failed" ? saveSync.reason : undefined}
-          onRetry={handleRetryLoad}
-          onDismiss={() => setErrorDismissed(true)}
-        />
-      )}
     </div>
     </SplashGate>
+    {/*
+      Defense-in-depth: SaveLoadErrorOverlay is a SIBLING of SplashGate
+      (not a child) so even if a future SplashGate regression keeps the
+      splash mounted on `failed`, the overlay still renders unblocked.
+      The overlay also uses z-[60] (vs the splash's z-50) so any stacking
+      surprise still resolves in the overlay's favor.
+    */}
+    {showLoadError && (
+      <SaveLoadErrorOverlay
+        reason={saveSync.status === "load-failed" ? saveSync.reason : undefined}
+        onRetry={handleRetryLoad}
+        onDismiss={() => setErrorDismissed(true)}
+      />
+    )}
+    </>
   );
 }

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   cachedResultToState,
   decideFetch,
-  loadResultToState
+  loadResultToState,
+  type CloudSaveSyncState
 } from "./useCloudSaveSyncLogic";
 import type { LoadResult } from "@/game/state/sync";
 
@@ -148,5 +149,39 @@ describe("decideFetch", () => {
     if (decision.kind === "skip-load") {
       expect(decision.state.status).toBe("load-failed");
     }
+  });
+});
+
+describe("status=load-failed must drive SplashGate.failed=true (PR #101 follow-up blocker)", () => {
+  // The reviewer-found blocker on PR #101 was a wiring bug: the splash sat
+  // on top of SaveLoadErrorOverlay because GameCanvas wasn't telling the
+  // gate to bail out on load-failed. The fix passes `failed={saveSync.status
+  // === "load-failed"}` to SplashGate. These tests pin the decision in
+  // pure form so a future refactor that drops the failed prop wiring trips
+  // a red light here — without rendering the JSX (no RTL in this repo).
+
+  function shouldSplashYieldToOverlay(state: CloudSaveSyncState): boolean {
+    return state.status === "load-failed";
+  }
+
+  it("loaded status keeps the splash in charge of fading", () => {
+    expect(shouldSplashYieldToOverlay({ status: "loaded" })).toBe(false);
+  });
+
+  it("loading status keeps the splash up (no failure yet)", () => {
+    expect(shouldSplashYieldToOverlay({ status: "loading" })).toBe(false);
+  });
+
+  it("load-failed status forces the splash to yield (overlay takes over)", () => {
+    expect(
+      shouldSplashYieldToOverlay({ status: "load-failed", reason: "http_error" })
+    ).toBe(true);
+    expect(
+      shouldSplashYieldToOverlay({ status: "load-failed", reason: "network_error" })
+    ).toBe(true);
+    expect(
+      shouldSplashYieldToOverlay({ status: "load-failed", reason: "schema_rejected" })
+    ).toBe(true);
+    expect(shouldSplashYieldToOverlay({ status: "load-failed" })).toBe(true);
   });
 });

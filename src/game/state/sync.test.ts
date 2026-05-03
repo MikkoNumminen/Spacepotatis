@@ -242,7 +242,7 @@ describe("loadSave", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     fetchImpl.current = async () => new Response("oops", { status: 500 });
     (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
-      "spacepotatis:pendingSave:v1",
+      "spacepotatis:pendingSave:v2",
       JSON.stringify({
         snapshot: {
           credits: 1234,
@@ -256,7 +256,8 @@ describe("loadSave", () => {
           seenStoryEntries: []
         },
         firstSeenMs: Date.now(),
-        attempts: 0
+        attempts: 0,
+        playerEmail: TEST_EMAIL
       })
     );
     const result = await loadSave();
@@ -534,7 +535,8 @@ describe("cross-account pending-save isolation", () => {
     const result = await loadSave();
 
     // No leakage: B sees a fresh INITIAL_STATE, not A's progression.
-    expect(result).toBe(false);
+    // (200 + null body for a fresh authenticated user is "no-save".)
+    expect(result.kind).toBe("no-save");
     const s = getState();
     expect(s.credits).toBe(0);
     expect(s.completedMissions).toEqual([]);
@@ -636,7 +638,9 @@ describe("cross-account pending-save isolation", () => {
     fetchImpl.current = async () =>
       new Response("null", { status: 200, headers: { "content-type": "application/json" } });
     const result = await loadSave();
-    expect(result).toBe(false);
+    // 200 + null body = no-save (legacy :v1 blob got dropped, didn't bleed
+    // into a "pending-only" classification).
+    expect(result.kind).toBe("no-save");
     expect(getState().credits).toBe(0);
     // The legacy blob was purged on the read.
     expect(

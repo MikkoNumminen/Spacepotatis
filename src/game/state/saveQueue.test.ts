@@ -301,13 +301,13 @@ describe("flushPendingSave", () => {
     // TRANSIENT alongside playtime/credits_delta_invalid: a future saveNow
     // with the freshest in-memory state will pass the regression check, OR
     // the snapshot will age out cleanly via MAX_ATTEMPTS / MAX_AGE_MS.
-    markSavePending(SNAP, NOW);
+    markSavePending(SNAP, EMAIL_A, NOW);
     const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
       ok: false,
       status: 422,
       errorCode: "save_regression"
     }));
-    const result = await flushPendingSave(submit, NOW);
+    const result = await flushPendingSave({ submit, playerEmail: EMAIL_A }, NOW);
     expect(result).toEqual({ kind: "queued", status: 422 });
     const pending = readPendingSaveForTest();
     expect(pending).not.toBeNull();
