@@ -72,7 +72,9 @@ jobs:
             echo "An open save-architecture-ready issue already exists; skipping creation."
             exit 0
           fi
-          body=$(cat <<'EOF'
+          # Strip the YAML block indentation (10 spaces) so the issue body
+          # renders as Markdown, not as a code block.
+          body=$(sed 's/^          //' <<'EOF'
           The `spacepotatis.save_audit` table has accumulated enough rows / distinct players / elapsed days to inform the next-session structural fix — the append-only `save_snapshots` architecture sketched in `TODO.md` "Phase Save-Architecture".
 
           ### Readiness report
