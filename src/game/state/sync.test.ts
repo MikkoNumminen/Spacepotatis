@@ -103,6 +103,111 @@ describe("loadSave", () => {
     }
   });
 
+  // Transient-blip retry. A single 5xx (Edge cold-start, Neon hiccup) used
+  // to trip the SaveLoadErrorOverlay's "DO NOT PLAY RIGHT NOW" warning,
+  // which is correct only when the failure is persistent. The retry layer
+  // turns those single blips into transparent recoveries.
+  describe("transient-blip retry", () => {
+    it("retries a 5xx and surfaces server-loaded when the second attempt succeeds", async () => {
+      const remote = {
+        slot: 1,
+        credits: 7777,
+        currentPlanet: null,
+        shipConfig: {
+          slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+          inventory: [],
+          augmentInventory: [],
+          shieldLevel: 0,
+          armorLevel: 0,
+          reactor: { capacityLevel: 0, rechargeLevel: 0 }
+        },
+        completedMissions: ["tutorial"],
+        unlockedPlanets: ["tutorial"],
+        playedTimeSeconds: 30,
+        updatedAt: "2025-01-01T00:00:00.000Z"
+      };
+      let call = 0;
+      fetchImpl.current = async () => {
+        call += 1;
+        if (call === 1) return new Response("oops", { status: 502 });
+        return new Response(JSON.stringify(remote), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      };
+      const result = await loadSave();
+      expect(result.kind).toBe("server-loaded");
+      expect(getState().credits).toBe(7777);
+      expect(fetchCalls).toHaveLength(2);
+    });
+
+    it("retries a network error and surfaces server-loaded when the second attempt succeeds", async () => {
+      const remote = {
+        slot: 1,
+        credits: 4242,
+        currentPlanet: null,
+        shipConfig: {
+          slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+          inventory: [],
+          augmentInventory: [],
+          shieldLevel: 0,
+          armorLevel: 0,
+          reactor: { capacityLevel: 0, rechargeLevel: 0 }
+        },
+        completedMissions: ["tutorial"],
+        unlockedPlanets: ["tutorial"],
+        playedTimeSeconds: 30,
+        updatedAt: "2025-01-01T00:00:00.000Z"
+      };
+      let call = 0;
+      fetchImpl.current = async () => {
+        call += 1;
+        if (call === 1) throw new TypeError("network down");
+        return new Response(JSON.stringify(remote), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      };
+      const result = await loadSave();
+      expect(result.kind).toBe("server-loaded");
+      expect(fetchCalls).toHaveLength(2);
+    });
+
+    it("does NOT retry 401 — anonymous fast-path stays a single fetch", async () => {
+      // 401 is a deliberate server response (cookie expired / never signed
+      // in). Retrying would slow down the splash by ~750 ms for every
+      // anonymous visitor, with zero chance of changing the outcome.
+      let call = 0;
+      fetchImpl.current = async () => {
+        call += 1;
+        return new Response("unauthorized", { status: 401 });
+      };
+      const result = await loadSave();
+      expect(result.kind).toBe("anon");
+      expect(call).toBe(1);
+      expect(fetchCalls).toHaveLength(1);
+    });
+
+    it("after 3 failed attempts, gives up with kind=load-failed reason=http_error", async () => {
+      // The blocking SaveLoadErrorOverlay is correct when the server is
+      // genuinely unreachable. Three attempts is enough that a one-off blip
+      // is hidden, but a real outage still surfaces fast (<1 s of backoff).
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      let call = 0;
+      fetchImpl.current = async () => {
+        call += 1;
+        return new Response("server down", { status: 503 });
+      };
+      const result = await loadSave();
+      expect(result.kind).toBe("load-failed");
+      if (result.kind === "load-failed") {
+        expect(result.reason).toBe("http_error");
+        expect(result.status).toBe(503);
+      }
+      expect(call).toBe(3);
+    });
+  });
+
   it("hydrates GameState from a valid remote save and returns kind=server-loaded", async () => {
     const remote = {
       slot: 1,
