@@ -110,6 +110,7 @@ describe("GET /api/save", () => {
       unlocked_planets: ["tutorial", "combat-1"],
       played_time_seconds: 60,
       seen_story_entries: ["great-potato-awakening"],
+      current_solar_system_id: "tubernovae",
       updated_at: updatedAt
     };
     const { GET } = await loadRoute();
@@ -124,8 +125,37 @@ describe("GET /api/save", () => {
       unlockedPlanets: ["tutorial", "combat-1"],
       playedTimeSeconds: 60,
       seenStoryEntries: ["great-potato-awakening"],
+      currentSolarSystemId: "tubernovae",
       updatedAt: updatedAt.toISOString()
     });
+  });
+
+  it("returns null currentSolarSystemId for rows that pre-date the column", async () => {
+    // Old save rows in prod won't have the column populated until the
+    // player warps once after migration. The GET surface must pass null
+    // through; the client's hydrate() treats null as "fall back to
+    // first unlocked system". If we accidentally coerced null to
+    // "tutorial" here we'd defeat the whole point of persisting the
+    // last-viewed system.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    const updatedAt = new Date("2025-06-01T00:00:00.000Z");
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 42,
+      current_planet: "tutorial",
+      ship_config: { foo: "bar" },
+      completed_missions: ["tutorial"],
+      unlocked_planets: ["tutorial", "combat-1"],
+      played_time_seconds: 60,
+      seen_story_entries: [],
+      current_solar_system_id: null,
+      updated_at: updatedAt
+    };
+    const { GET } = await loadRoute();
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { currentSolarSystemId: unknown };
+    expect(body.currentSolarSystemId).toBeNull();
   });
 
   it("returns 500 on a DB error", async () => {
@@ -304,6 +334,54 @@ describe("POST /api/save", () => {
     const res = await POST(req);
     errSpy.mockRestore();
     expect(res.status).toBe(500);
+  });
+
+  it("persists currentSolarSystemId on the upsert (Continue lands the player back where they left off)", async () => {
+    // Regression test for the bug where Continue always restarted the
+    // player at Sol Spudensis: the column existed in GameState and the
+    // schema accepted the field, but the upsert silently dropped it.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    const saveInsertSpy = vi.fn();
+    dbStub.saveInsertSpy = saveInsertSpy;
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 0,
+        completedMissions: [],
+        unlockedPlanets: [],
+        currentSolarSystemId: "tubernovae"
+      })
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    expect(saveInsertSpy).toHaveBeenCalledTimes(1);
+    const written = saveInsertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(written.current_solar_system_id).toBe("tubernovae");
+  });
+
+  it("writes null current_solar_system_id when the client doesn't send one", async () => {
+    // Anonymous-ish saves and pre-warp saves omit the field; we must not
+    // coerce that to "tutorial" or any other id — the column is nullable
+    // by design.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    const saveInsertSpy = vi.fn();
+    dbStub.saveInsertSpy = saveInsertSpy;
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 0,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    const written = saveInsertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(written.current_solar_system_id).toBeNull();
   });
 });
 
