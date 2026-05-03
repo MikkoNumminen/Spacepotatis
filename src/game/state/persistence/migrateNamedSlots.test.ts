@@ -8,9 +8,9 @@ describe("migrateNamedSlots", () => {
         front: "rapid-fire",
         rear: "spread-shot",
         sidekickLeft: "heavy-cannon",
-        sidekickRight: "spud-missile"
+        sidekickRight: "corsair-missile"
       },
-      unlockedWeapons: ["rapid-fire", "spread-shot", "heavy-cannon", "spud-missile"]
+      unlockedWeapons: ["rapid-fire", "spread-shot", "heavy-cannon", "corsair-missile"]
     });
     expect(result.slots).toHaveLength(1);
     expect(result.slots[0]?.id).toBe("rapid-fire");
@@ -22,13 +22,13 @@ describe("migrateNamedSlots", () => {
         front: "rapid-fire",
         rear: "spread-shot",
         sidekickLeft: "heavy-cannon",
-        sidekickRight: "spud-missile"
+        sidekickRight: "corsair-missile"
       },
-      unlockedWeapons: ["rapid-fire", "spread-shot", "heavy-cannon", "spud-missile"]
+      unlockedWeapons: ["rapid-fire", "spread-shot", "heavy-cannon", "corsair-missile"]
     });
     // rapid-fire is taken by the slot; the other three remain in inventory.
     expect(result.inventory.map((i) => i.id).sort()).toEqual(
-      ["heavy-cannon", "spread-shot", "spud-missile"].sort()
+      ["heavy-cannon", "spread-shot", "corsair-missile"].sort()
     );
   });
 

@@ -21,12 +21,9 @@ export const WEAPON_IDS = [
   "rapid-fire",
   "spread-shot",
   "heavy-cannon",
-  "spud-missile",
-  "tater-net",
-  "tail-gunner",
-  "side-spitter",
-  "plasma-whip",
-  "hailstorm"
+  "corsair-missile",
+  "grapeshot-cannon",
+  "boarding-snare"
 ] as const satisfies readonly WeaponId[];
 
 const WEAPONS: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(

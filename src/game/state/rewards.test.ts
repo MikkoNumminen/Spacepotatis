@@ -44,8 +44,8 @@ function shipWithOwned(extra: readonly WeaponId[]): ShipConfig {
 
 describe("rollMissionReward", () => {
   it("can roll an unowned weapon from the system pool", () => {
-    // Tutorial pool weapons: spread-shot, heavy-cannon, spud-missile, tater-net.
-    // DEFAULT_SHIP only owns rapid-fire, so all four are eligible.
+    // Tutorial pool weapons: spread-shot, heavy-cannon.
+    // DEFAULT_SHIP only owns rapid-fire, so both are eligible.
     const reward = rollMissionReward("tutorial", DEFAULT_SHIP, fixedRng([0, 0, 0, 0, 0, 0]));
     expect(reward.kind).toBe("weapon");
     if (reward.kind === "weapon") {
@@ -55,12 +55,7 @@ describe("rollMissionReward", () => {
 
   it("never rolls a weapon the player already owns", () => {
     // Own every weapon in the tutorial pool — weapon category drops out.
-    const ship = shipWithOwned([
-      "spread-shot",
-      "heavy-cannon",
-      "spud-missile",
-      "tater-net"
-    ]);
+    const ship = shipWithOwned(["spread-shot", "heavy-cannon"]);
     const rng = mulberry32(0xc0ffee);
     for (let n = 0; n < 200; n++) {
       const r = rollMissionReward("tutorial", ship, rng);
@@ -84,7 +79,7 @@ describe("rollMissionReward", () => {
 
   it("falls back to credits when every other category is exhausted", () => {
     const ship: ShipConfig = {
-      ...shipWithOwned(["spread-shot", "heavy-cannon", "spud-missile", "tater-net"]),
+      ...shipWithOwned(["spread-shot", "heavy-cannon"]),
       shieldLevel: MAX_LEVEL,
       armorLevel: MAX_LEVEL,
       reactor: { capacityLevel: MAX_LEVEL, rechargeLevel: MAX_LEVEL }
@@ -106,13 +101,13 @@ describe("rollMissionReward", () => {
     const reward = rollMissionReward("tubernovae", DEFAULT_SHIP, fixedRng([0, 0, 0, 0]));
     expect(reward.kind).toBe("weapon");
     if (reward.kind === "weapon") {
-      expect(reward.id).toBe("tail-gunner");
+      expect(reward.id).toBe("corsair-missile");
     }
   });
 
   it("credits amount stays inside the system pool range", () => {
     const ship: ShipConfig = {
-      ...shipWithOwned(["spread-shot", "heavy-cannon", "spud-missile", "tater-net"]),
+      ...shipWithOwned(["spread-shot", "heavy-cannon"]),
       shieldLevel: MAX_LEVEL,
       armorLevel: MAX_LEVEL,
       reactor: { capacityLevel: MAX_LEVEL, rechargeLevel: MAX_LEVEL }

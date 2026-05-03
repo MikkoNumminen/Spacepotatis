@@ -23,6 +23,7 @@ function fakeWeapon(cost: number): WeaponDefinition {
     cost,
     tint: "#ffffff",
     family: "potato",
+    tier: 1,
     energyCost: 0
   };
 }
@@ -73,7 +74,7 @@ describe("getSellPrice", () => {
       damage: 9999,
       fireRateMs: 1,
       projectileCount: 99,
-      family: "carrot"
+      family: "pirate"
     };
     expect(getSellPrice(a)).toBe(getSellPrice(b));
   });

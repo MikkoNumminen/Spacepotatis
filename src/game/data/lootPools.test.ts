@@ -6,7 +6,7 @@ describe("getLootPool", () => {
   it("returns the tutorial pool with expected fields", () => {
     const pool = getLootPool("tutorial");
     expect(pool.systemId).toBe("tutorial");
-    expect(pool.weapons).toEqual(["spread-shot", "heavy-cannon", "spud-missile"]);
+    expect(pool.weapons).toEqual(["spread-shot", "heavy-cannon"]);
     expect(pool.augments.length).toBeGreaterThan(0);
     expect(pool.upgrades).toEqual(["shield", "armor", "reactor-capacity", "reactor-recharge"]);
     expect(pool.credits.min).toBe(200);
@@ -16,7 +16,7 @@ describe("getLootPool", () => {
   it("returns the tubernovae pool with its distinct weapon roster", () => {
     const pool = getLootPool("tubernovae");
     expect(pool.systemId).toBe("tubernovae");
-    expect(pool.weapons).toContain("tail-gunner");
+    expect(pool.weapons).toContain("corsair-missile");
     expect(pool.weapons).not.toContain("spread-shot");
     expect(pool.credits.min).toBe(500);
     expect(pool.credits.max).toBe(1000);

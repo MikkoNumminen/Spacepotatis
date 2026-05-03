@@ -103,18 +103,20 @@ describe("WeaponSystem.tryFire", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("forwards homing config when the weapon is homing (spud-missile)", () => {
+  it("forwards homing config when the weapon is homing (corsair-missile)", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("spud-missile", 0, 0, 1000, true);
-    expect(calls[0]?.homing).toEqual({ turnRateRadPerSec: 3.5 });
+    ws.tryFire("corsair-missile", 0, 0, 1000, true);
+    // corsair-missile turnRateRadPerSec = 3.2 (from weapons.json)
+    expect(calls[0]?.homing?.turnRateRadPerSec).toBeCloseTo(3.2);
   });
 
   it("scales the homing turn rate via turnRateMul", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
-    ws.tryFire("spud-missile", 0, 0, 1000, true, { turnRateMul: 2 });
-    expect(calls[0]?.homing?.turnRateRadPerSec).toBeCloseTo(7);
+    ws.tryFire("corsair-missile", 0, 0, 1000, true, { turnRateMul: 2 });
+    // 3.2 × 2 = 6.4
+    expect(calls[0]?.homing?.turnRateRadPerSec).toBeCloseTo(6.4);
   });
 
   it("never sends homing config for a non-homing weapon", () => {
