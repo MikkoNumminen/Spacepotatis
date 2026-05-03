@@ -22,6 +22,7 @@ export interface Database {
   "spacepotatis.players": PlayersTable;
   "spacepotatis.save_games": SaveGamesTable;
   "spacepotatis.leaderboard": LeaderboardTable;
+  "spacepotatis.save_audit": SaveAuditTable;
 }
 
 export interface PlayersTable {
@@ -55,6 +56,23 @@ export interface LeaderboardTable {
   mission_id: string;
   score: number;
   time_seconds: number | null;
+  created_at: Generated<Date>;
+}
+
+// Forensic audit log for /api/save POSTs. One row per attempt — success,
+// validator rejection, or server error — capturing the request payload, the
+// previous server-side row (so we can see what was about to be overwritten),
+// and the response status + error code. See migration 20260503000000.
+export interface SaveAuditTable {
+  id: Generated<string>;
+  player_id: string;
+  slot: Generated<number>;
+  request_payload: Record<string, unknown>;
+  response_status: number;
+  response_error: string | null;
+  prev_snapshot: Record<string, unknown> | null;
+  request_ip: string | null;
+  user_agent: string | null;
   created_at: Generated<Date>;
 }
 
