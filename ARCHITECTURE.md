@@ -211,7 +211,7 @@ The queue is forward-only — scores from runs **before** this layer landed can'
 
 ## 4b. Save durability queue + load-failure UX (post-2026-05-02 wipe)
 
-The 2026-05-02 incident wiped a real player's save when the client POSTed INITIAL_STATE over a healthy server row. Five PRs (#94, #96, #97, #100, #101, #98) layered the defenses below; the data model still permits destruction (single-row OVERWRITE on POST), so the deferred snapshot-table phase in [TODO.md](TODO.md) is the structural fix. Until then:
+The 2026-05-02 incident wiped a real player's save when the client POSTed INITIAL_STATE over a healthy server row. Six PRs (#94, #96, #97, #98, #100, #101) layered the defenses below; the data model still permits destruction (single-row OVERWRITE on POST), so the deferred snapshot-table phase in [TODO.md](TODO.md) is the structural fix. Until then:
 
 **Save queue ([src/game/state/saveQueue.ts](src/game/state/saveQueue.ts)).** Mirrors the score queue but holds at most ONE entry — the latest snapshot always wins (a save is a snapshot, not an event log). `markSavePending(snapshot, playerEmail)` is called from `saveNow` BEFORE the POST so a tab close mid-flight can't lose progression; `flushPendingSave({submit, playerEmail})` POSTs and clears, but only if the slot's `playerEmail` stamp matches. localStorage key is versioned `:v2`; the legacy `:v1` shape lacked the stamp and could leak across accounts on shared browsers, so the read path silently drops any leftover `:v1` blob.
 
