@@ -19,6 +19,13 @@
 // Usage: node --env-file=.env.local scripts/improve-restore.mjs <email>
 
 import { Pool } from "@neondatabase/serverless";
+import path from "node:path";
+import { writeBackup } from "./_lib/dbWriteSafety.mjs";
+
+// Absolute path to <repo>/db-backups, resolved from this script's directory
+// rather than process.cwd(). Operators running from a subdirectory still
+// land snapshots in the same gitignored location.
+const BACKUP_DIR = path.resolve(import.meta.dirname, "../db-backups");
 
 const email = process.argv[2];
 if (!email) {
@@ -68,12 +75,35 @@ try {
   const playerId = players[0].id;
 
   const before = await pool.query(
-    `SELECT credits, ship_config FROM spacepotatis.save_games
+    `SELECT credits, completed_missions, unlocked_planets, played_time_seconds,
+            ship_config, seen_story_entries, updated_at
+     FROM spacepotatis.save_games
      WHERE player_id = $1 AND slot = 1`,
     [playerId]
   );
-  console.log("BEFORE credits:", before.rows[0]?.credits);
-  console.log("BEFORE ship_config:", JSON.stringify(before.rows[0]?.ship_config));
+  if (before.rows.length === 0) {
+    console.error(`no save_games row for player_id=${playerId} slot=1`);
+    process.exit(1);
+  }
+  console.log("BEFORE credits:", before.rows[0].credits);
+  console.log("BEFORE ship_config:", JSON.stringify(before.rows[0].ship_config));
+
+  // Capture the prevRow as a JSON snapshot BEFORE the UPDATE. If this throws
+  // (disk full, permission denied), bail out — running the UPDATE without a
+  // recoverable snapshot defeats the purpose of the safety helper.
+  try {
+    const backupPath = await writeBackup({
+      prevRow: { ...before.rows[0], player_id: playerId, email },
+      scriptName: "improve-restore",
+      flags: { email, backupDir: BACKUP_DIR },
+    });
+    console.log(`prevRow snapshot: ${backupPath}`);
+  } catch (backupErr) {
+    console.error(
+      `error: writeBackup failed (${backupErr.message}) — refusing to UPDATE without a recoverable snapshot.`
+    );
+    process.exit(1);
+  }
 
   const result = await pool.query(
     `UPDATE spacepotatis.save_games
