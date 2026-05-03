@@ -19,7 +19,7 @@
 //   prompt, no monotonic-shrink guard, no transaction. This rewrite fixes all
 //   of that. Do NOT regress.
 //
-// THE NINE SAFEGUARDS (do not remove without a written reason):
+// THE TEN SAFEGUARDS (do not remove without a written reason):
 //   1. Default mode is dry-run. You must pass --apply to write anything.
 //   2. --apply requires --player-email=<email> matching the email argv.
 //   3. Full BEFORE/AFTER per-field diff is printed in BOTH modes.
@@ -43,7 +43,13 @@
 //      orchestration layer honors the safety contract — bare args = no DB
 //      writes, --apply without --player-email = exit 2, mismatched
 //      --player-email = exit 2 — so a regression in main() is caught by CI.
-//   9. This header. If you're modifying the script, you've read this.
+//   9. writeBackup() (scripts/_lib/dbWriteSafety.mjs) writes a JSON snapshot
+//      of the prevRow to <repo>/db-backups/ INSIDE the transaction, after the
+//      FOR UPDATE read passes the shrink check and the operator confirms,
+//      but BEFORE the UPDATE runs. If writeBackup throws, ROLLBACK + exit 1.
+//      The backup path is absolute (resolved from import.meta.dirname) so
+//      cwd does not affect where snapshots land.
+//  10. This header. If you're modifying the script, you've read this.
 //
 // USAGE
 //   Dry run (default — safe, prints diff, exits 0):
@@ -70,6 +76,13 @@
 import { Pool } from "@neondatabase/serverless";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import path from "node:path";
+import { writeBackup } from "./_lib/dbWriteSafety.mjs";
+
+// Absolute path to <repo>/db-backups, resolved from this script's directory
+// rather than process.cwd(). An operator running `node scripts/...` from a
+// subdirectory must still land backups in the same gitignored location.
+const BACKUP_DIR = path.resolve(import.meta.dirname, "../db-backups");
 
 // Compensation BASELINES for the lost ship_config + actual-credits value.
 // The player lost weapons, upgrades, reactor levels, and augments — none of
@@ -383,6 +396,26 @@ async function main() {
         }
       } else {
         console.log("--no-prompt set — skipping interactive confirmation.");
+      }
+
+      // Capture the prevRow as a JSON snapshot BEFORE the UPDATE. If this
+      // throws (disk full, permission denied), ROLLBACK and exit non-zero —
+      // the whole point of the backup is recoverability, so a missing
+      // snapshot must veto the mutation.
+      try {
+        const backupPath = await writeBackup({
+          prevRow: { ...before, player_id: playerId, email: args.email },
+          scriptName: "restore-player",
+          flags: { email: args.email, backupDir: BACKUP_DIR },
+        });
+        console.log(`prevRow snapshot: ${backupPath}`);
+      } catch (backupErr) {
+        await client.query("ROLLBACK");
+        txOpen = false;
+        console.error(
+          `error: writeBackup failed (${backupErr.message}) — refusing to UPDATE without a recoverable snapshot.`,
+        );
+        process.exit(1);
       }
 
       const result = await client.query(
