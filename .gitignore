@@ -41,6 +41,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# operational backups — JSON snapshots of prevRow taken before any
+# scripts/_lib/dbWriteSafety.mjs UPDATE. Contains real player save data;
+# must never be committed to a public repo even by accident.
+/db-backups/
+
 # ide
 .idea
 .vscode/*

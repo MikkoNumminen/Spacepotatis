@@ -316,4 +316,25 @@ If any answer above feels wrong but you can't articulate why, **stop and ask** �
 
 1. Skim [ARCHITECTURE.md](ARCHITECTURE.md) for data flow and scene lifecycle.
 2. Check [TODO.md](TODO.md) to see if the task is already planned and which model is recommended.
-3. If the answer is not in these files or the code, ask the user before inventing one.
+3. **Production incident?** — open [docs/INCIDENT_RUNBOOK.md](docs/INCIDENT_RUNBOOK.md) FIRST before improvising. It covers save data corruption, schema drift, leaderboard issues, and the gates required for any production write.
+4. If the answer is not in these files or the code, ask the user before inventing one.
+
+## 15. Production data writes (HARD RULE)
+
+The 2026-05-02 wipe taught us that direct DB writes are the highest-risk operations in this codebase — a single misfire can destroy a player's months of progression irreversibly. Three rules apply to any script under [scripts/](scripts/) that mutates production data:
+
+1. **Use the safety helper.** Every prod-write script imports `parseFlags`, `writeBackup`, and `requireConfirm` from [scripts/_lib/dbWriteSafety.mjs](scripts/_lib/dbWriteSafety.mjs). Default behavior is dry-run; the operator must explicitly pass `--confirm` to mutate. The helper writes a JSON snapshot of the prevRow to `db-backups/` before the UPDATE so any mistake is recoverable from disk, not from "hopefully Neon's PITR window hasn't rolled off."
+
+2. **Audit-trail every script.** A one-off recovery script gets committed to `scripts/` with a header documenting what it changed and the date it ran. See `scripts/restore-player.mjs` and `scripts/improve-restore.mjs` as templates. **Don't run-and-delete** — three months from now you'll need to know what was changed and why, and so will whoever debugs the next incident.
+
+3. **No bulk operations without explicit go-ahead.** The recovery scripts in `scripts/` are scoped to one player at a time. A bulk migration (cross-player updates, schema-altering writes, etc.) is an entirely different risk class. Stop, surface the plan, and wait for the user's green-light before proceeding.
+
+When ANY prod-write feels even slightly wrong — wrong email, suspicious diff, unfamiliar prevRow shape — **bail out before running with `--confirm`**. A 30-second pause to verify costs nothing. A 5-minute "fix" that destroys a real save costs everything.
+
+## 16. Multi-agent coordination
+
+Several `worktree-agent-*` and `fix/*` / `feat/*` branches may exist locally and remotely from parallel agent sessions. Three rules to avoid stepping on parallel work:
+
+- **Don't push to a branch you didn't create.** If you find yourself on a branch named `fix/something-that-isnt-yours` after a `git checkout`, redirect to a fresh branch from master.
+- **Don't touch `worktree-agent-*` branches.** They're owned by the spawning agent's `Agent({ isolation: "worktree" })` invocation. Treat them as read-only.
+- **Stash before switching.** If your working tree has changes from someone else's WIP that landed there from a prior session, stash them with a descriptive `-m` message rather than `git checkout`-overwriting. The stash list itself is a coordination signal.
