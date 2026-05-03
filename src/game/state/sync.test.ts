@@ -3,8 +3,10 @@ import { clearLoadSaveCache, drainScoreQueue, loadSave, saveNow } from "./sync";
 import { getState, resetForTests } from "./GameState";
 import { clearScoreQueue, enqueueScore, readScoreQueueForTest } from "./scoreQueue";
 import { clearSaveQueue, readPendingSaveForTest } from "./saveQueue";
-import { markHydrationCompleted } from "./syncCache";
+import { markHydrationCompleted, setCurrentPlayerEmail } from "./syncCache";
 import { FakeStorage, installFakeLocalStorage } from "../../__tests__/fakeStorage";
+
+const TEST_EMAIL = "tester@example.com";
 
 // ----- loadSave / saveNow / drainScoreQueue: best-effort fetch wrappers -----
 //
@@ -38,6 +40,9 @@ beforeEach(() => {
   // the production behavior, but each test case needs a fresh slate so a
   // 401 fixture in one case doesn't leak into a 200 fixture in the next.
   clearLoadSaveCache();
+  // Default test player. Individual cases that exercise the cross-account
+  // or anonymous code paths override this via setCurrentPlayerEmail.
+  setCurrentPlayerEmail(TEST_EMAIL);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -173,8 +178,10 @@ describe("loadSave", () => {
     // server state; the pending snapshot is the freshest progression.
     fetchImpl.current = async () => new Response("unauthorized", { status: 401 });
     // Hand-write a pending save with one more clear than INITIAL_STATE.
+    // Stamped for the active test player so the cross-account guard lets
+    // it through.
     (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
-      "spacepotatis:pendingSave:v1",
+      "spacepotatis:pendingSave:v2",
       JSON.stringify({
         snapshot: {
           credits: 4242,
@@ -188,7 +195,8 @@ describe("loadSave", () => {
           seenStoryEntries: []
         },
         firstSeenMs: Date.now(),
-        attempts: 0
+        attempts: 0,
+        playerEmail: TEST_EMAIL
       })
     );
     expect(await loadSave()).toBe(true);
@@ -222,7 +230,7 @@ describe("loadSave", () => {
     fetchImpl.current = async () =>
       new Response(JSON.stringify(remote), { status: 200 });
     (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
-      "spacepotatis:pendingSave:v1",
+      "spacepotatis:pendingSave:v2",
       JSON.stringify({
         snapshot: {
           credits: 9999, // newer
@@ -236,7 +244,8 @@ describe("loadSave", () => {
           seenStoryEntries: []
         },
         firstSeenMs: Date.now(),
-        attempts: 0
+        attempts: 0,
+        playerEmail: TEST_EMAIL
       })
     );
     expect(await loadSave()).toBe(true);
@@ -399,6 +408,154 @@ describe("saveNow hydration guard", () => {
     const result = await saveNow();
     expect(fetchCalls).toHaveLength(1);
     expect(result.kind).toBe("ok");
+  });
+});
+
+// Cross-account safety. Defends against the 2026-05 leak: user A's pending
+// save sat in localStorage; on sign-out the auth cache was wiped but the
+// queue wasn't. User B signed in on the same browser, doLoadSave's pending
+// read hydrated B's session with A's snapshot, and the next flush POSTed
+// A's progression as B — destroying B's real save.
+describe("cross-account pending-save isolation", () => {
+  it("doLoadSave does NOT hydrate B's session from A's leftover snapshot", async () => {
+    // Pretend A had progress that never reached the server.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v2",
+      JSON.stringify({
+        snapshot: {
+          credits: 9999,
+          completedMissions: ["tutorial", "combat-1", "boss-1"],
+          unlockedPlanets: ["tutorial", "combat-1", "boss-1"],
+          playedTimeSeconds: 600,
+          ship: {},
+          saveSlot: 1,
+          currentSolarSystemId: "tutorial",
+          unlockedSolarSystems: ["tutorial"],
+          seenStoryEntries: []
+        },
+        firstSeenMs: Date.now(),
+        attempts: 0,
+        playerEmail: "a@example.com"
+      })
+    );
+    // B is now signed in, with no server save of their own (200 + null).
+    setCurrentPlayerEmail("b@example.com");
+    fetchImpl.current = async () =>
+      new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+
+    const result = await loadSave();
+
+    // No leakage: B sees a fresh INITIAL_STATE, not A's progression.
+    expect(result).toBe(false);
+    const s = getState();
+    expect(s.credits).toBe(0);
+    expect(s.completedMissions).toEqual([]);
+    expect(s.playedTimeSeconds).toBe(0);
+    // And the snapshot is preserved for A to flush when they sign back in.
+    expect(
+      readPendingSaveForTest("a@example.com")?.snapshot
+    ).toMatchObject({ credits: 9999 });
+  });
+
+  it("background flushSaveQueue under B's session does NOT POST A's stamped snapshot", async () => {
+    // The exact regression: A's snapshot sits in localStorage, B signs in,
+    // background drainBoth() in GameCanvas fires flushSaveQueue() before B
+    // ever calls saveNow. Pre-fix, that POST landed A's snapshot AS B.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v2",
+      JSON.stringify({
+        snapshot: { credits: 9999, completedMissions: ["combat-1"] },
+        firstSeenMs: Date.now(),
+        attempts: 0,
+        playerEmail: "a@example.com"
+      })
+    );
+    setCurrentPlayerEmail("b@example.com");
+    fetchImpl.current = async () => new Response(null, { status: 204 });
+
+    // Mimic the GameCanvas drainBoth() trigger: flush the queue under B's
+    // session. A's snapshot must be invisible — no POST.
+    const { flushSaveQueue } = await import("./sync");
+    const result = await flushSaveQueue();
+    expect(result).toEqual({ kind: "noop" });
+    // Critically: NO POST happened. The score post fetch URL is
+    // /api/leaderboard; the save post is /api/save. Neither should appear.
+    const savePost = fetchCalls.find(
+      (c) => c.input === "/api/save" && c.init?.method === "POST"
+    );
+    expect(savePost).toBeUndefined();
+    // A's snapshot is still in storage, untouched, waiting for A to sign
+    // back in and reclaim it.
+    expect(
+      readPendingSaveForTest("a@example.com")?.snapshot
+    ).toMatchObject({ credits: 9999 });
+  });
+
+  it("if B then runs saveNow, only B's snapshot is POSTed (A's slot is overwritten by B's stamp)", async () => {
+    // Storage holds at most one pending slot. When B saves, B's stamp
+    // overwrites A's. A's snapshot is lost from the queue — acceptable
+    // cost; the leak fix is about preventing CROSS-ACCOUNT POSTs, not
+    // preserving the prior account's queue across an overwrite.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v2",
+      JSON.stringify({
+        snapshot: { credits: 9999, completedMissions: ["combat-1"] },
+        firstSeenMs: Date.now(),
+        attempts: 0,
+        playerEmail: "a@example.com"
+      })
+    );
+    setCurrentPlayerEmail("b@example.com");
+    markHydrationCompleted();
+    fetchImpl.current = async () => new Response(null, { status: 204 });
+    await saveNow();
+    const savePost = fetchCalls.find(
+      (c) => c.input === "/api/save" && c.init?.method === "POST"
+    );
+    expect(savePost).toBeDefined();
+    const body = JSON.parse((savePost?.init?.body as string) ?? "{}");
+    // Critically: NOT A's 9999 credits.
+    expect(body.credits).toBe(0);
+    expect(body.credits).not.toBe(9999);
+  });
+
+  it("anonymous (signed-out) saveNow refuses to POST and never stamps the queue", async () => {
+    // The "no session" footgun. saveNow with no signed-in user must not
+    // store an unstamped snapshot — it would either be invisible to every
+    // future session (waste of storage) or, worse, leak if some future
+    // code path forgot to validate the stamp.
+    setCurrentPlayerEmail(null);
+    markHydrationCompleted(); // Even if hydration was somehow proven, the
+                              // missing email blocks the POST.
+    const result = await saveNow();
+    expect(result.kind).toBe("queued");
+    expect(fetchCalls).toHaveLength(0);
+    expect(readPendingSaveForTest()).toBeNull();
+  });
+
+  it("a leftover :v1 blob is dropped on read — never leaks across the upgrade", async () => {
+    // Prior to this fix, the queue stored under :v1 with no email stamp.
+    // After upgrade, those blobs are silently dropped — losing one queued
+    // save per active user is acceptable cost for closing the leak.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      "spacepotatis:pendingSave:v1",
+      JSON.stringify({
+        snapshot: { credits: 9999, completedMissions: ["combat-1"] },
+        firstSeenMs: Date.now(),
+        attempts: 0
+      })
+    );
+    fetchImpl.current = async () =>
+      new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+    const result = await loadSave();
+    expect(result).toBe(false);
+    expect(getState().credits).toBe(0);
+    // The legacy blob was purged on the read.
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(
+        "spacepotatis:pendingSave:v1"
+      )
+    ).toBeNull();
   });
 });
 
