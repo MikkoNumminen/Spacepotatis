@@ -13,8 +13,8 @@ This skill exists because PR #89 shipped a `seen_story_entries` column reference
 
 - **Editing an already-shipped migration file.** Migrations are FORWARD-ONLY. Append a new file; never edit one that's been applied to any environment (prod, your local, or anyone else's local).
 - **Multi-tenant / cross-schema work.** Tables must live under the `spacepotatis` Postgres schema. Writing to `public.*` is a HARD NO (CLAUDE.md §5 — the database is shared with other services). The only `public.*` table we own is `public.spacepotatis_schema_migrations`, owned by dbmate, not by app code.
-- **Destructive changes on populated tables** (`DROP COLUMN`, `DROP TABLE`, `ALTER COLUMN ... TYPE` with implicit cast). Pause and confirm with the user — these can't be rolled back from the live data once applied.
-- **Migrations that require a code-then-DB or DB-then-code ordering**. The merge contract assumes both halves land within minutes. If your change requires a two-step deploy (e.g. add nullable column → backfill → make NOT NULL), say so up front and split into two PRs with explicit ordering in the PR body.
+- **Destructive changes on populated tables** (`DROP COLUMN`, `DROP TABLE`, `ALTER COLUMN ... TYPE` with implicit cast, `RENAME COLUMN` / `RENAME TABLE`). Pause and confirm with the user — these can't be rolled back from the live data once applied. Renames are especially nasty because every reader breaks until both halves deploy in lockstep, so they typically require the two-step pattern below.
+- **Migrations that require a code-then-DB or DB-then-code ordering**. The merge contract assumes both halves land within minutes. If your change requires a two-step deploy (e.g. add nullable column → backfill → make NOT NULL, or rename column → keep both → drop old), say so up front and split into two PRs with explicit ordering in the PR body.
 
 ## Adjacent skills
 
@@ -34,13 +34,7 @@ This skill exists because PR #89 shipped a `seen_story_entries` column reference
 
 ## 1. Pick the filename
 
-Format: `YYYYMMDDhhmmss_short_snake_case_description.sql`. Use a fresh UTC timestamp (`date -u +%Y%m%d%H%M%S`) — the runner sorts by this string and applies in order. Existing files for reference:
-
-- `20260424120000_initial_schema.sql`
-- `20260427000000_add_player_handle.sql`
-- `20260429000000_add_seen_story_entries.sql`
-- `20260503000000_add_save_audit.sql`
-- `20260503010000_persist_current_solar_system.sql`
+Format: `YYYYMMDDhhmmss_short_snake_case_description.sql`. Use a fresh UTC timestamp (`date -u +%Y%m%d%H%M%S`) — the runner sorts by this string and applies in order. See `db/migrations/` for the latest examples; copy the structurally closest one as a template.
 
 ## 2. Write the SQL file
 
@@ -54,7 +48,7 @@ Required dbmate format — the `-- migrate:up` and `-- migrate:down` markers are
 -- existing rows can't be backfilled meaningfully).>
 
 ALTER TABLE spacepotatis.<table>
-  ADD COLUMN <column> <type> <NULL|NOT NULL DEFAULT ...>;
+  ADD COLUMN IF NOT EXISTS <column> <type> <NULL|NOT NULL DEFAULT ...>;
 
 -- migrate:down
 
@@ -133,15 +127,15 @@ Typecheck catches Database-interface drift in any code that reads/writes the new
 
 ## 7. Open the PR with the gating checkbox
 
-PR body MUST include the standard checklist + a "Migration applied to prod" checkbox. Reviewer's merge button is gated on that checkbox per CLAUDE.md §7a.
+PR body MUST include the standard checklist + a "Migration applied to prod" checkbox (the §7a hard rule). The "Schema verified" checkbox below is a skill-level addition — recommended but not §7a; don't reject a PR that lacks the second one.
 
 ```markdown
 ## Summary
 - <what changed and why>
 
 ## Migration
-- [ ] Migration applied to prod (`node --env-file=.env.local scripts/migrate.mjs` against `DATABASE_URL_UNPOOLED`)
-- [ ] Schema verified (`node --env-file=.env.local scripts/check-schema.mjs`)
+- [ ] Migration applied to prod (`node scripts/migrate.mjs` against `DATABASE_URL_UNPOOLED`)  ← §7a hard rule
+- [ ] Schema verified (`node --env-file=.env.local scripts/check-schema.mjs`)                 ← skill convention
 
 ## Test plan
 - [ ] ...
@@ -150,10 +144,10 @@ PR body MUST include the standard checklist + a "Migration applied to prod" chec
 ## 8. Apply to prod — BEFORE or IMMEDIATELY AFTER merge
 
 ```bash
-DATABASE_URL_UNPOOLED="<neon-direct-url>" node --env-file=.env.local scripts/migrate.mjs
+DATABASE_URL_UNPOOLED="<neon-direct-url>" node scripts/migrate.mjs
 ```
 
-Then re-verify with `check-schema.mjs` against the same URL.
+Drop `--env-file=.env.local` here — `.env.local` defines `DATABASE_URL_UNPOOLED` for local, and Node loads `--env-file` BEFORE inline vars take effect. Inline-only is unambiguous: the prod URL is the only candidate the runner can see. Then re-verify with `check-schema.mjs` against the same URL (same trick — pass `DATABASE_URL_UNPOOLED=...` inline, no `--env-file`).
 
 **If you can't apply now, don't merge yet.** The Vercel deploy fires within seconds of merge — once the new code is live, every API call referencing the missing column will 500 until the migration runs. The symptom is `error: "server_error"` in the save modal; logs show `column "X" does not exist`.
 
