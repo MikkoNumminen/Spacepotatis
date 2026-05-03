@@ -50,7 +50,9 @@ The 2026-05-02 wipe vector (regression POSTs) is closed by [`validateNoRegressio
    - `credits` and `played_time_seconds` are NOT recoverable from the leaderboard. Estimate from cumulative scores (~10:1 score:credit ratio for most enemies based on enemies.json). Err on the side of generous compensation since the player lost their ship config too.
    - `ship_config` is not recoverable. Either leave at default (player rebuilds) or pre-equip a tier-appropriate loadout based on their progression.
 
-3. Use the safety helper:
+3. Use the safety helper. Two calling styles exist:
+
+   **(a) New scripts** — adopt the full helper (dry-run-by-default, `--confirm` to mutate):
    ```js
    import { parseFlags, writeBackup, requireConfirm } from "./_lib/dbWriteSafety.mjs";
    const flags = parseFlags(process.argv);
@@ -61,8 +63,27 @@ The 2026-05-02 wipe vector (regression POSTs) is closed by [`validateNoRegressio
    // ... actual UPDATE ...
    ```
 
-4. **First run dry**: `node --env-file=.env.local scripts/your-restore.mjs <email>` — defaults to dry-run, prints the planned diff, writes a backup snapshot to `db-backups/`, exits 0.
-5. **Re-run with --confirm** after reviewing the diff and the backup file.
+   **(b) Existing recovery scripts** (`restore-player.mjs`, `improve-restore.mjs`) — predate `parseFlags` and use a hand-rolled flag set documented inline. They still call `writeBackup()` from the helper before any UPDATE. The flag surface for `restore-player.mjs`:
+   ```bash
+   # default = dry-run; prints diff and exits 0
+   node --env-file=.env.local scripts/restore-player.mjs <email>
+
+   # apply (interactive [y/N] prompt)
+   node --env-file=.env.local scripts/restore-player.mjs <email> \
+     --apply --player-email=<email>
+
+   # apply non-interactively (CI / scripted)
+   node --env-file=.env.local scripts/restore-player.mjs <email> \
+     --apply --player-email=<email> --no-prompt \
+     --i-have-printed-the-before-state
+
+   # force a list-shrink rollback (DESTRUCTIVE — credits/playtime are still
+   # max-of-prev-or-baseline so they cannot regress even with this flag)
+   ... --force-overwrite-i-know-this-destroys-progress
+   ```
+
+4. **First run dry**: `node --env-file=.env.local scripts/restore-player.mjs <email>` — defaults to dry-run, reads the BEFORE row, prints the planned diff, exits 0. (Backups are written ONLY on the apply path, INSIDE the BEGIN/COMMIT transaction, after the FOR-UPDATE shrink check passes — so a dry-run does not touch `db-backups/`.)
+5. **Re-run with `--apply --player-email=<email>`** after reviewing the diff. The interactive prompt defaults to N. The backup snapshot lands at `db-backups/restore-player_<safe-email>_<utc-ts>.json` before the UPDATE runs.
 6. Verify with `check-player.mjs` that the row matches expectations.
 
 ### Post

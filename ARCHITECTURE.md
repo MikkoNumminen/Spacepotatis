@@ -209,6 +209,24 @@ The score queue ([src/game/state/scoreQueue.ts](src/game/state/scoreQueue.ts)) i
 
 The queue is forward-only — scores from runs **before** this layer landed can't be retroactively posted (their score number was never persisted client-side). From this commit onward, every win lands on the leaderboard or sits in the queue waiting for a successful retry.
 
+## 4b. Save durability queue + load-failure UX (post-2026-05-02 wipe)
+
+The 2026-05-02 incident wiped a real player's save when the client POSTed INITIAL_STATE over a healthy server row. Five PRs (#94, #96, #97, #100, #101, #98) layered the defenses below; the data model still permits destruction (single-row OVERWRITE on POST), so the deferred snapshot-table phase in [TODO.md](TODO.md) is the structural fix. Until then:
+
+**Save queue ([src/game/state/saveQueue.ts](src/game/state/saveQueue.ts)).** Mirrors the score queue but holds at most ONE entry — the latest snapshot always wins (a save is a snapshot, not an event log). `markSavePending(snapshot, playerEmail)` is called from `saveNow` BEFORE the POST so a tab close mid-flight can't lose progression; `flushPendingSave({submit, playerEmail})` POSTs and clears, but only if the slot's `playerEmail` stamp matches. localStorage key is versioned `:v2`; the legacy `:v1` shape lacked the stamp and could leak across accounts on shared browsers, so the read path silently drops any leftover `:v1` blob.
+
+**Account-stamping ([src/game/state/syncCache.ts](src/game/state/syncCache.ts)).** Module-level `currentPlayerEmail` is set by `useCloudSaveSync` the moment NextAuth resolves to authenticated, nulled on unauthenticated. `setCurrentPlayerEmail(email)` resets `hydrationCompleted` whenever the email changes (including to/from null) — a previous account's loadSave never proves the new account's server state, and `saveNow` refuses to POST until the new account's loadSave lands.
+
+**Server-side regression guard (PR #94).** `validateNoRegression` in [src/lib/saveValidation.ts](src/lib/saveValidation.ts) rejects any POST whose `completedMissions`, `unlockedPlanets`, or `playedTimeSeconds` is smaller than the prevRow. Returns `error: "save_regression"` at 422. This is the server-side defense paired with the client-side `isHydrationCompleted` gate — a buggy client can't physically wipe a save anymore.
+
+**422 = TRANSIENT, not PERMANENT (PR #96).** A `save_regression` 422 is treated as transient by the saveQueue: the snapshot is held until the next successful loadSave hydrates the local state and the new POST passes the guard. Treating it as permanent (the original `400|422 = drop` rule) would have dropped real saves whose only sin was timing.
+
+**Structured load result (PR #101).** `LoadResult` union in [src/game/state/sync.ts](src/game/state/sync.ts) replaced the prior boolean return with `server-loaded` / `anon` / `no-save` / `pending-only` / `load-failed`. The pre-fix collapse of "fresh account" and "we couldn't read the server" into a single `false` was the bug behind the silent INITIAL_STATE masquerade: the splash cleared, the player saw 0 credits + locked planets, and could panic-clear localStorage thinking their save was wiped.
+
+**Save-load error overlay (PR #101).** [src/components/SaveLoadErrorOverlay.tsx](src/components/SaveLoadErrorOverlay.tsx) renders a full-screen alert dialog when `useCloudSaveSync` reports `load-failed` (status: `loading | loaded | load-failed` with a coarse `LoadFailureReason`). The decision logic lives as pure helpers in [src/components/hooks/useCloudSaveSyncLogic.ts](src/components/hooks/useCloudSaveSyncLogic.ts) (`loadResultToState`, `cachedResultToState`, `decideFetch`) so vitest can pin the contract without a React renderer.
+
+**Forensic audit log (PR #98).** `spacepotatis.save_audit` table (migration [db/migrations/20260503000000_add_save_audit.sql](db/migrations/20260503000000_add_save_audit.sql)) writes one row per authenticated POST `/api/save` attempt — success, validator rejection, OR server error — capturing the request payload, prev snapshot, response status + error code, request IP, and user agent. Audit failure never blocks a save (the table is for diagnostics, not the critical path). Operator query: `SELECT * FROM spacepotatis.save_audit WHERE player_id = '<uuid>' ORDER BY created_at DESC LIMIT 50`.
+
 ### 4.1 Server-side cheat guards
 
 On top of Zod schema validation, both write routes enforce **gameplay invariants** in [src/lib/saveValidation.ts](src/lib/saveValidation.ts) — pure functions, separately tested. A 422 status carries a specific `error` code so client logging surfaces *which* guard fired, not just "rejected". `sync.ts` calls `console.warn` on any non-OK response so a legitimate player who somehow trips a guard has a breadcrumb to follow.
