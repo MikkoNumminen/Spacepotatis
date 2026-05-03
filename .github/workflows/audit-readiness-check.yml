@@ -1,0 +1,112 @@
+name: Audit readiness check
+
+# Runs scripts/check-audit-readiness.mjs once a day. When the
+# spacepotatis.save_audit table has accumulated enough rows / distinct players /
+# elapsed days, opens (at most one) GitHub issue tagged
+# `save-architecture-ready` so the operator knows the next-session structural
+# work (append-only save_snapshots) can begin from real data instead of
+# guesswork.
+#
+# Requires repo secret DATABASE_URL — see README "Save audit readiness check".
+
+on:
+  schedule:
+    # 07:00 UTC = late morning Helsinki, after a full overnight cycle of saves.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: audit-readiness-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check save_audit readiness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Run readiness check
+        id: check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set +e
+          node scripts/check-audit-readiness.mjs > /tmp/readiness.txt 2>&1
+          status=$?
+          set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          echo "----- script output -----"
+          cat /tmp/readiness.txt
+          echo "----- exit code: $status -----"
+
+      - name: Fail loudly on env / connection error (exit 2)
+        if: steps.check.outputs.exit_code == '2'
+        run: |
+          echo "::error::check-audit-readiness.mjs exited 2 — likely missing DATABASE_URL secret or DB is unreachable. Re-check the repo's Settings -> Secrets and variables -> Actions."
+          exit 1
+
+      - name: Open tracking issue when ready (exit 0)
+        if: steps.check.outputs.exit_code == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          existing=$(gh issue list \
+            --label save-architecture-ready \
+            --state open \
+            --json number \
+            --jq 'length')
+          if [ "$existing" -gt 0 ]; then
+            echo "An open save-architecture-ready issue already exists; skipping creation."
+            exit 0
+          fi
+          # Strip the YAML block indentation (10 spaces) so the issue body
+          # renders as Markdown, not as a code block.
+          body=$(sed 's/^          //' <<'EOF'
+          The `spacepotatis.save_audit` table has accumulated enough rows / distinct players / elapsed days to inform the next-session structural fix — the append-only `save_snapshots` architecture sketched in `TODO.md` "Phase Save-Architecture".
+
+          ### Readiness report
+
+          ```
+          REPORT_PLACEHOLDER
+          ```
+
+          ### Next steps
+
+          1. Read `TODO.md` "Phase Save-Architecture" for the planned shape.
+          2. Use the audit data to decide payload size / retention / index strategy for `save_snapshots`.
+          3. Open the implementation PR.
+          4. Close this issue when the PR is opened.
+
+          ---
+
+          This issue was opened automatically by `.github/workflows/audit-readiness-check.yml`. The job re-runs daily at 07:00 UTC and only opens a new issue when none is already open with the `save-architecture-ready` label, so it won't spam.
+          EOF
+          )
+          # Inject the captured script output into the body. Using awk so the
+          # /tmp/readiness.txt content is not interpreted by the shell.
+          report=$(cat /tmp/readiness.txt)
+          body="${body//REPORT_PLACEHOLDER/$report}"
+          gh issue create \
+            --title "save_audit ready — start Phase Save-Architecture" \
+            --label save-architecture-ready \
+            --label enhancement \
+            --body "$body"
+
+      - name: Log NOT YET status (exit 1)
+        if: steps.check.outputs.exit_code == '1'
+        run: |
+          echo "::notice::save_audit not ready yet. Re-checking tomorrow."
+          cat /tmp/readiness.txt
