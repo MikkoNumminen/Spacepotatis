@@ -261,7 +261,7 @@ Here is the post-mortem, because incidents are how you find out what your softwa
 
 ## How AI helps build this game (Claude Code skills)
 
-This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains eight custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time. (There's a ninth file in there too — `new-weapon` — but it's a single-line redirect that points to `/equipment`, since equipment now covers the whole "add / change / remove a weapon" lifecycle in one place.)
+This project is mostly built by Mikko with help from **Claude Code**, a command-line tool that lets you have a conversation with an AI (Claude) that can read and edit files in the project. Inside the repo there's a folder called `.claude/skills/` that contains ten custom *skills* — short instruction files that teach Claude how to do specific Spacepotatis tasks correctly without re-figuring-out the project layout every single time. (There's an eleventh file in there too — `new-weapon` — but it's a single-line redirect that points to `/equipment`, since equipment now covers the whole "add / change / remove a weapon" lifecycle in one place.)
 
 Why does that matter? Every time Claude reads a file, it costs a small amount of money (paid in "tokens" — chunks of text Claude charges for). If a beginner asks "add a new enemy" and Claude has to grep around the codebase to find every file it needs to touch, that's a lot of tokens. A skill is basically a recipe: it lists the exact files to edit, the field names to use, and the invariants to keep, so Claude can go straight to the work.
 
@@ -277,22 +277,26 @@ Here's the catalog of skills currently shipped with the project. Type `/<skill-n
 | `/new-story`         | Add, change, or remove in-game story content — the cinematic popups, mission/shop briefings, the spoken `body` text, the deeper written `logSummary` shown in the Story log, the music bed, and the auto-trigger wiring (which points in the game fires which beat). One skill covers the whole CRUD lifecycle, including a hard-coded-reference check so removing a story doesn't quietly break a test fixture. |
 | `/balance-review`    | Diffs your uncommitted changes across every game-data surface — weapons (with family + gravity), augments, loot pools, enemies, waves, missions, perks, solar systems — and prints DPS / TTK / energy-per-DPS / augment-folded effective DPS / loot-pool roster shifts. |
 | `/content-audit`     | Pre-commit invariants the unit tests don't cover: orphan refs (enemy / weapon / sprite / pod / loot-pool / mission system / story trigger), missing sprite generators, perk drop-weight sanity, mission prereq DAG, story integrity (voice + music files exist, trigger refs resolve), and storyTriggers helper coverage. Run it before opening a pull request. |
+| `/save-roundtrip-audit` | Pre-commit save-pipeline invariants check. The save round-trip has 8 layers — snapshot interface → toSnapshot → POST schema → POST handler (read + insert + onConflict) → DB column → migration → GET handler → RemoteSaveSchema → sync.loadSave → hydrate — and a field that's declared in some of them but silently dropped in others produces a class of bug that doesn't fail any test and only surfaces when a player notices their state didn't survive a reload (it bit prod twice in May 2026). The skill walks every `StateSnapshot` field through all 8 layers and flags anything that drops it. Read-only. |
+| `/new-migration`     | Adds a Postgres schema migration end-to-end — dated SQL file in `db/migrations/`, Database interface update in `src/lib/db.ts`, prod application via `scripts/migrate.mjs`, schema verification via `scripts/check-schema.mjs`, and the PR-body checkbox that gates merge. Enforces CLAUDE.md §7a HARD RULE so the next save POST doesn't 500 because the column doesn't exist yet. |
 
 ### How much does this save?
 
 Rough estimates assuming a year of normal content authoring. "Tokens" here means the units Claude charges by — fewer tokens means cheaper and faster sessions.
 
-| Skill                | Saved per use | Estimated uses per year | Total tokens saved |
-| -------------------- | ------------: | ----------------------: | -----------------: |
-| `/balance-review`    |       ~13.5K³ |                      50 |              ~675K |
-| `/content-audit`     |       ~15.0K³ |                      50 |              ~750K |
-| `/new-mission`       |         ~8.0K |                      30 |              ~240K |
-| `/new-enemy`         |         ~5.5K |                      25 |              ~138K |
-| `/new-perk`          |         ~9.0K |                      10 |               ~90K |
-| `/equipment`         |  ~4.3K (avg)¹ |                      56 |              ~240K |
-| `/new-solar-system`  |       ~13.0K⁴ |                       5 |               ~65K |
-| `/new-story`         |  ~5.4K (avg)² |                      40 |              ~216K |
-| **Total**            |               |             **266 uses** | **~2.41M tokens** |
+| Skill                     | Saved per use | Estimated uses per year | Total tokens saved |
+| ------------------------- | ------------: | ----------------------: | -----------------: |
+| `/balance-review`         |       ~13.5K³ |                      50 |              ~675K |
+| `/content-audit`          |       ~15.0K³ |                      50 |              ~750K |
+| `/save-roundtrip-audit`   |       ~12.0K⁵ |                      20 |              ~240K |
+| `/new-mission`            |         ~8.0K |                      30 |              ~240K |
+| `/new-enemy`              |         ~5.5K |                      25 |              ~138K |
+| `/new-perk`               |         ~9.0K |                      10 |               ~90K |
+| `/equipment`              |  ~4.3K (avg)¹ |                      56 |              ~240K |
+| `/new-solar-system`       |       ~13.0K⁴ |                       5 |               ~65K |
+| `/new-story`              |  ~5.4K (avg)² |                      40 |              ~216K |
+| `/new-migration`          |         ~7.0K⁶ |                     15 |              ~105K |
+| **Total**                 |               |             **301 uses** | **~2.76M tokens** |
 
 ¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year. The 240K total is more honest than the average per-use number suggests, because the high-stakes removal path also avoids a separate "fix-up commit" round-trip.
 
@@ -302,7 +306,11 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 
 ³ `/balance-review` and `/content-audit` are the two utility skills that grew the most after the April 2026 quarterly audit. `/balance-review` was extended from "weapons + enemies + waves + missions + perks" coverage to also include augments, loot pools, weapon families, gravity ballistics, and solar systems — bigger surface area means each invocation now catches roughly 2K more tokens of analysis the agent would otherwise have to derive (and, on the high end, prevents a class of "JSON tweak that silently moved the credit cap" that wasn't even on the previous radar). `/content-audit` gained four new audit steps (story integrity, storyTriggers helper coverage, loot-pool integrity, mission `solarSystemId` orphan check) plus a refreshed sprite-key enumeration; per-use savings up by similar magnitude, and the skill now catches the kind of orphan reference that took a separate audit pass to find. The annual frequency stayed at 50 each because both still fire once per JSON-touching commit.
 
-The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The two heaviest hitters are `/balance-review` and `/content-audit` because they fire on every JSON change.
+⁵ `/save-roundtrip-audit` was added in May 2026 after two production incidents in 48 hours hit the same bug class — a field that lives in some layers of the save pipeline but is silently dropped by another. The 2026-05-02 wipe (`validateNoRegression` missing on POST) and the 2026-05-03 "Continue always lands at Sol Spudensis" bug (`currentSolarSystemId` declared everywhere except where it mattered) both share that shape. Without the skill, an agent asked to verify the round-trip would have to read `persistence.ts` (~3K), `schemas/save.ts` (~3K), `api/save/route.ts` (~5K), `db.ts` (~1.5K), `sync.ts` excerpts (~2K), then synthesize the field × layer matrix from scratch — about 14K of input plus 2K of synthesis. With the skill, the audit runs in targeted greps against a known-good baseline already in the SKILL.md, dropping per-use cost to ~3K. Frequency estimate (20/year) reflects the active `save_audit` data-collection window plus the upcoming Phase Save-Architecture migration; once that ships, frequency may drop to 8–10/year and the savings will follow.
+
+⁶ `/new-migration` enforces the §7a HARD RULE end-to-end. Without the skill, an agent shipping a column-touching feature has to remember to (a) author a dated SQL file with both `migrate:up` and `migrate:down` blocks, (b) update the `Database` interface in `src/lib/db.ts`, (c) apply via `scripts/migrate.mjs` against prod, (d) verify via `scripts/check-schema.mjs`, and (e) add the PR-body checkbox the reviewer's merge button is gated on. Skipping any of those produces a save POST that 500s on every authenticated player the moment Vercel deploys the new code. The skill compresses the whole flow into a single recipe that lists the exact files to touch, the dbmate naming convention, and the verify-then-merge sequence — about 7K saved per invocation vs reading the existing migration files + scripts to derive the pattern.
+
+The numbers are educated guesses — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens) pays itself back the first week. The three heaviest hitters are `/balance-review`, `/content-audit`, and `/save-roundtrip-audit` because they fire on every change to their respective surfaces (game-data JSON for the first two, save-pipeline files for the third).
 
 **The savings figures grow with the codebase, not just with usage.** Each new field, file, or invariant that lands without a corresponding skill update is a future failure mode the skill prevents — but only if the skill is kept current. The April 2026 audit found that two utility skills had drifted to ~5/10 accuracy because the codebase had grown shapes (augments, loot pools, story integrity) that the skills never knew about; once patched, the savings table jumped from ~2.15M to ~2.40M tokens/year. So the table at the bottom is real money, but only if you keep the skills in lockstep with the data shapes — figure on a quarterly re-audit pass per skill, plus an immediate update when any catalog file gains a new field.
 
@@ -315,7 +323,7 @@ If you want to understand the project deeper, here's the order to read things in
 1. **[CLAUDE.md](CLAUDE.md)** — the developer-facing rulebook for the project. Coding standards, hard rules ("no Prisma", "no `any`", "all game logic runs in the browser"), and the mapping from "what the user wants" → "which skill to invoke".
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** — a tour of how data flows through the app: how a click on a planet leads to a Phaser combat scene starting, how saves are written, how the database schema is laid out.
 3. **[TODO.md](TODO.md)** — the planned implementation phases and what's deliberately out of scope.
-4. **[.claude/skills/](.claude/skills/)** — the eight skills mentioned above (plus the `new-weapon` redirect stub). Each one is a short markdown file you can read on its own.
+4. **[.claude/skills/](.claude/skills/)** — the ten skills mentioned above (plus the `new-weapon` redirect stub). Each one is a short markdown file you can read on its own.
 5. **[src/game/data/](src/game/data/)** — the game's balance data (weapons, enemies, waves, missions, perks). All numbers live here as JSON, so you can re-tune the game without touching any code.
 
 ## License
