@@ -10,13 +10,13 @@ Welcome! Spacepotatis is a small browser game where you fly a tiny spaceship aro
 
 ## What it looks like
 
-The **main menu** is your front door. The slowly-spinning galaxy you see behind the title isn't a still image — it's the same 3D engine the game uses for the overworld, idling away as wallpaper. From this screen you sign in (or out — that's a signed-in player in the screenshot below), tap CONTINUE to drop straight back into your last solar system, or peek at the leaderboard to see how badly other potatoes have humbled you.
+The **front door** is a tiny system-boot sequence: a green terminal panel warms the reactors, verifies your pilot session, and only then hands you the actual menu. It's a few seconds of theatre at most, but it sets the tone — you are operating a slightly-too-old spaceship with cathode-ray sensibilities, and it would like you to wait while it remembers how to be a spaceship.
 
-![Main menu signed in as potato_pilot, showing the SPACEPOTATIS title over a slowly-spinning galaxy backdrop with CONTINUE, Leaderboard, and sign-out buttons](docs/screenshots/landing.png)
+![Boot sequence on the landing page — a terminal-style "SPACEPOTATIS / SYSTEM BOOT" panel with checklist items "warm reactors" (✓) and "verify pilot session", overlaid on a faded galaxy backdrop](docs/screenshots/landing.png)
 
-The **galaxy view** is where you decide what to do next. You're looking at an actual 3D solar system — drag with the mouse to spin the camera around, scroll the wheel to zoom, click a planet to open its mission panel. The HUD keeps the bookkeeping out of the way: top-left for the Menu and Warp buttons, just under that your credits and missions cleared, top-right for the audio toggle and your callsign. (HUD is short for "heads-up display", a term arcades and aircraft folk use for "stuff drawn on top of the world to tell you things you need to know without taking your eyes off the action".) The example below is the **Tubernovae Cluster**, the second system you'll visit, where things start getting noticeably toastier.
+The **galaxy view** is where you decide what to do next. You're looking at an actual 3D solar system — drag with the mouse to spin the camera around, scroll the wheel to zoom, click a planet to open its mission panel. The HUD keeps the bookkeeping out of the way: top-left for the Menu and Warp buttons, just under that your credits and missions cleared, top-right for the audio toggle and your callsign. (HUD is short for "heads-up display", a term arcades and aircraft folk use for "stuff drawn on top of the world to tell you things you need to know without taking your eyes off the action".) The shot below is the **Tubernovae Cluster**, the second system you'll visit, snapped at the moment everything in it has been cleared and the game is gently prodding you toward the next system.
 
-![Galaxy view of the Tubernovae Cluster — a red sun ringed by Burnt Spud (locked), Pirate Beacon (cleared), Ember Hut, and the Tubernovae Outpost shop. The quests panel on the left suggests "Ember Run" as the next mission](docs/screenshots/galaxy.png)
+![Galaxy view of a fully-cleared Tubernovae Cluster — the quests panel reads "SYSTEM CLEAR" with a "WARP TO NEXT SYSTEM" button, and Pirate Beacon, Ember Hut, and Burnt Spud are all checked off below it. The Tubernovae Outpost shop sits docked on the left](docs/screenshots/galaxy.png)
 
 ## Music
 
@@ -72,8 +72,6 @@ The same four cues are reused everywhere a permanent item changes hands, so once
 ### The Story log
 
 If you missed a beat — or you just want to hear Grandma tell it again — open the **user menu** in the top-right of the galaxy view and pick **Story log**. Every storyline entry you've already unlocked sits in here, ready to replay with its music and voiceover. Entries you haven't reached stay hidden so the next chapter doesn't get spoiled. The log has its own music bed that ducks the menu music while you're browsing it, and opening a replay doesn't restart that bed — the music plays continuously across the list and any replay you open from it. Each entry also shows a **written synopsis** under its title; Grandma's spoken narration is short and read-aloud-friendly, while the synopsis is the deeper written version with room for lore that wouldn't fit comfortably in spoken text.
-
-![Story log modal showing replayable entries: The Great Potato Awakening, Spud Prime Briefing, Yamsteroid Belt Briefing, and Dreadfruit Briefing — each with a REPLAY button and a multi-paragraph written synopsis under the title](docs/screenshots/story-log.png)
 
 ### How the audio is put together
 
