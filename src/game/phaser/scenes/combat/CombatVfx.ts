@@ -19,7 +19,12 @@ export class CombatVfx {
   }
 
   floatDamageNumber(x: number, y: number, amount: number): void {
-    const text = this.scene.add.text(x, y - 12, String(Math.round(amount)), {
+    // Random sign + jitter on horizontal drift so rapid bursts fan out around
+    // the target instead of stacking into one bold blob.
+    const sideSign = Math.random() < 0.5 ? -1 : 1;
+    const startX = x + sideSign * (8 + Math.random() * 6);
+    const endX = x + sideSign * (44 + Math.random() * 14);
+    const text = this.scene.add.text(startX, y - 12, String(Math.round(amount)), {
       fontFamily: "monospace",
       fontSize: "14px",
       color: "#ffe066",
@@ -30,10 +35,12 @@ export class CombatVfx {
     text.setDepth(1000);
     this.scene.tweens.add({
       targets: text,
-      y: y - 42,
-      alpha: { from: 1, to: 0 },
-      duration: 600,
-      ease: "Cubic.easeOut",
+      x: { value: endX, ease: "Cubic.easeOut" },
+      y: { value: y - 48, ease: "Cubic.easeOut" },
+      // Quad.easeIn keeps alpha near 1 most of the way, then fades fast at
+      // the end — staying readable for the whole 1s instead of fading early.
+      alpha: { value: 0, ease: "Quad.easeIn" },
+      duration: 1000,
       onComplete: () => text.destroy()
     });
   }
