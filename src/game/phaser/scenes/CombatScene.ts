@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import type { CombatSummary, BootData } from "../config";
 import { SCENE_KEYS, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from "../config";
 import { BulletPool } from "../entities/Bullet";
+import type { Bullet } from "../entities/Bullet";
 import { EnemyPool } from "../entities/Enemy";
 import type { Enemy } from "../entities/Enemy";
 import { ObstaclePool } from "../entities/Obstacle";
@@ -128,6 +129,13 @@ export class CombatScene extends Phaser.Scene {
       {
         onEnemyHit: (enemy, bullet, killed) => {
           this.vfx.floatDamageNumber(enemy.x, enemy.y, bullet.damage);
+          // Secondary effect: AoE explosion + slow tag. Runs even when the
+          // direct hit killed the primary target — pirate explosives are
+          // supposed to clear adjacent threats whether or not the bullet's
+          // target survives.
+          if (bullet.effect.explosionRadius > 0 || bullet.effect.slowFactor > 0) {
+            this.applyBulletAoE(enemy, bullet);
+          }
           if (killed) this.handleEnemyKilled(enemy);
         },
         onPlayerHitByBullet: (bullet) => this.player.takeDamage(bullet.damage),
@@ -189,6 +197,48 @@ export class CombatScene extends Phaser.Scene {
       // last wave's spawns are all out and the field is clear, finish now.
       this.waves.finishEarly();
     }
+  }
+
+  // AoE pass: damages OTHER enemies inside bullet.effect.explosionRadius and
+  // (when slowFactor > 0) re-stamps a slow on every enemy in radius including
+  // the primary target — the snare's whole point is "everything around the
+  // impact slows down". Runs once per friendly bullet hit; the bullet is
+  // already deactivated by CollisionSystem before this fires, so there's no
+  // chance of double-counting.
+  private applyBulletAoE(primary: Enemy, bullet: Bullet): void {
+    const { explosionRadius, explosionDamage, slowFactor, slowDurationMs } = bullet.effect;
+    const now = this.time.now;
+    if (explosionRadius <= 0) {
+      // Slow-only path (no current weapon uses it; keeps the engine honest).
+      if (slowFactor > 0 && slowDurationMs > 0) {
+        primary.applySlow(slowFactor, slowDurationMs, now);
+      }
+      return;
+    }
+    const radiusSq = explosionRadius * explosionRadius;
+    const cx = primary.x;
+    const cy = primary.y;
+    if (slowFactor > 0 && slowDurationMs > 0) {
+      primary.applySlow(slowFactor, slowDurationMs, now);
+    }
+    this.enemies.children.iterate((child) => {
+      const e = child as Enemy;
+      if (!e.active || e === primary) return true;
+      const dx = e.x - cx;
+      const dy = e.y - cy;
+      if (dx * dx + dy * dy > radiusSq) return true;
+      if (explosionDamage > 0) {
+        const killed = e.takeDamage(explosionDamage);
+        this.vfx.floatDamageNumber(e.x, e.y, explosionDamage);
+        if (killed) this.handleEnemyKilled(e);
+      }
+      if (slowFactor > 0 && slowDurationMs > 0) {
+        e.applySlow(slowFactor, slowDurationMs, now);
+      }
+      return true;
+    });
+    // Visual: small particle burst at the impact center so AoE is legible.
+    this.vfx.emitExplosionParticles(cx, cy, 12);
   }
 
   private handleEnemyKilled(enemy: Enemy): void {

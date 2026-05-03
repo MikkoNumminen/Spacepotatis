@@ -37,6 +37,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private spawnX = 0;
   private elapsedMs = 0;
   private lastShotAt = 0;
+  // Slow debuff state. slowUntilMs is wall-clock time (Phaser scene time)
+  // beyond which the slow expires. While active, the behavior switch reads
+  // an effective speed equal to def.speed * slowFactor.
+  private slowUntilMs = 0;
+  private slowFactor = 1;
   private getPlayer: () => { x: number; y: number } | null = () => null;
   private enemyPool?: BulletPool;
 
@@ -58,6 +63,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.spawnX = x;
     this.elapsedMs = 0;
     this.lastShotAt = 0;
+    this.slowUntilMs = 0;
+    this.slowFactor = 1;
     this.getPlayer = opts.getPlayer;
     this.enemyPool = opts.enemyBullets;
 
@@ -96,18 +103,37 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return false;
   }
 
+  // Apply (or refresh) a slow debuff. Each call re-stamps the duration
+  // from `now`; a re-hit can extend the slow but not stack-stronger
+  // (the tighter factor wins).
+  applySlow(factor: number, durationMs: number, now: number): void {
+    if (factor <= 0 || factor >= 1 || durationMs <= 0) return;
+    const expiry = now + durationMs;
+    if (expiry > this.slowUntilMs) this.slowUntilMs = expiry;
+    if (factor < this.slowFactor) this.slowFactor = factor;
+  }
+
+  private effectiveSpeed(time: number): number {
+    if (time >= this.slowUntilMs) {
+      this.slowFactor = 1;
+      return this.definition.speed;
+    }
+    return this.definition.speed * this.slowFactor;
+  }
+
   override preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
     this.elapsedMs += delta;
 
     const def = this.definition;
+    const speed = this.effectiveSpeed(time);
     switch (def.behavior) {
       case "straight":
-        this.setVelocity(0, def.speed);
+        this.setVelocity(0, speed);
         break;
       case "zigzag": {
         const ox = Math.sin(this.elapsedMs / 400) * 160;
-        this.setVelocity(ox, def.speed);
+        this.setVelocity(ox, speed);
         this.x = this.spawnX + ox;
         break;
       }
@@ -117,9 +143,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
           const dx = target.x - this.x;
           const dy = target.y - this.y;
           const len = Math.hypot(dx, dy) || 1;
-          this.setVelocity((dx / len) * def.speed, (dy / len) * def.speed);
+          this.setVelocity((dx / len) * speed, (dy / len) * speed);
         } else {
-          this.setVelocity(0, def.speed);
+          this.setVelocity(0, speed);
         }
         break;
       }

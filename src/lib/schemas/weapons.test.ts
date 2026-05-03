@@ -24,6 +24,7 @@ const VALID_WEAPON = {
   cost: 0,
   tint: "#4fd1ff",
   family: "potato",
+  tier: 1,
   energyCost: 4
 } as const;
 

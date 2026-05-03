@@ -25,6 +25,7 @@ import { migrateLegacyIdArray } from "./persistence/migrateLegacyIdArray";
 import { migrateNamedSlots } from "./persistence/migrateNamedSlots";
 import { migratePrimaryWeapon } from "./persistence/migratePrimaryWeapon";
 import { seedStarterIfEmpty } from "./persistence/safetyNet";
+import { calculateLegacyRefund } from "./persistence/salvageRemovedWeapons";
 import type { AugmentId } from "@/types/game";
 
 export interface StateSnapshot {
@@ -102,8 +103,18 @@ export function hydrate(snapshot: Partial<StateSnapshot>): void {
   const localSeen = readSeenStoriesLocal();
   const seenStoryEntries = Array.from(new Set<StoryId>([...serverSeen, ...localSeen]));
 
+  // Salvage step: scan the raw ship snapshot for instances of removed-from-
+  // catalog weapon ids BEFORE migrateShip drops them silently (see comment
+  // in salvageRemovedWeapons.ts). Refund (cost + per-level upgrades + augment
+  // costs) gets added to the player's credits so no progress is lost when a
+  // weapon leaves the catalog. No-op when the ship has no removed ids.
+  const refundOutcome = snapshot.ship
+    ? calculateLegacyRefund(snapshot.ship as LegacyShipSnapshot)
+    : { creditRefund: 0, removedIds: [] as readonly string[] };
+  const baseCredits = snapshot.credits ?? INITIAL_STATE.credits;
+
   commit({
-    credits: snapshot.credits ?? INITIAL_STATE.credits,
+    credits: baseCredits + refundOutcome.creditRefund,
     completedMissions: snapshot.completedMissions ?? [...INITIAL_STATE.completedMissions],
     unlockedPlanets: snapshot.unlockedPlanets ?? [...INITIAL_STATE.unlockedPlanets],
     playedTimeSeconds: snapshot.playedTimeSeconds ?? INITIAL_STATE.playedTimeSeconds,
