@@ -398,6 +398,7 @@ describe("POST /api/save audit log", () => {
       unlocked_planets: ["tutorial", "combat-1"],
       played_time_seconds: 120,
       seen_story_entries: ["great-potato-awakening"],
+      current_solar_system_id: "tubernovae",
       updated_at: updatedAt
     };
     const auditSpy = vi.fn();
@@ -433,6 +434,10 @@ describe("POST /api/save audit log", () => {
     expect(prev.credits).toBe(100);
     expect(prev.completedMissions).toEqual(["tutorial"]);
     expect(prev.playedTimeSeconds).toBe(120);
+    // Forensic completeness: the audit must capture the previous solar
+    // system pointer so that if a future bug ever wipes it, we can see
+    // what it was before.
+    expect(prev.currentSolarSystemId).toBe("tubernovae");
     expect(prev.updatedAt).toBe(updatedAt.toISOString());
   });
 

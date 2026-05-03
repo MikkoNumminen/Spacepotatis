@@ -181,6 +181,7 @@ export async function POST(request: Request): Promise<Response> {
         completed_missions: string[];
         unlocked_planets: string[];
         seen_story_entries: string[];
+        current_solar_system_id: string | null;
         updated_at: Date;
       }
     | undefined;
@@ -197,6 +198,7 @@ export async function POST(request: Request): Promise<Response> {
         "completed_missions",
         "unlocked_planets",
         "seen_story_entries",
+        "current_solar_system_id",
         "updated_at"
       ])
       .where("player_id", "=", playerId)
@@ -218,6 +220,7 @@ export async function POST(request: Request): Promise<Response> {
         unlockedPlanets: prevRow.unlocked_planets,
         playedTimeSeconds: prevRow.played_time_seconds,
         seenStoryEntries: prevRow.seen_story_entries ?? [],
+        currentSolarSystemId: prevRow.current_solar_system_id,
         updatedAt:
           prevRow.updated_at instanceof Date
             ? prevRow.updated_at.toISOString()
