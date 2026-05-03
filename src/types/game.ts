@@ -9,12 +9,9 @@ export type WeaponId =
   | "rapid-fire"
   | "spread-shot"
   | "heavy-cannon"
-  | "spud-missile"
-  | "tater-net"
-  | "tail-gunner"
-  | "side-spitter"
-  | "plasma-whip"
-  | "hailstorm";
+  | "corsair-missile"
+  | "grapeshot-cannon"
+  | "boarding-snare";
 
 // Permanent weapon modifiers. See src/game/data/augments.ts for the
 // catalog and effect math. An augment is bound to a single weapon when
@@ -26,7 +23,13 @@ export type AugmentId =
   | "energy-down"
   | "homing-up";
 
-export type WeaponFamily = "potato" | "carrot" | "turnip";
+export type WeaponFamily = "potato" | "pirate";
+
+// Catalog tier — surfaced in shop / loadout UI so the player can see at a
+// glance which set a weapon belongs to. Tier 1 is the potato starter line
+// (everyone gets these); tier 2 is the pirate haul (drops + shop in
+// tubernovae onward, often more destructive at base than tier 1 max-level).
+export type WeaponTier = 1 | 2;
 
 // Every weapon is forward-firing now — slot kinds (rear / sidekick) were
 // removed in the slot-array refactor. Mounted in any open slot on the
@@ -42,11 +45,22 @@ export interface WeaponDefinition {
   readonly spreadDegrees: number;
   readonly cost: number;
   readonly tint: string;          // "#RRGGBB" — accent color used in pickup notifications & HUD
-  readonly family: WeaponFamily;  // Vegetable family — gates which weapons show up in which solar system's shop + loot pool. Tutorial system shows only "potato".
+  readonly family: WeaponFamily;  // Catalog family — surfaces as a tag in shop/loadout. Tutorial-system shop is gated to tier 1 (see ShopUI), so pirate-family weapons hide there until the player warps to tubernovae.
+  readonly tier: WeaponTier;      // 1 = potato starter line, 2 = pirate haul. Drives the tier badge in shop + loadout and gates the tutorial-system shop filter.
   readonly energyCost: number;    // reactor energy spent per FIRE event, not per bullet
   readonly homing?: boolean;      // if true, projectiles steer toward the nearest enemy
   readonly turnRateRadPerSec?: number; // homing turn rate; defaults to 3.5 if homing without explicit value
   readonly gravity?: number;  // px/s² applied as +y acceleration each frame. When set, the bullet arcs (decelerates if firing -y, accelerates if firing +y) and rotates each frame to point along its current motion vector. Defaults to 0 (straight flight).
+  // AoE on impact: when explosionRadius > 0, the bullet spawns a damage burst
+  // centered on the enemy it hit. Other enemies inside the radius take
+  // explosionDamage. Set both fields together — radius alone is a no-op.
+  readonly explosionRadius?: number;
+  readonly explosionDamage?: number;
+  // Slow on impact (paired with explosionRadius). Every enemy in the AoE
+  // gets velocity scaled by slowFactor (e.g. 0.5 = half speed) until
+  // slowDurationMs elapses. The primary target is included.
+  readonly slowFactor?: number;
+  readonly slowDurationMs?: number;
   readonly bulletSprite?: string;  // texture key generated in BootScene; defaults to "bullet-friendly" when absent
   readonly podSprite?: string;     // texture key for a side-pod sprite rendered when this weapon is equipped in a non-primary slot. When absent, the slot stays invisible (today's behavior — bullets just spawn at the slot's offset).
 }

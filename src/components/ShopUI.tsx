@@ -61,12 +61,12 @@ export default function ShopUI() {
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
 
-  // Tutorial system gates the shop to potato weapons only — the loot pool
+  // Tutorial system gates the shop to tier 1 weapons only — the loot pool
   // matches this constraint (see src/game/data/lootPools.ts). Other systems
   // show everything currently in the catalog. LoadoutMenu is never gated;
   // players keep using any weapon they already own in any system.
   const visibleWeapons = currentSolarSystemId === "tutorial"
-    ? getAllWeapons().filter((w) => w.family === "potato")
+    ? getAllWeapons().filter((w) => w.tier === 1)
     : getAllWeapons();
 
   // Plays the on-shop-open briefing every time the player docks (any shop
@@ -178,7 +178,10 @@ export default function ShopUI() {
             return (
               <li key={weapon.id} className="rounded border border-space-border p-3">
                 <div className="flex items-baseline justify-between gap-2">
-                  <div className="font-display tracking-wider">{weapon.name}</div>
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="font-display tracking-wider">{weapon.name}</span>
+                    <TierBadge tier={weapon.tier} />
+                  </div>
                   {owned > 0 && (
                     <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-2 py-0.5 text-[11px] text-hud-green/80">
                       owned × {owned}
@@ -271,6 +274,21 @@ function AugmentDot({ tint }: { tint: string }) {
       className="inline-block h-2 w-2 rounded-full"
       style={{ backgroundColor: tint, boxShadow: `0 0 4px ${tint}` }}
     />
+  );
+}
+
+function TierBadge({ tier }: { tier: 1 | 2 }) {
+  const cls =
+    tier === 1
+      ? "border-hud-green/40 text-hud-green/70"
+      : "border-hud-amber/50 text-hud-amber/80";
+  return (
+    <span
+      aria-label={`Tier ${tier}`}
+      className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${cls}`}
+    >
+      T{tier}
+    </span>
   );
 }
 

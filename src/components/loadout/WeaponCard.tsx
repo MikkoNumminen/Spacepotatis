@@ -55,6 +55,7 @@ export function WeaponCard({
         <div className="flex items-baseline gap-2">
           <WeaponDot tint={weapon.tint} />
           <span className="font-display tracking-wider">{weapon.name}</span>
+          <TierBadge tier={weapon.tier} />
           {slotBadge && (
             <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
               {slotBadge}
@@ -129,6 +130,21 @@ function MarkBadge({ level }: { level: number }) {
   return (
     <span className="rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
       Mk {level}
+    </span>
+  );
+}
+
+function TierBadge({ tier }: { tier: 1 | 2 }) {
+  const cls =
+    tier === 1
+      ? "border-hud-green/40 text-hud-green/70"
+      : "border-hud-amber/50 text-hud-amber/80";
+  return (
+    <span
+      aria-label={`Tier ${tier}`}
+      className={`rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${cls}`}
+    >
+      T{tier}
     </span>
   );
 }

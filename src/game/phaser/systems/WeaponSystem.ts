@@ -1,5 +1,5 @@
 import type { WeaponId } from "@/types/game";
-import type { BulletPool } from "../entities/Bullet";
+import type { BulletEffect, BulletPool } from "../entities/Bullet";
 import { getWeapon } from "../../data/weapons";
 import { canFire, spreadVectors } from "./weaponMath";
 
@@ -47,8 +47,31 @@ export class WeaponSystem {
       ? { turnRateRadPerSec: (def.turnRateRadPerSec ?? 3.5) * turnRateMul }
       : null;
     const damage = def.damage * damageMul;
+    // Secondary effect bag — explosion damage scales with damageMul so
+    // damage-up augments amplify the AoE the same way they do direct damage.
+    // Slow factor / duration are unaffected by mods today (no slow-related
+    // augment exists; if one lands, plumb a slowDurationMul mod here).
+    const explosionRadius = def.explosionRadius ?? 0;
+    const explosionDamage = (def.explosionDamage ?? 0) * damageMul;
+    const slowFactor = def.slowFactor ?? 0;
+    const slowDurationMs = def.slowDurationMs ?? 0;
+    const effect: BulletEffect | undefined =
+      explosionRadius > 0 || slowFactor > 0
+        ? { explosionRadius, explosionDamage, slowFactor, slowDurationMs }
+        : undefined;
     for (const v of vectors) {
-      this.pool.spawn(originX, originY, v.vx, v.vy, damage, friendly, homing, def.bulletSprite, def.gravity);
+      this.pool.spawn(
+        originX,
+        originY,
+        v.vx,
+        v.vy,
+        damage,
+        friendly,
+        homing,
+        def.bulletSprite,
+        def.gravity,
+        effect
+      );
     }
     return true;
   }

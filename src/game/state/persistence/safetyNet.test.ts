@@ -34,7 +34,7 @@ describe("seedStarterIfEmpty", () => {
 
   it("returns input unchanged when both slots and inventory have content", () => {
     const slotted = newWeaponInstance("rapid-fire");
-    const stored = newWeaponInstance("spud-missile");
+    const stored = newWeaponInstance("corsair-missile");
     const input = { slots: [slotted], inventory: [stored] };
     const out = seedStarterIfEmpty(input);
     expect(out).toBe(input);

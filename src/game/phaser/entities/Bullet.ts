@@ -13,9 +13,27 @@ interface HomingConfig {
   readonly findTarget: (x: number, y: number) => { readonly x: number; readonly y: number } | null;
 }
 
+// Secondary effect bag carried per-shot. CombatScene reads these off the
+// bullet inside onEnemyHit (after the primary damage is applied) and runs
+// the AoE / slow scan. Zero radius and zero slowFactor = inert (no scan).
+export interface BulletEffect {
+  readonly explosionRadius: number;
+  readonly explosionDamage: number;
+  readonly slowFactor: number;       // 0 disables slow; otherwise multiplier on enemy speed
+  readonly slowDurationMs: number;
+}
+
+const NO_EFFECT: BulletEffect = {
+  explosionRadius: 0,
+  explosionDamage: 0,
+  slowFactor: 0,
+  slowDurationMs: 0
+};
+
 export class Bullet extends Phaser.Physics.Arcade.Sprite {
   friendly = true;
   damage = 0;
+  effect: BulletEffect = NO_EFFECT;
   private homing: HomingConfig | null = null;
   private gravity = 0;
 
@@ -32,12 +50,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     friendly: boolean,
     homing: HomingConfig | null = null,
     spriteKey?: string,
-    gravity: number = 0
+    gravity: number = 0,
+    effect: BulletEffect = NO_EFFECT
   ): void {
     this.friendly = friendly;
     this.damage = damage;
     this.homing = homing;
     this.gravity = gravity;
+    this.effect = effect;
     this.setTexture(spriteKey ?? (friendly ? BULLET_TEXTURE_FRIENDLY : BULLET_TEXTURE_HOSTILE));
 
     this.enableBody(true, x, y, true, true);
@@ -61,6 +81,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   deactivate(): void {
     this.homing = null;
     this.gravity = 0;
+    this.effect = NO_EFFECT;
     this.setAngularVelocity(0);
     this.setRotation(0);
     this.disableBody(true, true);
@@ -145,7 +166,8 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
     friendly: boolean,
     homing: { readonly turnRateRadPerSec: number } | null = null,
     spriteKey?: string,
-    gravity?: number
+    gravity?: number,
+    effect?: BulletEffect
   ): Bullet | null {
     const bullet = this.get() as Bullet | null;
     if (!bullet) return null;
@@ -153,7 +175,7 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
       homing && this.findTarget
         ? { turnRateRadPerSec: homing.turnRateRadPerSec, findTarget: this.findTarget }
         : null;
-    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey, gravity);
+    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey, gravity, effect);
     return bullet;
   }
 }

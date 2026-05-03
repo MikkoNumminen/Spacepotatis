@@ -73,12 +73,10 @@ describe("resolveSlotMods", () => {
   });
 
   it("energy cost floors at 1 even with very generous reductions", () => {
-    // tater-net base energyCost = 6, energy-down (0.6) → 3.6 → 4 (rounded). Use a
-    // weapon with the lowest base + augment to sanity-check the >=1 clamp doesn't
-    // unintentionally fire in normal cases.
-    // side-spitter (3) + energy-down → 1.8 → 2.
+    // rapid-fire base energyCost = 4, energy-down (0.6) → 2.4 → 2.
+    // Sanity-check the >=1 clamp doesn't unintentionally fire in normal cases.
     const instance: WeaponInstance = {
-      id: "side-spitter",
+      id: "rapid-fire",
       level: 1,
       augments: ["energy-down"]
     };
@@ -88,7 +86,7 @@ describe("resolveSlotMods", () => {
 
   it("homing-up augment scales the turn-rate multiplier", () => {
     const instance: WeaponInstance = {
-      id: "spud-missile",
+      id: "corsair-missile",
       level: 1,
       augments: ["homing-up"]
     };

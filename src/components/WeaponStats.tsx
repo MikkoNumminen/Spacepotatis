@@ -31,6 +31,17 @@ export function WeaponStats({
   const rps = Math.round((1000 / fireRateMs) * 10) / 10;
   const energy = Math.max(1, Math.round(weapon.energyCost * effects.energyMul));
 
+  // AoE / slow surface — only show when the weapon ships with the matching
+  // optional fields. Damage scales by mark + augments to mirror what the
+  // engine actually fires (see WeaponSystem.tryFire's explosionDamage * damageMul).
+  const explosionRadius = weapon.explosionRadius ?? 0;
+  const baseExplosionDamage = weapon.explosionDamage ?? 0;
+  const explosionDamage = Math.round(baseExplosionDamage * markMul * effects.damageMul);
+  const slowFactor = weapon.slowFactor ?? 0;
+  const slowDurationMs = weapon.slowDurationMs ?? 0;
+  const showBlast = explosionRadius > 0;
+  const showSlow = slowFactor > 0 && slowDurationMs > 0;
+
   return (
     <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px]">
       <Stat
@@ -44,6 +55,15 @@ export function WeaponStats({
         <Stat label="spread" value={`${weapon.spreadDegrees}°`} />
       ) : (
         <Stat label="bullet speed" value={String(weapon.bulletSpeed)} />
+      )}
+      {showBlast && (
+        <Stat label="blast" value={`⌀ ${explosionRadius}px · ${explosionDamage} dmg`} />
+      )}
+      {showSlow && (
+        <Stat
+          label="slow"
+          value={`${Math.round(slowFactor * 100)}% · ${(slowDurationMs / 1000).toFixed(1)}s`}
+        />
       )}
       {hasAugments && (
         <div className="col-span-2 mt-1 text-[10px] text-hud-amber/70">

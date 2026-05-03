@@ -28,15 +28,11 @@ export class BootScene extends Phaser.Scene {
     this.drawPotatoBullet("bullet-potato");
     this.drawIdahoPotatoBullet("bullet-potato-idaho");
     this.drawYukonGoldBullet("bullet-potato-yukon");
-    this.drawRedBlissBullet("bullet-potato-redbliss");
-    this.drawChantenayBullet("bullet-carrot-chantenay");
-    this.drawImperatorBullet("bullet-carrot-imperator");
-    this.drawNantesBullet("bullet-carrot-nantes");
-    this.drawTokyoCrossBullet("bullet-turnip-tokyo");
-    this.drawMilanPurpleTopBullet("bullet-turnip-milan");
+    this.drawCorsairMissileBullet("bullet-pirate-corsair");
+    this.drawGrapeshotBullet("bullet-pirate-grapeshot");
+    this.drawBoardingSnareBullet("bullet-pirate-snare");
     this.drawPotatoPod("pod-potato");
-    this.drawCarrotPod("pod-carrot");
-    this.drawTurnipPod("pod-turnip");
+    this.drawPiratePod("pod-pirate");
 
     this.drawAphid("enemy-aphid",       { size: 32, body: 0x9acd32, accent: 0x5a7d1a });
     this.drawAphid("enemy-aphid-giant", { size: 50, body: 0x88c020, accent: 0x3e5c10 });
@@ -460,6 +456,174 @@ export class BootScene extends Phaser.Scene {
     // Outline.
     g.lineStyle(1, 0x5a4818, 0.7);
     g.strokeEllipse(cx, cy, 16, 18);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Corsair Seeker — pirate homing missile. Tall pointed silhouette
+  // (12×22) with rear engine flare so the homing rotation reads as a
+  // missile leading with its nose. Crimson body, dark iron stripe, and
+  // a small yellow tip so it reads as "pirate ordnance" not "spud".
+  private drawCorsairMissileBullet(key: string): void {
+    const PAD = 2;
+    const W = 12 + PAD * 2;
+    const H = 22 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    g.fillStyle(0xd04030, 1);
+    g.fillEllipse(cx, cy, 10, 20);
+
+    // Iron-grey stripe across the middle for "salvaged hardware" read.
+    g.fillStyle(0x4a3a3a, 0.85);
+    g.fillRect(cx - 5, cy - 1.5, 10, 3);
+
+    // Shadow wash on the lower-right.
+    g.fillStyle(0x6a1a18, 0.55);
+    g.fillEllipse(cx + 1.5, cy + 3, 7, 13);
+
+    // Highlight along the upper-left so the silhouette reads round.
+    g.fillStyle(0xffb0a0, 0.5);
+    g.fillEllipse(cx - 2, cy - 5, 4, 7);
+
+    // Yellow nose-cap at the top — small ellipse so the front is legible.
+    g.fillStyle(0xffd060, 1);
+    g.fillEllipse(cx, PAD + 2, 4, 3);
+
+    // Engine flare at the rear — orange ellipse hanging off the bottom edge.
+    g.fillStyle(0xff7820, 0.9);
+    g.fillEllipse(cx, H - PAD - 1, 6, 3);
+    g.fillStyle(0xfff060, 0.85);
+    g.fillEllipse(cx, H - PAD - 1.5, 3, 1.6);
+
+    g.lineStyle(1, 0x3a0a08, 0.75);
+    g.strokeEllipse(cx, cy, 10, 20);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Grapeshot — pirate cannonball. Dark iron sphere with a fuse spark
+  // on top so it reads as "explosive" at combat speed.
+  private drawGrapeshotBullet(key: string): void {
+    const PAD = 2;
+    const W = 14 + PAD * 2;
+    const H = 14 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    g.fillStyle(0x3a2c1c, 1);
+    g.fillCircle(cx, cy, 6);
+
+    g.fillStyle(0x1a0e08, 0.75);
+    g.fillEllipse(cx + 1.5, cy + 2, 6, 5);
+
+    g.fillStyle(0x9a8060, 0.55);
+    g.fillEllipse(cx - 2, cy - 2, 4, 3);
+    g.fillStyle(0xffe6b0, 0.85);
+    g.fillEllipse(cx - 2.5, cy - 2.5, 1.6, 1);
+
+    // Fuse spark — orange dot above the ball with a yellow core so it
+    // reads as "lit" rather than just a decoration.
+    g.fillStyle(0xff8030, 1);
+    g.fillCircle(cx, PAD + 1.5, 1.6);
+    g.fillStyle(0xfff070, 1);
+    g.fillCircle(cx, PAD + 1.2, 0.8);
+
+    g.lineStyle(1, 0x0a0604, 0.85);
+    g.strokeCircle(cx, cy, 6);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Boarding Snare — weighted net cluster bomb. Mesh + iron weights on a
+  // steel-blue core so it reads as "tangle of net + metal weights".
+  private drawBoardingSnareBullet(key: string): void {
+    const PAD = 2;
+    const W = 16 + PAD * 2;
+    const H = 16 + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    g.fillStyle(0x6090b0, 1);
+    g.fillCircle(cx, cy, 6);
+
+    g.fillStyle(0x203848, 0.6);
+    g.fillEllipse(cx + 1.5, cy + 1.5, 7, 6);
+
+    g.fillStyle(0xb0d0e0, 0.6);
+    g.fillEllipse(cx - 2, cy - 2, 4, 3);
+
+    // Net pattern — short white strokes radiating outward.
+    g.lineStyle(1, 0xe0eaf0, 0.85);
+    for (let a = 0; a < 6; a++) {
+      const ang = (Math.PI * 2 * a) / 6;
+      const x1 = cx + Math.cos(ang) * 3;
+      const y1 = cy + Math.sin(ang) * 3;
+      const x2 = cx + Math.cos(ang) * 7.5;
+      const y2 = cy + Math.sin(ang) * 7.5;
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.strokePath();
+    }
+
+    // Iron weights — three small dark dots on the perimeter.
+    g.fillStyle(0x404048, 1);
+    g.fillCircle(cx + 6, cy - 3, 1.4);
+    g.fillCircle(cx - 4, cy + 5, 1.4);
+    g.fillCircle(cx + 3, cy + 6, 1.2);
+
+    g.lineStyle(1, 0x142028, 0.8);
+    g.strokeCircle(cx, cy, 7);
+
+    g.generateTexture(key, W, H);
+    g.destroy();
+  }
+
+  // Pirate side-pod — half-scale cannon turret. Iron-grey hull with a
+  // crimson stripe and a small barrel pointing UP so the slot reads as
+  // "pirate gun" rather than reusing the potato pod silhouette.
+  private drawPiratePod(key: string): void {
+    const PAD = 4;
+    const innerW = 18;
+    const innerH = 22;
+    const W = innerW + PAD * 2;
+    const H = innerH + PAD * 2;
+    const cx = W / 2;
+    const cy = H / 2;
+    const g = this.add.graphics();
+
+    g.fillStyle(0x4a4248, 1);
+    g.fillEllipse(cx, cy + 2, innerW, innerH - 4);
+
+    g.fillStyle(0xd04030, 1);
+    g.fillRect(cx - innerW / 2 + 2, cy + 1, innerW - 4, 3);
+
+    g.fillStyle(0x1a1418, 0.6);
+    g.fillEllipse(cx + 2, cy + 5, innerW - 6, innerH - 10);
+
+    g.fillStyle(0x9080a0, 0.5);
+    g.fillEllipse(cx - 3, cy - 2, innerW - 10, innerH - 14);
+
+    // Barrel pointing up.
+    g.fillStyle(0x202028, 1);
+    g.fillRect(cx - 1.5, PAD - 1, 3, 8);
+    g.fillStyle(0x6a6a78, 1);
+    g.fillRect(cx - 1, PAD, 2, 7);
+
+    // Two rivets / portholes on the hull face.
+    g.fillStyle(0xffd060, 1);
+    g.fillCircle(cx - 4, cy + 5, 1.0);
+    g.fillCircle(cx + 4, cy + 5, 1.0);
+
+    g.lineStyle(1, 0x0a060a, 0.85);
+    g.strokeEllipse(cx, cy + 2, innerW, innerH - 4);
 
     g.generateTexture(key, W, H);
     g.destroy();

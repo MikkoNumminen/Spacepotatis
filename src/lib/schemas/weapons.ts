@@ -13,7 +13,8 @@ import { z } from "zod";
 import type { WeaponDefinition, WeaponFamily } from "@/types/game";
 import { WeaponIdSchema } from "./save";
 
-const WeaponFamilySchema = z.enum(["potato", "carrot", "turnip"]);
+const WeaponFamilySchema = z.enum(["potato", "pirate"]);
+const WeaponTierSchema = z.union([z.literal(1), z.literal(2)]);
 
 export const WeaponDefinitionSchema = z.object({
   id: WeaponIdSchema,
@@ -34,10 +35,15 @@ export const WeaponDefinitionSchema = z.object({
   // pattern; UI tint code already tolerates whatever the JSON ships.
   tint: z.string(),
   family: WeaponFamilySchema,
+  tier: WeaponTierSchema,
   energyCost: z.number().nonnegative(),
   homing: z.boolean().optional(),
   turnRateRadPerSec: z.number().optional(),
   gravity: z.number().optional(),
+  explosionRadius: z.number().nonnegative().optional(),
+  explosionDamage: z.number().nonnegative().optional(),
+  slowFactor: z.number().positive().max(1).optional(),
+  slowDurationMs: z.number().positive().optional(),
   bulletSprite: z.string().optional(),
   podSprite: z.string().optional()
 });

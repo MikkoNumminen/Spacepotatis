@@ -448,11 +448,11 @@ describe("snapshot / hydrate", () => {
       ship: {
         slots: {
           front: "rapid-fire",
-          rear: "tail-gunner",
-          sidekickLeft: "side-spitter",
+          rear: "spread-shot",
+          sidekickLeft: "heavy-cannon",
           sidekickRight: null
         },
-        unlockedWeapons: ["rapid-fire", "tail-gunner", "side-spitter"],
+        unlockedWeapons: ["rapid-fire", "spread-shot", "heavy-cannon"],
         shieldLevel: 0,
         armorLevel: 0,
         reactor: { capacityLevel: 0, rechargeLevel: 0 }
@@ -465,7 +465,7 @@ describe("snapshot / hydrate", () => {
     expect(s.ship.slots).toHaveLength(1);
     expect(s.ship.slots[0]?.id).toBe("rapid-fire");
     const invIds = s.ship.inventory.map((i) => i.id).sort();
-    expect(invIds).toEqual(["side-spitter", "tail-gunner"]);
+    expect(invIds).toEqual(["heavy-cannon", "spread-shot"]);
   });
 
   it("hydrate accepts a new-format array snapshot directly", () => {

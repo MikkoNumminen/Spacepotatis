@@ -138,12 +138,12 @@ describe("PlayerFireController.tryFireSlot", () => {
 
   it("uses the per-slot x-offset (slot 1 at -36, slot 2 at +36 — wide enough for visible side pods)", () => {
     const rig = makeRig({
-      weapons: ["rapid-fire", "tail-gunner", "side-spitter"]
+      weapons: ["rapid-fire", "spread-shot", "heavy-cannon"]
     });
 
     rig.controller.tryFireSlot(1, 0, 1, { x: 100, y: 200 }, makeCombatant(100));
     expect(rig.stubs[1]?.tryFire).toHaveBeenCalledWith(
-      "tail-gunner",
+      "spread-shot",
       64, // x - 36
       182, // y + SPAWN_Y_OFFSET (-18)
       0,
@@ -153,7 +153,7 @@ describe("PlayerFireController.tryFireSlot", () => {
 
     rig.controller.tryFireSlot(2, 0, 1, { x: 100, y: 200 }, makeCombatant(100));
     expect(rig.stubs[2]?.tryFire).toHaveBeenCalledWith(
-      "side-spitter",
+      "heavy-cannon",
       136, // x + 36
       182,
       0,

@@ -23,17 +23,22 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 # Surface map
 
 ## Weapons
-- **Catalog**: `src/game/data/weapons.json` (9 entries: rapid-fire, spread-shot, heavy-cannon, spud-missile, tater-net, tail-gunner, side-spitter, plasma-whip, hailstorm).
+- **Catalog**: `src/game/data/weapons.json` (6 entries — tier 1: rapid-fire, spread-shot, heavy-cannon; tier 2: corsair-missile, grapeshot-cannon, boarding-snare). Six previously-shipped weapons (the carrot/turnip family + spud-missile) live in TODO.md "Phase Vegetable-Catalog" with their last-shipped specs for reintroduction.
 - **Type union**: `WeaponId` in [src/types/game.ts](src/types/game.ts).
 - **Schema array**: `WEAPON_IDS` in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — `satisfies readonly WeaponId[]` makes union/array drift fail typecheck.
 - **Accessor**: `getWeapon(id)` in [src/game/data/weapons.ts](src/game/data/weapons.ts) — throws on unknown id.
-- **`WeaponDefinition`** ([src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥0), `tint` (CSS hex), `family` (`"potato" | "carrot" | "turnip"`), `energyCost` (>0). OPTIONAL: `homing`, `turnRateRadPerSec`, `gravity` (px/s² +y; bullets arc and rotate to motion vector — carrot weapons use 60–300), `bulletSprite`, `podSprite`.
+- **`WeaponDefinition`** ([src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥0), `tint` (CSS hex), `family` (`"potato" | "pirate"`), `tier` (`1 | 2`), `energyCost` (>0). OPTIONAL: `homing`, `turnRateRadPerSec`, `gravity` (px/s² +y; bullets arc and rotate to motion vector — gravity weapons use 60–300), `explosionRadius` + `explosionDamage` (AoE on impact — see `applyBulletAoE` in [CombatScene.ts](src/game/phaser/scenes/CombatScene.ts)), `slowFactor` (0..1, multiplier on enemy speed) + `slowDurationMs` (paired with explosionRadius — slows everything in the AoE), `bulletSprite`, `podSprite`.
 
-### Family gating
-- `"potato"` appears EVERYWHERE (incl. tutorial).
-- `"carrot"` / `"turnip"` are HIDDEN in tutorial shop ([ShopUI.tsx](src/components/ShopUI.tsx) filter) and excluded from tutorial loot pool ([lootPools.ts](src/game/data/lootPools.ts)).
-- New non-potato weapon inherits tutorial-hidden behavior automatically. Add to a system's loot pool to make it drop there.
-- LoadoutMenu is NEVER family-gated — owned weapons stay usable everywhere.
+### Tier + family gating
+- `tier: 1` (currently the potato family) appears EVERYWHERE including the tutorial shop. The `WeaponTier` type in `types/game.ts` is the canonical surface; the badge UI renders T1/T2 in `ShopUI.tsx` + `WeaponCard.tsx` (look for the `TierBadge` helper).
+- `tier: 2` (currently the pirate family) is HIDDEN in the tutorial-system shop ([ShopUI.tsx](src/components/ShopUI.tsx) filter checks `w.tier === 1` for tutorial). Tubernovae and later systems show every tier.
+- Family is the visual / thematic group ("potato" / "pirate"); tier gates the shop. They tend to align (every tier-1 is potato, every tier-2 is pirate today) but they're independent fields — a future "potato tier-2" or "pirate tier-1" is structurally legal.
+- LoadoutMenu is NEVER tier-gated — owned weapons stay usable everywhere.
+
+### AoE / slow on impact (tier-2 pirate haul)
+- `explosionRadius > 0` triggers an AoE pass in `CombatScene.applyBulletAoE` after the primary hit. Other enemies inside the radius take `explosionDamage` (scaled by `damageMul` like the direct hit). A small explosion-particles burst fires for visual legibility.
+- `slowFactor` (e.g. 0.5 = half speed) + `slowDurationMs` re-stamp a slow on every enemy in the AoE. The primary target is included even when no other enemies are nearby. Slow is implemented on `Enemy.applySlow(factor, durationMs, now)`; `effectiveSpeed(time)` reads it inside the behavior switch in `preUpdate`.
+- The bullet carries the effect bag through `Bullet.fire(..., effect)`; `WeaponSystem.tryFire` builds it from the def. **Both fields together** — `slowFactor` alone with no `explosionRadius` will only slow the primary target (engine handles this gracefully but no live weapon uses that path).
 
 ## Augments
 - **Catalog**: [src/game/data/augments.ts](src/game/data/augments.ts) — TS `AUGMENTS_RECORD` (NOT JSON). 5 entries: damage-up, fire-rate-up, extra-projectile, energy-down, homing-up.
@@ -178,20 +183,33 @@ Most dangerous op — codebase has hard-coded references to specific weapon ids.
 | [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `spud-missile`, `tater-net` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
 | [src/game/state/sync.test.ts](src/game/state/sync.test.ts) | `rapid-fire` (lines ~71, ~123 — round-trip save fixtures) | Sync round-trip tests fail |
 
-## Save-format safety net
-`migrateShip` silently DROPS unknown weapon and augment ids on hydrate — existing saves are SAFE. Server schema is permissive (`LegacyShipSchema`). **No DB migration needed for removals.** The only danger is the hard-coded reference list above.
+## Save-format safety net + credit refund (HARD RULE)
+`migrateShip` silently DROPS unknown weapon and augment ids on hydrate — existing saves are SAFE from crashes. Server schema is permissive (`LegacyShipSchema`). **No DB migration needed for removals.**
+
+**Player progress, however, is the load-bearing concern.** When a weapon is removed from the catalog, every player who owned a copy must be reimbursed in credits — **base cost + per-level upgrade costs paid + cost of every installed augment**. The refund is a HARD RULE: removing a weapon without wiring the refund silently destroys hours of player progression and that's not acceptable.
+
+The refund pipeline lives at [src/game/state/persistence/salvageRemovedWeapons.ts](src/game/state/persistence/salvageRemovedWeapons.ts):
+- `REMOVED_WEAPON_BASE_COSTS` is the load-bearing map. **Add the removed id + its last-shipped `cost` here** before deleting the weapons.json entry. Once the id leaves `WEAPON_IDS`, this map is the only place that remembers what the player paid.
+- `calculateLegacyRefund(raw)` is called from `hydrate()` in [persistence.ts](src/game/state/persistence.ts) BEFORE the per-shape migrators (because they drop unknown ids via `isKnownWeapon` before salvage can see them). It walks the raw legacy snapshot — supports new-shape (per-instance), legacy id-array (`unlockedWeapons` + `weaponLevels` + `weaponAugments`), named-slots, and pre-loadout `primaryWeapon` shapes.
+- The refund is added to `state.credits` purely additively. No mutation of slots/inventory — those are still cleaned up by `migrateShip` as before.
+- Tests: [salvageRemovedWeapons.test.ts](src/game/state/persistence/salvageRemovedWeapons.test.ts). Add a new case for any new wave of removals (covers the per-instance + per-id-ledger paths).
+
+The other danger is the hard-coded reference list above.
 
 ## Augment-specific notes
 Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `migrateShip`, `DropController`, or `ShipConfig.test.ts` today. Migrate-save drops unknown augment ids the same way. **Still grep the id** — `lootPools.ts`, mission rewards, and tests CAN reference augment ids.
 
 ## Steps
-1. `grep -rn '"<id>"' src/` (catches anything new since last skill update; includes `*.test.ts` fixtures).
-2. Replace each ref with a sensible fallback id, or delete if optional.
-3. Remove entry from `weapons.json` / `augments.ts`.
-4. Remove from `WeaponId` / `AugmentId` union.
-5. Remove from `WEAPON_IDS` / `AUGMENT_IDS` (`satisfies` will fail to compile if these drift).
-6. (Optional) drop unused `BootScene.ts` generator + texture key — harmless dead code if left.
-7. `npm run typecheck && npm run lint && npm test`. Data + ShipConfig tests are the canary.
+1. **Refund entry FIRST.** Before touching the catalog, add the removed id + its current `cost` to `REMOVED_WEAPON_BASE_COSTS` in [salvageRemovedWeapons.ts](src/game/state/persistence/salvageRemovedWeapons.ts). Order matters — once `WEAPON_IDS` no longer contains the id, you can't easily look up the original cost. Augments installed on the removed weapon get refunded automatically via `AUGMENTS[augId].cost`; no extra work needed for those.
+2. `grep -rn '"<id>"' src/` (catches anything new since last skill update; includes `*.test.ts` fixtures).
+3. Replace each ref with a sensible fallback id, or delete if optional.
+4. Remove entry from `weapons.json` / `augments.ts`.
+5. Remove from `WeaponId` / `AugmentId` union.
+6. Remove from `WEAPON_IDS` / `AUGMENT_IDS` (`satisfies` will fail to compile if these drift).
+7. (Optional) drop unused `BootScene.ts` generator + texture key — harmless dead code if left.
+8. **Salvage test.** Add a new `it()` to `salvageRemovedWeapons.test.ts` covering the new id at level 1 (no augments) and at higher levels with augments. The test is the contract that the refund is wired correctly.
+9. **TODO.md backlog entry.** Append the verbatim weapons.json spec under "Phase Vegetable-Catalog (backlog)" so the weapon can be reintroduced later. Include `tier`, `family`, sprite keys.
+10. `npm run typecheck && npm run lint && npm test`. Data + ShipConfig + salvage tests are the canary.
 
 # Invariants
 
