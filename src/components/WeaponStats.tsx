@@ -1,5 +1,5 @@
 import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
-import { foldAugmentEffects } from "@/game/data/augments";
+import { foldAugmentEffects, getAugment } from "@/game/data/augments";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
 
 // Two-column "spec sheet". Designed to make the per-bullet vs total picture
@@ -67,7 +67,8 @@ export function WeaponStats({
       )}
       {hasAugments && (
         <div className="col-span-2 mt-1 text-[10px] text-hud-amber/70">
-          {augmentIds.length} augment{augmentIds.length === 1 ? "" : "s"} applied
+          augment{augmentIds.length === 1 ? "" : "s"}:{" "}
+          {augmentIds.map((id) => getAugment(id).name).join(" · ")}
         </div>
       )}
     </div>
