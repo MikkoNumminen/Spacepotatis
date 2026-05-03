@@ -229,6 +229,7 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 | A new mission perk (passive or active)         | `/new-perk`         |
 | A new solar system in the overworld            | `/new-solar-system` |
 | **Anything** story-related — new entry, cinematic, voiceover, narration, lore, chapter | `/new-story` |
+| **Anything** schema-related — add a column, add a table, alter the save shape, any change under `db/migrations/` | `/new-migration` |
 | "What did this JSON tweak do to balance?"      | `/balance-review`   |
 | "Is the content safe to commit?" / pre-PR      | `/content-audit`    |
 
