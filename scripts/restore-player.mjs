@@ -19,22 +19,31 @@
 //   prompt, no monotonic-shrink guard, no transaction. This rewrite fixes all
 //   of that. Do NOT regress.
 //
-// THE EIGHT SAFEGUARDS (do not remove without a written reason):
+// THE NINE SAFEGUARDS (do not remove without a written reason):
 //   1. Default mode is dry-run. You must pass --apply to write anything.
 //   2. --apply requires --player-email=<email> matching the email argv.
 //   3. Full BEFORE/AFTER per-field diff is printed in BOTH modes.
-//   4. Monotonic-shrink guard: refuses to apply if completed_missions count,
-//      unlocked_planets count, played_time_seconds, or credits would decrease.
-//      Override is the intentionally awful flag
-//      --force-overwrite-i-know-this-destroys-progress (logged when used).
-//   5. The UPDATE runs inside a BEGIN ... COMMIT transaction; ROLLBACK on
-//      any error or refusal.
+//   4. Monotonic-shrink guard: refuses to apply if completed_missions count
+//      or unlocked_planets count would decrease. Override is the intentionally
+//      awful --force-overwrite-i-know-this-destroys-progress (logged when used).
+//      NOTE: credits and played_time_seconds are now monotonic BY CONSTRUCTION
+//      (target = max(before, baseline)) — even with --force they cannot
+//      regress. --force only matters for the LIST fields, where rollback to
+//      a smaller set is the legitimate operator action.
+//   5. The UPDATE runs inside a BEGIN ... COMMIT transaction; the BEFORE row
+//      is read with SELECT ... FOR UPDATE inside the same transaction so two
+//      concurrent operators on the same email cannot race the shrink check.
+//      ROLLBACK on any error or refusal.
 //   6. BEFORE state is printed with a timestamp before any prompt, so the
 //      operator's terminal scrollback always has a recoverable copy.
 //   7. Interactive [y/N] prompt with default N when --apply is set. Skip
 //      ONLY when --no-prompt --apply --player-email=X
 //      --i-have-printed-the-before-state are ALL present.
-//   8. This header. If you're modifying the script, you've read this.
+//   8. End-to-end subprocess smoke tests (restore-player.test.mjs) prove the
+//      orchestration layer honors the safety contract — bare args = no DB
+//      writes, --apply without --player-email = exit 2, mismatched
+//      --player-email = exit 2 — so a regression in main() is caught by CI.
+//   9. This header. If you're modifying the script, you've read this.
 //
 // USAGE
 //   Dry run (default — safe, prints diff, exits 0):
@@ -62,14 +71,19 @@ import { Pool } from "@neondatabase/serverless";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
-// Compensation for the lost ship_config + actual-credits value. The player
-// lost weapons, upgrades, reactor levels, and augments — none of which are
-// derivable. 10000 credits is enough to re-buy a couple of weapons + a slot
-// upgrade + some upgrades. Generous but not absurd; the credits-delta guard
-// scales caps off completedMissions so future earned credits are bounded
+// Compensation BASELINES for the lost ship_config + actual-credits value.
+// The player lost weapons, upgrades, reactor levels, and augments — none of
+// which are derivable. 10000 credits is enough to re-buy a couple of weapons
+// + a slot upgrade + some upgrades. Generous but not absurd; the credits-delta
+// guard scales caps off completedMissions so future earned credits are bounded
 // normally from this baseline.
+//
+// These are FLOORS, not absolute values. The applied target is
+// max(before, baseline) so a re-run on a player who has since earned 50000
+// credits cannot regress them to 10000 — even with --force-overwrite. This
+// closes the 2026-05-02 footgun at its source for scalars.
 const RESTORE_CREDITS = 10000;
-const RESTORE_PLAYTIME = 1800; // 30 minutes — conservative starting point
+const RESTORE_PLAYTIME = 1800; // 30 minutes — conservative starting floor
 const RESTORE_COMPLETED = ["tutorial", "combat-1", "boss-1", "pirate-beacon"];
 // Derived: INITIAL_UNLOCKED ('tutorial', 'shop', 'market', 'pirate-beacon',
 // 'tubernovae-outpost') + every completed mission + everything the
@@ -152,12 +166,37 @@ function formatList(list) {
   return `[${list.join(", ")}] (${list.length})`;
 }
 
+// Build the AFTER target. Scalars (credits, playtime) are monotonic by
+// construction — max(before, baseline) — so a re-run cannot regress them
+// even when --force-overwrite is passed. List fields are still hard-set to
+// the baseline rosters; --force is the only way to apply a list shrink.
+export function buildTarget(before) {
+  const beforeCredits = Number(before.credits ?? 0);
+  const beforePlaytime = Number(before.played_time_seconds ?? 0);
+  return {
+    credits: Math.max(beforeCredits, RESTORE_CREDITS),
+    completed: RESTORE_COMPLETED,
+    unlocked: RESTORE_UNLOCKED,
+    playtime: Math.max(beforePlaytime, RESTORE_PLAYTIME),
+  };
+}
+
 function printDiff(before, target) {
   const compactJson = (v) =>
     v === null || v === undefined ? "null" : JSON.stringify(v);
+  const beforeCredits = Number(before.credits ?? 0);
+  const beforePlaytime = Number(before.played_time_seconds ?? 0);
+  const creditsNote =
+    target.credits === beforeCredits
+      ? " (unchanged — max-of-prev-or-baseline)"
+      : ` (max(${beforeCredits}, baseline ${RESTORE_CREDITS}))`;
+  const playtimeNote =
+    target.playtime === beforePlaytime
+      ? " (unchanged — max-of-prev-or-baseline)"
+      : ` (max(${beforePlaytime}, baseline ${RESTORE_PLAYTIME}))`;
   console.log("\n--- DIFF (BEFORE -> AFTER) ---");
   console.log(
-    `credits:              ${before.credits ?? "(none)"} -> ${target.credits}`,
+    `credits:              ${before.credits ?? "(none)"} -> ${target.credits}${creditsNote}`,
   );
   console.log(
     `completed_missions:   ${formatList(before.completed_missions)} -> ${formatList(target.completed)}`,
@@ -166,7 +205,7 @@ function printDiff(before, target) {
     `unlocked_planets:     ${formatList(before.unlocked_planets)} -> ${formatList(target.unlocked)}`,
   );
   console.log(
-    `played_time_seconds:  ${before.played_time_seconds ?? "(none)"} -> ${target.playtime}`,
+    `played_time_seconds:  ${before.played_time_seconds ?? "(none)"} -> ${target.playtime}${playtimeNote}`,
   );
   console.log(
     `ship_config:          ${compactJson(before.ship_config)} -> (unchanged)`,
@@ -237,74 +276,115 @@ async function main() {
     const playerId = players[0].id;
     console.log(`player_id: ${playerId}`);
 
-    const beforeRes = await pool.query(
-      `SELECT credits, completed_missions, unlocked_planets, played_time_seconds,
-              ship_config, updated_at
-       FROM spacepotatis.save_games WHERE player_id = $1 AND slot = 1`,
-      [playerId],
-    );
-    if (beforeRes.rows.length === 0) {
-      console.error(`no save_games row for player_id=${playerId} slot=1`);
-      process.exit(1);
-    }
-    const before = beforeRes.rows[0];
-    console.log(`\nBEFORE (read at ${new Date().toISOString()}):`);
-    console.log(JSON.stringify(before, null, 2));
-
-    const target = {
-      credits: RESTORE_CREDITS,
-      completed: RESTORE_COMPLETED,
-      unlocked: RESTORE_UNLOCKED,
-      playtime: RESTORE_PLAYTIME,
-    };
-    printDiff(before, target);
-
-    const { shrinks } = computeDiff(before, target);
-    if (shrinks.length > 0) {
-      console.log("MONOTONIC-SHRINK WARNING — applying would DECREASE:");
-      for (const s of shrinks) console.log(`  - ${s}`);
-      console.log("");
-      if (args.apply && !args.force) {
-        console.error(
-          `refusing to apply: would shrink monotonic field(s). Override with ${FORCE_FLAG} ` +
-            "ONLY if you are intentionally rolling back a player's progress.",
-        );
-        process.exit(3);
-      }
-      if (args.apply && args.force) {
-        console.warn(
-          `${FORCE_FLAG} was passed — proceeding with destructive shrink. ` +
-            "Operator accepted responsibility.",
-        );
-      }
-    }
-
+    // Dry-run path: pool-read is fine — no write, no need to lock the row.
+    // Apply path: read happens INSIDE the transaction with FOR UPDATE so a
+    // concurrent operator cannot race the shrink check.
     if (!args.apply) {
+      const beforeRes = await pool.query(
+        `SELECT credits, completed_missions, unlocked_planets, played_time_seconds,
+                ship_config, updated_at
+         FROM spacepotatis.save_games WHERE player_id = $1 AND slot = 1`,
+        [playerId],
+      );
+      if (beforeRes.rows.length === 0) {
+        console.error(`no save_games row for player_id=${playerId} slot=1`);
+        process.exit(1);
+      }
+      const before = beforeRes.rows[0];
+      console.log(`\nBEFORE (read at ${new Date().toISOString()}):`);
+      console.log(JSON.stringify(before, null, 2));
+
+      const target = buildTarget(before);
+      printDiff(before, target);
+
+      const { shrinks } = computeDiff(before, target);
+      if (shrinks.length > 0) {
+        console.log(
+          "MONOTONIC-SHRINK WARNING — applying would DECREASE list field(s):",
+        );
+        for (const s of shrinks) console.log(`  - ${s}`);
+        console.log(
+          `(scalars are max-of-prev-or-baseline so they cannot shrink. The above list shrinks would require ${FORCE_FLAG}.)`,
+        );
+        console.log("");
+      }
+
       console.log(
-        "dry-run complete (no DB writes). Pass --apply to perform the restore.",
+        "DRY-RUN complete (no DB writes). Pass --apply to perform the restore.",
       );
       return;
     }
 
-    const skipPrompt =
-      args.noPrompt &&
-      args.iHavePrintedTheBeforeState &&
-      args.playerEmail === args.email;
-    if (!skipPrompt) {
-      const ok = await confirm(
-        `Apply this restore to ${args.email} (player_id=${playerId})?`,
-      );
-      if (!ok) {
-        console.log("aborted by operator (no DB writes).");
-        return;
-      }
-    } else {
-      console.log("--no-prompt set — skipping interactive confirmation.");
-    }
-
+    // --apply path: open a transaction and lock the row for the lifetime of
+    // the read-decide-write critical section.
     const client = await pool.connect();
+    let txOpen = false;
     try {
       await client.query("BEGIN");
+      txOpen = true;
+      const beforeRes = await client.query(
+        `SELECT credits, completed_missions, unlocked_planets, played_time_seconds,
+                ship_config, updated_at
+         FROM spacepotatis.save_games
+         WHERE player_id = $1 AND slot = 1
+         FOR UPDATE`,
+        [playerId],
+      );
+      if (beforeRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        txOpen = false;
+        console.error(`no save_games row for player_id=${playerId} slot=1`);
+        process.exit(1);
+      }
+      const before = beforeRes.rows[0];
+      console.log(
+        `\nBEFORE (read at ${new Date().toISOString()}, row LOCKED FOR UPDATE):`,
+      );
+      console.log(JSON.stringify(before, null, 2));
+
+      const target = buildTarget(before);
+      printDiff(before, target);
+
+      const { shrinks } = computeDiff(before, target);
+      if (shrinks.length > 0) {
+        console.log(
+          "MONOTONIC-SHRINK WARNING — applying would DECREASE list field(s):",
+        );
+        for (const s of shrinks) console.log(`  - ${s}`);
+        console.log("");
+        if (!args.force) {
+          await client.query("ROLLBACK");
+          txOpen = false;
+          console.error(
+            `refusing to apply: would shrink list field(s). Override with ${FORCE_FLAG} ` +
+              "ONLY if you are intentionally rolling back a player's progress.",
+          );
+          process.exit(3);
+        }
+        console.warn(
+          `${FORCE_FLAG} was passed — proceeding with destructive list shrink. ` +
+            "Operator accepted responsibility.",
+        );
+      }
+
+      const skipPrompt =
+        args.noPrompt &&
+        args.iHavePrintedTheBeforeState &&
+        args.playerEmail === args.email;
+      if (!skipPrompt) {
+        const ok = await confirm(
+          `Apply this restore to ${args.email} (player_id=${playerId})?`,
+        );
+        if (!ok) {
+          await client.query("ROLLBACK");
+          txOpen = false;
+          console.log("aborted by operator (no DB writes).");
+          return;
+        }
+      } else {
+        console.log("--no-prompt set — skipping interactive confirmation.");
+      }
+
       const result = await client.query(
         `UPDATE spacepotatis.save_games
          SET credits = $1,
@@ -315,29 +395,33 @@ async function main() {
          WHERE player_id = $5 AND slot = 1
          RETURNING credits, completed_missions, unlocked_planets, played_time_seconds, updated_at`,
         [
-          RESTORE_CREDITS,
-          RESTORE_COMPLETED,
-          RESTORE_UNLOCKED,
-          RESTORE_PLAYTIME,
+          target.credits,
+          target.completed,
+          target.unlocked,
+          target.playtime,
           playerId,
         ],
       );
       if (result.rowCount !== 1) {
         await client.query("ROLLBACK");
+        txOpen = false;
         console.error(
           `expected 1 row updated, got ${result.rowCount} — rolled back`,
         );
         process.exit(1);
       }
       await client.query("COMMIT");
+      txOpen = false;
       console.log("\nAFTER (committed):");
       console.log(JSON.stringify(result.rows[0], null, 2));
       console.log("\nrestore complete");
     } catch (err) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        // ignore rollback failure — original error is what matters
+      if (txOpen) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // ignore rollback failure — original error is what matters
+        }
       }
       throw err;
     } finally {
