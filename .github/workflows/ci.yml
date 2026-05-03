@@ -31,7 +31,22 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      - run: npm run build
+      - name: Build (with first-load JS summary)
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Surface first-load JS per route
+        if: always()
+        run: |
+          {
+            echo "## First-load JS per route"
+            echo ""
+            echo "Captured from \`next build\` stdout. Watch for jumps when adding deps (Zod, three.js, GSAP, Phaser) — pre-fix, every static page loaded ~98 kB of Zod due to module-load \`Schema.parse\` calls."
+            echo ""
+            echo '```'
+            awk '/^Route \(app\)/{flag=1} flag{print} /server-rendered on demand/{flag=0; exit}' build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - run: npm run coverage
       - uses: actions/upload-artifact@v4
         with:
