@@ -145,7 +145,7 @@ If the queue is permanently stuck (rare — usually means the player's `complete
 
 This shouldn't be possible after the cross-account guards in `saveQueue.ts`. If it happens:
 
-1. Check `localStorage[spacepotatis:pendingSave:v2]` on the affected device — what `playerEmail` stamp is in there? (The pre-PR-#100 `:v1` shape lacked the stamp; if you find a leftover `:v1` blob the read path drops it on next page load.)
+1. Check `localStorage[spacepotatis:pendingSave:v1]` on the affected device — what `email` or session marker is in there?
 2. Check the auth session: does `session.user.email` match what the player expects?
 3. Check the most recent /api/save POST in Vercel logs — what `auth.email` did it run under?
 
