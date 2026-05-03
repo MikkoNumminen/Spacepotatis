@@ -33,7 +33,9 @@ import {
   markHydrationCompleted,
   setInflightLoad,
   setSaveCache,
-  getSaveCache as getSaveCacheValue
+  getSaveCache as getSaveCacheValue,
+  getLastLoadResultValue,
+  setLastLoadResult
 } from "./syncCache";
 
 // Re-export the cache surface for backwards compatibility with sites that
@@ -50,12 +52,61 @@ export {
 // against the narrow shape without reaching into saveQueue directly.
 export type { FlushResult };
 
-export async function loadSave(): Promise<boolean> {
+// Structured outcome from loadSave so the splash gate / overlay can
+// distinguish "fresh account" from "we couldn't read the server" — the
+// pre-fix collapse of these two paths into a single `false` was the bug
+// behind the silent INITIAL_STATE masquerade (see useCloudSaveSync header).
+//
+//  - "server-loaded" — 200 + valid schema parse. GameState now reflects the
+//    server's authoritative state.
+//  - "anon"          — 401. Anonymous play; no save row to read.
+//  - "no-save"       — 200 + null body. Authenticated user, fresh account.
+//  - "pending-only"  — Server returned no usable state (anon / no-save / 5xx /
+//    parse) BUT a localStorage pending save existed and was hydrated. This
+//    is the "saveNow's POST hit a 5xx, snapshot is durable, reload picks it
+//    up" path. Treated as success for UI purposes (the player sees their
+//    real progress).
+//  - "load-failed"   — 5xx, network error, or schema parse failure AND no
+//    pending save to fall back to. GameState is still at INITIAL_STATE; the
+//    UI MUST surface this rather than render the galaxy as if fresh.
+export type LoadResultKind =
+  | "server-loaded"
+  | "anon"
+  | "no-save"
+  | "pending-only"
+  | "load-failed";
+
+export type LoadFailureReason =
+  | "http_error"
+  | "network_error"
+  | "schema_rejected";
+
+export interface LoadResult {
+  readonly kind: LoadResultKind;
+  // Populated only when kind === "load-failed". Coarse machine-readable tag
+  // (NOT a user-facing string and NOT raw error.message — see the leaderboard
+  // error.tsx pattern for why we don't surface raw messages).
+  readonly reason?: LoadFailureReason;
+  // HTTP status when relevant; 0 for transport failures.
+  readonly status?: number;
+}
+
+const RESULT_SERVER_LOADED: LoadResult = { kind: "server-loaded" };
+const RESULT_ANON: LoadResult = { kind: "anon" };
+const RESULT_NO_SAVE: LoadResult = { kind: "no-save" };
+const RESULT_PENDING_ONLY: LoadResult = { kind: "pending-only" };
+
+export async function loadSave(): Promise<LoadResult> {
   const cached = getSaveCacheValue();
-  if (cached !== null) return cached;
+  const lastResult = getLastLoadResultValue() as LoadResult | null;
+  if (cached !== null && lastResult !== null) return lastResult;
   const existing = getInflightLoad();
-  if (existing) return existing;
-  const promise = (async () => {
+  // Concurrent callers share the same in-flight Promise. The slot is typed
+  // as `Promise<unknown>` in syncCache (kept Zod-free); the consumer side
+  // is the only path that creates the promise so the runtime shape is
+  // guaranteed to be `Promise<LoadResult>`.
+  if (existing) return existing as Promise<LoadResult>;
+  const promise: Promise<LoadResult> = (async () => {
     try {
       return await doLoadSave();
     } finally {
@@ -64,16 +115,23 @@ export async function loadSave(): Promise<boolean> {
   })();
   setInflightLoad(promise);
   const result = await promise;
-  setSaveCache(result);
+  // Boolean cache mirrors "do we have ANY hydrated state to render"; the
+  // load-failed branch keeps it false so the splash can re-trigger a load
+  // attempt if the user retries via the error overlay.
+  const hydrated =
+    result.kind === "server-loaded" || result.kind === "pending-only";
+  setSaveCache(hydrated);
+  setLastLoadResult(result);
   return result;
 }
 
-async function doLoadSave(): Promise<boolean> {
+async function doLoadSave(): Promise<LoadResult> {
   // Snapshot the player email at entry — every read/write to the save queue
   // in this load uses the SAME identity. If the player signs out between
   // the GET and the queue drain, we still scope the queue access to the
   // account that owned this load.
   const playerEmail = getCurrentPlayerEmail();
+
 
   // Step 1 — fetch whatever the server has. Done first (synchronous prefix
   // before any `await`) so concurrent loadSave callers all observe the
@@ -83,24 +141,38 @@ async function doLoadSave(): Promise<boolean> {
   // we KNOW the server's authoritative state for this session. saveNow gates
   // on the flag — leaving it false on a transient failure means saveNow
   // skips the POST rather than clobbering the server save with INITIAL_STATE.
-  let serverHydrated = false;
+  //
+  // `serverOutcome` carries the server-side classification forward so
+  // pending-save fallback can decide between "pending-only" (server gave us
+  // nothing usable) and a real server outcome.
+  type ServerOutcome =
+    | { readonly kind: "server-loaded" }
+    | { readonly kind: "anon" }
+    | { readonly kind: "no-save" }
+    | { readonly kind: "load-failed"; readonly reason: LoadFailureReason; readonly status: number };
+  let serverOutcome: ServerOutcome = {
+    kind: "load-failed",
+    reason: "network_error",
+    status: 0
+  };
   try {
     const res = await fetch(ROUTES.api.save, { cache: "no-store" });
     if (res.status === 401) {
       // Unauthenticated. saveNow handles 401 separately (queues without POST)
       // and there is no server save to clobber for an anonymous user, so it
       // is safe to mark hydration complete here.
-      serverHydrated = false;
       markHydrationCompleted();
+      serverOutcome = { kind: "anon" };
     } else if (!res.ok) {
-      // Surface server-side failures to the console — silent fallback to
-      // INITIAL_STATE used to make a 500 indistinguishable from "no save yet"
-      // and the user couldn't tell their save was actually unreachable.
+      // Surface server-side failures with console.error (not warn) — the
+      // operator NEEDS this in production logs. The user is staring at
+      // INITIAL_STATE thinking their save is gone; an unhighlighted warn
+      // doesn't surface in routine log triage.
       // DO NOT mark hydration complete — saveNow must skip POSTs until a
       // future load succeeds, otherwise INITIAL_STATE clobbers the real save.
       const detail = await res.text().catch(() => "");
-      console.warn("loadSave: non-OK response", res.status, detail);
-      serverHydrated = false;
+      console.error("loadSave: non-OK response", res.status, detail);
+      serverOutcome = { kind: "load-failed", reason: "http_error", status: res.status };
     } else {
       const raw = (await res.json()) as unknown;
       if (raw === null) {
@@ -108,6 +180,7 @@ async function doLoadSave(): Promise<boolean> {
         // GameState's INITIAL_STATE is the correct starting point; future
         // saveNow calls are creating the first save, not clobbering one.
         markHydrationCompleted();
+        serverOutcome = { kind: "no-save" };
       } else {
         // Lazy-load the Zod schema only when we actually have a payload to
         // parse. Hoisting this import to module top would drag ~98 kB of
@@ -118,7 +191,10 @@ async function doLoadSave(): Promise<boolean> {
         const { RemoteSaveSchema } = await import("@/lib/schemas/save");
         const parsed = RemoteSaveSchema.safeParse(raw);
         if (!parsed.success) {
-          console.warn(
+          // console.error: schema rejection means the user's save row exists
+          // but this client can't read it. They'll see INITIAL_STATE and
+          // panic — operator needs the issues dump to diagnose.
+          console.error(
             "loadSave: schema rejected save row\nissues:",
             JSON.stringify(parsed.error.issues, null, 2),
             "\nraw:",
@@ -128,6 +204,7 @@ async function doLoadSave(): Promise<boolean> {
           // GameState was NOT hydrated from the server, so it's still at
           // INITIAL_STATE. Letting saveNow POST that would wipe the real
           // (just-unparseable-by-this-client) save row.
+          serverOutcome = { kind: "load-failed", reason: "schema_rejected", status: 200 };
         } else {
           const body = parsed.data;
           const snapshot: Partial<StateSnapshot> = {
@@ -144,15 +221,16 @@ async function doLoadSave(): Promise<boolean> {
             seenStoryEntries: (body.seenStoryEntries ?? []) as StateSnapshot["seenStoryEntries"]
           };
           hydrate(snapshot);
-          serverHydrated = true;
           markHydrationCompleted();
+          serverOutcome = { kind: "server-loaded" };
         }
       }
     }
-  } catch {
+  } catch (err) {
     // Network error — leave hydrationCompleted at false so saveNow refuses
     // to POST. The user's existing save (if any) stays intact on the server.
-    serverHydrated = false;
+    console.error("loadSave: network error", describeError(err));
+    serverOutcome = { kind: "load-failed", reason: "network_error", status: 0 };
   }
 
   // Step 2 — if there's a pending save in localStorage, it represents the
@@ -182,7 +260,22 @@ async function doLoadSave(): Promise<boolean> {
   // visibility / online / mount trigger.
   void flushSaveQueue();
 
-  return serverHydrated || pending !== null;
+  // Map server outcome + pending presence onto the public LoadResult shape.
+  // Pending overrides "load-failed" / "anon" / "no-save" because the local
+  // snapshot IS the authoritative state in those cases — the player is not
+  // staring at INITIAL_STATE, so the error overlay should not trigger.
+  // server-loaded retains its kind even if pending exists (server is the
+  // authoritative source for "did the load succeed"; pending may still
+  // overlay the GameState if it's strictly newer).
+  if (serverOutcome.kind === "server-loaded") return RESULT_SERVER_LOADED;
+  if (pending !== null) return RESULT_PENDING_ONLY;
+  if (serverOutcome.kind === "anon") return RESULT_ANON;
+  if (serverOutcome.kind === "no-save") return RESULT_NO_SAVE;
+  return {
+    kind: "load-failed",
+    reason: serverOutcome.reason,
+    status: serverOutcome.status
+  };
 }
 
 // Structured outcome from saveNow. GameCanvas surfaces this in the

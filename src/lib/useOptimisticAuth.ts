@@ -62,16 +62,21 @@ export function useOptimisticAuth(): OptimisticAuthResult {
 
   // Derive hasSave from the shared loadSave promise so the splash gate's
   // useCloudSaveSync and this hook share a single /api/save Edge invocation.
-  // loadSave() returns true when a save row was loaded into GameState, false
-  // otherwise — same boolean we want for hasSave.
+  // loadSave() returns a LoadResult — "server-loaded" / "pending-only" mean
+  // we have a real save in GameState; "no-save" / "anon" mean none; and
+  // "load-failed" means we couldn't tell. CONTINUE shouldn't lie that a
+  // save exists when we don't know, so load-failed maps to false here too;
+  // the splash overlay (driven by useCloudSaveSync) is the user-visible
+  // signal for that branch.
   useEffect(() => {
     if (sessionStatus !== "authenticated") {
       setHasSave(null);
       return;
     }
     let cancelled = false;
-    void loadSave().then((exists) => {
-      if (!cancelled) setHasSave(exists);
+    void loadSave().then((result) => {
+      if (cancelled) return;
+      setHasSave(result.kind === "server-loaded" || result.kind === "pending-only");
     });
     return () => {
       cancelled = true;

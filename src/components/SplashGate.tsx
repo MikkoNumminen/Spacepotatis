@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { shouldHideSplash } from "./splashGateLogic";
+import { shouldHideSplash, shouldUnmountImmediately } from "./splashGateLogic";
 
 const MIN_DISPLAY_MS = 600;
 const FADE_MS = 400;
@@ -10,11 +10,19 @@ export default function SplashGate({
   ready,
   splash,
   children,
+  failed = false,
   onDismiss
 }: {
   ready: boolean;
   splash: ReactNode;
   children: ReactNode;
+  // Set true to rip the splash out of the tree immediately, regardless of
+  // `ready`/`minTimeElapsed`. Used when a sibling overlay needs full
+  // pointer-event control of the viewport (SaveLoadErrorOverlay on a
+  // load-failed status) — without this short-circuit the splash's
+  // `fixed inset-0 z-50 pointer-events-auto` shell sits on top of the
+  // overlay and swallows every click.
+  failed?: boolean;
   // Fires once, exactly when the splash has finished fading out and
   // unmounted. Use this to delay anything that should NOT compete for
   // user attention (or autoplay activation) while the loading screen
@@ -35,15 +43,21 @@ export default function SplashGate({
     return () => clearTimeout(t);
   }, [readyOnMount]);
 
-  const hide = shouldHideSplash(ready, minTimeElapsed);
+  const hide = shouldHideSplash(ready, minTimeElapsed) || shouldUnmountImmediately(failed);
 
   // Run the fade for FADE_MS, then drop the splash from the tree entirely so
-  // it stops costing render cycles on the live page.
+  // it stops costing render cycles on the live page. On `failed` we skip the
+  // fade entirely and unmount synchronously — the player needs the overlay
+  // unblocked NOW, not in 400ms.
   useEffect(() => {
+    if (failed) {
+      setUnmount(true);
+      return;
+    }
     if (!hide) return;
     const t = setTimeout(() => setUnmount(true), FADE_MS);
     return () => clearTimeout(t);
-  }, [hide]);
+  }, [hide, failed]);
 
   // Fire onDismiss once when the splash has fully unmounted. Ref guard so
   // a re-render doesn't re-fire it; the contract is "dismissed for this
