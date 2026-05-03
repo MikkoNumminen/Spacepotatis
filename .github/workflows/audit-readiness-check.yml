@@ -32,7 +32,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Node 22 has native global WebSocket; the @neondatabase/serverless
+          # driver needs it (otherwise the connection fails with "All attempts
+          # to open a WebSocket to connect to the database failed"). ci.yml
+          # stays on Node 20 because vitest doesn't open Neon connections —
+          # only this workflow does.
+          node-version: "22"
           cache: "npm"
 
       - run: npm ci
