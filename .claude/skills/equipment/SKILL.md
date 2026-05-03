@@ -168,7 +168,17 @@ Use Template E. Phrasings: "rename X to Y", "make X shoot a red potato instead o
 
 # Operation: REMOVE
 
-Most dangerous op — codebase has hard-coded references to specific weapon ids.
+> ## ⚠️ HARD RULE — credit refund is mandatory, not optional
+>
+> Before touching ANYTHING else, add the removed id + its current `cost` to `REMOVED_WEAPON_BASE_COSTS` in [src/game/state/persistence/salvageRemovedWeapons.ts](src/game/state/persistence/salvageRemovedWeapons.ts). Then add a matching unit test in [salvageRemovedWeapons.test.ts](src/game/state/persistence/salvageRemovedWeapons.test.ts).
+>
+> **Why this is the first step, every time:** once you delete the weapon from `weapons.json` / `WEAPON_IDS`, the original `cost` value is gone from the live catalog. The salvage map is the only place that remembers what the player paid. The hydrate-time pipeline (`calculateLegacyRefund` in `salvageRemovedWeapons.ts`, called from `persistence.ts`) automatically refunds `cost + per-level upgrade costs paid + sum of installed augment costs` to every player who owned the removed weapon — but only if the entry is in the map.
+>
+> **Skipping this step silently destroys hours of player progression.** No exceptions. CI test [salvageInvariants.test.ts](src/game/state/persistence/salvageInvariants.test.ts) catches the most common forgotten-entry shape but cannot catch every case — the rule is on you.
+>
+> Re-skinning a weapon (renaming the id without changing stats) is REMOVE+CREATE: the old id needs a salvage entry too.
+
+Most dangerous op — codebase has hard-coded references to specific weapon ids on top of the player-progress concern above.
 
 ## Hard-coded references (must clean up)
 
@@ -223,8 +233,10 @@ Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `mi
 - Weapon: `cost ≥ 0`, `energyCost > 0`, `damage > 0`, `fireRateMs > 0`, `bulletSpeed > 0`.
 - If `bulletSprite` set, matching texture key is registered via a `BootScene` generator (else bullet renders blank).
 - Augment has ≥1 multiplier.
+- **Reintroducing a previously-removed id is safe** — `salvageRemovedWeapons.ts` filters out any id present in the live `WEAPON_IDS`, so a stale `REMOVED_WEAPON_BASE_COSTS` entry stops firing automatically once the id is back in the catalog. Leave the entry; the salvage map is a graveyard, not a registry. Optionally remove it for tidiness.
 
 ## REMOVE
+- **Refund entry in `REMOVED_WEAPON_BASE_COSTS` (HARD RULE — see banner at the top of the REMOVE section).** Skipping it silently wipes player progression. `salvageInvariants.test.ts` catches the easy case (id in TODO backlog but missing from the map) — but the human ledger of "what cost did this weapon ship at" only exists in your head and the soon-deleted `weapons.json` entry.
 - Every hard-coded reference in the table is updated/deleted.
 - `DEFAULT_SHIP.slots[0].id` and `migrateShip` fallback resolve to a known `WeaponId`.
 - `ShipConfig.test.ts:29` updated to the new starter weapon. `GameState.test.ts`, `rewards.test.ts`, `sync.test.ts` only need editing if they assert the removed id — `grep -rn '"<id>"' src/game/state/*.test.ts`.

@@ -23,7 +23,12 @@ import type { LegacyWeaponInstanceLike } from "./helpers";
 // Snapshot of every weapon id that has ever been priced in the live catalog
 // but is no longer present. When a new wave of removals lands, ADD entries
 // here with the cost the weapon shipped with at the time of removal.
-const REMOVED_WEAPON_BASE_COSTS: Readonly<Record<string, number>> = {
+//
+// Exported so `salvageInvariants.test.ts` can cross-check against TODO.md's
+// "Phase Vegetable-Catalog" backlog — any id documented there must have a
+// refund entry here, otherwise the listed weapon's removal silently
+// destroyed player progress.
+export const REMOVED_WEAPON_BASE_COSTS: Readonly<Record<string, number>> = {
   "spud-missile": 1100,
   "tater-net": 600,
   "tail-gunner": 700,
