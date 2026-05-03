@@ -126,7 +126,8 @@ export class CombatScene extends Phaser.Scene {
       this.enemies,
       this.powerUps,
       {
-        onEnemyHit: (enemy, _bullet, killed) => {
+        onEnemyHit: (enemy, bullet, killed) => {
+          this.vfx.floatDamageNumber(enemy.x, enemy.y, bullet.damage);
           if (killed) this.handleEnemyKilled(enemy);
         },
         onPlayerHitByBullet: (bullet) => this.player.takeDamage(bullet.damage),

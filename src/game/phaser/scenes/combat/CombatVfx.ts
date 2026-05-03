@@ -18,6 +18,26 @@ export class CombatVfx {
     }
   }
 
+  floatDamageNumber(x: number, y: number, amount: number): void {
+    const text = this.scene.add.text(x, y - 12, String(Math.round(amount)), {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#ffe066",
+      stroke: "#000000",
+      strokeThickness: 3
+    });
+    text.setOrigin(0.5, 1);
+    text.setDepth(1000);
+    this.scene.tweens.add({
+      targets: text,
+      y: y - 42,
+      alpha: { from: 1, to: 0 },
+      duration: 600,
+      ease: "Cubic.easeOut",
+      onComplete: () => text.destroy()
+    });
+  }
+
   emitExplosionParticles(x: number, y: number, count: number): void {
     const emitter = this.scene.add.particles(x, y, "particle-spark", {
       speed: { min: 60, max: 260 },
