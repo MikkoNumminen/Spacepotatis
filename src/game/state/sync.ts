@@ -155,8 +155,53 @@ async function doLoadSave(): Promise<LoadResult> {
     reason: "network_error",
     status: 0
   };
+  // Retry transient blips silently (Edge cold-start, Neon connection
+  // hiccup, momentary 502). The SaveLoadErrorOverlay correctly tells the
+  // player "do not play right now" — but it should only fire when the
+  // failure is persistent. Without this, a single 5xx threw a blocking,
+  // alarmist modal at every player whose first GET happened to hit a cold
+  // function; clicking "Try again" worked because the second attempt was
+  // warm. Two retries with short backoff catches the vast majority of
+  // those blips silently. 4xx is treated as terminal — those are
+  // deliberate server responses (401 anon, schema mismatch, etc.) that
+  // won't fix on retry. Schema-rejected 200s are also terminal (the data
+  // shape is broken; replaying the same GET produces the same bytes).
+  const SAVE_FETCH_MAX_ATTEMPTS = 3;
+  const SAVE_FETCH_BACKOFF_MS = 250; // 250 → 500 ms between attempts
   try {
-    const res = await fetch(ROUTES.api.save, { cache: "no-store" });
+    let res: Response | null = null;
+    let lastFetchErr: unknown = null;
+    for (let attempt = 1; attempt <= SAVE_FETCH_MAX_ATTEMPTS; attempt++) {
+      try {
+        res = await fetch(ROUTES.api.save, { cache: "no-store" });
+        // Retry only on 5xx. Don't gate on res.ok generally — a 401
+        // (anonymous) is the fast path and must not be retried.
+        if (res.status >= 500 && attempt < SAVE_FETCH_MAX_ATTEMPTS) {
+          console.warn(
+            `loadSave: ${res.status} on attempt ${attempt}/${SAVE_FETCH_MAX_ATTEMPTS}; retrying`
+          );
+          await new Promise((r) => setTimeout(r, SAVE_FETCH_BACKOFF_MS * attempt));
+          continue;
+        }
+        break;
+      } catch (err) {
+        lastFetchErr = err;
+        if (attempt < SAVE_FETCH_MAX_ATTEMPTS) {
+          console.warn(
+            `loadSave: network error on attempt ${attempt}/${SAVE_FETCH_MAX_ATTEMPTS}; retrying`,
+            describeError(err)
+          );
+          await new Promise((r) => setTimeout(r, SAVE_FETCH_BACKOFF_MS * attempt));
+          continue;
+        }
+      }
+    }
+    if (res === null) {
+      // All attempts threw network errors. Re-throw so the existing catch
+      // below maps to the load-failed network_error outcome — same shape
+      // the pre-retry code produced for a single-shot network failure.
+      throw lastFetchErr ?? new Error("fetch returned no response after retries");
+    }
     if (res.status === 401) {
       // Unauthenticated. saveNow handles 401 separately (queues without POST)
       // and there is no server save to clobber for an anonymous user, so it
