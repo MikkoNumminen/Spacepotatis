@@ -327,6 +327,28 @@ describe("saveNow", () => {
     expect(readPendingSaveForTest()).toBeNull();
   });
 
+  it("returns kind=queued on a 422 save_regression — slot persists, defense never deletes queued data", async () => {
+    // The regression guard (PR #94) rejects when the server's stored
+    // snapshot is more advanced than the client's. Pre-fix, saveQueue
+    // classified this as PERMANENT and DROPPED the player's queued snapshot
+    // — the defense itself was deleting save data. Now TRANSIENT: the slot
+    // persists for retry with a fresher snapshot, capped by MAX_ATTEMPTS /
+    // MAX_AGE_MS so a genuinely stale offline save still ages out.
+    fetchImpl.current = async () =>
+      new Response(JSON.stringify({ error: "save_regression" }), {
+        status: 422,
+        headers: { "content-type": "application/json" }
+      });
+    const result = await saveNow();
+    expect(result.kind).toBe("queued");
+    if (result.kind === "queued") {
+      expect(result.message).toMatch(/sync automatically/);
+    }
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
+  });
+
   it("returns kind=queued on a network error — snapshot persists for retry", async () => {
     fetchImpl.current = async () => {
       throw new TypeError("network down");

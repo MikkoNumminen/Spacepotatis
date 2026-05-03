@@ -257,13 +257,20 @@ function isPermanent(status: number, errorCode: string | null): boolean {
   //    saves never landed, our snapshot's delta looks too large from the
   //    server's stale viewpoint. A fresher baseline (next saveNow, or this
   //    snapshot landing after retries that re-anchor the row) might pass.
+  //  - save_regression → TRANSIENT. The regression guard rejects when the
+  //    server's stored snapshot is more advanced than the client's. The
+  //    comparison baseline shifts as fresher saves land in the background;
+  //    holding the slot lets a future saveNow with the freshest in-memory
+  //    state pass, OR lets the snapshot age out via MAX_ATTEMPTS / MAX_AGE_MS
+  //    if it really is stale. The defense must never delete queued data.
   //  - mission_graph_invalid / validation_failed / other → PERMANENT.
   //    The unlock chain or schema is wrong in the snapshot itself; replay
   //    can't fix it.
   if (status === 422) {
     return (
       errorCode !== "playtime_delta_invalid" &&
-      errorCode !== "credits_delta_invalid"
+      errorCode !== "credits_delta_invalid" &&
+      errorCode !== "save_regression"
     );
   }
   return false;
