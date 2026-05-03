@@ -240,6 +240,9 @@ export const RemoteSaveSchema = z.object({
   unlockedPlanets: z.array(MissionIdSchema),
   playedTimeSeconds: z.number().int().nonnegative(),
   seenStoryEntries: z.array(z.string()).optional(),
+  // Nullable: rows that pre-date the column return null. Client falls
+  // back to the first unlocked system in that case (see hydrate()).
+  currentSolarSystemId: SolarSystemIdSchema.nullable().optional(),
   updatedAt: z.string()
 });
 

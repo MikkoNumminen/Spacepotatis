@@ -218,7 +218,11 @@ async function doLoadSave(): Promise<LoadResult> {
             // "trust runtime validation" pattern at this boundary.
             ship: body.shipConfig as unknown as StateSnapshot["ship"],
             saveSlot: body.slot,
-            seenStoryEntries: (body.seenStoryEntries ?? []) as StateSnapshot["seenStoryEntries"]
+            seenStoryEntries: (body.seenStoryEntries ?? []) as StateSnapshot["seenStoryEntries"],
+            // Null on rows that pre-date the column — hydrate() falls back
+            // to the first unlocked system, so undefined is the right
+            // signal for "let hydrate pick a default".
+            currentSolarSystemId: body.currentSolarSystemId ?? undefined
           };
           hydrate(snapshot);
           markHydrationCompleted();

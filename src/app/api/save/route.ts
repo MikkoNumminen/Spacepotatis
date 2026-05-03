@@ -53,6 +53,7 @@ export async function GET(): Promise<Response> {
       unlockedPlanets: row.unlocked_planets,
       playedTimeSeconds: row.played_time_seconds,
       seenStoryEntries: row.seen_story_entries ?? [],
+      currentSolarSystemId: row.current_solar_system_id,
       updatedAt
     });
   } catch (err) {
@@ -180,6 +181,7 @@ export async function POST(request: Request): Promise<Response> {
         completed_missions: string[];
         unlocked_planets: string[];
         seen_story_entries: string[];
+        current_solar_system_id: string | null;
         updated_at: Date;
       }
     | undefined;
@@ -196,6 +198,7 @@ export async function POST(request: Request): Promise<Response> {
         "completed_missions",
         "unlocked_planets",
         "seen_story_entries",
+        "current_solar_system_id",
         "updated_at"
       ])
       .where("player_id", "=", playerId)
@@ -217,6 +220,7 @@ export async function POST(request: Request): Promise<Response> {
         unlockedPlanets: prevRow.unlocked_planets,
         playedTimeSeconds: prevRow.played_time_seconds,
         seenStoryEntries: prevRow.seen_story_entries ?? [],
+        currentSolarSystemId: prevRow.current_solar_system_id,
         updatedAt:
           prevRow.updated_at instanceof Date
             ? prevRow.updated_at.toISOString()
@@ -361,6 +365,7 @@ export async function POST(request: Request): Promise<Response> {
       shipPayload && typeof shipPayload === "object" ? (shipPayload as Record<string, unknown>) : {};
 
     const seenStoryEntries = Array.isArray(body.seenStoryEntries) ? body.seenStoryEntries : [];
+    const currentSolarSystemId = body.currentSolarSystemId ?? null;
 
     await db
       .insertInto("spacepotatis.save_games")
@@ -374,6 +379,7 @@ export async function POST(request: Request): Promise<Response> {
         unlocked_planets: unlockedPlanets,
         played_time_seconds: playedTimeSeconds,
         seen_story_entries: seenStoryEntries,
+        current_solar_system_id: currentSolarSystemId,
         updated_at: new Date()
       })
       .onConflict((oc) =>
@@ -385,6 +391,7 @@ export async function POST(request: Request): Promise<Response> {
           unlocked_planets: sql`EXCLUDED.unlocked_planets`,
           played_time_seconds: sql`EXCLUDED.played_time_seconds`,
           seen_story_entries: sql`EXCLUDED.seen_story_entries`,
+          current_solar_system_id: sql`EXCLUDED.current_solar_system_id`,
           updated_at: sql`EXCLUDED.updated_at`
         })
       )

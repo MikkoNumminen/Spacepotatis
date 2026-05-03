@@ -47,6 +47,10 @@ export interface SaveGamesTable {
   unlocked_planets: Generated<string[]>;
   played_time_seconds: Generated<number>;
   seen_story_entries: Generated<string[]>;
+  // Last-viewed solar system. NULL until the player warps for the first
+  // time after the column shipped — hydrate() falls back to the first
+  // unlocked system in that case.
+  current_solar_system_id: string | null;
   updated_at: Generated<Date>;
 }
 
