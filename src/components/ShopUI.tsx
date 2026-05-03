@@ -13,6 +13,7 @@ import {
 import { saveNow } from "@/game/state/sync";
 import { STORY_ENTRIES } from "@/game/data/story";
 import { itemSfx } from "@/game/audio/itemSfx";
+import { menuMusic, shopMusic } from "@/game/audio/music";
 import { storyAudio } from "@/game/audio/story";
 import {
   MAX_LEVEL,
@@ -91,6 +92,18 @@ export default function ShopUI() {
       storyAudio.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Shop bed: ducks the menu/galaxy bed and plays /audio/music/shop.ogg
+  // for the duration of the visit. Per-shop music is a future change —
+  // when it lands, swap the hard-coded path for a per-mission lookup.
+  useEffect(() => {
+    menuMusic.duck();
+    shopMusic.loadTrack("/audio/music/shop.ogg");
+    return () => {
+      shopMusic.stop();
+      menuMusic.unduck();
+    };
   }, []);
 
   const shieldCost = shieldUpgradeCost(ship.shieldLevel);
