@@ -26,8 +26,9 @@ import {
   reactorRechargeCost,
   shieldUpgradeCost
 } from "@/game/state/ShipConfig";
-import { getAllWeapons } from "@/game/data/weapons";
+import { getWeapon } from "@/game/data/weapons";
 import { getAllAugments } from "@/game/data/augments";
+import { getBuyableWeaponIds } from "@/game/data/missionWeaponRewards";
 import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
 import type { AugmentDefinition } from "@/game/data/augments";
 import type { ShipConfig } from "@/game/state/ShipConfig";
@@ -63,17 +64,16 @@ export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
   const ship = useGameState((s) => s.ship);
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
-  const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
+  const completedMissions = useGameState((s) => s.completedMissions);
   const [weaponDetails, setWeaponDetails] = useState<WeaponDefinition | null>(null);
   const [augmentDetails, setAugmentDetails] = useState<AugmentDefinition | null>(null);
 
-  // Tutorial system gates the shop to tier 1 weapons only — the loot pool
-  // matches this constraint (see src/game/data/lootPools.ts). Other systems
-  // show everything currently in the catalog. LoadoutMenu is never gated;
-  // players keep using any weapon they already own in any system.
-  const visibleWeapons = currentSolarSystemId === "tutorial"
-    ? getAllWeapons().filter((w) => w.tier === 1)
-    : getAllWeapons();
+  // Per-mission unlock gate: each mission-kind mission unlocks one weapon
+  // for purchase. See src/game/data/missionWeaponRewards.ts for the map.
+  // LoadoutMenu remains ungated — owned weapons stay usable everywhere.
+  const visibleWeapons = getBuyableWeaponIds(new Set(completedMissions)).map(
+    (id) => getWeapon(id)
+  );
 
   // Plays the on-shop-open briefing every time the player docks (any shop
   // → /shop). The seen-set is consulted only to decide whether to mark
@@ -190,6 +190,12 @@ export default function ShopUI() {
             <h2 className="font-display tracking-widest text-hud-green">NEW WEAPONS</h2>
             <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
           </header>
+
+          {visibleWeapons.length === 0 && (
+            <p className="text-xs text-hud-green/60">
+              Complete missions to unlock weapons for purchase.
+            </p>
+          )}
 
           <ul className="flex flex-col gap-1.5">
             {visibleWeapons.map((weapon) => {

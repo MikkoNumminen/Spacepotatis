@@ -23,6 +23,8 @@
 //   - lootPools.systemId                   → solarSystems
 //   - lootPools.weapons[]                  → weapons
 //   - lootPools.augments[]                 → augments
+//   - missionWeaponRewards keys            → missions
+//   - missionWeaponRewards values          → weapons
 //   - story (on-mission-select)            → missions
 //   - story (on-system-enter)              → solarSystems
 //   - story (on-system-cleared-idle)       → solarSystems
@@ -57,13 +59,16 @@ import { getAllWeapons } from "./weapons";
 import { getAllAugments, type AugmentDefinition } from "./augments";
 import { getAllLootPools, type LootPool } from "./lootPools";
 import { getAllMissionWaves } from "./waves";
+import { MISSION_WEAPON_REWARDS } from "./missionWeaponRewards";
 import { STORY_ENTRIES, type StoryEntry } from "./story";
 import type {
   EnemyDefinition,
   MissionDefinition,
+  MissionId,
   MissionWaves,
   SolarSystemDefinition,
-  WeaponDefinition
+  WeaponDefinition,
+  WeaponId
 } from "@/types/game";
 
 // All collections the check operates on. The defaults pull from the live
@@ -76,6 +81,7 @@ export interface IntegrityData {
   readonly solarSystems: readonly SolarSystemDefinition[];
   readonly lootPools: readonly LootPool[];
   readonly missionWaves: readonly MissionWaves[];
+  readonly missionWeaponRewards: ReadonlyMap<MissionId, WeaponId>;
   readonly stories: readonly StoryEntry[];
 }
 
@@ -265,6 +271,26 @@ export function runDataIntegrityCheck(data: IntegrityData): void {
     }
   }
 
+  // missionWeaponRewards.ts → missions (keys) / weapons (values)
+  for (const [missionId, weaponId] of data.missionWeaponRewards) {
+    if (!missionIds.has(missionId)) {
+      fail(
+        `missionWeaponRewards['${missionId}']`,
+        "mission",
+        missionId,
+        missionIdList
+      );
+    }
+    if (!weaponIds.has(weaponId)) {
+      fail(
+        `missionWeaponRewards['${missionId}'].weapon`,
+        "weapon",
+        weaponId,
+        weaponIdList
+      );
+    }
+  }
+
   // story.ts → missions / solarSystems
   for (const entry of data.stories) {
     const trigger = entry.autoTrigger;
@@ -319,6 +345,7 @@ export function buildLiveIntegrityData(
     solarSystems: getAllSolarSystems(),
     lootPools: getAllLootPools(),
     missionWaves: getAllMissionWaves(),
+    missionWeaponRewards: MISSION_WEAPON_REWARDS,
     stories: STORY_ENTRIES
   };
 }

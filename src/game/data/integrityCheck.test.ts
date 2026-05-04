@@ -15,6 +15,7 @@ import type {
   AugmentId,
   EnemyDefinition,
   MissionDefinition,
+  MissionId,
   MissionWaves,
   SolarSystemDefinition,
   WeaponDefinition,
@@ -139,6 +140,11 @@ function fixture(): IntegrityData {
     }
   ];
 
+  const missionWeaponRewards: ReadonlyMap<MissionId, WeaponId> = new Map<
+    MissionId,
+    WeaponId
+  >([["tutorial", "rapid-fire"]]);
+
   return {
     enemies,
     weapons,
@@ -147,6 +153,7 @@ function fixture(): IntegrityData {
     solarSystems,
     lootPools,
     missionWaves,
+    missionWeaponRewards,
     stories
   };
 }
@@ -353,6 +360,34 @@ describe("runDataIntegrityCheck — lootPools → systems / weapons / augments",
     };
     expect(() => runDataIntegrityCheck(broken)).toThrow(
       /lootPools\['vanished-system'\]\.systemId.*unknown solar system 'vanished-system'/
+    );
+  });
+});
+
+describe("runDataIntegrityCheck — missionWeaponRewards → missions / weapons", () => {
+  it("throws when a reward key references an unknown mission", () => {
+    const data = fixture();
+    const broken: IntegrityData = {
+      ...data,
+      missionWeaponRewards: new Map<MissionId, WeaponId>([
+        ["ghost-mission" as MissionId, "rapid-fire"]
+      ])
+    };
+    expect(() => runDataIntegrityCheck(broken)).toThrow(
+      /missionWeaponRewards\['ghost-mission'\].*unknown mission 'ghost-mission'/
+    );
+  });
+
+  it("throws when a reward value references an unknown weapon", () => {
+    const data = fixture();
+    const broken: IntegrityData = {
+      ...data,
+      missionWeaponRewards: new Map<MissionId, WeaponId>([
+        ["tutorial", "spud-bazooka" as WeaponId]
+      ])
+    };
+    expect(() => runDataIntegrityCheck(broken)).toThrow(
+      /missionWeaponRewards\['tutorial'\]\.weapon.*unknown weapon 'spud-bazooka'/
     );
   });
 });
