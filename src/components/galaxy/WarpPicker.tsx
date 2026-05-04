@@ -29,8 +29,8 @@ export default function WarpPicker({
         >
           ← Back
         </button>
-        <div className="mt-6 font-display text-lg tracking-widest text-hud-green">WARP DRIVE</div>
-        <p className="mt-1 text-xs text-hud-amber">Select a destination system.</p>
+        <div className="mt-6 text-center font-display text-lg tracking-widest text-hud-green">WARP DRIVE</div>
+        <p className="mt-1 text-center text-xs text-hud-amber">Select a destination system.</p>
         <ul className="mt-4 flex flex-col gap-2">
           {systems.map((sys) => {
             const active = sys.id === currentSystemId;
