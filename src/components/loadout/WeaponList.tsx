@@ -25,7 +25,7 @@ export function WeaponList({
   return (
     <>
       {heading && (
-        <h3 className="mt-6 mb-2 font-display text-xs tracking-widest text-hud-green/70">
+        <h3 className="mt-6 mb-3 border-t border-hud-green/30 pt-3 font-display text-sm uppercase tracking-[0.2em] text-hud-green">
           {heading}
         </h3>
       )}

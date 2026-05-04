@@ -47,7 +47,7 @@ export default function LoadoutMenu(_props: Props) {
   return (
     <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
       <header className="mb-4 flex items-baseline justify-between">
-        <h2 className="font-display tracking-widest text-hud-green">SHIP LOADOUT</h2>
+        <h2 className="font-display text-lg tracking-widest text-hud-green">SHIP LOADOUT</h2>
         <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
       </header>
 
@@ -92,7 +92,7 @@ export default function LoadoutMenu(_props: Props) {
 
       {inventoryEntries.length === 0 ? (
         <>
-          <h3 className="mt-6 mb-2 font-display text-xs tracking-widest text-hud-green/70">
+          <h3 className="mt-6 mb-3 border-t border-hud-green/30 pt-3 font-display text-sm uppercase tracking-[0.2em] text-hud-green">
             INVENTORY
           </h3>
           <p className="text-xs text-hud-green/50">
