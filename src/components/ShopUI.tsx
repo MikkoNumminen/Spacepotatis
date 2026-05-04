@@ -35,7 +35,9 @@ import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";
 import { AugmentDetailsModal } from "@/components/loadout/AugmentDetailsModal";
+import { UpgradeDetailsModal } from "@/components/loadout/UpgradeDetailsModal";
 import { AugmentDot, WeaponDot } from "@/components/loadout/dots";
+import { getUpgrade, type UpgradeId } from "@/game/data/upgrades";
 
 // Total copies of a weapon id the player owns across slots + inventory.
 // Used to decorate buy rows so the player can see "owned · N" before purchase.
@@ -67,6 +69,7 @@ export default function ShopUI() {
   const completedMissions = useGameState((s) => s.completedMissions);
   const [weaponDetails, setWeaponDetails] = useState<WeaponDefinition | null>(null);
   const [augmentDetails, setAugmentDetails] = useState<AugmentDefinition | null>(null);
+  const [upgradeDetails, setUpgradeDetails] = useState<UpgradeId | null>(null);
 
   // Per-mission unlock gate: each mission-kind mission unlocks one weapon
   // for purchase. See src/game/data/missionWeaponRewards.ts for the map.
@@ -156,6 +159,7 @@ export default function ShopUI() {
             disabled={shieldMaxed || credits < shieldCost}
             onClick={handleBuyShield}
             cta={shieldMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("shield")}
           />
           <Row
             label="Armor plating"
@@ -164,6 +168,7 @@ export default function ShopUI() {
             disabled={armorMaxed || credits < armorCost}
             onClick={handleBuyArmor}
             cta={armorMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("armor")}
           />
 
           <h3 className="mt-5 mb-2 font-display text-xs tracking-widest text-hud-amber">REACTOR</h3>
@@ -174,6 +179,7 @@ export default function ShopUI() {
             disabled={reactorCapMaxed || credits < reactorCapCost}
             onClick={handleBuyReactorCap}
             cta={reactorCapMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("reactor-capacity")}
           />
           <Row
             label="Reactor recharge"
@@ -182,6 +188,7 @@ export default function ShopUI() {
             disabled={reactorRechMaxed || credits < reactorRechCost}
             onClick={handleBuyReactorRech}
             cta={reactorRechMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("reactor-recharge")}
           />
         </section>
 
@@ -348,8 +355,93 @@ export default function ShopUI() {
           onClose={() => setAugmentDetails(null)}
         />
       )}
+      {upgradeDetails && (
+        <UpgradeDetailsForId
+          id={upgradeDetails}
+          ship={ship}
+          onClose={() => setUpgradeDetails(null)}
+        />
+      )}
     </>
   );
+}
+
+// Resolves an UpgradeId to the right level / cost / detail props for the
+// modal so ShopUI's JSX stays flat. The exhaustive `never` check makes
+// adding a 5th UpgradeId a typecheck failure here, not a silent
+// "modal renders nothing" surprise.
+function UpgradeDetailsForId({
+  id,
+  ship,
+  onClose
+}: {
+  id: UpgradeId;
+  ship: ShipConfig;
+  onClose: () => void;
+}) {
+  const upgrade = getUpgrade(id);
+  switch (id) {
+    case "shield": {
+      const maxed = ship.shieldLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.shieldLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : shieldUpgradeCost(ship.shieldLevel)}
+          detail={`max shield ${getMaxShield(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    case "armor": {
+      const maxed = ship.armorLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.armorLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : armorUpgradeCost(ship.armorLevel)}
+          detail={`max HP ${getMaxArmor(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    case "reactor-capacity": {
+      const maxed = ship.reactor.capacityLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.reactor.capacityLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : reactorCapacityCost(ship.reactor.capacityLevel)}
+          detail={`max ⚡ ${getReactorCapacity(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    case "reactor-recharge": {
+      const maxed = ship.reactor.rechargeLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.reactor.rechargeLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : reactorRechargeCost(ship.reactor.rechargeLevel)}
+          detail={`⚡/s ${getReactorRecharge(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    default: {
+      // Future UpgradeId additions fail the typecheck here instead of
+      // silently rendering nothing. eslint-disable: the assignment is the
+      // exhaustiveness check; the variable is intentionally unused.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _exhaustive: never = id;
+      return null;
+    }
+  }
 }
 
 function TierBadge({ tier }: { tier: 1 | 2 }) {
@@ -377,7 +469,8 @@ function Row({
   cost,
   disabled,
   onClick,
-  cta
+  cta,
+  onDetails
 }: {
   label: string;
   detail: string;
@@ -385,6 +478,10 @@ function Row({
   disabled: boolean;
   onClick: () => void;
   cta: string;
+  // When provided, renders a "DETAILS" pill before the cost label that
+  // opens the per-upgrade modal (with Grandma voiceover). Omitted on
+  // upgrades that don't have a detail surface yet.
+  onDetails?: () => void;
 }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3 rounded border border-space-border p-3">
@@ -393,6 +490,15 @@ function Row({
         <div className="text-xs text-hud-green/70">{detail}</div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        {onDetails && (
+          <button
+            type="button"
+            onClick={onDetails}
+            className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
+          >
+            DETAILS
+          </button>
+        )}
         {cost !== null && <span className="text-xs text-hud-amber">¢ {cost}</span>}
         <button
           type="button"
