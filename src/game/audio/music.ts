@@ -2,6 +2,10 @@
 
 import { audioBus, type AudioCategory } from "./AudioBus";
 
+// PUBLIC API — this engine is part of the `audio` module's contract.
+//   Stable. Breaking changes require a coordinated update of every caller.
+//   See ./README.md for the rationale.
+//
 // Music controller. One HTMLAudioElement per engine, manual loop with a
 // fade-out → silence → fade-in seam so a long stay on one track sounds like
 // the music takes a breath rather than restarting on a hard cut.
@@ -41,6 +45,7 @@ const WATCHDOG_MS = 2000;
 // session interrupt, etc.). Short enough that the user perceives no gap.
 const RETRY_DELAY_MS = 250;
 
+// INTERNAL
 interface EngineOptions {
   readonly src?: string;
   readonly targetVolume?: number;
@@ -67,6 +72,8 @@ interface EngineOptions {
   readonly category?: AudioCategory;
 }
 
+// INTERNAL — exposed only via the `menuMusic` / `combatMusic` / `shopMusic`
+// singletons below.
 class MusicEngine {
   private el: HTMLAudioElement | null = null;
   private src: string | null;
@@ -107,6 +114,14 @@ class MusicEngine {
     audioBus.register(this.category, this);
   }
 
+  /**
+   * One-shot initializer for engines that have a fixed `src` set at
+   * construction (the menu and shop beds). Idempotent — calling it twice or
+   * before/after `arm()` is fine. SSR-safe (no-op on server). For combat,
+   * use `loadTrack()` instead — the combat engine has no fixed src.
+   *
+   * @stable
+   */
   init(): void {
     if (typeof window === "undefined") return;
     if (this.el || !this.src) return;
@@ -115,8 +130,14 @@ class MusicEngine {
     this.attachVisibilityListener();
   }
 
-  // For the combat engine: hot-swap the track. Fades out the old, swaps src,
-  // and (if armed and not muted/ducked) fades the new one in.
+  /**
+   * Hot-swap the audio track. Fades out the old, swaps src, and (if armed
+   * and not muted/ducked) fades the new one in. Pass `null` to fade out and
+   * unload — used at mission end so the next mission boots from a clean
+   * slate. SSR-safe.
+   *
+   * @stable
+   */
   loadTrack(src: string | null): void {
     if (typeof window === "undefined") return;
     if (this.src === src) return;
@@ -149,28 +170,42 @@ class MusicEngine {
     if (!audioBus.isMuted(this.category) && !this.ducked) void this.startPlayback();
   }
 
-  // First user gesture unlocks autoplay. Idempotent.
+  /**
+   * Mark the engine as armed, then start playback if not currently muted or
+   * ducked. Browsers block `play()` until a user gesture, so engines stay
+   * dormant until the first input handler arms them. Idempotent.
+   *
+   * @stable
+   */
   arm(): void {
     if (!this.el || this.armed) return;
     this.armed = true;
     if (!audioBus.isMuted(this.category) && !this.ducked) void this.startPlayback();
   }
 
-  // Forceful resume — if shouldBePlaying() is true but the element is
-  // actually paused (typical aftermath of a play() rejection that the
-  // promise's catch handler couldn't recover from), kick startPlayback
-  // immediately. Cheaper than waiting for the watchdog (~2s) and safe
-  // to call repeatedly. Caller is GameCanvas.handleMissionComplete which
-  // observes a race where the mode-effect's unduck doesn't actually
-  // resume audio on return to the galaxy.
+  /**
+   * Forceful resume — if the engine should be playing but the element is
+   * actually paused (typical aftermath of a `play()` rejection that the
+   * promise's catch handler couldn't recover from), kick `startPlayback()`
+   * immediately. Cheaper than waiting for the watchdog (~2s) and safe to
+   * call repeatedly. Used by GameCanvas's mission-complete handler to close
+   * a race where the mode-effect's unduck doesn't actually resume audio on
+   * return to the galaxy.
+   *
+   * @stable
+   */
   ensurePlaying(): void {
     this.kickIfShouldBePlaying();
   }
 
-  // Called by AudioBus when the effective mute for this engine's category
-  // changes. The bus is the only caller — UI changes mute via
-  // `audioBus.setMasterMuted` / `audioBus.setCategoryMuted`. The bus owns
-  // the mute value; the parameter is the freshly-changed value to react to.
+  /**
+   * AudioBus callback. The bus is the only caller — UI changes mute via
+   * `audioBus.setMasterMuted` / `audioBus.setCategoryMuted`. The bus owns
+   * the value; this engine just reacts: fade-and-pause on mute, resume on
+   * unmute (subject to armed/ducked/src guards).
+   *
+   * @stable
+   */
   setMuted(muted: boolean): void {
     if (muted) {
       this.fadeAndPause();
@@ -179,27 +214,47 @@ class MusicEngine {
     }
   }
 
+  /**
+   * Fade volume to zero and (unless `keepAlive`) pause the underlying
+   * element. Used by story modals + combat to dip the menu/galaxy bed under
+   * a foreground sound. Idempotent — re-ducking is a no-op. Pair with
+   * `unduck()`.
+   *
+   * @stable
+   */
   duck(): void {
     if (this.ducked) return;
     this.ducked = true;
     this.fadeAndPause();
   }
 
+  /**
+   * Reverse a previous `duck()`. Resumes playback (subject to
+   * armed/muted/src guards) and fades volume back up. Idempotent.
+   *
+   * @stable
+   */
   unduck(): void {
     if (!this.ducked) return;
     this.ducked = false;
     if (this.armed && !audioBus.isMuted(this.category) && this.src) void this.startPlayback();
   }
 
-  // Fade out and pause. Combat scene calls this on shutdown so the next
-  // mission boot starts from a clean slate. Clearing src first is what makes
-  // it actually stay stopped — otherwise the natural-end loop logic would
-  // happily restart the track during or right after the fade.
-  //
-  // Also releases the underlying HTMLAudioElement so it stops counting
-  // against the iOS Safari ~6-element budget while the player is back on
-  // the galaxy view. Native-loop engines (menuMusic) skip the release —
-  // they're meant to live forever and re-arming them would cost a reload.
+  /**
+   * Fade out, pause, and release the underlying HTMLAudioElement. Combat
+   * scene calls this on shutdown so the next mission boots from a clean
+   * slate. Clearing src first is what makes it actually stay stopped —
+   * otherwise the natural-end loop logic would restart the track during or
+   * right after the fade.
+   *
+   * INVARIANT: releasing the element (set src="", call load(), null the
+   * ref) is what frees the iOS Safari ~6-element audio budget while the
+   * player is back on the galaxy view. Native-loop engines (`menuMusic`)
+   * skip the release — they're meant to live forever and re-arming them
+   * would cost a reload.
+   *
+   * @stable
+   */
   stop(): void {
     this.cancelSilence();
     this.cancelFadeOutTimer();
@@ -219,6 +274,8 @@ class MusicEngine {
       if (this.el === el) this.el = null;
     });
   }
+
+  // INTERNAL — every method below is private to the engine.
 
   private attachElement(src: string): void {
     const el = new Audio(src);
@@ -412,28 +469,45 @@ class MusicEngine {
   }
 }
 
-// Menu bed loops natively (gapless) so navigating between /, /play, /shop,
-// and /leaderboard never lands on a silence window. The engine's manual
-// fade-out → silence → fade-in routine is bypassed for this engine.
+/**
+ * The ambient menu bed. Native loop (gapless), `keepAlive` set so it never
+ * gets paused by ducking or master mute — only volume changes. Survives
+ * client-side nav between `/`, `/play`, `/shop`, and `/leaderboard` so the
+ * player never lands on a silence window. Registered with the bus as
+ * `music`.
+ *
+ * @stable
+ */
 export const menuMusic = new MusicEngine({
   src: "/audio/music/menu-theme.ogg",
   loop: true,
   keepAlive: true
 });
 
-// Combat src is set via loadTrack() per mission. Slightly louder bed since
-// combat SFX are sparser than the menu's ambient layering. Fade-in is cut
-// to a snap so the mission bed feels like it starts WITH the mission, not
-// like it ramps up over the first ~2 seconds the player is fighting.
+/**
+ * Per-mission combat bed. `src` is set via `loadTrack(src)` when combat
+ * starts and cleared with `loadTrack(null)` (or `stop()`) on mission end.
+ * Manual fade-out → silence → fade-in seam between loops, so a long stay on
+ * one track has a "breath" instead of a hard cut. Slightly louder than the
+ * menu bed since combat SFX are sparser than the menu's ambient layering;
+ * fade-in is cut short so the bed starts WITH the mission, not over the
+ * first ~2 seconds. Registered with the bus as `music`.
+ *
+ * @stable
+ */
 export const combatMusic = new MusicEngine({
   targetVolume: 0.55,
   fadeInSec: 0.15
 });
 
-// Shop bed. Native loop (gapless) like menuMusic so a long browse never
-// hits a silence window. src is set per-shop via loadTrack() so different
-// shops can carry different music in the future; today every shop uses
-// /audio/music/shop.ogg.
+/**
+ * Per-shop bed. `src` is set via `loadTrack(src)` on shop dock; native loop
+ * (gapless) like `menuMusic` so a long browse never hits a silence window.
+ * Different shops can carry different music in the future; today every
+ * shop uses `/audio/music/shop.ogg`. Registered with the bus as `music`.
+ *
+ * @stable
+ */
 export const shopMusic = new MusicEngine({
   loop: true,
   targetVolume: 0.4

@@ -2,6 +2,10 @@
 
 import { audioBus } from "./AudioBus";
 
+// PUBLIC API — this engine is part of the `audio` module's contract.
+//   Stable. Breaking changes require a coordinated update of every caller.
+//   See ./README.md for the rationale.
+//
 // Voice queue for the landing page. Plays a series of nudge clips with a
 // configurable gap between each, ending with the system-briefing lecture.
 // The full sequence runs once per browser session (sessionStorage gate set
@@ -15,13 +19,20 @@ import { audioBus } from "./AudioBus";
 
 const TARGET_VOLUME = 1.0;
 
+/**
+ * One item in a menu-briefing voice queue. The first item typically uses
+ * `gapBeforeMs: 0`; subsequent items count their gap from the previous
+ * item's `ended` event so the natural pause-and-respond cadence falls out
+ * of declaring a list of (src, gap) pairs.
+ *
+ * @stable
+ */
 export interface MenuBriefingItem {
   readonly src: string;
-  // Pause inserted BEFORE this item starts. The first item typically uses 0.
-  // Subsequent items count their gap from the previous item's `ended` event.
   readonly gapBeforeMs: number;
 }
 
+// INTERNAL — exposed only via the `menuBriefingAudio` singleton at file end.
 class MenuBriefingAudio {
   private voice: HTMLAudioElement | null = null;
   private queue: readonly MenuBriefingItem[] = [];
@@ -37,6 +48,15 @@ class MenuBriefingAudio {
     audioBus.register("voice", this);
   }
 
+  /**
+   * Start a fresh queue. Cancels any in-flight queue first (latest call
+   * wins). Items run in order, each respecting its own `gapBeforeMs` from
+   * the previous item's `ended` event. Caller is the landing page; the
+   * sessionStorage gate that prevents repeats per browser session is the
+   * caller's responsibility.
+   *
+   * @stable
+   */
   playSequence(items: readonly MenuBriefingItem[]): void {
     this.stop();
     if (items.length === 0) return;
@@ -45,9 +65,14 @@ class MenuBriefingAudio {
     this.scheduleNext();
   }
 
-  // Called on the first user gesture after mount. If the queue stalled
-  // because voice.play() rejected (cold-load autoplay block), retry the
-  // stalled item immediately; otherwise no-op.
+  /**
+   * Called on the first user gesture after mount. If the queue stalled
+   * because `voice.play()` rejected (cold-load autoplay block), retry the
+   * stalled item immediately; otherwise no-op so mid-playback gestures
+   * don't interfere with the running queue.
+   *
+   * @stable
+   */
   arm(): void {
     if (!this.startFailed) return;
     this.startFailed = false;
@@ -56,6 +81,13 @@ class MenuBriefingAudio {
     this.startVoice(item.src);
   }
 
+  /**
+   * Cancel the queue and release any in-flight voice element. Called when
+   * the player commits to entering the game (PLAY/CONTINUE click) and by
+   * `playSequence()` to tear down a previous queue. Idempotent.
+   *
+   * @stable
+   */
   stop(): void {
     if (this.gapTimerId !== null) {
       clearTimeout(this.gapTimerId);
@@ -71,10 +103,20 @@ class MenuBriefingAudio {
     voice.src = "";
   }
 
+  /**
+   * AudioBus callback. Sets `voice.volume` to 0 on mute (without pausing)
+   * so timing stays stable across mute toggles — the queue keeps marching
+   * through clips silently and resumes audibly on unmute. Pausing instead
+   * of zeroing volume would shift queue timing under the player's UI.
+   *
+   * @stable
+   */
   setMuted(muted: boolean): void {
     if (!this.voice) return;
     this.voice.volume = muted ? 0 : TARGET_VOLUME;
   }
+
+  // INTERNAL — every method below is private to the engine.
 
   private scheduleNext(): void {
     if (this.queueIdx >= this.queue.length) return;
@@ -122,4 +164,12 @@ class MenuBriefingAudio {
   }
 }
 
+/**
+ * Landing-page voice queue. Plays a series of nudge clips with configurable
+ * gaps, ending with the system briefing. Independent of `menuMusic` (which
+ * keeps playing underneath). Cancels when the player commits to the game.
+ * Registered with the bus as `voice`.
+ *
+ * @stable
+ */
 export const menuBriefingAudio = new MenuBriefingAudio();

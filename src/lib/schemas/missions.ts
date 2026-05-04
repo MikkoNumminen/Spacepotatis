@@ -1,10 +1,9 @@
 // Runtime schema for src/game/data/missions.json. Mirrors `MissionDefinition`
-// in src/types/game.ts and parses the JSON at module load (see
-// src/game/data/missions.ts) so a hand-edited or future-generated entry that
-// drifts from the type can't slip past tsc's structural-typing-of-JSON gap
-// and explode at runtime.
+// in src/types/game.ts. The JSON itself is validated once per `npm test` by
+// src/game/data/__tests__/jsonSchemaValidation.test.ts — not at module load,
+// so Zod stays out of every static page's first-load JS.
 //
-// Why parse at boot instead of relying on tsc + tests:
+// Why parse via the CI drift gate instead of relying on tsc alone:
 //  - tsc treats `import json from "./foo.json"` as the literal value type, not
 //    a `MissionDefinition`. The cast `as readonly MissionDefinition[]` in
 //    missions.ts is unguarded — a missing field or wrong-typed value gets a
@@ -12,12 +11,15 @@
 //  - The data tests in src/game/data/data.test.ts cover most invariants, but
 //    they test what we knew to assert. The schema covers structural shape
 //    exhaustively, so a JSON edit that *adds* an unknown field or uses the
-//    wrong type for a known field fails fast at module load with a useful
-//    Zod path-and-message error instead of a silent NaN propagating through
-//    the orbit math.
+//    wrong type for a known field fails fast in CI with a useful Zod
+//    path-and-message error instead of a silent NaN propagating through the
+//    orbit math.
 //
 // Keep field shapes 1:1 with `MissionDefinition`. The compile-time guard at
 // the bottom of this file fails to typecheck if the schema drifts.
+//
+// PUBLIC API — every export below is part of the `schemas` module contract.
+//   See ./README.md for the rationale.
 
 import { z } from "zod";
 
@@ -32,6 +34,20 @@ const PlanetRingSchema = z.object({
   tilt: z.number()
 });
 
+/**
+ * Per-mission catalog row — one entry from `missions.json`.
+ *
+ * Mirrors `MissionDefinition` in `src/types/game.ts`. The compile-time
+ * drift guard at the bottom fails tsc if the schema's inferred type stops
+ * being assignable to `MissionDefinition`.
+ *
+ * INVARIANT: `difficulty` is the literal union `1 | 2 | 3` — `z.union` over
+ * literals catches stringified ints or out-of-range integers at parse time.
+ * `musicTrack` rejects empty string ("" is the audio engine's "release the
+ * slot" signal — silently nulling it via a typo would kill the bed).
+ *
+ * @stable
+ */
 export const MissionDefinitionSchema = z.object({
   id: MissionIdSchema,
   kind: PlanetKindSchema,
@@ -59,6 +75,15 @@ export const MissionDefinitionSchema = z.object({
   perksAllowed: z.boolean().optional()
 });
 
+/**
+ * Top-level schema for `src/game/data/missions.json`.
+ *
+ * Wraps the array of `MissionDefinitionSchema` and tolerates the optional
+ * `$schema` field used for IDE-assisted JSON authoring. Run from the CI
+ * drift gate, NOT at module load.
+ *
+ * @stable
+ */
 export const MissionsFileSchema = z.object({
   // The JSON has a `$schema` field for IDE-assisted JSON authoring (jsonschema
   // file in src/game/data/schema/). Allow the field through without

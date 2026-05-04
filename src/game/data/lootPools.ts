@@ -1,3 +1,7 @@
+// PUBLIC API — every export from this file is part of the `content` module's contract.
+//   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
+//   See ./README.md for the rationale.
+//
 // Per-solar-system loot pool. First-clear of any mission rolls a reward
 // from its system's pool — weapons / augments / upgrades the player can
 // already obtain through the normal shop economy, never bespoke loot.
@@ -13,12 +17,25 @@ import type {
   WeaponId
 } from "@/types/game";
 
+/**
+ * Permanent ship-stat upgrade buckets. A loot roll resolving to one of
+ * these picks a corresponding `+1 level` for the player's ship.
+ *
+ * @stable Part of `content` public API.
+ */
 export type UpgradeField =
   | "shield"
   | "armor"
   | "reactor-capacity"
   | "reactor-recharge";
 
+/**
+ * Per-solar-system reward pool. Used by the first-clear reward roll and
+ * by the shop UI's tier gate (so what you find in the system matches what
+ * you can buy in its market).
+ *
+ * @stable Part of `content` public API.
+ */
 export interface LootPool {
   readonly systemId: SolarSystemId;
   readonly weapons: readonly WeaponId[];
@@ -50,12 +67,27 @@ const POOLS: ReadonlyMap<SolarSystemId, LootPool> = new Map([
   ]
 ]);
 
+/**
+ * Resolves a system id to its loot pool.
+ *
+ * @throws Error if no pool is declared for the given system. The integrity
+ *   check guards against this for known systems at boot, so this throw
+ *   should only fire for an unknown id passed by a fresh caller.
+ *
+ * @stable Part of `content` public API.
+ */
 export function getLootPool(id: SolarSystemId): LootPool {
   const pool = POOLS.get(id);
   if (!pool) throw new Error(`Unknown loot pool: ${id}`);
   return pool;
 }
 
+/**
+ * Returns every loot pool. Used by the integrity check, the cheat-guard
+ * cap derivations in `lib/saveValidation.ts`, and the shop tier gate.
+ *
+ * @stable Part of `content` public API.
+ */
 export function getAllLootPools(): readonly LootPool[] {
   return Array.from(POOLS.values());
 }

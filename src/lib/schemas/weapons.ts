@@ -1,12 +1,18 @@
 // Runtime schema for src/game/data/weapons.json. Mirrors `WeaponDefinition`
-// in src/types/game.ts and parses the JSON at module load (see
-// src/game/data/weapons.ts) so a hand-edited entry that drifts from the type
-// can't slip past tsc's structural-typing-of-JSON gap and explode at runtime
-// (e.g. a stringified "120" for fireRateMs would silently divide-by-zero in
-// weaponDps()).
+// in src/types/game.ts. The JSON itself is validated once per `npm test` by
+// src/game/data/__tests__/jsonSchemaValidation.test.ts — not at module load,
+// so Zod stays out of every static page's first-load JS (~98 kB saving).
 //
 // Keep field shapes 1:1 with `WeaponDefinition`. The compile-time guard at
 // the bottom of this file fails to typecheck if the schema drifts.
+//
+// PUBLIC API — every export below is part of the `schemas` module contract.
+//   See ./README.md for the rationale.
+//
+// AI-NOTE: Do NOT call WeaponsFileSchema.parse(weaponsData) at module load —
+//   the data accessor in src/game/data/weapons.ts intentionally uses a
+//   single `as` cast and CI is the drift gate. Re-adding a runtime parse
+//   regresses the ~98 kB bundle saving.
 
 import { z } from "zod";
 
@@ -16,6 +22,19 @@ import { WeaponIdSchema } from "./save";
 const WeaponFamilySchema = z.enum(["potato", "pirate"]);
 const WeaponTierSchema = z.union([z.literal(1), z.literal(2)]);
 
+/**
+ * Per-weapon catalog row — one entry from `weapons.json`.
+ *
+ * Mirrors `WeaponDefinition` in `src/types/game.ts`. The compile-time
+ * drift guard at the bottom of this file fails tsc if the schema's
+ * inferred type stops being assignable to `WeaponDefinition`.
+ *
+ * INVARIANT: `damage > 0`, `fireRateMs > 0`, `bulletSpeed > 0`. A 0 / negative
+ * fireRateMs would yield Infinity DPS in `weaponDps()` and crash the HUD;
+ * a 0-damage bullet has no reason to exist.
+ *
+ * @stable
+ */
 export const WeaponDefinitionSchema = z.object({
   id: WeaponIdSchema,
   name: z.string(),
@@ -48,6 +67,17 @@ export const WeaponDefinitionSchema = z.object({
   podSprite: z.string().optional()
 });
 
+/**
+ * Top-level schema for `src/game/data/weapons.json`.
+ *
+ * Wraps the array of `WeaponDefinitionSchema` and tolerates the optional
+ * `$schema` field used for IDE-assisted JSON authoring (jsonschema file in
+ * `src/game/data/schema/`). Run from the CI drift gate
+ * (`src/game/data/__tests__/jsonSchemaValidation.test.ts`), NOT at module
+ * load.
+ *
+ * @stable
+ */
 export const WeaponsFileSchema = z.object({
   // The JSON has a `$schema` field for IDE-assisted JSON authoring (jsonschema
   // file in src/game/data/schema/). Allow the field through without

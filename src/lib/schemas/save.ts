@@ -7,6 +7,17 @@
 // Keep schema field shapes 1:1 with the TS types — the matching tests under
 // src/lib/schemas/save.test.ts assert structural equality so drift gets
 // caught at CI rather than in production.
+//
+// PUBLIC API — every export below is part of the `schemas` module contract.
+//   The schemas listed in docs/audit/02-target-architecture.md ("Module:
+//   schemas") are @stable. The compile-time drift guards at the bottom are
+//   @internal.
+//   See ./README.md for the rationale.
+//
+// AI-NOTE: Do NOT call .parse() on JSON catalogs at module load. Catalog
+//   schemas (weapons / enemies / missions / waves / solarSystems) run only
+//   from the CI drift gate in src/game/data/__tests__/jsonSchemaValidation.test.ts.
+//   Pulling Zod into the static-page bundle costs ~98 kB per route.
 
 import { z } from "zod";
 
@@ -25,7 +36,16 @@ import type {
 import { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
 import { WEAPON_IDS } from "@/game/data/weapons";
 
-// Re-export for tests + back-compat with existing imports.
+/**
+ * Re-export of the canonical `WEAPON_IDS` runtime list.
+ *
+ * The list itself lives in `src/game/data/weapons.ts` so client-side
+ * persistence helpers can do membership checks without pulling Zod into
+ * their bundle (~98 kB saving). Re-exported here for tests + back-compat
+ * with existing imports of `WEAPON_IDS` from this file.
+ *
+ * @stable
+ */
 export { WEAPON_IDS };
 
 // ---------------------------------------------------------------------------
@@ -36,6 +56,18 @@ export { WEAPON_IDS };
 // Zod into their bundle (~98 kB saving).
 // ---------------------------------------------------------------------------
 
+// INVARIANT: every `*_IDS` constant uses `as const satisfies readonly <Id>[]`
+//   so the literal-union ↔ runtime-list lockstep is a compile error if it
+//   drifts. Do NOT remove the satisfies clause.
+
+/**
+ * Runtime list of every `AugmentId` literal.
+ *
+ * Locked-in-lockstep with the `AugmentId` union in `src/types/game.ts` via
+ * the `satisfies readonly AugmentId[]` clause. Powers `AugmentIdSchema`.
+ *
+ * @stable
+ */
 export const AUGMENT_IDS = [
   "damage-up",
   "fire-rate-up",
@@ -44,6 +76,14 @@ export const AUGMENT_IDS = [
   "homing-up"
 ] as const satisfies readonly AugmentId[];
 
+/**
+ * Runtime list of every `MissionId` literal.
+ *
+ * Locked-in-lockstep with the `MissionId` union in `src/types/game.ts` via
+ * the `satisfies readonly MissionId[]` clause. Powers `MissionIdSchema`.
+ *
+ * @stable
+ */
 export const MISSION_IDS = [
   "tutorial",
   "combat-1",
@@ -56,45 +96,122 @@ export const MISSION_IDS = [
   "tubernovae-outpost"
 ] as const satisfies readonly MissionId[];
 
+/**
+ * Runtime list of every `SolarSystemId` literal.
+ *
+ * Locked-in-lockstep with the `SolarSystemId` union in `src/types/game.ts`
+ * via the `satisfies readonly SolarSystemId[]` clause. Powers
+ * `SolarSystemIdSchema`.
+ *
+ * @stable
+ */
 export const SOLAR_SYSTEM_IDS = [
   "tutorial",
   "tubernovae"
 ] as const satisfies readonly SolarSystemId[];
 
+/**
+ * Zod enum validator for `WeaponId`.
+ *
+ * Used by every catalog schema that references a weapon (waves, save).
+ *
+ * @stable
+ */
 export const WeaponIdSchema = z.enum(WEAPON_IDS);
+
+/**
+ * Zod enum validator for `AugmentId`. Used inside `WeaponInstanceSchema`.
+ *
+ * @stable
+ */
 export const AugmentIdSchema = z.enum(AUGMENT_IDS);
+
+/**
+ * Zod enum validator for `MissionId`.
+ *
+ * Used by `SavePayloadSchema` and `ScorePayloadSchema` to reject hand-crafted
+ * POSTs that try to seed unknown mission ids into the leaderboard or save.
+ *
+ * @stable
+ */
 export const MissionIdSchema = z.enum(MISSION_IDS);
+
+/**
+ * Zod enum validator for `SolarSystemId`.
+ *
+ * Used inside `SavePayloadSchema` and `RemoteSaveSchema`.
+ *
+ * @stable
+ */
 export const SolarSystemIdSchema = z.enum(SOLAR_SYSTEM_IDS);
 
 // ---------------------------------------------------------------------------
 // Ship sub-schemas — strict shape for a fully-migrated ShipConfig.
 // ---------------------------------------------------------------------------
 
-// One owned weapon = one instance with its own level + augments. Two of the
-// same weapon id are two independent instances.
+/**
+ * One owned weapon — id + level + bound augments.
+ *
+ * Two of the same weapon id are two independent instances. `level` is
+ * clamped to `MAX_LEVEL` so a tampered save can't push the upgrade math
+ * past the curve. Mirrors `WeaponInstance` in `src/game/state/ShipConfig.ts`.
+ *
+ * @stable
+ */
 export const WeaponInstanceSchema = z.object({
   id: WeaponIdSchema,
   level: z.number().int().min(1).max(MAX_LEVEL),
   augments: z.array(AugmentIdSchema)
 });
 
-// Variable-length array of slots. Each entry is either an equipped instance
-// or null (slot owned but empty). One slot at minimum (slot 0); the player
-// buys more via buyWeaponSlot(), capped at MAX_WEAPON_SLOTS so a tampered
-// save can't trash the loadout UI.
+/**
+ * Variable-length array of weapon slots — each entry is either an equipped
+ * instance or `null` (slot owned but empty).
+ *
+ * One slot at minimum (slot 0); the player buys more via `buyWeaponSlot()`,
+ * capped at `MAX_WEAPON_SLOTS` so a tampered save can't trash the loadout
+ * UI. Mirrors `WeaponSlots` in `src/game/state/ShipConfig.ts`.
+ *
+ * @stable
+ */
 export const WeaponSlotsSchema = z
   .array(WeaponInstanceSchema.nullable())
   .min(1)
   .max(MAX_WEAPON_SLOTS);
 
-// Unequipped instances. Order is acquisition order so picker UIs stay stable.
+/**
+ * Unequipped owned-weapon instances.
+ *
+ * Order is acquisition order so picker UIs stay stable across loads.
+ * Mirrors `WeaponInventory` in `src/game/state/ShipConfig.ts`.
+ *
+ * @stable
+ */
 export const WeaponInventorySchema = z.array(WeaponInstanceSchema);
 
+/**
+ * Reactor upgrade levels (capacity + recharge).
+ *
+ * Both nonnegative ints. Mirrors `ReactorConfig` in
+ * `src/game/state/ShipConfig.ts`. Effective capacity / recharge values
+ * are derived via `getMaxReactorCapacity()` / `getReactorRechargeRate()`.
+ *
+ * @stable
+ */
 export const ReactorConfigSchema = z.object({
   capacityLevel: z.number().int().nonnegative(),
   rechargeLevel: z.number().int().nonnegative()
 });
 
+/**
+ * Strict shape for a fully-migrated `ShipConfig`.
+ *
+ * Combines slots + inventory + augmentInventory + shield + armor +
+ * reactor. Used inside `LegacyOrShipConfigSchema` as the "well-formed"
+ * branch. Mirrors `ShipConfig` in `src/game/state/ShipConfig.ts`.
+ *
+ * @stable
+ */
 export const ShipConfigSchema = z.object({
   slots: WeaponSlotsSchema,
   inventory: WeaponInventorySchema,
@@ -104,10 +221,15 @@ export const ShipConfigSchema = z.object({
   reactor: ReactorConfigSchema
 });
 
+// INVARIANT: the function bodies below have no runtime effect — they exist
+//   solely so tsc fails if a schema's inferred type stops being assignable
+//   to the canonical TS interface. Removing them lets a renamed / retyped
+//   field drift silently until production catches it.
 // Compile-time guard rails — these unused locals will fail to typecheck if a
 // schema drifts out of structural sync with the canonical TS type. We can't
 // use `satisfies z.ZodType<T>` directly on a z.object() because Zod's input
 // vs output types make that assertion too narrow on optional/nullable fields.
+// @internal
 type _WeaponInstance = z.infer<typeof WeaponInstanceSchema>;
 type _WeaponSlots = z.infer<typeof WeaponSlotsSchema>;
 type _WeaponInventory = z.infer<typeof WeaponInventorySchema>;
@@ -138,23 +260,39 @@ void _shipCheck;
 // schema only needs to accept the loose shape so migration can run.
 // ---------------------------------------------------------------------------
 
-// Permissive instance shape used inside legacy snapshots. id/level/augments
-// are all optional because some persisted rows had partial writes; migrateShip
-// fills the gaps with newWeaponInstance defaults.
+// @internal — permissive instance shape used inside legacy snapshots. id /
+// level / augments are all optional because some persisted rows had partial
+// writes; migrateShip fills the gaps with newWeaponInstance defaults.
 const LegacyWeaponInstanceSchema = z.object({
   id: z.string().optional(),
   level: z.number().optional(),
   augments: z.array(z.string()).optional()
 });
 
-// Every field is optional — the schema's job here is just to pass the data
-// through to migrateShip, which fills in DEFAULT_SHIP defaults for anything
-// missing. We used to require `unlockedWeapons` plus `slots`-or-`primaryWeapon`,
-// but that rejected save rows whose `shipConfig` was a degenerate `{}` (an
-// older POST bug stored that for some accounts), and the rejection cascaded
-// into the entire RemoteSaveSchema parse — losing the player's credits and
-// completed missions even though those fields were fine. Permissive shape
-// here + strict cleanup in migrateShip is the right split.
+/**
+ * Permissive shape that accepts any historic ship snapshot shape Postgres
+ * may still hold.
+ *
+ * The loadout refactor introduced `slots` + `reactor`; the instance refactor
+ * then replaced unlockedWeapons + weaponLevels + weaponAugments with
+ * per-instance state. Old saves can look like any of:
+ * - new instance shape: `{ slots: WeaponInstance[], inventory, ... }`
+ * - id-array slots: `{ slots: (WeaponId | null)[], unlockedWeapons, ... }`
+ * - named slots: `{ slots: { front, rear, sidekickLeft, sidekickRight }, ... }`
+ * - pre-loadout: `{ primaryWeapon, ... }`
+ *
+ * AI-NOTE: Every field is optional on purpose — the schema's job here is just
+ * to pass the data through to `migrateShip()`, which fills in `DEFAULT_SHIP`
+ * defaults. We used to require `unlockedWeapons` plus `slots`-or-`primaryWeapon`,
+ * but that rejected save rows whose `shipConfig` was a degenerate `{}` (an
+ * older POST bug stored that for some accounts), and the rejection cascaded
+ * into the entire `RemoteSaveSchema` parse — losing the player's credits and
+ * completed missions even though those fields were fine. Permissive shape
+ * here + strict cleanup in `migrateShip` is the right split. **Don't tighten
+ * this.**
+ *
+ * @stable
+ */
 export const LegacyShipSchema = z.object({
   primaryWeapon: z.string().optional(),
   slots: z
@@ -188,9 +326,17 @@ export const LegacyShipSchema = z.object({
     .optional()
 });
 
-// Discriminated by structural fit: the new strict schema wins when the
-// payload is well-formed; otherwise the legacy fallback parses it so
-// migrateShip can do the cleanup.
+/**
+ * Union accepting either the strict `ShipConfigSchema` or the permissive
+ * `LegacyShipSchema`.
+ *
+ * Discriminated by structural fit: the new strict schema wins when the
+ * payload is well-formed; otherwise the legacy fallback parses it so
+ * `migrateShip()` can do the cleanup. Used everywhere a ship snapshot
+ * crosses the wire (`SavePayloadSchema.shipConfig`, `RemoteSaveSchema.shipConfig`).
+ *
+ * @stable
+ */
 export const LegacyOrShipConfigSchema = ShipConfigSchema.or(LegacyShipSchema);
 
 // ---------------------------------------------------------------------------
@@ -201,6 +347,21 @@ export const LegacyOrShipConfigSchema = ShipConfigSchema.or(LegacyShipSchema);
 // stores the snapshot whole and the client validates again on load.
 // ---------------------------------------------------------------------------
 
+/**
+ * Body of `POST /api/save` — the wire shape the client sends when persisting
+ * progression.
+ *
+ * Matches what `GameState.toSnapshot()` produces today plus a couple of
+ * forward-looking optional fields the route accepts. The shape stays
+ * permissive on cross-field correlation (e.g. we don't assert
+ * `currentPlanet` is one of `unlockedPlanets`); the server stores the
+ * snapshot whole and the client validates again on load.
+ *
+ * AI-NOTE: schemas at the network edge are MANDATORY (CLAUDE.md §11). Do
+ * NOT replace this with an `as` cast in the route handler.
+ *
+ * @stable
+ */
 export const SavePayloadSchema = z.object({
   credits: z.number().int().nonnegative().optional(),
   currentPlanet: MissionIdSchema.nullable().optional(),
@@ -222,6 +383,11 @@ export const SavePayloadSchema = z.object({
   seenStoryEntries: z.array(z.string()).optional()
 });
 
+/**
+ * Inferred type for `POST /api/save` request bodies.
+ *
+ * @stable
+ */
 export type SavePayload = z.infer<typeof SavePayloadSchema>;
 
 // ---------------------------------------------------------------------------
@@ -231,6 +397,20 @@ export type SavePayload = z.infer<typeof SavePayloadSchema>;
 // legacy/new union and let migrateShip clean it up.
 // ---------------------------------------------------------------------------
 
+/**
+ * Server response shape for `GET /api/save`.
+ *
+ * The Postgres row becomes this JSON before the client deserializes it
+ * back into a snapshot via `hydrate()` in `src/game/state/persistence.ts`.
+ * `shipConfig` comes out of jsonb so it may be either shape; we lean on
+ * the legacy/new union and let `migrateShip()` clean it up.
+ *
+ * INVARIANT: `currentSolarSystemId` is nullable+optional because rows that
+ * pre-date the column return null. Client falls back to the first unlocked
+ * system in that case (see `hydrate()`).
+ *
+ * @stable
+ */
 export const RemoteSaveSchema = z.object({
   slot: z.number().int().positive(),
   credits: z.number().int().nonnegative(),
@@ -246,6 +426,11 @@ export const RemoteSaveSchema = z.object({
   updatedAt: z.string()
 });
 
+/**
+ * Inferred type for the `GET /api/save` response body.
+ *
+ * @stable
+ */
 export type RemoteSave = z.infer<typeof RemoteSaveSchema>;
 
 // ---------------------------------------------------------------------------
@@ -256,10 +441,30 @@ export type RemoteSave = z.infer<typeof RemoteSaveSchema>;
 // schema; only writes are gated.
 // ---------------------------------------------------------------------------
 
+/**
+ * Body of `POST /api/leaderboard` — leaderboard score submission.
+ *
+ * Tightened to the `MissionId` enum (was `z.string`) so a hand-crafted POST
+ * can't seed the leaderboard with arbitrary strings. Legacy ids in the
+ * table itself are still readable on GET because that path doesn't parse
+ * via this schema; only writes are gated.
+ *
+ * INVARIANT: every leaderboard submission goes through the score queue
+ * (`enqueueScore` → `drainScoreQueue` in `src/game/state/scoreQueue.ts`).
+ * Fire-and-forget POSTs lose scores when the network flakes — never bypass
+ * the queue.
+ *
+ * @stable
+ */
 export const ScorePayloadSchema = z.object({
   missionId: MissionIdSchema,
   score: z.number().int(),
   timeSeconds: z.number().int().nonnegative().optional()
 });
 
+/**
+ * Inferred type for `POST /api/leaderboard` request bodies.
+ *
+ * @stable
+ */
 export type ScorePayload = z.infer<typeof ScorePayloadSchema>;
