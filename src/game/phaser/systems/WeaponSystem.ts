@@ -13,6 +13,16 @@ export interface FireModifiers {
   readonly turnRateMul?: number;
 }
 
+// Lateral spawn-point offset (px) between adjacent parallel projectiles when
+// a weapon's base spreadDegrees is 0. Without this, the Splitter Module
+// augment (extra-projectile) on a single-projectile / 0-spread weapon
+// (rapid-fire, corsair-missile, boarding-snare) spawns N bullets at the
+// exact same x and identical velocity — they overlap into one visual the
+// entire flight, so the player can't tell the augment is doing anything.
+// Pure cosmetic offset: the bullets stay parallel and converge on the
+// same line of fire, but the player sees a clearly-visible salvo at launch.
+const PARALLEL_FIRE_GAP_PX = 12;
+
 export class WeaponSystem {
   private readonly pool: BulletPool;
   private lastFireMs = 0;
@@ -59,9 +69,19 @@ export class WeaponSystem {
       explosionRadius > 0 || slowFactor > 0
         ? { explosionRadius, explosionDamage, slowFactor, slowDurationMs }
         : undefined;
-    for (const v of vectors) {
+    // For pure-parallel salvos (base spread is 0 — bullets all share angle 0)
+    // we space spawns laterally so the player can see two/three bullets
+    // instead of one fat bullet of overlapping sprites. Weapons with their
+    // own spread (>0°) already fan out angularly, so no offset is needed.
+    const parallelSalvo = def.spreadDegrees === 0 && projectileCount > 1;
+    for (let i = 0; i < vectors.length; i++) {
+      const v = vectors[i];
+      if (!v) continue;
+      const offsetX = parallelSalvo
+        ? (i - (projectileCount - 1) / 2) * PARALLEL_FIRE_GAP_PX
+        : 0;
       this.pool.spawn(
-        originX,
+        originX + offsetX,
         originY,
         v.vx,
         v.vy,

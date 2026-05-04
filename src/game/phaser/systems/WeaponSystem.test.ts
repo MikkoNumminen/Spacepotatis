@@ -103,6 +103,41 @@ describe("WeaponSystem.tryFire", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("spaces parallel salvos laterally so a Splitter Module shows two bullets, not one", () => {
+    // rapid-fire is spreadDegrees=0, projectileCount=1. Without lateral
+    // offset, +1 projectile spawns two bullets at the SAME x with the SAME
+    // velocity — visually indistinguishable from a single bullet. The
+    // PARALLEL_FIRE_GAP_PX offset is the player-visible signal that the
+    // augment is doing something.
+    const { pool, calls } = makeFakePool();
+    const ws = new WeaponSystem(pool);
+    ws.tryFire("rapid-fire", 100, 200, 1000, true, { projectileBonus: 1 });
+    expect(calls).toHaveLength(2);
+    // Bullets must spawn at distinct x positions so the player can see them.
+    expect(calls[0]?.x).not.toBe(calls[1]?.x);
+    // Symmetric around the firing origin.
+    const meanX = ((calls[0]?.x ?? 0) + (calls[1]?.x ?? 0)) / 2;
+    expect(meanX).toBe(100);
+    // Y stays anchored — only lateral spacing.
+    expect(calls[0]?.y).toBe(200);
+    expect(calls[1]?.y).toBe(200);
+    // Velocities are identical (parallel) — only spawn point differs.
+    expect(calls[0]?.vx).toBe(calls[1]?.vx);
+    expect(calls[0]?.vy).toBe(calls[1]?.vy);
+  });
+
+  it("doesn't add lateral offset to weapons that already fan out via spreadDegrees", () => {
+    // spread-shot is spreadDegrees=22, projectileCount=3 — the bullets
+    // already fan out, no need to also spread them laterally.
+    const { pool, calls } = makeFakePool();
+    const ws = new WeaponSystem(pool);
+    ws.tryFire("spread-shot", 100, 200, 1000, true);
+    expect(calls).toHaveLength(3);
+    expect(calls[0]?.x).toBe(100);
+    expect(calls[1]?.x).toBe(100);
+    expect(calls[2]?.x).toBe(100);
+  });
+
   it("forwards homing config when the weapon is homing (corsair-missile)", () => {
     const { pool, calls } = makeFakePool();
     const ws = new WeaponSystem(pool);
