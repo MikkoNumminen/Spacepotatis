@@ -1,4 +1,5 @@
 import LoadoutMenu from "@/components/LoadoutMenu";
+import MuteToggle from "@/components/MuteToggle";
 import ShopShell from "@/components/ShopShell";
 import ShopUI from "@/components/ShopUI";
 import StickyHeader from "@/components/ui/StickyHeader";
@@ -15,7 +16,16 @@ export default function ShopPage() {
   return (
     <ShopShell>
       <main className="relative mx-auto flex min-h-dvh max-w-5xl flex-col gap-6 px-4 pb-6 sm:gap-8 sm:px-6 sm:pb-10">
-        <StickyHeader backHref={ROUTES.page.play} title="MARKET" right={<ShopCreditsTicker />} />
+        <StickyHeader
+          backHref={ROUTES.page.play}
+          title="MARKET"
+          right={
+            <div className="flex items-center gap-3">
+              <MuteToggle />
+              <ShopCreditsTicker />
+            </div>
+          }
+        />
         <LoadoutMenu mode="market" />
         <ShopUI />
       </main>
