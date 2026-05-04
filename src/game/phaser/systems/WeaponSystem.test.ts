@@ -126,6 +126,20 @@ describe("WeaponSystem.tryFire", () => {
     expect(calls[0]?.vy).toBe(calls[1]?.vy);
   });
 
+  it("centers a 3-projectile parallel salvo on the firing origin (offsets -12, 0, +12)", () => {
+    // Two extra-projectile augments on rapid-fire — the MAX_AUGMENTS_PER_WEAPON
+    // ceiling — pushes count to 3. The most demanding offset case: the center
+    // bullet MUST land at exactly the firing origin (offset 0), and the outer
+    // two MUST be symmetric. A buggy formula that clamps to non-zero values
+    // or shifts to one side trips this.
+    const { pool, calls } = makeFakePool();
+    const ws = new WeaponSystem(pool);
+    ws.tryFire("rapid-fire", 100, 200, 1000, true, { projectileBonus: 2 });
+    expect(calls).toHaveLength(3);
+    const offsets = calls.map((c) => (c?.x ?? 0) - 100).sort((a, b) => a - b);
+    expect(offsets).toEqual([-12, 0, 12]);
+  });
+
   it("doesn't add lateral offset to weapons that already fan out via spreadDegrees", () => {
     // spread-shot is spreadDegrees=22, projectileCount=3 — the bullets
     // already fan out, no need to also spread them laterally.

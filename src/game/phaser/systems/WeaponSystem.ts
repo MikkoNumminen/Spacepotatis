@@ -19,8 +19,11 @@ export interface FireModifiers {
 // (rapid-fire, corsair-missile, boarding-snare) spawns N bullets at the
 // exact same x and identical velocity — they overlap into one visual the
 // entire flight, so the player can't tell the augment is doing anything.
-// Pure cosmetic offset: the bullets stay parallel and converge on the
-// same line of fire, but the player sees a clearly-visible salvo at launch.
+// Primarily cosmetic: bullets fly parallel forever (same velocity, fixed-
+// width column), so a co-located salvo and an offset salvo target the same
+// general space. Minor gameplay deltas — laterally-staggered enemies can
+// be hit by separate bullets, AoE-net unions cover slightly more area —
+// but the value the player sees first is "the augment did something".
 const PARALLEL_FIRE_GAP_PX = 12;
 
 export class WeaponSystem {
