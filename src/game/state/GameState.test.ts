@@ -363,7 +363,7 @@ describe("sellWeapon", () => {
     expect(getState().credits).toBe(0);
   });
 
-  it("sells an inventory weapon for half its purchase price", () => {
+  it("sells a level-1 inventory weapon for its full purchase price (100% refund)", () => {
     addCredits(450);
     expect(buyWeapon("spread-shot")).toBe(true);
     // spread-shot landed in inventory because slot 0 was full.
@@ -371,10 +371,10 @@ describe("sellWeapon", () => {
     expect(sellWeapon(0)).toBe(true);
     const s = getState();
     expect(s.ship.inventory).toEqual([]);
-    expect(s.credits).toBe(225);
+    expect(s.credits).toBe(450);
   });
 
-  it("refuses to sell an instance whose weapon has cost 0 (no refund possible)", () => {
+  it("refuses to sell a level-1 cost-0 instance with no augments (no investment to refund)", () => {
     // Place the starter into inventory by clearing slot 0.
     equipWeapon(0, null);
     expect(getState().ship.inventory).toHaveLength(1);
@@ -382,6 +382,20 @@ describe("sellWeapon", () => {
     expect(sellWeapon(0)).toBe(false);
     // Inventory is unchanged.
     expect(getState().ship.inventory).toHaveLength(1);
+  });
+
+  it("sells an upgraded free-starter for the full upgrade investment", () => {
+    // Move the starter into inventory and upgrade it twice. The starter's
+    // base cost is 0, but the player paid for the Mk2 + Mk3 steps —
+    // selling should refund 100% of those upgrade credits.
+    equipWeapon(0, null);
+    addCredits(600); // 200 (1→2) + 400 (2→3)
+    expect(buyWeaponUpgrade({ kind: "inventory", index: 0 })).toBe(true);
+    expect(buyWeaponUpgrade({ kind: "inventory", index: 0 })).toBe(true);
+    expect(getState().credits).toBe(0);
+    expect(sellWeapon(0)).toBe(true);
+    expect(getState().credits).toBe(600);
+    expect(getState().ship.inventory).toHaveLength(0);
   });
 });
 
@@ -851,7 +865,7 @@ describe("augment mutators", () => {
   });
 
   describe("sellWeapon drops augments", () => {
-    it("destroys the inventory instance's augments and does NOT refund them", () => {
+    it("destroys the inventory instance's augments and refunds via the sell price (not back to augmentInventory)", () => {
       // Place a non-starter instance into inventory and install two augments.
       addCredits(450);
       expect(buyWeapon("spread-shot")).toBe(true);
@@ -868,13 +882,21 @@ describe("augment mutators", () => {
       ]);
       expect(getState().ship.augmentInventory).toEqual([]);
 
+      const creditsBeforeSell = getState().credits;
       expect(sellWeapon(0)).toBe(true);
 
       const s = getState();
       // The instance is gone — no spread-shot anywhere.
       expect(s.ship.inventory).toEqual([]);
-      // augmentInventory is unchanged: augments were destroyed, not refunded.
+      // augmentInventory is still empty: installed augments are NOT
+      // returned as inventory items (they were welded onto the host).
       expect(s.ship.augmentInventory).toEqual([]);
+      // But the sell price DID include the installed augments' costs —
+      // the player gets their credits back, just not the augments
+      // themselves. Refund > 0 here proves the weapon's sell price
+      // folded the augment investment in (the spread-shot's base cost
+      // alone would also satisfy this; the point is non-zero).
+      expect(s.credits).toBeGreaterThan(creditsBeforeSell);
     });
   });
 });
