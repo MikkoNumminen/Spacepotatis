@@ -187,7 +187,7 @@ export default function ShopUI() {
 
         <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
           <header className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-display tracking-widest text-hud-green">NEW WEAPONS</h2>
+            <h2 className="font-display tracking-widest text-hud-green">BUY WEAPONS</h2>
             <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
           </header>
 
@@ -200,21 +200,24 @@ export default function ShopUI() {
               return (
                 <li
                   key={weapon.id}
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded border border-space-border px-3 py-2"
+                  className="rounded border border-space-border px-3 py-2"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <WeaponDot tint={weapon.tint} />
-                    <span className="font-display text-sm tracking-wider truncate">
-                      {weapon.name}
-                    </span>
-                    <TierBadge tier={weapon.tier} />
-                    {owned > 0 && (
-                      <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
-                        ×{owned}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <WeaponDot tint={weapon.tint} />
+                      <span className="font-display text-sm tracking-wider truncate">
+                        {weapon.name}
                       </span>
-                    )}
+                      <TierBadge tier={weapon.tier} />
+                      {owned > 0 && (
+                        <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
+                          ×{owned}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                     <span className="font-mono text-[11px] text-hud-green/70">
                       <span className="text-hud-amber">DPS {dps}</span>
                       <span className="mx-1.5 text-hud-green/30">·</span>
@@ -226,7 +229,7 @@ export default function ShopUI() {
                         </>
                       )}
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => setWeaponDetails(weapon)}
