@@ -1,21 +1,33 @@
 // Runtime schema for src/game/data/enemies.json. Mirrors `EnemyDefinition`
-// in src/types/game.ts and parses the JSON at module load (see
-// src/game/data/enemies.ts) so a hand-edited entry that drifts from the type
-// throws at load time with a Zod path ("enemies[3].speed: expected number,
-// received string") rather than a silent NaN feeding into the spawn math.
+// in src/types/game.ts. The JSON itself is validated once per `npm test` by
+// src/game/data/__tests__/jsonSchemaValidation.test.ts — not at module load,
+// so Zod stays out of every static page's first-load JS (~98 kB saving).
 //
 // Keep field shapes 1:1 with `EnemyDefinition`. The compile-time guard at
 // the bottom of this file fails to typecheck if the schema drifts.
+//
+// PUBLIC API — every export below is part of the `schemas` module contract.
+//   See ./README.md for the rationale.
 
 import { z } from "zod";
 
 import type { EnemyBehavior, EnemyDefinition, EnemyId } from "@/types/game";
 
-// Source of truth for the EnemyId enum at runtime. Mirrors the literal union
-// in src/types/game.ts; the `satisfies readonly EnemyId[]` clause fails to
-// typecheck if the lists drift apart. Lives here (not in save.ts) because
-// EnemyId isn't part of the save round-trip — only enemies + waves reference
-// it.
+// INVARIANT: ENEMY_IDS uses `as const satisfies readonly EnemyId[]` so the
+//   literal union in src/types/game.ts and this runtime list are locked
+//   together at compile time. Drift fails tsc.
+
+/**
+ * Runtime list of every `EnemyId` literal.
+ *
+ * Source of truth for the `EnemyId` enum at runtime. Mirrors the literal
+ * union in `src/types/game.ts`; the `satisfies readonly EnemyId[]` clause
+ * fails to typecheck if the lists drift apart. Lives here (not in save.ts)
+ * because `EnemyId` isn't part of the save round-trip — only enemies +
+ * waves reference it.
+ *
+ * @stable
+ */
 export const ENEMY_IDS = [
   "aphid",
   "aphid-giant",
@@ -42,10 +54,33 @@ export const ENEMY_IDS = [
   "pirate-dreadnought"
 ] as const satisfies readonly EnemyId[];
 
+/**
+ * Zod enum validator for `EnemyId`.
+ *
+ * Used by `EnemyDefinitionSchema` and re-imported by `WavesFileSchema` to
+ * gate the spawn-side enemy id list.
+ *
+ * @stable
+ */
 export const EnemyIdSchema = z.enum(ENEMY_IDS);
 
+// @internal — not exported. Mirrored at compile time by `_EnemyBehavior` /
+// `_enemyBehaviorCheck` at the bottom of this file.
 const EnemyBehaviorSchema = z.enum(["straight", "zigzag", "homing", "boss"]);
 
+/**
+ * Per-enemy catalog row — one entry from `enemies.json`.
+ *
+ * Mirrors `EnemyDefinition` in `src/types/game.ts`. The compile-time
+ * drift guard at the bottom fails tsc if the schema's inferred type
+ * stops being assignable to `EnemyDefinition`.
+ *
+ * INVARIANT: `hp > 0`, `speed > 0`. `fireRateMs` is either positive or
+ * `null` ("doesn't fire") — we reject 0 / negative because the shooter
+ * loop divides into it as a frequency and would emit infinite bullets.
+ *
+ * @stable
+ */
 export const EnemyDefinitionSchema = z.object({
   id: EnemyIdSchema,
   name: z.string(),
@@ -63,6 +98,15 @@ export const EnemyDefinitionSchema = z.object({
   collisionDamage: z.number().nonnegative()
 });
 
+/**
+ * Top-level schema for `src/game/data/enemies.json`.
+ *
+ * Wraps the array of `EnemyDefinitionSchema` and tolerates the optional
+ * `$schema` field used for IDE-assisted JSON authoring. Run from the CI
+ * drift gate, NOT at module load.
+ *
+ * @stable
+ */
 export const EnemiesFileSchema = z.object({
   // The JSON has a `$schema` field for IDE-assisted JSON authoring (jsonschema
   // file in src/game/data/schema/). Allow the field through without

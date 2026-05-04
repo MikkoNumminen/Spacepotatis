@@ -1,18 +1,34 @@
 // Runtime schema for src/game/data/solarSystems.json. Mirrors
-// `SolarSystemDefinition` in src/types/game.ts and parses the JSON at module
-// load (see src/game/data/solarSystems.ts) so a hand-edited entry that drifts
-// from the type throws at load with a Zod path rather than passing a missing
-// galaxyMusicTrack into the audio engine (which then silently releases the
-// music slot when it sees an empty string).
+// `SolarSystemDefinition` in src/types/game.ts. The JSON itself is validated
+// once per `npm test` by src/game/data/__tests__/jsonSchemaValidation.test.ts
+// — not at module load.
 //
 // Keep field shapes 1:1 with `SolarSystemDefinition`. The compile-time guard
 // at the bottom of this file fails to typecheck if the schema drifts.
+//
+// PUBLIC API — every export below is part of the `schemas` module contract.
+//   See ./README.md for the rationale.
 
 import { z } from "zod";
 
 import type { SolarSystemDefinition } from "@/types/game";
 import { SolarSystemIdSchema } from "./save";
 
+/**
+ * Per-solar-system catalog row — one entry from `solarSystems.json`.
+ *
+ * Mirrors `SolarSystemDefinition` in `src/types/game.ts`. The compile-time
+ * drift guard at the bottom fails tsc if the schema's inferred type stops
+ * being assignable to `SolarSystemDefinition`.
+ *
+ * INVARIANT: `galaxyMusicTrack: z.string().min(1)` — empty string is not
+ * allowed because the audio engine treats `""` as "release the slot",
+ * which would silently kill the bed for the whole system. Same goes for
+ * `name`. `sunSize > 0` because the central star renderer uses it as a
+ * radius multiplier.
+ *
+ * @stable
+ */
 export const SolarSystemDefinitionSchema = z.object({
   id: SolarSystemIdSchema,
   name: z.string().min(1),
@@ -28,6 +44,15 @@ export const SolarSystemDefinitionSchema = z.object({
   galaxyMusicTrack: z.string().min(1)
 });
 
+/**
+ * Top-level schema for `src/game/data/solarSystems.json`.
+ *
+ * Wraps the array of `SolarSystemDefinitionSchema` and tolerates the optional
+ * `$schema` field used for IDE-assisted JSON authoring. Run from the CI
+ * drift gate, NOT at module load.
+ *
+ * @stable
+ */
 export const SolarSystemsFileSchema = z.object({
   // The JSON has a `$schema` field for IDE-assisted JSON authoring (jsonschema
   // file in src/game/data/schema/). Allow the field through without

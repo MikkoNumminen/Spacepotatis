@@ -190,3 +190,55 @@ lines (Context / Decision / Consequences).
 - Existing CLAUDE.md content was preserved verbatim. The two
   forward-reference edits in §4 and §11 are pure additions, not
   rewrites.
+
+## Module: types
+
+Worktree branch: `worktree-agent-a3de117ab045dc1c5`.
+
+### READMEs created
+- [src/types/README.md](../../src/types/README.md) — purpose, public API table, internal, dependencies, invariants (`*_IDS satisfies` lock, no Phaser/Three imports, downstream `fireRateMs > 0`), common pitfalls, test instructions.
+
+### TSDoc blocks added
+- [src/types/game.ts](../../src/types/game.ts) — 18 `@stable` TSDoc blocks covering every public-API export:
+  - Type aliases: `WeaponId`, `AugmentId`, `WeaponFamily`, `WeaponTier`, `EnemyId`, `EnemyBehavior`, `ObstacleId`, `ObstacleBehavior`, `MissionId`, `SolarSystemId`, `PlanetKind` (11)
+  - Interfaces: `WeaponDefinition`, `EnemyDefinition`, `ObstacleDefinition`, `WaveSpawn`, `ObstacleSpawn`, `WaveDefinition`, `MissionWaves`, `SolarSystemDefinition`, `PlanetRing`, `MissionDefinition` (10 — `WaveSpawn` and `ObstacleSpawn` documented as adjacent neighbors)
+  - Total: 21 TSDoc blocks (some types share grouping comments, but each export got its own block).
+
+### Code-level markers added
+- [src/types/game.ts](../../src/types/game.ts):
+  - 1 `// PUBLIC API` banner (file header)
+  - 1 `// AI-NOTE:` (leaf-of-graph reminder forbidding back-edge imports)
+  - INVARIANT lines folded into individual TSDoc blocks (`WeaponDefinition`, `EnemyDefinition`, `MissionDefinition`).
+
+## Module: schemas
+
+Worktree branch: `worktree-agent-a3de117ab045dc1c5`.
+
+### READMEs created
+- [src/lib/schemas/README.md](../../src/lib/schemas/README.md) — purpose (boundary vs catalog split), public API tables (boundary schemas, catalog schemas, sub-schemas), internal (compile-time drift guards), dependencies (`types` only), invariants (CLAUDE.md §11 schema-vs-as-cast pattern, `*_IDS satisfies` lock, `fireRateMs.positive()`, `musicTrack.min(1)`, `LegacyOrShipConfigSchema` permissiveness), common pitfalls, test instructions.
+
+### TSDoc blocks added
+Files touched (7) with TSDoc block counts:
+
+| File | TSDoc blocks added |
+|---|---|
+| [src/lib/schemas/save.ts](../../src/lib/schemas/save.ts) | 18 (3 ID list constants, 4 ID schemas, 5 ship sub-schemas, `LegacyShipSchema`, `LegacyOrShipConfigSchema`, `SavePayloadSchema` + `SavePayload`, `RemoteSaveSchema` + `RemoteSave`, `ScorePayloadSchema` + `ScorePayload`, `WEAPON_IDS` re-export) |
+| [src/lib/schemas/weapons.ts](../../src/lib/schemas/weapons.ts) | 2 (`WeaponDefinitionSchema`, `WeaponsFileSchema`) |
+| [src/lib/schemas/enemies.ts](../../src/lib/schemas/enemies.ts) | 4 (`ENEMY_IDS`, `EnemyIdSchema`, `EnemyDefinitionSchema`, `EnemiesFileSchema`) |
+| [src/lib/schemas/obstacles.ts](../../src/lib/schemas/obstacles.ts) | 4 (`OBSTACLE_IDS`, `ObstacleIdSchema`, `ObstacleDefinitionSchema`, `ObstaclesFileSchema`) |
+| [src/lib/schemas/missions.ts](../../src/lib/schemas/missions.ts) | 2 (`MissionDefinitionSchema`, `MissionsFileSchema`) |
+| [src/lib/schemas/solarSystems.ts](../../src/lib/schemas/solarSystems.ts) | 2 (`SolarSystemDefinitionSchema`, `SolarSystemsFileSchema`) |
+| [src/lib/schemas/waves.ts](../../src/lib/schemas/waves.ts) | 5 (`WaveSpawnSchema`, `ObstacleSpawnSchema`, `WaveDefinitionSchema`, `MissionWavesSchema`, `WavesFileSchema`) |
+| [src/lib/schemas/handle.ts](../../src/lib/schemas/handle.ts) | 2 (`HandlePayloadSchema`, `HandlePayload`) |
+
+Total schemas TSDoc blocks: **39**.
+
+### Code-level markers added
+- 8 file-header `// PUBLIC API` banners (one per schema file).
+- 2 `// AI-NOTE:` markers in `save.ts` (no-runtime-parse rule, `LegacyShipSchema` "don't tighten this" inside its TSDoc).
+- 1 `// AI-NOTE:` in `weapons.ts` (no-runtime-parse rule with concrete bundle-size cost).
+- 5 `// INVARIANT:` markers (in `save.ts` for `*_IDS satisfies` lock, in `enemies.ts` and `obstacles.ts` for the same lock pattern, plus inline INVARIANT lines folded into TSDoc blocks for `WeaponDefinitionSchema`, `EnemyDefinitionSchema`, `MissionDefinitionSchema`, `SolarSystemDefinitionSchema`, `WaveSpawnSchema`, `WaveDefinitionSchema`, `ObstacleDefinitionSchema`, `ScorePayloadSchema`, `RemoteSaveSchema`).
+- 6 `@internal` markers on shared / drift-guard helpers (compile-time guard locals in `save.ts`, `LegacyWeaponInstanceSchema` in `save.ts`, `EnemyBehaviorSchema` and `ObstacleBehaviorSchema`, `FormationSchema` and `ObstacleFormationSchema` in `waves.ts`, drift guard locals in `handle.ts`).
+
+### Open questions
+None. Every public-API export listed in `02-target-architecture.md` for both modules has a TSDoc block. The two modules are pure / leaf-tier and the existing top-of-file comments already documented the load-bearing "why this funny thing exists" — those were promoted to `// AI-NOTE:` / `// INVARIANT:` markers rather than rewritten.

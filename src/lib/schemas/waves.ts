@@ -1,13 +1,15 @@
 // Runtime schema for src/game/data/waves.json. Mirrors `WaveDefinition` /
-// `WaveSpawn` / `MissionWaves` in src/types/game.ts and parses the JSON at
-// module load (see src/game/data/waves.ts) so an unknown enemy id or an
-// out-of-range xPercent throws at load with a Zod path rather than crashing
-// the spawn loop mid-mission.
+// `WaveSpawn` / `MissionWaves` in src/types/game.ts. The JSON itself is
+// validated once per `npm test` by
+// src/game/data/__tests__/jsonSchemaValidation.test.ts — not at module load.
 //
 // Cross-file referential integrity (every spawn enemy actually exists in
 // enemies.json, every missionId actually exists in missions.json) lives in
 // src/game/data/data.test.ts. The schema only verifies that each enemy id is
 // a member of the EnemyId enum and each missionId is a member of MissionId.
+//
+// PUBLIC API — every export below is part of the `schemas` module contract.
+//   See ./README.md for the rationale.
 
 import { z } from "zod";
 
@@ -21,11 +23,24 @@ import { EnemyIdSchema } from "./enemies";
 import { ObstacleIdSchema } from "./obstacles";
 import { MissionIdSchema } from "./save";
 
+// @internal
 const FormationSchema = z.enum(["line", "vee", "scatter", "column"]);
-// Obstacles drop "vee" — rocks in a v-formation read as fleet maneuver, not
-// drifting space junk.
+// @internal — obstacles drop "vee" because rocks in a v-formation read as
+// "fleet maneuver", not drifting space junk.
 const ObstacleFormationSchema = z.enum(["line", "scatter", "column"]);
 
+/**
+ * Per-cohort enemy spawn spec inside a wave.
+ *
+ * Mirrors `WaveSpawn` in `src/types/game.ts`. `xPercent` is normalized
+ * 0..1 across the viewport. Cross-file referential integrity (the enemy
+ * id existing in `enemies.json`) is asserted by `data.test.ts`, not here.
+ *
+ * INVARIANT: `count` is a positive int; `delayMs` / `intervalMs` are
+ * nonnegative.
+ *
+ * @stable
+ */
 export const WaveSpawnSchema = z.object({
   enemy: EnemyIdSchema,
   count: z.number().int().positive(),
@@ -35,6 +50,14 @@ export const WaveSpawnSchema = z.object({
   xPercent: z.number().min(0).max(1)
 });
 
+/**
+ * Per-cohort obstacle spawn spec inside a wave.
+ *
+ * Mirrors `ObstacleSpawn` in `src/types/game.ts`. Same shape as
+ * `WaveSpawnSchema` minus the `vee` formation.
+ *
+ * @stable
+ */
 export const ObstacleSpawnSchema = z.object({
   obstacle: ObstacleIdSchema,
   count: z.number().int().positive(),
@@ -44,6 +67,15 @@ export const ObstacleSpawnSchema = z.object({
   xPercent: z.number().min(0).max(1)
 });
 
+/**
+ * One wave inside a mission.
+ *
+ * Mirrors `WaveDefinition` in `src/types/game.ts`. `durationMs` is
+ * positive — a 0-duration wave would auto-advance instantly and softlock
+ * the spawn loop on the next wave.
+ *
+ * @stable
+ */
 export const WaveDefinitionSchema = z.object({
   id: z.string().min(1),
   durationMs: z.number().positive(),
@@ -51,11 +83,28 @@ export const WaveDefinitionSchema = z.object({
   obstacleSpawns: z.array(ObstacleSpawnSchema).optional()
 });
 
+/**
+ * All waves bound to a single mission.
+ *
+ * Mirrors `MissionWaves` in `src/types/game.ts`. One entry per `MissionId`
+ * in `waves.json`.
+ *
+ * @stable
+ */
 export const MissionWavesSchema = z.object({
   missionId: MissionIdSchema,
   waves: z.array(WaveDefinitionSchema)
 });
 
+/**
+ * Top-level schema for `src/game/data/waves.json`.
+ *
+ * Wraps the array of `MissionWavesSchema` and tolerates the optional
+ * `$schema` field used for IDE-assisted JSON authoring. Run from the CI
+ * drift gate, NOT at module load.
+ *
+ * @stable
+ */
 export const WavesFileSchema = z.object({
   // The JSON has a `$schema` field for IDE-assisted JSON authoring (jsonschema
   // file in src/game/data/schema/). Allow the field through without
