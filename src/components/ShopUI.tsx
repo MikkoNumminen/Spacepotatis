@@ -216,7 +216,10 @@ export default function ShopUI() {
                       </span>
                       <TierBadge tier={weapon.tier} />
                       {owned > 0 && (
-                        <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
+                        <span
+                          className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80"
+                          title={`You already own ${owned} cop${owned === 1 ? "y" : "ies"} of this weapon (sum across loadout slots and inventory).`}
+                        >
                           ×{owned}
                         </span>
                       )}
@@ -225,13 +228,22 @@ export default function ShopUI() {
 
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                     <span className="font-mono text-[11px] text-hud-green/70">
-                      <span className="text-hud-amber">DPS {dps}</span>
+                      <span
+                        className="text-hud-amber"
+                        title="Damage per second — projectiles × damage × fire rate. Doesn't include any augments yet (you haven't bought it)."
+                      >
+                        DPS {dps}
+                      </span>
                       <span className="mx-1.5 text-hud-green/30">·</span>
-                      <span>⚡ {weapon.energyCost}</span>
+                      <span title="Energy cost per shot. Drains the reactor; recharges over time.">
+                        ⚡ {weapon.energyCost}
+                      </span>
                       {weapon.projectileCount > 1 && (
                         <>
                           <span className="mx-1.5 text-hud-green/30">·</span>
-                          <span>{weapon.damage}×{weapon.projectileCount}</span>
+                          <span title={`${weapon.damage} damage per projectile × ${weapon.projectileCount} projectiles per shot.`}>
+                            {weapon.damage}×{weapon.projectileCount}
+                          </span>
                         </>
                       )}
                     </span>
@@ -288,7 +300,10 @@ export default function ShopUI() {
                         {aug.name}
                       </span>
                       {total > 0 && (
-                        <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
+                        <span
+                          className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80"
+                          title={`You own ${total} cop${total === 1 ? "y" : "ies"} of this augment in total. ${free} free in inventory ready to install. ${total - free} already installed on a weapon (one-way install — can't be removed).`}
+                        >
                           ×{total}
                           {free !== total ? ` (free ${free})` : ""}
                         </span>
@@ -342,9 +357,13 @@ function TierBadge({ tier }: { tier: 1 | 2 }) {
     tier === 1
       ? "border-hud-green/40 text-hud-green/70"
       : "border-hud-amber/50 text-hud-amber/80";
+  const title = tier === 1
+    ? "Tier 1 — starter / potato-family weapons. Always sold in tutorial-system shops."
+    : "Tier 2 — pirate-haul weapons. Only available in shops past the tutorial system.";
   return (
     <span
       aria-label={`Tier ${tier}`}
+      title={title}
       className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${cls}`}
     >
       T{tier}

@@ -81,7 +81,10 @@ export function WeaponCard({
               </span>
             )}
             {level > 1 && (
-              <span className="rounded border border-hud-green/40 px-1 py-0.5 font-mono text-[9px] text-hud-green/80">
+              <span
+                className="rounded border border-hud-green/40 px-1 py-0.5 font-mono text-[9px] text-hud-green/80"
+                title={`Mark ${level} — weapon upgrade level. Each Mk adds damage; max Mk ${MAX_LEVEL}.`}
+              >
                 Mk {level}
               </span>
             )}
@@ -91,9 +94,16 @@ export function WeaponCard({
 
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className="font-mono text-[11px] text-hud-green/70">
-            <span className="text-hud-amber">DPS {dps}</span>
+            <span
+              className="text-hud-amber"
+              title="Damage per second — folds in projectile count, fire rate, mark level, and installed augments."
+            >
+              DPS {dps}
+            </span>
             <span className="mx-1.5 text-hud-green/30">·</span>
-            <span>⚡ {energy}</span>
+            <span title="Energy cost per shot. Drains the reactor; recharges over time.">
+              ⚡ {energy}
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <button
@@ -150,9 +160,16 @@ export function WeaponCard({
 }
 
 function AugmentSummary({ installed }: { installed: readonly AugmentId[] }) {
+  const slotsLeft = MAX_AUGMENTS_PER_WEAPON - installed.length;
+  const slotsTitle =
+    `Augments installed (max ${MAX_AUGMENTS_PER_WEAPON} per weapon). ` +
+    `${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} free. ` +
+    `Augments are PERMANENT once installed — they can't be removed or moved to another weapon.`;
+  const namesTitle = installed.length === 0 ? undefined :
+    `Installed augments — permanent, sold with the weapon.`;
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-[10px] text-hud-green/50">
+      <span className="font-mono text-[10px] text-hud-green/50" title={slotsTitle}>
         {installed.length}/{MAX_AUGMENTS_PER_WEAPON}
       </span>
       <div className="flex items-center gap-1">
@@ -162,7 +179,10 @@ function AugmentSummary({ installed }: { installed: readonly AugmentId[] }) {
         })}
       </div>
       {installed.length > 0 && (
-        <span className="font-mono text-[10px] text-hud-amber/70 truncate">
+        <span
+          className="font-mono text-[10px] text-hud-amber/70 truncate"
+          title={namesTitle}
+        >
           {installed.map((id) => getAugment(id).name).join(" · ")}
         </span>
       )}
@@ -175,9 +195,13 @@ function TierBadge({ tier }: { tier: 1 | 2 }) {
     tier === 1
       ? "border-hud-green/40 text-hud-green/70"
       : "border-hud-amber/50 text-hud-amber/80";
+  const title = tier === 1
+    ? "Tier 1 — starter / potato-family weapons. Always sold in tutorial-system shops."
+    : "Tier 2 — pirate-haul weapons. Only available in shops past the tutorial system.";
   return (
     <span
       aria-label={`Tier ${tier}`}
+      title={title}
       className={`rounded border px-1 py-0.5 font-mono text-[9px] uppercase tracking-widest ${cls}`}
     >
       T{tier}
