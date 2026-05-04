@@ -121,3 +121,72 @@ By file:
 
 - **`storyAudio` category mismatch.** Registered as `music` even though it plays a voice line on top of a bed. The constructor has a TODO about per-category sliders; documented the current "bed + voice fade together" trade-off in the README's Public API + Internal sections without changing logic.
 - **Module path rename.** `02-target-architecture.md` Q4 leaves the `src/game/audio/` → `src/audio/` rename open. The README references the current path; if the rename ships, only the README link in this file (and the cross-reference in the README itself) needs updating.
+## Root-level documentation
+
+Owner: root-level `doc-writer` agent (this worktree).
+
+### CLAUDE.md additions
+
+- §4 (file ownership) — added a forward-reference paragraph to §17
+  explaining that the table is the day-to-day file lookup while §17 is
+  the rule lookup. Existing table preserved verbatim.
+- §11 (Where things live) — added a forward-reference sentence to §17
+  for the module-level boundary view. Existing concern table preserved
+  verbatim.
+- §17 (Module boundaries — post-audit map) — NEW section. ~50 lines.
+  Includes the 10-module summary table, the boundary rules (acyclic
+  graph, sinks, `infra → content` edge, save round-trip perimeter),
+  and cross-links to ADRs in `docs/decisions/` plus the ARCHITECTURE.md
+  module-graph section.
+
+### ARCHITECTURE.md additions
+
+- §11 (Module dependency graph — post-audit) — NEW top-level section
+  appended after the existing "Things worth noting for future work"
+  section. ~150 lines. Includes:
+  - §11.1 the ASCII dependency graph (verbatim from
+    `docs/audit/02-target-architecture.md`)
+  - §11.2 the module summary table
+  - §11.3 a step-by-step data-flow walkthrough of a save POST through
+    all 10 modules and all 8 layers of the save round-trip
+  - §11.4 the migration order for Phase 3 (gated, not executed)
+  - Cross-links to all 7 ADRs and to the per-module READMEs
+
+### ADRs created (`docs/decisions/`)
+
+All 7 ADRs are dated 2026-05-04 and status `accepted`. Each is 50–90
+lines (Context / Decision / Consequences).
+
+- [docs/decisions/0001-static-by-default-on-vercel-hobby.md](decisions/0001-static-by-default-on-vercel-hobby.md)
+  — why every page exports `force-static`, why API routes are the only
+  Functions, why no middleware on game routes.
+- [docs/decisions/0002-no-prisma-kysely-only.md](decisions/0002-no-prisma-kysely-only.md)
+  — why Kysely + raw SQL migrations instead of an ORM.
+- [docs/decisions/0003-anti-cheat-observation-not-enforcement.md](decisions/0003-anti-cheat-observation-not-enforcement.md)
+  — why cheat-guard rejections are HTTP 422 transient (queued for
+  retry) rather than account-blocking; why `save_audit` is forensics,
+  not enforcement.
+- [docs/decisions/0004-save-round-trip-eight-layers.md](decisions/0004-save-round-trip-eight-layers.md)
+  — why the save pipeline has 8 distinct layers and why the
+  `/save-roundtrip-audit` skill exists.
+- [docs/decisions/0005-content-as-json-not-code.md](decisions/0005-content-as-json-not-code.md)
+  — why every game balance value lives in `src/game/data/*.json`, why
+  accessors do an `as` cast at module load with CI as the drift gate.
+- [docs/decisions/0006-typed-phaser-event-bus-and-registry.md](decisions/0006-typed-phaser-event-bus-and-registry.md)
+  — why string-keyed Phaser events and registry access are forbidden.
+- [docs/decisions/0007-modular-architecture-audit-2026-05-04.md](decisions/0007-modular-architecture-audit-2026-05-04.md)
+  — why the 2026-05-04 audit was undertaken, what the 10-module shape
+  achieves, why Phase 3 is gated behind explicit user approval.
+
+### Notes / ambiguities
+
+- The audit input artifacts (`docs/audit/01-inventory.md`,
+  `docs/audit/02-target-architecture.md`, `docs/audit/04-found-bugs.md`)
+  were not present in this agent's worktree at start; cherry-picked
+  from `master` so the deliverable lives in a self-consistent branch.
+- `docs/audit/03-documentation-summary.md` (this file) was created by
+  this agent. Other Phase 4 doc-writers should append their sections
+  below; the orchestrator merges across worktrees.
+- Existing CLAUDE.md content was preserved verbatim. The two
+  forward-reference edits in §4 and §11 are pure additions, not
+  rewrites.
