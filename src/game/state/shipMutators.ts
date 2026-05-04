@@ -18,7 +18,7 @@ import {
 } from "./ShipConfig";
 import { getWeapon } from "../data/weapons";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "../data/augments";
-import { getSellPrice } from "./pricing";
+import { getAugmentSellPrice, getSellPrice } from "./pricing";
 import { commit, getState, spendCredits } from "./stateCore";
 
 // Move an inventory weapon into a slot. The slot's previous occupant (if any)
@@ -90,10 +90,13 @@ export function grantWeapon(id: WeaponId): void {
   });
 }
 
-// Sell the inventory weapon at the given index. Refunds via getSellPrice
-// against the weapon's definition. Refuses on out-of-range. Augments
-// installed on the destroyed instance vanish with it — augments cannot be
-// salvaged from a sold weapon.
+// Sell the inventory weapon at the given index. Refunds the player's full
+// investment via getSellPrice — base cost + every upgrade step paid + every
+// installed augment's cost (see pricing.ts). Refuses on out-of-range, on
+// missing instance, or on a refund of 0 (a level-1 free starter with no
+// augments still has nothing to refund). Augments installed on the
+// destroyed instance vanish with it but their credits come back through
+// the sell price.
 export function sellWeapon(inventoryIndex: number): boolean {
   const state = getState();
   const ship = state.ship;
@@ -101,7 +104,7 @@ export function sellWeapon(inventoryIndex: number): boolean {
   const target = ship.inventory[inventoryIndex];
   if (!target) return false;
   const weapon = getWeapon(target.id);
-  const refund = getSellPrice(weapon);
+  const refund = getSellPrice(target, weapon);
   if (refund <= 0) return false;
   const nextInventory: WeaponInventory = [
     ...ship.inventory.slice(0, inventoryIndex),
@@ -111,6 +114,32 @@ export function sellWeapon(inventoryIndex: number): boolean {
     ...state,
     credits: state.credits + refund,
     ship: { ...ship, inventory: nextInventory }
+  });
+  return true;
+}
+
+// Sell one copy of an augment from `augmentInventory`. Refunds at the
+// rate set in pricing.ts (100% today). Once installed on a weapon, an
+// augment is permanent — that case is reachable only through the host
+// weapon's sell flow.
+export function sellAugment(inventoryIndex: number): boolean {
+  const state = getState();
+  const ship = state.ship;
+  if (inventoryIndex < 0 || inventoryIndex >= ship.augmentInventory.length) {
+    return false;
+  }
+  const augId = ship.augmentInventory[inventoryIndex];
+  if (!augId) return false;
+  const refund = getAugmentSellPrice(augId);
+  if (refund <= 0) return false;
+  const nextAugmentInventory = [
+    ...ship.augmentInventory.slice(0, inventoryIndex),
+    ...ship.augmentInventory.slice(inventoryIndex + 1)
+  ];
+  commit({
+    ...state,
+    credits: state.credits + refund,
+    ship: { ...ship, augmentInventory: nextAugmentInventory }
   });
   return true;
 }

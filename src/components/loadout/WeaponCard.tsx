@@ -48,7 +48,11 @@ export function WeaponCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const level = instance.level;
   const installedAugments = instance.augments;
-  const sellPrice = getSellPrice(weapon);
+  // getSellPrice now folds in the instance's level-history + installed
+  // augments so an upgraded free-starter (e.g. Mk3 Potato Cannon) refunds
+  // the upgrade investment instead of resolving to 0 and hiding the SELL
+  // button.
+  const sellPrice = getSellPrice(instance, weapon);
   const sellable = showSellButton && sellPrice > 0;
   const atMaxLevel = level >= MAX_LEVEL;
   const upgradeCost = atMaxLevel ? null : weaponUpgradeCost(level);
@@ -182,9 +186,16 @@ function AugmentSummary({ installed }: { installed: readonly AugmentId[] }) {
     `Augments are PERMANENT once installed — they can't be removed or moved to another weapon.`;
   const namesTitle = installed.length === 0 ? undefined :
     `Installed augments — permanent, sold with the weapon.`;
+  // Count rendered as a chip with the same border/padding/typography as
+  // SLOT / TIER / MARK so the right-side augment summary visually rhymes
+  // with the left-side row header instead of floating loose at a
+  // different baseline height.
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-[10px] text-hud-green/50" title={slotsTitle}>
+      <span
+        className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80"
+        title={slotsTitle}
+      >
         {installed.length}/{MAX_AUGMENTS_PER_WEAPON}
       </span>
       <div className="flex items-center gap-1">
