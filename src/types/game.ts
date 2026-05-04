@@ -1,10 +1,29 @@
 // Shared, cross-engine game types. Keep free of Phaser / Three.js imports so
 // both engines and the React UI can depend on this file.
+//
+// PUBLIC API — every export below is the contract for the `types` module.
+//   Stable. Breaking changes require a coordinated update of every consumer.
+//   See ./README.md for the rationale.
+//
+// AI-NOTE: this file is the LEAF of the dependency graph. NEVER add an
+//   import from src/lib, src/game, src/components, or src/app. Adding one
+//   would create a back-edge that breaks the dependency partial order
+//   documented in docs/audit/02-target-architecture.md.
 
 // ---------------------------------------------------------------------------
 // Weapons
 // ---------------------------------------------------------------------------
 
+/**
+ * Canonical id for every weapon catalog entry.
+ *
+ * Every player-facing weapon is keyed by one of these strings. The matching
+ * runtime list lives in `src/game/data/weapons.ts` as `WEAPON_IDS` and in
+ * `src/lib/schemas/save.ts` as the `WeaponIdSchema` enum. The `satisfies`
+ * guard on `WEAPON_IDS` fails to typecheck if the lists drift apart.
+ *
+ * @stable
+ */
 export type WeaponId =
   | "rapid-fire"
   | "spread-shot"
@@ -13,9 +32,16 @@ export type WeaponId =
   | "grapeshot-cannon"
   | "boarding-snare";
 
-// Permanent weapon modifiers. See src/game/data/augments.ts for the
-// catalog and effect math. An augment is bound to a single weapon when
-// installed and is destroyed if that weapon is sold.
+/**
+ * Permanent weapon modifiers — equippable into a `WeaponInstance`.
+ *
+ * See `src/game/data/augments.ts` for the catalog and effect math. An
+ * augment is bound to a single weapon when installed and is destroyed if
+ * that weapon is sold. Lockstep partner: `AUGMENT_IDS` in
+ * `src/lib/schemas/save.ts`.
+ *
+ * @stable
+ */
 export type AugmentId =
   | "damage-up"
   | "fire-rate-up"
@@ -23,17 +49,44 @@ export type AugmentId =
   | "energy-down"
   | "homing-up";
 
+/**
+ * Catalog family — discriminator for shop / loadout filtering.
+ *
+ * The tutorial-system shop is gated to `family: "potato"` so pirate
+ * weapons hide there until the player warps to tubernovae.
+ *
+ * @stable
+ */
 export type WeaponFamily = "potato" | "pirate";
 
-// Catalog tier — surfaced in shop / loadout UI so the player can see at a
-// glance which set a weapon belongs to. Tier 1 is the potato starter line
-// (everyone gets these); tier 2 is the pirate haul (drops + shop in
-// tubernovae onward, often more destructive at base than tier 1 max-level).
+/**
+ * Catalog tier — surfaced in shop / loadout UI so the player can see at a
+ * glance which set a weapon belongs to.
+ *
+ * Tier 1 is the potato starter line (everyone gets these); tier 2 is the
+ * pirate haul (drops + shop in tubernovae onward, often more destructive
+ * at base than tier 1 max-level). Drives the tier badge in shop + loadout
+ * and gates the tutorial-system shop filter.
+ *
+ * @stable
+ */
 export type WeaponTier = 1 | 2;
 
-// Every weapon is forward-firing now — slot kinds (rear / sidekick) were
-// removed in the slot-array refactor. Mounted in any open slot on the
-// ship; bullets always fly straight up.
+/**
+ * One row of `weapons.json` — the static catalog entry for a weapon.
+ *
+ * Every weapon is forward-firing now — slot kinds (rear / sidekick) were
+ * removed in the slot-array refactor. Mounted in any open slot on the
+ * ship; bullets always fly straight up. Read via `getWeapon(id)` from
+ * `src/game/data/weapons.ts`; never hard-code damage / fireRate / cost in
+ * code (CLAUDE.md §9).
+ *
+ * INVARIANT: `fireRateMs > 0` — gameplay code divides into it as a
+ * frequency. The matching `WeaponDefinitionSchema.fireRateMs.positive()`
+ * in `src/lib/schemas/weapons.ts` enforces this at the JSON edge.
+ *
+ * @stable
+ */
 export interface WeaponDefinition {
   readonly id: WeaponId;
   readonly name: string;
@@ -69,6 +122,14 @@ export interface WeaponDefinition {
 // Enemies
 // ---------------------------------------------------------------------------
 
+/**
+ * Canonical id for every enemy that can spawn in a wave.
+ *
+ * Lockstep partner: `ENEMY_IDS` in `src/lib/schemas/enemies.ts`. The
+ * `satisfies` guard there fails compile if the lists drift.
+ *
+ * @stable
+ */
 export type EnemyId =
   | "aphid"
   | "aphid-giant"
@@ -93,8 +154,33 @@ export type EnemyId =
   | "pirate-frigate"
   | "pirate-galleon"
   | "pirate-dreadnought";
+
+/**
+ * AI mode an enemy picks at spawn.
+ *
+ * - `straight`: fly down the column, ignore the player.
+ * - `zigzag`: sinusoidal x-drift while descending.
+ * - `homing`: steer toward the player.
+ * - `boss`: scripted multi-phase behavior; one per mission.
+ *
+ * @stable
+ */
 export type EnemyBehavior = "straight" | "zigzag" | "homing" | "boss";
 
+/**
+ * One row of `enemies.json` — the static catalog entry for an enemy.
+ *
+ * `fireRateMs` is `null` for non-shooting enemies; a positive number
+ * otherwise. Score and credit values feed the per-mission cap derivation
+ * in `src/lib/saveValidation.ts` — bumping HP / values rescales the cheat
+ * caps automatically (CLAUDE.md §9).
+ *
+ * INVARIANT: `hp > 0`, `speed > 0`, `fireRateMs > 0` (or `null`). The
+ * matching `EnemyDefinitionSchema` in `src/lib/schemas/enemies.ts`
+ * enforces these at the JSON edge.
+ *
+ * @stable
+ */
 export interface EnemyDefinition {
   readonly id: EnemyId;
   readonly name: string;
@@ -117,9 +203,38 @@ export interface EnemyDefinition {
 // behind. The MVP ships one type ("asteroid-small") and one behavior
 // ("drift"); the union is the extension point for future variants.
 
+/**
+ * Canonical id for indestructible space junk.
+ *
+ * Lockstep partner: `OBSTACLE_IDS` in `src/lib/schemas/obstacles.ts`. The
+ * MVP ships one type; the union is the extension point.
+ *
+ * @stable
+ */
 export type ObstacleId = "asteroid-small";
+
+/**
+ * Movement mode for an obstacle.
+ *
+ * `drift` is the only mode today — straight-down scroll matching enemy
+ * speed semantics minus the AI hooks.
+ *
+ * @stable
+ */
 export type ObstacleBehavior = "drift";
 
+/**
+ * One row of `obstacles.json` — the static catalog entry for indestructible
+ * space junk.
+ *
+ * Obstacles scroll down the playfield like enemies but cannot be destroyed
+ * by player fire — they absorb bullets (theirs and the player's), block
+ * the player's ship for collision damage, and act as cover that enemies
+ * can hide behind. Mission completion never gates on obstacles being
+ * cleared.
+ *
+ * @stable
+ */
 export interface ObstacleDefinition {
   readonly id: ObstacleId;
   readonly name: string;
@@ -134,6 +249,15 @@ export interface ObstacleDefinition {
 // Waves
 // ---------------------------------------------------------------------------
 
+/**
+ * One enemy-cohort spec inside a wave.
+ *
+ * `xPercent` is normalized 0..1 across the viewport so the spawner can
+ * place the cohort responsively. `formation` shapes the cohort layout at
+ * spawn time.
+ *
+ * @stable
+ */
 export interface WaveSpawn {
   readonly enemy: EnemyId;
   readonly count: number;
@@ -143,9 +267,15 @@ export interface WaveSpawn {
   readonly xPercent: number;       // 0..1, horizontal anchor across viewport
 }
 
-// Obstacle scheduling parallels WaveSpawn. We drop "vee" — rocks in a v-formation
-// reads as "fleet maneuver", not space junk. Otherwise identical shape so the
-// scheduler can share the placement helper.
+/**
+ * One obstacle-cohort spec inside a wave.
+ *
+ * Identical shape to `WaveSpawn` minus the `vee` formation — rocks in a
+ * v-formation read as "fleet maneuver", not space junk. The scheduler
+ * shares its placement helper across both spawn kinds.
+ *
+ * @stable
+ */
 export interface ObstacleSpawn {
   readonly obstacle: ObstacleId;
   readonly count: number;
@@ -155,6 +285,15 @@ export interface ObstacleSpawn {
   readonly xPercent: number;
 }
 
+/**
+ * One wave inside a mission.
+ *
+ * Carries an id (for debugging / telemetry), a duration after which the
+ * wave auto-advances, the enemy spawns, and an optional obstacle layer.
+ * Mission completion gates on enemy clears + duration, never on obstacles.
+ *
+ * @stable
+ */
 export interface WaveDefinition {
   readonly id: string;
   readonly durationMs: number;
@@ -164,6 +303,14 @@ export interface WaveDefinition {
   readonly obstacleSpawns?: readonly ObstacleSpawn[];
 }
 
+/**
+ * All waves bound to a single mission.
+ *
+ * One entry per `MissionId` in `waves.json`. Read via `getAllMissionWaves()`
+ * from `src/game/data/waves.ts`.
+ *
+ * @stable
+ */
 export interface MissionWaves {
   readonly missionId: MissionId;
   readonly waves: readonly WaveDefinition[];
@@ -173,6 +320,16 @@ export interface MissionWaves {
 // Missions / planets
 // ---------------------------------------------------------------------------
 
+/**
+ * Canonical id for every mission / shop / scenery planet.
+ *
+ * Lockstep partner: `MISSION_IDS` in `src/lib/schemas/save.ts`. The mission
+ * graph (prereqs via `MissionDefinition.requires`) is validated server-side
+ * by `validateMissionGraph` in `src/lib/saveValidation.ts` — a tampered
+ * save that claims completion of an unreachable mission is rejected.
+ *
+ * @stable
+ */
 export type MissionId =
   | "tutorial"
   | "combat-1"
@@ -184,8 +341,27 @@ export type MissionId =
   | "burnt-spud"
   | "tubernovae-outpost";
 
+/**
+ * Canonical id for each top-level solar system in the galaxy overworld.
+ *
+ * Lockstep partner: `SOLAR_SYSTEM_IDS` in `src/lib/schemas/save.ts`. Every
+ * new system must ship with an on-system-enter cinematic and a dedicated
+ * galaxy-bed track (project rule — see `/new-solar-system` skill).
+ *
+ * @stable
+ */
 export type SolarSystemId = "tutorial" | "tubernovae";
 
+/**
+ * One row of `solarSystems.json` — defines the visual + audio identity of
+ * a top-level system.
+ *
+ * `galaxyMusicTrack` is required (the matching schema rejects empty
+ * string) because the audio engine treats `""` as "release the slot",
+ * which would silently kill the bed for the whole system.
+ *
+ * @stable
+ */
 export interface SolarSystemDefinition {
   readonly id: SolarSystemId;
   readonly name: string;
@@ -196,14 +372,47 @@ export interface SolarSystemDefinition {
   readonly galaxyMusicTrack: string;  // "/audio/music/<systemId>-galaxy.ogg" — bed for the galaxy view of this system
 }
 
+/**
+ * Discriminator for `MissionDefinition.kind`.
+ *
+ * - `mission`: combat planet — clicking opens the briefing modal.
+ * - `shop`: trading hub — clicking docks the player.
+ * - `scenery`: visual-only — non-interactable in the galaxy view.
+ *
+ * @stable
+ */
 export type PlanetKind = "mission" | "shop" | "scenery";
 
+/**
+ * Optional ring decoration around a planet.
+ *
+ * Radii are multipliers of the planet's own radius; `tilt` is in radians
+ * off horizontal. Pure visual — no gameplay effect.
+ *
+ * @stable
+ */
 export interface PlanetRing {
   readonly innerRadius: number;       // multiplier of planet radius
   readonly outerRadius: number;       // multiplier of planet radius
   readonly tilt: number;              // radians off horizontal
 }
 
+/**
+ * One row of `missions.json` — the static catalog entry for a mission /
+ * shop / scenery planet.
+ *
+ * Carries gameplay tuning (`difficulty`, `requires`), 3D galaxy-view orbit
+ * math (`orbitRadius`, `orbitSpeed`, `startAngle`, optional inclination /
+ * node / parent), audio + visual identity (`musicTrack`, `texture`,
+ * `ring`), and the `perksAllowed` flag that gates mission-only perk drops.
+ *
+ * INVARIANT: `requires` must reference real `MissionId` values; circular
+ * prereq chains are rejected by `validateMissionGraph` server-side. Unique
+ * `id` across the catalog is enforced by `runDataIntegrityCheck` at
+ * module-load.
+ *
+ * @stable
+ */
 export interface MissionDefinition {
   readonly id: MissionId;
   readonly kind: PlanetKind;
