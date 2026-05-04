@@ -26,6 +26,7 @@
 //   - story (on-mission-select)            → missions
 //   - story (on-system-enter)              → solarSystems
 //   - story (on-system-cleared-idle)       → solarSystems
+//   - story (on-all-cleared-idle)          (no cross-ref — system-agnostic)
 //
 // EXTENDING THIS CHECK: when you add a new `*Id` field to ANY content
 // schema (e.g. `mission.rewardWeapon: WeaponId`,
@@ -292,6 +293,7 @@ export function runDataIntegrityCheck(data: IntegrityData): void {
         break;
       case "first-time":
       case "on-shop-open":
+      case "on-all-cleared-idle":
         // No cross-reference to validate.
         break;
       default: {

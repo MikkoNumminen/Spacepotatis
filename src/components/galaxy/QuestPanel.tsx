@@ -63,6 +63,28 @@ export default function QuestPanel({
 
   const otherSystemsUnlocked = unlockedSystems.some((id) => id !== currentSolarSystemId);
 
+  // True only if any unlocked OTHER system still has uncleared mission-kind
+  // missions. When false, "warp to next system" is misleading — there's no
+  // more queued content to find. We surface a "more content coming" CTA
+  // instead.
+  //
+  // Counts gated-but-incomplete missions as unfinished too — i.e. only
+  // checks `!completedSet.has(m.id)` rather than also requiring the planet
+  // to be in `unlockedPlanets`. The filter the other way around (only
+  // unlocked planets count) is robust for a linear-chain DAG (today's
+  // content), but a future non-linear DAG with a still-locked side-branch
+  // could falsely trip "ALL SECTORS CLEAR" while real content waited.
+  const hasUnfinishedInOtherSystems = useMemo(() => {
+    const completedSet = new Set(completedMissions);
+    return getAllMissions().some(
+      (m) =>
+        m.kind === "mission" &&
+        m.solarSystemId !== currentSolarSystemId &&
+        unlockedSystems.includes(m.solarSystemId) &&
+        !completedSet.has(m.id)
+    );
+  }, [currentSolarSystemId, unlockedSystems, completedMissions]);
+
   // Notify the parent every time a mission becomes the expanded one — both
   // explicit toggles and the auto-expansion of the suggested mission count
   // as "selecting" it. The on-mission-select story trigger gates on the
@@ -94,7 +116,8 @@ export default function QuestPanel({
       ) : (
         <Section label="suggested">
           <SystemClearCta
-            warpAvailable={otherSystemsUnlocked}
+            warpAvailable={otherSystemsUnlocked && hasUnfinishedInOtherSystems}
+            allContentCleared={otherSystemsUnlocked && !hasUnfinishedInOtherSystems}
             onWarp={onWarpToNext}
           />
         </Section>
@@ -312,11 +335,32 @@ function ShopRow({
 
 function SystemClearCta({
   warpAvailable,
+  allContentCleared,
   onWarp
 }: {
   warpAvailable: boolean;
+  allContentCleared: boolean;
   onWarp: () => void;
 }) {
+  if (allContentCleared) {
+    // Every unlocked system the player has access to is cleared end-to-end.
+    // The warp picker has nowhere useful to send them, so we don't render
+    // the button — the on-all-cleared-idle voice cue covers the audio side,
+    // this is the visible counterpart.
+    return (
+      <div className="rounded border border-hud-amber/30 bg-space-bg/30 p-3 text-center">
+        <div className="font-display text-xs tracking-widest text-hud-amber">
+          ALL SECTORS CLEAR
+        </div>
+        <p className="mt-1 text-xs text-hud-green/70">
+          Every charted system is done. New sectors are being mapped.
+        </p>
+        <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-hud-green/50">
+          more content coming soon
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="rounded border border-hud-amber/30 bg-space-bg/30 p-3 text-center">
       <div className="font-display text-xs tracking-widest text-hud-amber">

@@ -3,10 +3,12 @@ import {
   selectFirstTimeEntry,
   selectOnSystemEnterEntry,
   selectOnMissionSelectEntry,
+  selectReadyAllClearedIdleEntries,
   selectReadyClearedIdleEntries
 } from "./storyTriggers";
 import type { StoryId } from "./story";
 import type { MissionId } from "@/types/game";
+import { getAllMissions } from "./missions";
 
 // These tests exercise the pure trigger-selection helpers used by the
 // useStoryTriggers hook. They run against the real STORY_ENTRIES catalog
@@ -163,7 +165,47 @@ describe("selectReadyClearedIdleEntries", () => {
     expect(ready.map((e) => e.id)).toEqual(["sol-spudensis-cleared"]);
   });
 
-  it("returns empty for tubernovae (no cleared-idle entry shipped yet)", () => {
+  it("returns the tubernovae cleared entry once every tubernovae mission is completed", () => {
+    const tubernovaeMissions = new Set<MissionId>(
+      getAllMissions()
+        .filter((m) => m.solarSystemId === "tubernovae" && m.kind === "mission")
+        .map((m) => m.id)
+    );
+    expect(tubernovaeMissions.size).toBeGreaterThan(0);
+    const ready = selectReadyClearedIdleEntries("tubernovae", tubernovaeMissions);
+    expect(ready.map((e) => e.id)).toEqual(["tubernovae-cluster-cleared"]);
+  });
+
+  it("returns empty for tubernovae when only the tutorial system is cleared", () => {
     expect(selectReadyClearedIdleEntries("tubernovae", ALL_TUTORIAL)).toEqual([]);
+  });
+});
+
+describe("selectReadyAllClearedIdleEntries", () => {
+  const allMissionIds = (): Set<MissionId> =>
+    new Set<MissionId>(
+      getAllMissions().filter((m) => m.kind === "mission").map((m) => m.id)
+    );
+
+  it("returns empty when no missions completed", () => {
+    expect(selectReadyAllClearedIdleEntries(new Set())).toEqual([]);
+  });
+
+  it("returns empty when only the tutorial system is cleared", () => {
+    const partial = new Set<MissionId>(["tutorial", "combat-1", "boss-1"]);
+    expect(selectReadyAllClearedIdleEntries(partial)).toEqual([]);
+  });
+
+  it("returns the all-cleared entry once every system's missions are done", () => {
+    const ready = selectReadyAllClearedIdleEntries(allMissionIds());
+    expect(ready.map((e) => e.id)).toEqual(["all-content-cleared"]);
+  });
+
+  it("missing a single mission anywhere keeps the all-cleared cue silent", () => {
+    const all = allMissionIds();
+    const arr = Array.from(all);
+    const last = arr[arr.length - 1];
+    if (last !== undefined) all.delete(last);
+    expect(selectReadyAllClearedIdleEntries(all)).toEqual([]);
   });
 });

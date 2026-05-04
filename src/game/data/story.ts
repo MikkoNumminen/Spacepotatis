@@ -28,6 +28,11 @@ import type { MissionId, SolarSystemId } from "@/types/game";
 //                                                  the galaxy view of the named system AND
 //                                                  every combat mission in that system has
 //                                                  been completed
+//   { kind: "on-all-cleared-idle", initialDelayMs: ..., intervalMs: ... }
+//                                                — fires repeatedly while the player idles in
+//                                                  the galaxy view AND every combat mission in
+//                                                  every solar system has been completed.
+//                                                  Supersedes per-system cleared-idle entries.
 //   null                                          — replay-only via Story log
 //
 // Each entry carries a voice track and (for modal mode) a music bed. The
@@ -47,7 +52,9 @@ export type StoryId =
   | "dreadfruit-arrival"
   | "market-arrival"
   | "sol-spudensis-cleared"
-  | "tubernovae-cluster-intro";
+  | "tubernovae-cluster-intro"
+  | "tubernovae-cluster-cleared"
+  | "all-content-cleared";
 
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
@@ -63,6 +70,16 @@ export type StoryAutoTrigger =
   | {
       readonly kind: "on-system-cleared-idle";
       readonly systemId: SolarSystemId;
+      readonly initialDelayMs: number;
+      readonly intervalMs: number;
+    }
+  | {
+      // Fires repeatedly while the player idles in the galaxy view AND every
+      // mission across every solar system in the catalog has been completed.
+      // System-agnostic: this is the "you have caught up to the live content"
+      // cue. Suppresses the per-system on-system-cleared-idle entries (see
+      // useStoryTriggers) so we don't stack two voice loops at once.
+      readonly kind: "on-all-cleared-idle";
       readonly initialDelayMs: number;
       readonly intervalMs: number;
     };
@@ -203,6 +220,40 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
     voiceDelayMs: 3000,
     autoTrigger: { kind: "on-system-enter", systemId: "tubernovae", repeatable: true },
     mode: "modal"
+  },
+  {
+    id: "tubernovae-cluster-cleared",
+    title: "Tubernovae Cluster Cleared",
+    body: [
+      "The Tubernovae Cluster is quiet. Pirate beacons cold, cutter wings drifting. Mission Control checks back in while the dust settles."
+    ],
+    logSummary: [
+      "The Tubernovae Cluster is yours. The pirate beacon is a stub of slag, the corsair wings have scattered, and the welded ships that once cut a Spud in half now drift in pieces wide enough to count.",
+      "The Spud has worn its armor and lived. The grafted plating, the salvaged optics, the bolted-on weapons — none of it killed who you were. It only made what's left of you harder to peel.",
+      "Take the calm. Beyond the cluster the next sector is being mapped. When it opens we will know, and Mission Control will be the first to call you home."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/tubernovae-cluster-cleared-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-system-cleared-idle", systemId: "tubernovae", initialDelayMs: 5000, intervalMs: 30000 },
+    mode: "overlay"
+  },
+  {
+    id: "all-content-cleared",
+    title: "All Sectors Clear",
+    body: [
+      "Every charted system is yours. New sectors are being mapped — Mission Control will signal the moment they're ready."
+    ],
+    logSummary: [
+      "There is no enemy left in the chart. Every sector the Spud has charted is a graveyard or a garden, and most of them are both. The bugs are mulch. The pirates are scrap.",
+      "Mission Control is being honest with you: this is the edge of what we have ready for you. Cartography crews are pushing past the Tubernovae rim now. New stars, new threats, new tubers in trouble — they are coming.",
+      "Until then, drift. Replay the runs you loved. Stock up at the Market. Listen to the Story log. The next chapter will reach you the moment it lands."
+    ],
+    musicTrack: null,
+    voiceTrack: "/audio/story/all-content-cleared-voice.mp3",
+    voiceDelayMs: 0,
+    autoTrigger: { kind: "on-all-cleared-idle", initialDelayMs: 5000, intervalMs: 45000 },
+    mode: "overlay"
   }
 ];
 
