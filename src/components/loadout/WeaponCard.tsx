@@ -140,28 +140,25 @@ export function WeaponCard({
                   UPGRADE TO Mk{level + 1} · ¢{upgradeCost}
                 </button>
               ))}
-            {sellable && position.kind === "inventory" ? (
-              <button
-                type="button"
-                onClick={() => void sellWeapon(position.index)}
-                className="touch-manipulation select-none rounded border border-hud-red/60 px-2 py-0.5 font-mono text-[11px] text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
-              >
-                SELL · ¢{sellPrice}
-              </button>
-            ) : (
-              // Equipped rows (and free starter weapons in inventory) don't
-              // sell — but reserving the SELL slot with an invisible
-              // placeholder keeps DETAILS / INSTALL / UPGRADE column-aligned
-              // with the inventory rows that DO show SELL. Without this,
-              // UPGRADE jumps left/right between EQUIPPED and INVENTORY
-              // sections and the loadout looks ad-hoc.
-              <span
-                aria-hidden="true"
-                className="invisible select-none rounded border px-2 py-0.5 font-mono text-[11px]"
-              >
-                SELL · ¢9999
-              </span>
-            )}
+            {/* SELL slot — fixed-width wrapper so DETAILS / INSTALL /
+                UPGRADE column-align across EQUIPPED and INVENTORY rows
+                regardless of whether SELL renders, and regardless of the
+                price's character count (¢225 vs ¢4500 vs blank). The
+                button itself is right-aligned within the slot via
+                `justify-end` on the wrapper. Width sized for "SELL · ¢9999"
+                at the 11px monospace font; smaller prices leave trailing
+                empty space inside the slot. */}
+            <div className="flex w-[6.5rem] justify-end">
+              {sellable && position.kind === "inventory" && (
+                <button
+                  type="button"
+                  onClick={() => void sellWeapon(position.index)}
+                  className="touch-manipulation select-none rounded border border-hud-red/60 px-2 py-0.5 font-mono text-[11px] text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
+                >
+                  SELL · ¢{sellPrice}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </li>

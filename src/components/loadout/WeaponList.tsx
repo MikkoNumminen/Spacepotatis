@@ -1,4 +1,5 @@
 import type { ShipConfig, WeaponPosition } from "@/game/state/ShipConfig";
+import { SectionHeading } from "./SectionHeading";
 import { WeaponCard } from "./WeaponCard";
 import type { WeaponEntry } from "./selectors";
 
@@ -24,11 +25,7 @@ export function WeaponList({
   if (entries.length === 0) return null;
   return (
     <>
-      {heading && (
-        <h3 className="mt-6 mb-3 border-t border-hud-green/30 pt-3 font-display text-sm uppercase tracking-[0.2em] text-hud-green">
-          {heading}
-        </h3>
-      )}
+      {heading && <SectionHeading>{heading}</SectionHeading>}
       <ul className="flex flex-col gap-3">
         {entries.map((entry) => (
           <WeaponCard

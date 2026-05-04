@@ -11,6 +11,7 @@ import { SlotGrid } from "@/components/loadout/SlotGrid";
 import { SlotPicker } from "@/components/loadout/SlotPicker";
 import { AugmentPicker } from "@/components/loadout/AugmentPicker";
 import { AugmentInventoryList } from "@/components/loadout/AugmentInventoryList";
+import { SectionHeading } from "@/components/loadout/SectionHeading";
 import { WeaponList } from "@/components/loadout/WeaponList";
 import { useLoadoutSelection } from "@/components/loadout/useLoadoutSelection";
 import {
@@ -92,9 +93,7 @@ export default function LoadoutMenu(_props: Props) {
 
       {inventoryEntries.length === 0 ? (
         <>
-          <h3 className="mt-6 mb-3 border-t border-hud-green/30 pt-3 font-display text-sm uppercase tracking-[0.2em] text-hud-green">
-            INVENTORY
-          </h3>
+          <SectionHeading>INVENTORY</SectionHeading>
           <p className="text-xs text-hud-green/50">
             All owned weapons are equipped. Visit the shop to buy more.
           </p>
