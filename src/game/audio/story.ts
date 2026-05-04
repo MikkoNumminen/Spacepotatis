@@ -1,6 +1,7 @@
 "use client";
 
 import { audioBus } from "./AudioBus";
+import { onUserActivation } from "./userActivation";
 
 // PUBLIC API — this engine is part of the `audio` module's contract.
 //   Stable. Breaking changes require a coordinated update of every caller.
@@ -21,6 +22,15 @@ import { audioBus } from "./AudioBus";
 //
 // Lifecycle is owned by StoryModal — it calls play() on mount, stop() on
 // Continue or unmount.
+//
+// Autoplay recovery: every play() goes through `onUserActivation`. Browsers
+// reject HTMLAudioElement.play() until the user has gestured, so a story
+// beat triggered on page mount (galaxy refresh fires great-potato-awakening
+// or tubernovae-cluster-intro; shop refresh fires market-arrival) used to
+// silently strand the bed and voice — the catch handler swallowed the
+// rejection and nothing retried. Now each .play() is queued behind the
+// first pointerdown / keydown / touchstart and fires inside that gesture's
+// task, so the player hears Grandma the moment they click anywhere.
 
 const MUSIC_TARGET_VOL = 0.45;
 const VOICE_TARGET_VOL = 1.0;
@@ -89,15 +99,23 @@ class StoryAudio {
 
     if (!audioBus.isMuted("music")) {
       if (this.music) {
-        void this.music.play().catch(() => {
-          // Autoplay can fail if the user hasn't interacted yet — silently OK.
+        const music = this.music;
+        onUserActivation(() => {
+          // active flips false on stop(); ref equality guards against a
+          // second play() having already swapped the element.
+          if (!this.active || this.music !== music || audioBus.isMuted("music")) return;
+          void music.play().catch(() => {});
+          this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
         });
-        this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
       }
       this.voiceTimerId = window.setTimeout(() => {
         this.voiceTimerId = null;
         if (!this.active || !this.voice || audioBus.isMuted("music")) return;
-        void this.voice.play().catch(() => {});
+        const voice = this.voice;
+        onUserActivation(() => {
+          if (!this.active || this.voice !== voice || audioBus.isMuted("music")) return;
+          void voice.play().catch(() => {});
+        });
       }, Math.max(0, opts.voiceDelayMs));
     }
   }
@@ -161,13 +179,25 @@ class StoryAudio {
         this.voice?.pause();
       }, VOICE_FADE_OUT_MS);
     } else {
+      // Resume path. In practice the user has already gestured by the time
+      // they toggle mute, so a raw `play()` here would succeed — but the
+      // gesture queue is the consistent shape and survives a (rare)
+      // server-driven unmute that fires before any input.
       if (this.music) {
-        void this.music.play().catch(() => {});
-        this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
+        const music = this.music;
+        onUserActivation(() => {
+          if (audioBus.isMuted("music") || this.music !== music) return;
+          void music.play().catch(() => {});
+          this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
+        });
       }
       if (this.voice && this.voiceTimerId === null) {
-        void this.voice.play().catch(() => {});
-        this.fadeVoice(VOICE_TARGET_VOL, VOICE_FADE_OUT_MS);
+        const voice = this.voice;
+        onUserActivation(() => {
+          if (audioBus.isMuted("music") || this.voice !== voice) return;
+          void voice.play().catch(() => {});
+          this.fadeVoice(VOICE_TARGET_VOL, VOICE_FADE_OUT_MS);
+        });
       }
     }
   }
