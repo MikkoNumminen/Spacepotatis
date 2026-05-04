@@ -26,6 +26,7 @@ Notable internals you'll touch when working in the module:
 
 - **Scenes** (`scenes/`):
   - `BootScene.ts` — **1819-LOC documented placeholder**. Procedurally generates every weapon-bullet, pod, enemy sprite, perk icon, and powerup sprite at boot via Phaser Graphics. Each generator is its own helper method; the file is large because the game ships with no PNG assets yet. Splitting it preemptively creates churn — defer until real art lands.
+  - **Note**: `BossScene.ts` is scheduled for deletion in a separate hot-fix PR (#142) — the MVP delegates boss encounters to `CombatScene`; the dead scene file misled scene-routing readers. Once #142 lands, the `Boss: "BossScene"` entry leaves `SCENE_KEYS` and the file disappears.
   - `CombatScene.ts` — the orchestrator. Wires the wave spawner, player, enemies, bullets, powerups, HUD, perk controller, drop controller, and VFX layer. Owns the mission lifecycle (`finish()` posts the summary into the registry).
   - `PauseScene.ts` — pause overlay (P/ESC).
 - **Entities** (`entities/`): `Player.ts`, `Enemy.ts`, `Bullet.ts`, `PowerUp.ts`. Each extends a Phaser `GameObject`. Player composes helpers from `entities/player/` (SlotModResolver, PlayerCombatant, PlayerFireController, PodController, slotLayout).

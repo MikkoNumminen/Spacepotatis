@@ -101,7 +101,7 @@ npm run typecheck
 
 # Manual smoke (the actual UX)
 npm run dev
-# Then exercise: landing → sign in → galaxy → mission → shop → loadout → story log → settings.
+# Then exercise: landing → sign in → galaxy → mission → shop → loadout → story log.
 ```
 
 ## See also

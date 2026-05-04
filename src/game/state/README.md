@@ -37,13 +37,13 @@ Every state change goes through one of these:
 
 ### Save round-trip surface ([sync.ts](./sync.ts), [syncCache.ts](./syncCache.ts), [saveQueue.ts](./saveQueue.ts), [scoreQueue.ts](./scoreQueue.ts))
 
-- `loadSave(...)` — the canonical load path. Returns a typed `LoadResult` union: `server-loaded` / `anon` / `no-save` / `pending-only` / `load-failed`. The union is the contract the splash UI consumes; collapsing it back to a boolean was the bug behind the 2026-05-02 silent-INITIAL_STATE wipe.
+- `loadSave(...)` — the canonical load path. Returns a `LoadResult` interface discriminated by `LoadResultKind` (the 5-arm string union: `server-loaded` / `anon` / `no-save` / `pending-only` / `load-failed`). Switching on `result.kind` is the contract the splash UI consumes; collapsing it back to a boolean was the bug behind the 2026-05-02 silent-INITIAL_STATE wipe.
 - `saveNow()` — POST-current-snapshot. Gated by `isHydrationCompleted` so a load failure cannot trigger a wipe.
 - `flushSaveQueue()` — drain the localStorage-pending save (account-stamped). Safe to call repeatedly; idempotent.
 - `markSavePending(snapshot)` — explicit queue write (for retry-after-422 paths).
 - `clearLoadSaveCache()` — sign-out helper. Wipes the module-level cache + the pending-save queue + the hydration flag.
 - `enqueueScore(score)` / `drainScoreQueue()` — leaderboard durability. Same shape as the save queue; the leaderboard is required to be eventually-consistent. **Never bypass — `enqueueScore` first, then drain.** Fire-and-forget POSTs lose scores.
-- `LoadResult` type — re-exported for components that switch on the result kind.
+- `LoadResult` + `LoadResultKind` types — re-exported for components that switch on the result kind.
 
 ### ShipConfig values ([ShipConfig.ts](./ShipConfig.ts))
 
