@@ -47,7 +47,7 @@ If a feature seems to need a new server-side code path, **stop and confirm with 
 
 ## 4. File ownership — parallel agent boundaries
 
-Agents may work in parallel on disjoint directories. Treat these as ownership zones:
+Agents may work in parallel on disjoint directories. Treat these as ownership zones. The 2026-05-04 modular audit groups these zones into 10 named modules with a strict acyclic dependency graph — see §17 for the canonical module map and the boundary rules. The table below is the day-to-day file lookup; §17 is the rule lookup.
 
 | Zone                                                      | Owner / responsibility                          |
 | --------------------------------------------------------- | ----------------------------------------------- |
@@ -237,7 +237,7 @@ If the request maps to a skill, **invoke it before grepping or reading files** �
 
 ## 11. Where things live (post-audit map)
 
-The 2026-04-27 modularity audit broke up several god modules. Quick lookup of where each concern now lives:
+The 2026-04-27 modularity audit broke up several god modules. The 2026-05-04 modular audit (see §17) regrouped them into 10 named modules; this section remains the per-concern index — for module-level boundaries, jump to §17. Quick lookup of where each concern now lives:
 
 | Concern | Location |
 |---|---|
@@ -346,3 +346,54 @@ Several `worktree-agent-*` and `fix/*` / `feat/*` branches may exist locally and
 - **Don't push to a branch you didn't create.** If you find yourself on a branch named `fix/something-that-isnt-yours` after a `git checkout`, redirect to a fresh branch from master.
 - **Don't touch `worktree-agent-*` branches.** They're owned by the spawning agent's `Agent({ isolation: "worktree" })` invocation. Treat them as read-only.
 - **Stash before switching.** If your working tree has changes from someone else's WIP that landed there from a prior session, stash them with a descriptive `-m` message rather than `git checkout`-overwriting. The stash list itself is a coordination signal.
+
+## 17. Module boundaries (post-audit map)
+
+The codebase is partitioned into 10 modules with a strict acyclic dependency
+graph. **Imports across module boundaries go through the module's
+`index.ts` only — never reach into a sibling's internals.** Phase 2 of
+the modular-architecture audit (see [docs/audit/02-target-architecture.md](docs/audit/02-target-architecture.md))
+defines the boundaries; this section is the quick lookup. Architectural
+decisions behind the shape live in [docs/decisions/](docs/decisions/) (ADRs).
+
+| Module | Path | Owns | Depends on |
+|---|---|---|---|
+| types | `src/types/` | shared TS types | none |
+| schemas | `src/lib/schemas/` | Zod validators | types |
+| audio | `src/game/audio/` | engines + mute bus | types |
+| content | `src/game/data/` | catalog accessors + integrity check | schemas, types |
+| infra | `src/lib/` (excl. schemas + the moved-out `useOptimisticAuth`) | DB, auth, routes, cheat guards | schemas, types, (content for saveValidation lazy-init) |
+| state | `src/game/state/` (incl. moved-in `useOptimisticAuth`) | GameState barrel + slices + save round-trip | content, schemas |
+| three | `src/game/three/` | galaxy 3D scene | content, types |
+| phaser | `src/game/phaser/` | combat layer | content, state, audio, types |
+| app | `src/app/` | Next.js shell + API routes | infra, state, content, schemas |
+| ui | `src/components/` | React components | state, content, audio, infra |
+
+Highest-risk surface: the `state` module's persistence sub-cluster (the
+8-layer save round-trip — see [ADR 0004](docs/decisions/0004-save-round-trip-eight-layers.md)).
+Any change there triggers `/save-roundtrip-audit` before commit. See §7a
+for the migration shipping rule.
+
+**Boundary rules:**
+
+- Imports cross module boundaries via the module's public surface only. No
+  reach into a sibling's internals (e.g. `loadout/WeaponDetailsModal.tsx`
+  pulling `components/WeaponStats.tsx` is out — fix during Phase 3).
+- The dependency graph is acyclic. Phase 1 confirmed zero cycles; the
+  proposed structure preserves that. The longest chain is 5 hops:
+  `ui → app → state → content → schemas → types`.
+- The `app` and `ui` modules are SINKS — they have no `index.ts` because
+  Next.js routing (in `app/`) and prop interfaces (in `ui/`) ARE the
+  public API. They consume from below; nothing consumes them.
+- `infra → content` is allowed but ambiguous in the dependency graph —
+  `saveValidation.ts` walks `getAllLootPools()` at module load. Phase 3
+  may resolve this with lazy-init; until then, `infra → content` IS an
+  edge in the graph.
+- `audio` depends on `types` only. It does NOT reach `state`, `content`,
+  `infra`, `phaser`, `three`, or `ui`. Engines self-register with
+  `audioBus`; UI and Phaser fire engines via the mute-bus-aware methods.
+- The save round-trip surface is the highest-risk perimeter and lives
+  inside `state`. Touching it requires running `/save-roundtrip-audit`.
+
+For the data-flow walkthrough of a save POST through the modules, see
+ARCHITECTURE.md "Module dependency graph (post-audit)".

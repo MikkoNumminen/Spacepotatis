@@ -514,3 +514,157 @@ players ───┬── save_games (player_id FK, UNIQUE(player_id, slot))
   sticks a drop-in away.
 - **Achievements** are a database table we do not have yet. Don't sneak a
   column into `save_games`; open a new migration.
+
+## 11. Module dependency graph (post-audit)
+
+The 2026-05-04 modular-architecture audit (see
+[docs/audit/02-target-architecture.md](docs/audit/02-target-architecture.md))
+partitioned the codebase into ten named modules with a strict acyclic
+dependency graph. CLAUDE.md §17 has the per-module table; this section
+has the diagram, the data-flow walkthrough, and cross-links to the
+per-module READMEs (created by the Phase 4 doc-writer pass).
+
+The architectural choices behind the shape are recorded as ADRs under
+[docs/decisions/](docs/decisions/):
+
+- [0001 — Static-by-default rendering on Vercel Hobby tier](docs/decisions/0001-static-by-default-on-vercel-hobby.md)
+- [0002 — Kysely + raw SQL migrations, no Prisma](docs/decisions/0002-no-prisma-kysely-only.md)
+- [0003 — Anti-cheat is observation-first, never punitive](docs/decisions/0003-anti-cheat-observation-not-enforcement.md)
+- [0004 — The save round-trip has eight layers — by design](docs/decisions/0004-save-round-trip-eight-layers.md)
+- [0005 — Game balance lives in JSON, accessors do one cast at module load](docs/decisions/0005-content-as-json-not-code.md)
+- [0006 — Typed event bus + typed registry for Phaser, no string keys](docs/decisions/0006-typed-phaser-event-bus-and-registry.md)
+- [0007 — Ten-module architecture from the 2026-05-04 audit](docs/decisions/0007-modular-architecture-audit-2026-05-04.md)
+
+### 11.1. The graph
+
+Every arrow points "up" (toward a module loaded first). No back-edges.
+Longest chain is 5 hops: `ui → app → state → content → schemas → types`.
+
+```
+               ┌──────────────────────────┐
+               │           ui             │
+               │ (React components)       │
+               └─────────┬────────────────┘
+                         │
+        ┌────────────────┼─────────────────────────┐
+        │                │                         │
+┌───────▼────────┐  ┌────▼─────────┐    ┌──────────▼──────────┐
+│      app       │  │    phaser    │    │       three         │
+│ (Next.js shell │  │ (combat)     │    │ (galaxy overworld)  │
+│  + API routes) │  └────┬─────────┘    └──────────┬──────────┘
+└───────┬────────┘       │                         │
+        │                │                         │
+        │            ┌───┴───────┐                 │
+        │            │   audio   │                 │
+        │            │ (engines  │                 │
+        │            │  + bus)   │                 │
+        │            └────┬──────┘                 │
+        │                 │                        │
+        ▼                 ▼                        ▼
+   ┌─────────────────────────────────────────────────────┐
+   │                       state                         │
+   │   (GameState barrel + slices + persistence)        │
+   └─────────────────────────┬───────────────────────────┘
+                             │
+                             ▼
+                   ┌──────────────────┐
+                   │     content      │
+                   │ (catalog +       │
+                   │  integrity)      │
+                   └─────────┬────────┘
+                             │
+                  ┌──────────┴──────────┐
+                  │                     │
+            ┌─────▼─────┐         ┌─────▼─────┐
+            │   infra   │         │  schemas  │
+            │ (db, auth │         │ (Zod)     │
+            │  routes,  │         └─────┬─────┘
+            │  guards)  │               │
+            └─────┬─────┘               │
+                  │                     │
+                  └─────────┬───────────┘
+                            │
+                       ┌────▼────┐
+                       │  types  │
+                       └─────────┘
+```
+
+### 11.2. Module summary
+
+| Module | Path | Owns | Depends on |
+|---|---|---|---|
+| types | `src/types/` | shared TS types | (leaf) |
+| schemas | `src/lib/schemas/` | Zod validators for API + JSON catalogs | types |
+| audio | `src/game/audio/` | engines + mute fan-out bus | types |
+| content | `src/game/data/` | JSON catalog accessors + integrity check | schemas, types |
+| infra | `src/lib/` (excl. schemas; `useOptimisticAuth` moves out) | DB, auth, routes, cheat guards | schemas, types, content (saveValidation only) |
+| state | `src/game/state/` (incl. moved-in `useOptimisticAuth`) | GameState barrel + slices + save round-trip | content, schemas |
+| three | `src/game/three/` | galaxy 3D overworld scene | content, types |
+| phaser | `src/game/phaser/` | Phaser combat scenes + typed bus | content, state, audio, types |
+| app | `src/app/` | Next.js pages + API routes (SINK) | infra, state, content, schemas |
+| ui | `src/components/` | React components (SINK) | state, content, audio, infra |
+
+Per-module READMEs (one per module, created by the parallel Phase 4
+doc-writer agents) live alongside each module's source root, e.g.
+`src/game/state/README.md`. They cover what the module owns, what it
+doesn't, the public API surface, and what breaks if a consumer reaches
+past it.
+
+### 11.3. Data flow — a save POST through the modules
+
+This is the canonical example of how a single user action traverses the
+graph. All eight layers of the save round-trip (see ADR 0004) appear:
+
+1. **`ui`** — `GameCanvas` (or any mutator-firing component) calls a
+   state mutator from the `state` module's GameState barrel
+   (`buyWeapon`, `equipAugment`, etc.).
+2. **`state`** — the mutator updates the in-memory singleton and notifies
+   subscribers (`subscribe` listeners). It then enqueues a save via
+   `saveQueue.enqueueSnapshot(snapshot)`. The snapshot is built by
+   `toSnapshot()` (`state/persistence.ts`).
+3. **`state` → `state/sync.ts`** — `flushSaveQueue` pulls the pending
+   snapshot, validates it with `SavePayloadSchema` (from the `schemas`
+   module), and POSTs to `/api/save`.
+4. **`app/api/save/route.ts`** (in the `app` module) — the Edge runtime
+   handler validates the body with `SavePayloadSchema` (no `as` cast at
+   the network edge, per CLAUDE.md §9), runs the cheat guards from the
+   `infra` module's `saveValidation.ts`, and on success writes both the
+   `save_games` row and a forensic `save_audit` row via the Kysely
+   client (`infra/db.ts`).
+5. **`infra` → DB** — Kysely runs the SQL against Neon Postgres. Tables
+   are namespaced under `spacepotatis.*`. Migrations live in
+   `db/migrations/` and are applied out-of-band per CLAUDE.md §7a.
+6. **DB → `infra` → `app`** — the response includes status + (on error)
+   the error code. A `validateNoRegression` failure returns HTTP 422
+   with `error: "save_regression"` and is treated as transient by the
+   client.
+7. **`app` → `state/sync.ts`** — the saveQueue interprets the response;
+   on success, the pending snapshot is cleared from localStorage; on
+   transient failure, it's held for retry after the next loadSave.
+8. **`state` → `ui`** — the GameState subscription notifies any
+   listening React components, which re-render with the persisted
+   state's confirmation (e.g. credits balance). On `load-failed`, the
+   `useCloudSaveSyncLogic` hook surfaces the
+   `SaveLoadErrorOverlay` so the splash never clears over
+   `INITIAL_STATE` (see ADR 0004 + CLAUDE.md §11 row "Save-load error
+   UX").
+
+The same eight-layer round-trip applies in reverse on hydrate (GET
+`/api/save` + `RemoteSaveSchema` + `hydrate()`), and the
+`/save-roundtrip-audit` skill walks every `StateSnapshot` field through
+all eight layers before any commit that touches the persistence
+sub-cluster.
+
+### 11.4. Migration order (Phase 3, gated)
+
+Phase 3 of the audit is the mechanical extraction. It is NOT executed
+until explicit user approval. The order is "leaves first, core last":
+
+1. Tier 1 (parallelizable): `types`, `schemas`, `audio`.
+2. Tier 2 (parallelizable, after tier 1): `content`, `infra`.
+3. Tier 3 (serial): `state` — runs `/save-roundtrip-audit` before commit.
+4. Tier 4 (parallelizable, after tier 3): `three`, `phaser`, `app`.
+5. Tier 5 (serial, last): `ui`.
+
+The full per-tier risk and verification matrix lives in
+[docs/audit/02-target-architecture.md](docs/audit/02-target-architecture.md).
