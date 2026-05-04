@@ -2,6 +2,10 @@
 
 import { audioBus } from "./AudioBus";
 
+// PUBLIC API — this engine is part of the `audio` module's contract.
+//   Stable. Breaking changes require a coordinated update of every caller.
+//   See ./README.md for the rationale.
+//
 // Dedicated music engine for the Story log experience. Plays a single
 // looping bed while the Story menu is open OR while the player is replaying
 // any entry from the log — calling play() while already playing is a no-op,
@@ -15,6 +19,7 @@ const STORY_LOG_MUSIC_PATH = "/audio/story/great-potato-awakening-music.ogg";
 const TARGET_VOLUME = 0.45;
 const FADE_MS = 800;
 
+// INTERNAL — exposed only via the `storyLogAudio` singleton at file end.
 class StoryLogAudio {
   private music: HTMLAudioElement | null = null;
   private fadeRaf: number | null = null;
@@ -23,6 +28,13 @@ class StoryLogAudio {
     audioBus.register("music", this);
   }
 
+  /**
+   * Start the looping bed at a fade-in. Idempotent — calling while already
+   * playing is a no-op (the bed never restarts when the user transitions
+   * between the Story-log list view and a replay popup).
+   *
+   * @stable
+   */
   play(): void {
     if (this.music) return;
     const music = new Audio(STORY_LOG_MUSIC_PATH);
@@ -40,6 +52,12 @@ class StoryLogAudio {
     }
   }
 
+  /**
+   * Fade out and release the bed. Called when the player closes the Story
+   * menu. Idempotent — safe to call when nothing is playing.
+   *
+   * @stable
+   */
   stop(): void {
     const music = this.music;
     this.music = null;
@@ -54,6 +72,13 @@ class StoryLogAudio {
     });
   }
 
+  /**
+   * AudioBus callback. Pauses the bed on mute, resumes on unmute. Volume
+   * snaps to target rather than fading because the bed is already at
+   * steady-state volume by the time mute toggles can happen.
+   *
+   * @stable
+   */
   setMuted(muted: boolean): void {
     if (!this.music) return;
     if (muted) {
@@ -64,6 +89,8 @@ class StoryLogAudio {
     }
   }
 
+  // INTERNAL — every method below is private to the engine.
+
   private fade(toVol: number): void {
     if (!this.music) return;
     if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
@@ -71,6 +98,7 @@ class StoryLogAudio {
   }
 }
 
+// INTERNAL
 function tween(
   el: HTMLAudioElement,
   fromVol: number,
@@ -88,4 +116,13 @@ function tween(
   return requestAnimationFrame(tick);
 }
 
+/**
+ * Story-log bed. Plays a single looping ambient track while the Story menu
+ * is open or the player is replaying any entry from the log. The replay
+ * voice goes through `storyAudio.play({ musicSrc: null, ... })` so it
+ * layers on top without restarting this bed. Registered with the bus as
+ * `music`.
+ *
+ * @stable
+ */
 export const storyLogAudio = new StoryLogAudio();
