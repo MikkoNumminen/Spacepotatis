@@ -472,6 +472,13 @@ function TierBadge({ tier }: { tier: 1 | 2 }) {
 //   not maxed: amber "UPGRADE TO Mk{N+1} · ¢{cost}" pill (price folded
 //              into the button so the eye lands on one control, not three).
 //   maxed:    "Mk {maxLevel} maxed" span (no button — there's nothing to do).
+//
+// `cost === null` is the single source of truth for "maxed" — derives
+// from the parent's `cost={maxed ? null : actualCost}` shape and lets
+// TS narrow `cost` to `number` inside the not-maxed branch. The previous
+// `level >= maxLevel` derivation didn't narrow, so the button could
+// silently render `¢ null` if a future caller passed cost: null while
+// not maxed.
 function Row({
   label,
   detail,
@@ -493,7 +500,7 @@ function Row({
   // that opens the per-upgrade modal (with Grandma voiceover).
   onDetails?: () => void;
 }) {
-  const maxed = level >= maxLevel;
+  const maxed = cost === null;
   return (
     <div className="mb-3 flex items-center justify-between gap-3 rounded border border-space-border p-3">
       <div className="min-w-0">
