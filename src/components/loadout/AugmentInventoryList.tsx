@@ -1,14 +1,13 @@
 import { getAugment } from "@/game/data/augments";
 import type { AugmentId } from "@/types/game";
 import { AugmentDot } from "./dots";
+import { SectionHeading } from "./SectionHeading";
 
 export function AugmentInventoryList({ inventory }: { inventory: readonly AugmentId[] }) {
   if (inventory.length === 0) return null;
   return (
     <>
-      <h3 className="mt-6 mb-2 font-display text-xs tracking-widest text-hud-green/70">
-        AUGMENT INVENTORY
-      </h3>
+      <SectionHeading>AUGMENT INVENTORY</SectionHeading>
       <ul className="flex flex-col gap-2">
         {inventory.map((id, idx) => {
           const aug = getAugment(id);

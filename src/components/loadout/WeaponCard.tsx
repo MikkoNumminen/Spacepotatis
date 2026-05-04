@@ -71,21 +71,26 @@ export function WeaponCard({
     <>
       <li className="rounded border border-space-border px-3 py-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          {/* Row header: chips around the dot+name identity in a deliberate
+              reading order — slot (where) → tier (quality class) → name
+              (what) → mark (upgrade level). Each chip explicitly names its
+              concept (`TIER 2`, `MARK 3`) so the player learns the
+              vocabulary; no abbreviated single letters that need a tooltip. */}
           <div className="flex items-center gap-2 min-w-0">
-            <WeaponDot tint={weapon.tint} />
-            <span className="font-display text-sm tracking-wider truncate">{weapon.name}</span>
-            <TierBadge tier={weapon.tier} />
             {slotBadge && (
-              <span className="text-[10px] uppercase tracking-widest text-hud-green/50">
+              <span className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80">
                 {slotBadge}
               </span>
             )}
+            <TierBadge tier={weapon.tier} />
+            <WeaponDot tint={weapon.tint} />
+            <span className="font-display text-sm tracking-wider truncate">{weapon.name}</span>
             {level > 1 && (
               <span
-                className="rounded border border-hud-green/40 px-1 py-0.5 font-mono text-[9px] text-hud-green/80"
-                title={`Mark ${level} — weapon upgrade level. Each Mk adds damage; max Mk ${MAX_LEVEL}.`}
+                className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80"
+                title={`Mark ${level} — weapon upgrade level. Each Mark adds damage; max Mark ${MAX_LEVEL}.`}
               >
-                Mk {level}
+                MARK {level}
               </span>
             )}
           </div>
@@ -135,15 +140,25 @@ export function WeaponCard({
                   UPGRADE TO Mk{level + 1} · ¢{upgradeCost}
                 </button>
               ))}
-            {sellable && position.kind === "inventory" && (
-              <button
-                type="button"
-                onClick={() => void sellWeapon(position.index)}
-                className="touch-manipulation select-none rounded border border-hud-red/60 px-2 py-0.5 font-mono text-[11px] text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
-              >
-                SELL · ¢{sellPrice}
-              </button>
-            )}
+            {/* SELL slot — fixed-width wrapper so DETAILS / INSTALL /
+                UPGRADE column-align across EQUIPPED and INVENTORY rows
+                regardless of whether SELL renders, and regardless of the
+                price's character count (¢225 vs ¢4500 vs blank). The
+                button itself is right-aligned within the slot via
+                `justify-end` on the wrapper. Width sized for "SELL · ¢9999"
+                at the 11px monospace font; smaller prices leave trailing
+                empty space inside the slot. */}
+            <div className="flex w-[6.5rem] justify-end">
+              {sellable && position.kind === "inventory" && (
+                <button
+                  type="button"
+                  onClick={() => void sellWeapon(position.index)}
+                  className="touch-manipulation select-none rounded border border-hud-red/60 px-2 py-0.5 font-mono text-[11px] text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
+                >
+                  SELL · ¢{sellPrice}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </li>
@@ -202,9 +217,9 @@ function TierBadge({ tier }: { tier: 1 | 2 }) {
     <span
       aria-label={`Tier ${tier}`}
       title={title}
-      className={`rounded border px-1 py-0.5 font-mono text-[9px] uppercase tracking-widest ${cls}`}
+      className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${cls}`}
     >
-      T{tier}
+      TIER {tier}
     </span>
   );
 }
