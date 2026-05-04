@@ -35,7 +35,9 @@ import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";
 import { AugmentDetailsModal } from "@/components/loadout/AugmentDetailsModal";
+import { UpgradeDetailsModal } from "@/components/loadout/UpgradeDetailsModal";
 import { AugmentDot, WeaponDot } from "@/components/loadout/dots";
+import { getUpgrade, type UpgradeId } from "@/game/data/upgrades";
 
 // Total copies of a weapon id the player owns across slots + inventory.
 // Used to decorate buy rows so the player can see "owned · N" before purchase.
@@ -67,6 +69,7 @@ export default function ShopUI() {
   const completedMissions = useGameState((s) => s.completedMissions);
   const [weaponDetails, setWeaponDetails] = useState<WeaponDefinition | null>(null);
   const [augmentDetails, setAugmentDetails] = useState<AugmentDefinition | null>(null);
+  const [upgradeDetails, setUpgradeDetails] = useState<UpgradeId | null>(null);
 
   // Per-mission unlock gate: each mission-kind mission unlocks one weapon
   // for purchase. See src/game/data/missionWeaponRewards.ts for the map.
@@ -156,6 +159,7 @@ export default function ShopUI() {
             disabled={shieldMaxed || credits < shieldCost}
             onClick={handleBuyShield}
             cta={shieldMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("shield")}
           />
           <Row
             label="Armor plating"
@@ -164,6 +168,7 @@ export default function ShopUI() {
             disabled={armorMaxed || credits < armorCost}
             onClick={handleBuyArmor}
             cta={armorMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("armor")}
           />
 
           <h3 className="mt-5 mb-2 font-display text-xs tracking-widest text-hud-amber">REACTOR</h3>
@@ -174,6 +179,7 @@ export default function ShopUI() {
             disabled={reactorCapMaxed || credits < reactorCapCost}
             onClick={handleBuyReactorCap}
             cta={reactorCapMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("reactor-capacity")}
           />
           <Row
             label="Reactor recharge"
@@ -182,6 +188,7 @@ export default function ShopUI() {
             disabled={reactorRechMaxed || credits < reactorRechCost}
             onClick={handleBuyReactorRech}
             cta={reactorRechMaxed ? "maxed" : "UPGRADE"}
+            onDetails={() => setUpgradeDetails("reactor-recharge")}
           />
         </section>
 
@@ -348,6 +355,59 @@ export default function ShopUI() {
           onClose={() => setAugmentDetails(null)}
         />
       )}
+      {upgradeDetails && (() => {
+        // Mirror the same level / cost / detail expressions used in the Row
+        // above so the modal's header reads the live ship state. Built on
+        // open rather than precomputed because three of the four are only
+        // ever visible while the modal is on screen.
+        const u = getUpgrade(upgradeDetails);
+        switch (upgradeDetails) {
+          case "shield":
+            return (
+              <UpgradeDetailsModal
+                upgrade={u}
+                level={ship.shieldLevel}
+                maxLevel={MAX_LEVEL}
+                cost={shieldMaxed ? null : shieldCost}
+                detail={`max shield ${getMaxShield(ship)}`}
+                onClose={() => setUpgradeDetails(null)}
+              />
+            );
+          case "armor":
+            return (
+              <UpgradeDetailsModal
+                upgrade={u}
+                level={ship.armorLevel}
+                maxLevel={MAX_LEVEL}
+                cost={armorMaxed ? null : armorCost}
+                detail={`max HP ${getMaxArmor(ship)}`}
+                onClose={() => setUpgradeDetails(null)}
+              />
+            );
+          case "reactor-capacity":
+            return (
+              <UpgradeDetailsModal
+                upgrade={u}
+                level={ship.reactor.capacityLevel}
+                maxLevel={MAX_LEVEL}
+                cost={reactorCapMaxed ? null : reactorCapCost}
+                detail={`max ⚡ ${getReactorCapacity(ship)}`}
+                onClose={() => setUpgradeDetails(null)}
+              />
+            );
+          case "reactor-recharge":
+            return (
+              <UpgradeDetailsModal
+                upgrade={u}
+                level={ship.reactor.rechargeLevel}
+                maxLevel={MAX_LEVEL}
+                cost={reactorRechMaxed ? null : reactorRechCost}
+                detail={`⚡/s ${getReactorRecharge(ship)}`}
+                onClose={() => setUpgradeDetails(null)}
+              />
+            );
+        }
+      })()}
     </>
   );
 }
@@ -377,7 +437,8 @@ function Row({
   cost,
   disabled,
   onClick,
-  cta
+  cta,
+  onDetails
 }: {
   label: string;
   detail: string;
@@ -385,6 +446,10 @@ function Row({
   disabled: boolean;
   onClick: () => void;
   cta: string;
+  // When provided, renders a "DETAILS" pill before the cost label that
+  // opens the per-upgrade modal (with Grandma voiceover). Omitted on
+  // upgrades that don't have a detail surface yet.
+  onDetails?: () => void;
 }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3 rounded border border-space-border p-3">
@@ -393,6 +458,15 @@ function Row({
         <div className="text-xs text-hud-green/70">{detail}</div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        {onDetails && (
+          <button
+            type="button"
+            onClick={onDetails}
+            className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
+          >
+            DETAILS
+          </button>
+        )}
         {cost !== null && <span className="text-xs text-hud-amber">¢ {cost}</span>}
         <button
           type="button"

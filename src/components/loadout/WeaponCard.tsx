@@ -119,7 +119,7 @@ export function WeaponCard({
                 onClick={onOpenInstaller}
                 className="touch-manipulation select-none rounded border border-hud-green/60 px-2 py-0.5 font-mono text-[11px] text-hud-green hover:bg-hud-green/10 active:bg-hud-green/20"
               >
-                INSTALL
+                INSTALL AUGMENTS
               </button>
             )}
             {showUpgradeButton &&
