@@ -1,3 +1,7 @@
+// PUBLIC API — every export from this file is part of the `content` module's contract.
+//   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
+//   See ./README.md for the rationale.
+//
 // Cross-reference drift check for the content JSON files.
 //
 // Today, ID drift between collections (a wave referencing a deleted enemy, a
@@ -71,6 +75,13 @@ import type {
   WeaponId
 } from "@/types/game";
 
+/**
+ * Snapshot of every catalog the integrity check walks. The defaults
+ * pull from the live accessors via {@link buildLiveIntegrityData}; tests
+ * inject synthetic versions to exercise individual failure paths.
+ *
+ * @stable Part of `content` public API.
+ */
 // All collections the check operates on. The defaults pull from the live
 // accessors; tests inject synthetic versions to exercise failure paths.
 export interface IntegrityData {
@@ -141,12 +152,43 @@ function fail(
   );
 }
 
-// Public entry point. Throws on the first dangling cross-reference.
-//
-// `data` is required so missions.ts can pass its already-parsed list and
-// avoid forming a top-level load cycle through ./missions. Callers that
-// want the live full check (tests, future tooling) build the IntegrityData
-// themselves via `buildLiveIntegrityData()`.
+/**
+ * Public entry point. Walks every cross-reference between content
+ * collections and throws on the first dangling ref with a useful path
+ * (and a "did you mean" hint when the typo is plausible).
+ *
+ * Cross-references covered are listed in the file header comment.
+ * Adding a new `*Id` field to ANY content schema (e.g.
+ * `mission.rewardWeapon: WeaponId`, `enemy.dropAugmentId: AugmentId`,
+ * a new perks-by-mission link, a new story trigger kind) requires
+ * extending this function — the check does NOT auto-discover new FKs
+ * from schemas or types.
+ *
+ * `data` is required so missions.ts can pass its already-parsed list
+ * and avoid forming a top-level load cycle through ./missions. Callers
+ * that want the live full check (tests, future tooling) build the
+ * `IntegrityData` themselves via {@link buildLiveIntegrityData}.
+ *
+ * @throws Error on the first dangling cross-reference. Re-throw is
+ *   the right thing for callers — drift is a fatal data-shape bug.
+ *
+ * @example
+ * ```ts
+ * // From missions.ts (boot trigger):
+ * runDataIntegrityCheck(buildLiveIntegrityData(ALL_MISSIONS));
+ *
+ * // From a test (synthetic data):
+ * runDataIntegrityCheck({
+ *   enemies: [{ id: "scout", ... }],
+ *   weapons: [], augments: [], missions: [],
+ *   solarSystems: [], lootPools: [], missionWaves: [],
+ *   missionWeaponRewards: new Map(),
+ *   stories: []
+ * });
+ * ```
+ *
+ * @stable Part of `content` public API.
+ */
 export function runDataIntegrityCheck(data: IntegrityData): void {
   const enemyIds = new Set(data.enemies.map((e) => e.id));
   const enemyIdList = data.enemies.map((e) => e.id);
@@ -332,8 +374,14 @@ export function runDataIntegrityCheck(data: IntegrityData): void {
   }
 }
 
-// Convenience builder for callers that want a snapshot of the live data
-// and the missions list. Used by tests and any future tooling.
+/**
+ * Convenience builder for callers that want an `IntegrityData` snapshot
+ * of the live catalogs alongside an explicit missions list (passed in to
+ * avoid the load cycle through `./missions`). Used by the boot trigger
+ * in `missions.ts` and by tests / future tooling.
+ *
+ * @stable Part of `content` public API.
+ */
 export function buildLiveIntegrityData(
   missions: readonly MissionDefinition[]
 ): IntegrityData {

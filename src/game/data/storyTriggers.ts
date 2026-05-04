@@ -1,3 +1,7 @@
+// PUBLIC API — every export from this file is part of the `content` module's contract.
+//   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
+//   See ./README.md for the rationale.
+
 import type { MissionId, SolarSystemId } from "@/types/game";
 import { STORY_ENTRIES, type StoryEntry, type StoryId } from "@/game/data/story";
 import { getAllMissions } from "@/game/data/missions";
@@ -8,6 +12,13 @@ import { getAllMissions } from "@/game/data/missions";
 // decision is testable without rendering anything, and adding a new
 // trigger kind = add one helper + its tests.
 
+/**
+ * Picks the unique `kind: "first-time"` entry, IFF the player hasn't
+ * seen it (server-persisted set) AND it hasn't already been auto-fired
+ * this session. Gates the very first cold-load cinematic.
+ *
+ * @stable Part of `content` public API.
+ */
 export function selectFirstTimeEntry(
   seen: ReadonlySet<StoryId>,
   autoFired: ReadonlySet<StoryId>
@@ -22,6 +33,18 @@ export function selectFirstTimeEntry(
   );
 }
 
+/**
+ * Picks an `on-system-enter` entry whose target system matches `systemId`.
+ *
+ * Two gating modes:
+ * - Default (no `repeatable` flag): fires once ever, gated by the saved
+ *   seen-set.
+ * - `repeatable: true`: fires on every transition into the system,
+ *   bypassing the seen-set. The hook is responsible for clearing
+ *   `autoFired` on system-leave so the next entry re-arms.
+ *
+ * @stable Part of `content` public API.
+ */
 export function selectOnSystemEnterEntry(
   systemId: SolarSystemId,
   seen: ReadonlySet<StoryId>,
@@ -44,6 +67,14 @@ export function selectOnSystemEnterEntry(
   );
 }
 
+/**
+ * Picks the `on-mission-select` entry tied to a specific mission, if any.
+ * Fires every time the mission's quest card is opened — there is no
+ * seen-set gate here; the entry is short briefing audio that benefits
+ * from being repeatable.
+ *
+ * @stable Part of `content` public API.
+ */
 export function selectOnMissionSelectEntry(
   missionId: MissionId
 ): StoryEntry | null {
@@ -56,6 +87,15 @@ export function selectOnMissionSelectEntry(
   );
 }
 
+/**
+ * Returns the `on-system-cleared-idle` entries whose target system is
+ * `systemId` AND every combat mission in that system has been completed.
+ * The hook then loops through them with the configured `initialDelayMs`
+ * + `intervalMs`, playing one at a time while the player idles in the
+ * cleared system.
+ *
+ * @stable Part of `content` public API.
+ */
 export function selectReadyClearedIdleEntries(
   systemId: SolarSystemId,
   completed: ReadonlySet<MissionId>
@@ -74,11 +114,17 @@ export function selectReadyClearedIdleEntries(
   });
 }
 
-// Fires when EVERY mission across EVERY system has been completed — the
-// "you've caught up to the live content" cue. The hook prefers this over
-// the per-system cleared-idle helpers when both are ready, so the player
-// doesn't get a stacked "tubernovae-cluster-cleared" + "all-content-cleared"
-// chorus.
+/**
+ * Returns the `on-all-cleared-idle` entries IFF every combat mission
+ * across every solar system has been completed — the "you've caught up
+ * to the live content" cue.
+ *
+ * The hook prefers this over the per-system cleared-idle helpers when
+ * both are ready, so the player doesn't get a stacked
+ * `tubernovae-cluster-cleared` + `all-content-cleared` chorus.
+ *
+ * @stable Part of `content` public API.
+ */
 export function selectReadyAllClearedIdleEntries(
   completed: ReadonlySet<MissionId>
 ): readonly StoryEntry[] {

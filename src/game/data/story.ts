@@ -1,3 +1,7 @@
+// PUBLIC API — every export from this file is part of the `content` module's contract.
+//   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
+//   See ./README.md for the rationale.
+
 import type { MissionId, SolarSystemId } from "@/types/game";
 
 // Story log — narrative beats. Two presentation modes:
@@ -45,6 +49,12 @@ import type { MissionId, SolarSystemId } from "@/types/game";
 // list — it can go further than the spoken track: lore, context,
 // foreshadowing, what's at stake. Each string renders as its own paragraph.
 
+/**
+ * Canonical kebab-case identifier for every story entry. Saves persist
+ * the seen-set as `StoryId[]`, so renaming one is a breaking save change.
+ *
+ * @stable Part of `content` public API.
+ */
 export type StoryId =
   | "great-potato-awakening"
   | "spud-prime-arrival"
@@ -56,6 +66,15 @@ export type StoryId =
   | "tubernovae-cluster-cleared"
   | "all-content-cleared";
 
+/**
+ * Auto-fire trigger discriminated union. Adding a new kind requires
+ * updating `runDataIntegrityCheck`'s switch statement
+ * (the `_exhaustive: never` guard fails tsc otherwise) AND adding a
+ * matching `select*Entry` helper in
+ * [`./storyTriggers.ts`](./storyTriggers.ts) for the React layer.
+ *
+ * @stable Part of `content` public API.
+ */
 export type StoryAutoTrigger =
   | { readonly kind: "first-time" }
   | { readonly kind: "on-mission-select"; readonly missionId: MissionId }
@@ -84,6 +103,12 @@ export type StoryAutoTrigger =
       readonly intervalMs: number;
     };
 
+/**
+ * Single story-log row. `body` is the spoken track (Grandma); `logSummary`
+ * is the deeper written synopsis surfaced in the Story log list.
+ *
+ * @stable Part of `content` public API.
+ */
 export interface StoryEntry {
   readonly id: StoryId;
   readonly title: string;
@@ -96,6 +121,12 @@ export interface StoryEntry {
   readonly mode: "modal" | "overlay";
 }
 
+/**
+ * Every story entry in declaration order. The Story log UI renders this
+ * top-to-bottom; auto-trigger selectors filter by their kind.
+ *
+ * @stable Part of `content` public API.
+ */
 export const STORY_ENTRIES: readonly StoryEntry[] = [
   {
     id: "great-potato-awakening",
@@ -257,14 +288,36 @@ export const STORY_ENTRIES: readonly StoryEntry[] = [
   }
 ];
 
+/**
+ * Canonical, ordered list of story ids. Used by the seen-set persistence
+ * layer to filter unknown ids out of the saved set.
+ *
+ * @stable Part of `content` public API.
+ */
 export const STORY_IDS: readonly StoryId[] = STORY_ENTRIES.map((e) => e.id);
 
+/**
+ * Resolves a story id to its full entry.
+ *
+ * @throws Error if `id` is not a known story id. Saved seen-sets are
+ *   filtered through {@link isKnownStoryId} before reads, so this throw
+ *   should only fire for a hard-coded typo.
+ *
+ * @stable Part of `content` public API.
+ */
 export function getStoryEntry(id: StoryId): StoryEntry {
   const entry = STORY_ENTRIES.find((e) => e.id === id);
   if (!entry) throw new Error(`Unknown story id: ${id}`);
   return entry;
 }
 
+/**
+ * Type guard. Returns `true` iff `value` is a string that matches one of
+ * the declared story ids. Used by the persistence layer to discard stale
+ * ids when a saved seen-set predates a story-id rename.
+ *
+ * @stable Part of `content` public API.
+ */
 export function isKnownStoryId(value: unknown): value is StoryId {
   return typeof value === "string" && STORY_IDS.includes(value as StoryId);
 }
