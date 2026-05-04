@@ -25,9 +25,10 @@ export function UpgradeDetailsModal({
   level: number;
   maxLevel: number;
   cost: number | null;
-  // Live "level X/Y · max ⚡ Z" or similar string from the shop row, so the
-  // modal stays a thin presentation layer instead of duplicating the
-  // ShipConfig math.
+  // Trailing stat-suffix only — e.g. "max shield 64" or "⚡/s 41". The
+  // modal's header line already renders `level X/Y` and the cost, so this
+  // prop is the one piece of upgrade-specific math the shop can compute
+  // best. Don't include the level / cost here or they'll duplicate.
   detail: string;
   onClose: () => void;
 }) {

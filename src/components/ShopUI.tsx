@@ -355,61 +355,93 @@ export default function ShopUI() {
           onClose={() => setAugmentDetails(null)}
         />
       )}
-      {upgradeDetails && (() => {
-        // Mirror the same level / cost / detail expressions used in the Row
-        // above so the modal's header reads the live ship state. Built on
-        // open rather than precomputed because three of the four are only
-        // ever visible while the modal is on screen.
-        const u = getUpgrade(upgradeDetails);
-        switch (upgradeDetails) {
-          case "shield":
-            return (
-              <UpgradeDetailsModal
-                upgrade={u}
-                level={ship.shieldLevel}
-                maxLevel={MAX_LEVEL}
-                cost={shieldMaxed ? null : shieldCost}
-                detail={`max shield ${getMaxShield(ship)}`}
-                onClose={() => setUpgradeDetails(null)}
-              />
-            );
-          case "armor":
-            return (
-              <UpgradeDetailsModal
-                upgrade={u}
-                level={ship.armorLevel}
-                maxLevel={MAX_LEVEL}
-                cost={armorMaxed ? null : armorCost}
-                detail={`max HP ${getMaxArmor(ship)}`}
-                onClose={() => setUpgradeDetails(null)}
-              />
-            );
-          case "reactor-capacity":
-            return (
-              <UpgradeDetailsModal
-                upgrade={u}
-                level={ship.reactor.capacityLevel}
-                maxLevel={MAX_LEVEL}
-                cost={reactorCapMaxed ? null : reactorCapCost}
-                detail={`max ⚡ ${getReactorCapacity(ship)}`}
-                onClose={() => setUpgradeDetails(null)}
-              />
-            );
-          case "reactor-recharge":
-            return (
-              <UpgradeDetailsModal
-                upgrade={u}
-                level={ship.reactor.rechargeLevel}
-                maxLevel={MAX_LEVEL}
-                cost={reactorRechMaxed ? null : reactorRechCost}
-                detail={`⚡/s ${getReactorRecharge(ship)}`}
-                onClose={() => setUpgradeDetails(null)}
-              />
-            );
-        }
-      })()}
+      {upgradeDetails && (
+        <UpgradeDetailsForId
+          id={upgradeDetails}
+          ship={ship}
+          onClose={() => setUpgradeDetails(null)}
+        />
+      )}
     </>
   );
+}
+
+// Resolves an UpgradeId to the right level / cost / detail props for the
+// modal so ShopUI's JSX stays flat. The exhaustive `never` check makes
+// adding a 5th UpgradeId a typecheck failure here, not a silent
+// "modal renders nothing" surprise.
+function UpgradeDetailsForId({
+  id,
+  ship,
+  onClose
+}: {
+  id: UpgradeId;
+  ship: ShipConfig;
+  onClose: () => void;
+}) {
+  const upgrade = getUpgrade(id);
+  switch (id) {
+    case "shield": {
+      const maxed = ship.shieldLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.shieldLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : shieldUpgradeCost(ship.shieldLevel)}
+          detail={`max shield ${getMaxShield(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    case "armor": {
+      const maxed = ship.armorLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.armorLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : armorUpgradeCost(ship.armorLevel)}
+          detail={`max HP ${getMaxArmor(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    case "reactor-capacity": {
+      const maxed = ship.reactor.capacityLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.reactor.capacityLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : reactorCapacityCost(ship.reactor.capacityLevel)}
+          detail={`max ⚡ ${getReactorCapacity(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    case "reactor-recharge": {
+      const maxed = ship.reactor.rechargeLevel >= MAX_LEVEL;
+      return (
+        <UpgradeDetailsModal
+          upgrade={upgrade}
+          level={ship.reactor.rechargeLevel}
+          maxLevel={MAX_LEVEL}
+          cost={maxed ? null : reactorRechargeCost(ship.reactor.rechargeLevel)}
+          detail={`⚡/s ${getReactorRecharge(ship)}`}
+          onClose={onClose}
+        />
+      );
+    }
+    default: {
+      // Future UpgradeId additions fail the typecheck here instead of
+      // silently rendering nothing. eslint-disable: the assignment is the
+      // exhaustiveness check; the variable is intentionally unused.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _exhaustive: never = id;
+      return null;
+    }
+  }
 }
 
 function TierBadge({ tier }: { tier: 1 | 2 }) {

@@ -50,6 +50,26 @@ export type AugmentId =
   | "homing-up";
 
 /**
+ * Canonical id for every ship-upgrade row in the shop.
+ *
+ * Unlike weapons / augments, the actual numeric behaviour for each
+ * upgrade lives in `src/game/state/ShipConfig.ts` (BASE_SHIELD,
+ * REACTOR_CAPACITY_PER_LEVEL, the cost curves, etc.); the matching
+ * presentation registry — display name, body copy, voice path
+ * convention — lives in `src/game/data/upgrades.ts`. The id keys both
+ * the body-copy lookup and the per-upgrade Grandma voiceover at
+ * `/audio/upgrades/<id>-voice.mp3`, so renaming one is a breaking
+ * audio-asset change.
+ *
+ * @stable
+ */
+export type UpgradeId =
+  | "shield"
+  | "armor"
+  | "reactor-capacity"
+  | "reactor-recharge";
+
+/**
  * Catalog family — discriminator for shop / loadout filtering.
  *
  * The tutorial-system shop is gated to `family: "potato"` so pirate

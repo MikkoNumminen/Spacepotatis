@@ -10,19 +10,15 @@
 //
 // Voice path: `/audio/upgrades/<id>-voice.mp3`. Missing files fail silently
 // (HTMLAudioElement doesn't throw on 404), matching weapons / augments.
+//
+// `UpgradeId` lives in `src/types/game.ts` next to `WeaponId` / `AugmentId`
+// so non-content modules (state, schemas, future cheat-guards) can depend
+// on it without pulling the data registry. Re-exported here for
+// callers that already import from `data/upgrades`.
 
-/**
- * Canonical kebab-case identifier for each ship upgrade. These IDs are
- * what the DETAILS modal voice files key off, so renaming one is a
- * breaking audio-asset change.
- *
- * @stable Part of `content` public API.
- */
-export type UpgradeId =
-  | "shield"
-  | "armor"
-  | "reactor-capacity"
-  | "reactor-recharge";
+import type { UpgradeId } from "@/types/game";
+
+export type { UpgradeId };
 
 /**
  * One-row presentation entry for an upgrade. `body` paragraphs are what
