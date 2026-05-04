@@ -15,7 +15,6 @@ export const OBSTACLE_DEPTH = 5;
 export const SCENE_KEYS = {
   Boot: "BootScene",
   Combat: "CombatScene",
-  Boss: "BossScene",
   Pause: "PauseScene"
 } as const;
 
