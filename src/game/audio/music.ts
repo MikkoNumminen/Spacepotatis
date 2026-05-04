@@ -299,11 +299,10 @@ class MusicEngine {
     // already heals an autoplay-blocked play() within ~250ms of the first
     // gesture, but the gesture queue gives an immediate retry inside the
     // gesture's task — no perceptible delay between "user clicks anywhere"
-    // and "music starts." Fires once per element lifetime; if the engine
-    // is already past the autoplay block by activation, kickIfShouldBePlaying
-    // bails on the !el.paused guard. Fires inline if the user has already
-    // gestured (MenuMusic mounts before /shop, so by the time shopMusic
-    // attaches the page is usually already activated).
+    // and "music starts." Fires inline if the user has already gestured by
+    // the time this element attaches; otherwise queues with everyone else.
+    // Once the engine is past the autoplay block, kickIfShouldBePlaying
+    // bails on the !el.paused guard so a duplicate fire is harmless.
     onUserActivation(() => this.kickIfShouldBePlaying());
   }
 
