@@ -73,3 +73,20 @@ export function selectReadyClearedIdleEntries(
     );
   });
 }
+
+// Fires when EVERY mission across EVERY system has been completed — the
+// "you've caught up to the live content" cue. The hook prefers this over
+// the per-system cleared-idle helpers when both are ready, so the player
+// doesn't get a stacked "tubernovae-cluster-cleared" + "all-content-cleared"
+// chorus.
+export function selectReadyAllClearedIdleEntries(
+  completed: ReadonlySet<MissionId>
+): readonly StoryEntry[] {
+  const allMissions = getAllMissions().filter((m) => m.kind === "mission");
+  if (allMissions.length === 0) return [];
+  const everythingDone = allMissions.every((m) => completed.has(m.id));
+  if (!everythingDone) return [];
+  return STORY_ENTRIES.filter(
+    (e) => e.autoTrigger?.kind === "on-all-cleared-idle"
+  );
+}

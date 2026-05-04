@@ -8,6 +8,7 @@ import {
   selectFirstTimeEntry,
   selectOnMissionSelectEntry,
   selectOnSystemEnterEntry,
+  selectReadyAllClearedIdleEntries,
   selectReadyClearedIdleEntries
 } from "@/game/data/storyTriggers";
 import { storyAudio } from "@/game/audio/story";
@@ -208,12 +209,19 @@ export function useStoryTriggers({
   // started a fire. Without it, a cleanup firing because activeStory flipped
   // truthy (e.g. a chapter cinematic just opened) would silence the
   // cinematic's audio mid-fade-in.
+  //
+  // Priority: when on-all-cleared-idle has any ready entries (every system
+  // cleared), suppress the per-system entries so we don't stack two voice
+  // loops at once. The all-cleared cue is the more specific "you're caught
+  // up" signal and supersedes the chapter-specific cue.
   useEffect(() => {
     if (!enabled || !saveLoaded || storyListOpen || activeStory) return;
-    const ready = selectReadyClearedIdleEntries(
-      currentSolarSystemId,
-      new Set(completedMissions)
-    );
+    const completedSet = new Set(completedMissions);
+    const allCleared = selectReadyAllClearedIdleEntries(completedSet);
+    const perSystem = allCleared.length > 0
+      ? []
+      : selectReadyClearedIdleEntries(currentSolarSystemId, completedSet);
+    const ready = [...allCleared, ...perSystem];
     if (ready.length === 0) return;
 
     let weStartedAudio = false;
@@ -234,7 +242,10 @@ export function useStoryTriggers({
     const intervalIds: number[] = [];
     for (const entry of ready) {
       const trigger = entry.autoTrigger;
-      if (trigger?.kind !== "on-system-cleared-idle") continue;
+      if (
+        trigger?.kind !== "on-system-cleared-idle" &&
+        trigger?.kind !== "on-all-cleared-idle"
+      ) continue;
       const initialId = window.setTimeout(() => {
         fire(entry);
         const repeatId = window.setInterval(() => fire(entry), trigger.intervalMs);
