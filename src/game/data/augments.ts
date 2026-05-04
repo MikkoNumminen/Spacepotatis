@@ -1,3 +1,7 @@
+// PUBLIC API — every export from this file is part of the `content` module's contract.
+//   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
+//   See ./README.md for the rationale.
+//
 // Weapon augments — permanent modifiers a player binds to a specific weapon.
 // Once installed, an augment cannot be removed or moved to another weapon.
 // If the host weapon is sold, the augment is destroyed with it.
@@ -10,6 +14,16 @@
 
 import type { AugmentId } from "@/types/game";
 
+/**
+ * Single augment row.
+ *
+ * Effect modifiers default to identity if absent: `*Mul` fields multiply
+ * into the base stat, `*Bonus` fields sum into it. `damageMul: 1.25` means
+ * +25% damage; `fireRateMul: 0.7` means cooldown drops to 70% (+~43%
+ * effective rate).
+ *
+ * @stable Part of `content` public API.
+ */
 export interface AugmentDefinition {
   readonly id: AugmentId;
   readonly name: string;
@@ -26,8 +40,18 @@ export interface AugmentDefinition {
   readonly turnRateMul?: number;     // no-op on weapons without `homing: true`
 }
 
+/**
+ * Hard cap on augments per weapon. Enforced by the install mutators in
+ * `state/shipMutators.ts`; UI uses this to disable the install button.
+ *
+ * @stable Part of `content` public API.
+ */
 export const MAX_AUGMENTS_PER_WEAPON = 2;
 
+// INVARIANT: the `as const satisfies Record<AugmentId, AugmentDefinition>`
+// below guarantees every AugmentId has a row. Adding an id to the union
+// without a row here fails tsc; adding a row whose id isn't in the union
+// also fails tsc.
 const AUGMENTS_RECORD = {
   "damage-up": {
     id: "damage-up",
@@ -71,21 +95,47 @@ const AUGMENTS_RECORD = {
   }
 } as const satisfies Record<AugmentId, AugmentDefinition>;
 
+/**
+ * Every augment definition keyed by id. Total record — every {@link AugmentId}
+ * has a row.
+ *
+ * @stable Part of `content` public API.
+ */
 export const AUGMENTS: Readonly<Record<AugmentId, AugmentDefinition>> = AUGMENTS_RECORD;
 
+/**
+ * Canonical, ordered list of every augment id. Used by the shop, the
+ * loadout UI, and the integrity check.
+ *
+ * @stable Part of `content` public API.
+ */
 export const AUGMENT_IDS: readonly AugmentId[] = Object.keys(AUGMENTS_RECORD) as AugmentId[];
 
+/**
+ * Resolves an augment id to its full definition. Total — never throws,
+ * because {@link AUGMENTS} is exhaustive over `AugmentId`.
+ *
+ * @stable Part of `content` public API.
+ */
 export function getAugment(id: AugmentId): AugmentDefinition {
   return AUGMENTS[id];
 }
 
+/**
+ * Returns every augment definition in the order declared by
+ * {@link AUGMENT_IDS}.
+ *
+ * @stable Part of `content` public API.
+ */
 export function getAllAugments(): readonly AugmentDefinition[] {
   return AUGMENT_IDS.map((id) => AUGMENTS[id]);
 }
 
-// Folded-effect resolver. Given a list of installed augment ids, returns the
-// combined modifier set with safe defaults. Use at fire time to multiply
-// into the weapon's base stats.
+/**
+ * Result of folding installed augment effects into a single multiplier set.
+ *
+ * @stable Part of `content` public API.
+ */
 export interface AugmentEffects {
   readonly damageMul: number;
   readonly fireRateMul: number;
@@ -94,6 +144,13 @@ export interface AugmentEffects {
   readonly turnRateMul: number;
 }
 
+/**
+ * Identity effects — multipliers at 1, bonuses at 0. Returned by
+ * {@link foldAugmentEffects} for an empty input. Useful as a default in
+ * weapon math when no augments are installed.
+ *
+ * @stable Part of `content` public API.
+ */
 export const NEUTRAL_AUGMENT_EFFECTS: AugmentEffects = {
   damageMul: 1,
   fireRateMul: 1,
@@ -102,6 +159,20 @@ export const NEUTRAL_AUGMENT_EFFECTS: AugmentEffects = {
   turnRateMul: 1
 };
 
+/**
+ * Folds a list of installed augment ids into a single combined effect set.
+ * Multiplicative fields multiply; additive fields sum. Use at fire time to
+ * multiply into the weapon's base stats — never recompute this inline.
+ *
+ * @example
+ * ```ts
+ * const effects = foldAugmentEffects(["damage-up", "fire-rate-up"]);
+ * const finalDamage = baseDamage * effects.damageMul;
+ * const finalCooldown = baseFireRateMs * effects.fireRateMul;
+ * ```
+ *
+ * @stable Part of `content` public API.
+ */
 export function foldAugmentEffects(ids: readonly AugmentId[]): AugmentEffects {
   let damageMul = 1;
   let fireRateMul = 1;
