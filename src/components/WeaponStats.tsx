@@ -8,7 +8,9 @@ import type { AugmentId, WeaponDefinition } from "@/types/game";
 // shop "NEW WEAPONS" listings show the as-purchased numbers. Optional
 // `augmentIds` folds installed augment effects into the displayed numbers
 // (damage, dps, fire rate, energy) so the loadout view reflects what the
-// weapon actually fires like.
+// weapon actually fires like. The augment NAMES are rendered by the caller
+// (WeaponDetailsModal) below this block — keeping the names out of here
+// avoids the "1 augment applied" + names-list redundancy.
 export function WeaponStats({
   weapon,
   level = 1,
@@ -22,7 +24,6 @@ export function WeaponStats({
   const markMul = weaponDamageMultiplier(level);
   const effects = foldAugmentEffects(augmentIds);
 
-  const hasAugments = augmentIds.length > 0;
   const baseDamage = weapon.damage * markMul;
   const damage = Math.round(baseDamage * effects.damageMul);
   const projectileTotal = weapon.projectileCount + effects.projectileBonus;
@@ -64,11 +65,6 @@ export function WeaponStats({
           label="slow"
           value={`${Math.round(slowFactor * 100)}% · ${(slowDurationMs / 1000).toFixed(1)}s`}
         />
-      )}
-      {hasAugments && (
-        <div className="col-span-2 mt-1 text-[10px] text-hud-amber/70">
-          {augmentIds.length} augment{augmentIds.length === 1 ? "" : "s"} applied
-        </div>
       )}
     </div>
   );
