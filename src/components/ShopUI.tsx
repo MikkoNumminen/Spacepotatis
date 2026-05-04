@@ -155,19 +155,21 @@ export default function ShopUI() {
           <Row
             label="Shield capacity"
             detail={`level ${ship.shieldLevel}/${MAX_LEVEL} · max ${getMaxShield(ship)}`}
+            level={ship.shieldLevel}
+            maxLevel={MAX_LEVEL}
             cost={shieldMaxed ? null : shieldCost}
             disabled={shieldMaxed || credits < shieldCost}
             onClick={handleBuyShield}
-            cta={shieldMaxed ? "maxed" : "UPGRADE"}
             onDetails={() => setUpgradeDetails("shield")}
           />
           <Row
             label="Armor plating"
             detail={`level ${ship.armorLevel}/${MAX_LEVEL} · max HP ${getMaxArmor(ship)}`}
+            level={ship.armorLevel}
+            maxLevel={MAX_LEVEL}
             cost={armorMaxed ? null : armorCost}
             disabled={armorMaxed || credits < armorCost}
             onClick={handleBuyArmor}
-            cta={armorMaxed ? "maxed" : "UPGRADE"}
             onDetails={() => setUpgradeDetails("armor")}
           />
 
@@ -175,19 +177,21 @@ export default function ShopUI() {
           <Row
             label="Reactor capacity"
             detail={`level ${ship.reactor.capacityLevel}/${MAX_LEVEL} · max ⚡ ${getReactorCapacity(ship)}`}
+            level={ship.reactor.capacityLevel}
+            maxLevel={MAX_LEVEL}
             cost={reactorCapMaxed ? null : reactorCapCost}
             disabled={reactorCapMaxed || credits < reactorCapCost}
             onClick={handleBuyReactorCap}
-            cta={reactorCapMaxed ? "maxed" : "UPGRADE"}
             onDetails={() => setUpgradeDetails("reactor-capacity")}
           />
           <Row
             label="Reactor recharge"
             detail={`level ${ship.reactor.rechargeLevel}/${MAX_LEVEL} · ⚡/s ${getReactorRecharge(ship)}`}
+            level={ship.reactor.rechargeLevel}
+            maxLevel={MAX_LEVEL}
             cost={reactorRechMaxed ? null : reactorRechCost}
             disabled={reactorRechMaxed || credits < reactorRechCost}
             onClick={handleBuyReactorRech}
-            cta={reactorRechMaxed ? "maxed" : "UPGRADE"}
             onDetails={() => setUpgradeDetails("reactor-recharge")}
           />
         </section>
@@ -463,26 +467,33 @@ function TierBadge({ tier }: { tier: 1 | 2 }) {
   );
 }
 
+// Hull/reactor upgrade row. Mirrors the weapon-row upgrade button shape so
+// the player learns one visual pattern across all upgrade surfaces:
+//   not maxed: amber "UPGRADE TO Mk{N+1} · ¢{cost}" pill (price folded
+//              into the button so the eye lands on one control, not three).
+//   maxed:    "Mk {maxLevel} maxed" span (no button — there's nothing to do).
 function Row({
   label,
   detail,
+  level,
+  maxLevel,
   cost,
   disabled,
   onClick,
-  cta,
   onDetails
 }: {
   label: string;
   detail: string;
+  level: number;
+  maxLevel: number;
   cost: number | null;
   disabled: boolean;
   onClick: () => void;
-  cta: string;
-  // When provided, renders a "DETAILS" pill before the cost label that
-  // opens the per-upgrade modal (with Grandma voiceover). Omitted on
-  // upgrades that don't have a detail surface yet.
+  // When provided, renders a "DETAILS" pill before the upgrade control
+  // that opens the per-upgrade modal (with Grandma voiceover).
   onDetails?: () => void;
 }) {
+  const maxed = level >= maxLevel;
   return (
     <div className="mb-3 flex items-center justify-between gap-3 rounded border border-space-border p-3">
       <div className="min-w-0">
@@ -499,15 +510,20 @@ function Row({
             DETAILS
           </button>
         )}
-        {cost !== null && <span className="text-xs text-hud-amber">¢ {cost}</span>}
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onClick}
-          className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1 text-xs enabled:hover:bg-hud-green/10 enabled:active:bg-hud-green/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-        >
-          {cta}
-        </button>
+        {maxed ? (
+          <span className="font-mono text-[11px] text-hud-green/50">
+            Mk {maxLevel} maxed
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+          >
+            UPGRADE TO Mk{level + 1} · ¢{cost}
+          </button>
+        )}
       </div>
     </div>
   );
