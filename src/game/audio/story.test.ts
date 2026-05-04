@@ -264,4 +264,31 @@ describe("storyAudio autoplay recovery (deferred via userActivation)", () => {
     expect(bMusic?.playCalls).toBe(1);
     expect(bVoice?.playCalls).toBe(1);
   });
+
+  it("setMuted(false) before any gesture queues the resume play()s behind activation", async () => {
+    // Pin the consistency fix from PR #146 review: the unmute path also
+    // routes through onUserActivation. In practice users gesture before
+    // toggling mute (the toggle IS a click), but a server-pushed unmute
+    // could fire pre-gesture and previously stranded silently.
+    audioBus.setMasterMuted(true);
+    storyAudio.play({
+      musicSrc: "/audio/story/music.ogg",
+      voiceSrc: "/audio/story/voice.mp3",
+      voiceDelayMs: 0
+    });
+    await flushMicrotasks();
+    // While muted, play() allocates only the voice element (the muted
+    // branch in storyAudio.play short-circuits the music allocation
+    // entirely). Activation later won't conjure a music element.
+    audioBus.setMasterMuted(false);
+    await flushMicrotasks();
+    // setMuted(false) queued the resume callback for the voice element;
+    // it hasn't fired yet because no gesture.
+    const voice = fakes.audio(0);
+    expect(voice.playCalls).toBe(0);
+    userActivation._markActivatedForTesting();
+    await flushMicrotasks();
+    expect(voice.playCalls).toBe(1);
+    audioBus.setMasterMuted(false);
+  });
 });

@@ -7,6 +7,7 @@ import {
 } from "./__tests__/fakeAudio";
 import type { menuMusic as MenuMusicT, combatMusic as CombatMusicT } from "./music";
 import type { audioBus as AudioBusT } from "./AudioBus";
+import type * as UserActivationT from "./userActivation";
 
 // MusicEngine is a stateful, retry-driven thing. The tests below pin the
 // contracts that other engines (and the upcoming AudioBus refactor) will
@@ -26,12 +27,14 @@ let fakes: AudioFakes;
 let menuMusic: typeof MenuMusicT;
 let combatMusic: typeof CombatMusicT;
 let audioBus: typeof AudioBusT;
+let userActivation: typeof UserActivationT;
 
 beforeEach(async () => {
   fakes = installAudioFakes();
   vi.resetModules();
   ({ menuMusic, combatMusic } = await import("./music"));
   ({ audioBus } = await import("./AudioBus"));
+  userActivation = await import("./userActivation");
 });
 
 afterEach(() => {
@@ -225,7 +228,6 @@ describe("watchdog + retry self-healing", () => {
     const el = fakes.audio();
     expect(el.playCalls).toBe(1);
     fakes.setNextPlayBehavior("resolve");
-    const userActivation = await import("./userActivation");
     userActivation._markActivatedForTesting();
     await flushMicrotasks();
     expect(el.playCalls).toBe(2);
