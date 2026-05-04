@@ -66,21 +66,24 @@ export default function QuestPanel({
   // True only if any unlocked OTHER system still has uncleared mission-kind
   // missions. When false, "warp to next system" is misleading — there's no
   // more queued content to find. We surface a "more content coming" CTA
-  // instead. Uses the live mission catalog rather than just unlockedPlanets
-  // because a player can have a system unlocked with not-yet-unlocked
-  // prerequisites still ahead.
+  // instead.
+  //
+  // Counts gated-but-incomplete missions as unfinished too — i.e. only
+  // checks `!completedSet.has(m.id)` rather than also requiring the planet
+  // to be in `unlockedPlanets`. The filter the other way around (only
+  // unlocked planets count) is robust for a linear-chain DAG (today's
+  // content), but a future non-linear DAG with a still-locked side-branch
+  // could falsely trip "ALL SECTORS CLEAR" while real content waited.
   const hasUnfinishedInOtherSystems = useMemo(() => {
     const completedSet = new Set(completedMissions);
-    const unlockedSet = new Set(unlockedPlanets);
     return getAllMissions().some(
       (m) =>
         m.kind === "mission" &&
         m.solarSystemId !== currentSolarSystemId &&
         unlockedSystems.includes(m.solarSystemId) &&
-        unlockedSet.has(m.id) &&
         !completedSet.has(m.id)
     );
-  }, [currentSolarSystemId, unlockedSystems, unlockedPlanets, completedMissions]);
+  }, [currentSolarSystemId, unlockedSystems, completedMissions]);
 
   // Notify the parent every time a mission becomes the expanded one — both
   // explicit toggles and the auto-expansion of the suggested mission count
