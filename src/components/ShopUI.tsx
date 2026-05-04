@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   buyArmorUpgrade,
   buyAugment,
@@ -28,10 +28,13 @@ import {
 } from "@/game/state/ShipConfig";
 import { getAllWeapons } from "@/game/data/weapons";
 import { getAllAugments } from "@/game/data/augments";
-import type { AugmentId, WeaponId } from "@/types/game";
+import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
+import type { AugmentDefinition } from "@/game/data/augments";
 import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
-import { WeaponStats } from "@/components/WeaponStats";
+import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";
+import { AugmentDetailsModal } from "@/components/loadout/AugmentDetailsModal";
+import { AugmentDot, WeaponDot } from "@/components/loadout/dots";
 
 // Total copies of a weapon id the player owns across slots + inventory.
 // Used to decorate buy rows so the player can see "owned · N" before purchase.
@@ -61,6 +64,8 @@ export default function ShopUI() {
   const ship = useGameState((s) => s.ship);
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
+  const [weaponDetails, setWeaponDetails] = useState<WeaponDefinition | null>(null);
+  const [augmentDetails, setAugmentDetails] = useState<AugmentDefinition | null>(null);
 
   // Tutorial system gates the shop to tier 1 weapons only — the loot pool
   // matches this constraint (see src/game/data/lootPools.ts). Other systems
@@ -136,157 +141,190 @@ export default function ShopUI() {
   }, []);
 
   return (
-    <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_1fr]">
-      <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-        <header className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
-          <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
-        </header>
+    <>
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_1fr]">
+        <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
+          <header className="mb-4 flex items-baseline justify-between">
+            <h2 className="font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
+            <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
+          </header>
 
-        <Row
-          label="Shield capacity"
-          detail={`level ${ship.shieldLevel}/${MAX_LEVEL} · max ${getMaxShield(ship)}`}
-          cost={shieldMaxed ? null : shieldCost}
-          disabled={shieldMaxed || credits < shieldCost}
-          onClick={handleBuyShield}
-          cta={shieldMaxed ? "maxed" : "UPGRADE"}
-        />
-        <Row
-          label="Armor plating"
-          detail={`level ${ship.armorLevel}/${MAX_LEVEL} · max HP ${getMaxArmor(ship)}`}
-          cost={armorMaxed ? null : armorCost}
-          disabled={armorMaxed || credits < armorCost}
-          onClick={handleBuyArmor}
-          cta={armorMaxed ? "maxed" : "UPGRADE"}
-        />
+          <Row
+            label="Shield capacity"
+            detail={`level ${ship.shieldLevel}/${MAX_LEVEL} · max ${getMaxShield(ship)}`}
+            cost={shieldMaxed ? null : shieldCost}
+            disabled={shieldMaxed || credits < shieldCost}
+            onClick={handleBuyShield}
+            cta={shieldMaxed ? "maxed" : "UPGRADE"}
+          />
+          <Row
+            label="Armor plating"
+            detail={`level ${ship.armorLevel}/${MAX_LEVEL} · max HP ${getMaxArmor(ship)}`}
+            cost={armorMaxed ? null : armorCost}
+            disabled={armorMaxed || credits < armorCost}
+            onClick={handleBuyArmor}
+            cta={armorMaxed ? "maxed" : "UPGRADE"}
+          />
 
-        <h3 className="mt-5 mb-2 font-display text-xs tracking-widest text-hud-amber">REACTOR</h3>
-        <Row
-          label="Reactor capacity"
-          detail={`level ${ship.reactor.capacityLevel}/${MAX_LEVEL} · max ⚡ ${getReactorCapacity(ship)}`}
-          cost={reactorCapMaxed ? null : reactorCapCost}
-          disabled={reactorCapMaxed || credits < reactorCapCost}
-          onClick={handleBuyReactorCap}
-          cta={reactorCapMaxed ? "maxed" : "UPGRADE"}
-        />
-        <Row
-          label="Reactor recharge"
-          detail={`level ${ship.reactor.rechargeLevel}/${MAX_LEVEL} · ⚡/s ${getReactorRecharge(ship)}`}
-          cost={reactorRechMaxed ? null : reactorRechCost}
-          disabled={reactorRechMaxed || credits < reactorRechCost}
-          onClick={handleBuyReactorRech}
-          cta={reactorRechMaxed ? "maxed" : "UPGRADE"}
-        />
-      </section>
+          <h3 className="mt-5 mb-2 font-display text-xs tracking-widest text-hud-amber">REACTOR</h3>
+          <Row
+            label="Reactor capacity"
+            detail={`level ${ship.reactor.capacityLevel}/${MAX_LEVEL} · max ⚡ ${getReactorCapacity(ship)}`}
+            cost={reactorCapMaxed ? null : reactorCapCost}
+            disabled={reactorCapMaxed || credits < reactorCapCost}
+            onClick={handleBuyReactorCap}
+            cta={reactorCapMaxed ? "maxed" : "UPGRADE"}
+          />
+          <Row
+            label="Reactor recharge"
+            detail={`level ${ship.reactor.rechargeLevel}/${MAX_LEVEL} · ⚡/s ${getReactorRecharge(ship)}`}
+            cost={reactorRechMaxed ? null : reactorRechCost}
+            disabled={reactorRechMaxed || credits < reactorRechCost}
+            onClick={handleBuyReactorRech}
+            cta={reactorRechMaxed ? "maxed" : "UPGRADE"}
+          />
+        </section>
 
-      <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-        <header className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-display tracking-widest text-hud-green">NEW WEAPONS</h2>
-          <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
-        </header>
+        <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
+          <header className="mb-4 flex items-baseline justify-between">
+            <h2 className="font-display tracking-widest text-hud-green">NEW WEAPONS</h2>
+            <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
+          </header>
 
-        <ul className="flex flex-col gap-3">
-          {visibleWeapons.map((weapon) => {
-            const owned = countOwnedWeapon(ship, weapon.id);
-            return (
-              <li key={weapon.id} className="rounded border border-space-border p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="font-display tracking-wider">{weapon.name}</span>
-                    <TierBadge tier={weapon.tier} />
-                  </div>
-                  {owned > 0 && (
-                    <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-2 py-0.5 text-[11px] text-hud-green/80">
-                      owned × {owned}
-                    </span>
-                  )}
-                </div>
-                <WeaponStats weapon={weapon} />
-                <p className="mt-2 text-xs text-hud-green/70">{weapon.description}</p>
-                <div className="mt-2 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    disabled={credits < weapon.cost}
-                    onClick={() => {
-                      buyWeapon(weapon.id);
-                      itemSfx.weapon();
-                    }}
-                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                  >
-                    BUY · ¢ {weapon.cost}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      <section className="rounded border border-space-border bg-space-panel/70 p-4 md:col-span-2 sm:p-5">
-        <header className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-display tracking-widest text-hud-green">AUGMENTS</h2>
-          <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
-        </header>
-
-        <p className="mb-3 text-xs text-hud-green/60">
-          Permanent weapon modifiers. Once installed they cannot be moved or sold —
-          choose carefully. You may stock multiple copies in inventory.
-        </p>
-
-        <ul className="flex flex-col gap-3">
-          {getAllAugments()
-            .filter((a) => a.cost > 0)
-            .map((aug) => {
-              const { total, free } = countOwnedAugment(ship, aug.id);
+          <ul className="flex flex-col gap-1.5">
+            {visibleWeapons.map((weapon) => {
+              const owned = countOwnedWeapon(ship, weapon.id);
+              const dps = Math.round(
+                weapon.damage * weapon.projectileCount * (1000 / weapon.fireRateMs)
+              );
               return (
                 <li
-                  key={aug.id}
-                  className="flex items-start justify-between gap-3 rounded border border-space-border p-3"
+                  key={weapon.id}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded border border-space-border px-3 py-2"
                 >
-                  <div className="flex-1">
-                    <div className="flex items-baseline gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <WeaponDot tint={weapon.tint} />
+                    <span className="font-display text-sm tracking-wider truncate">
+                      {weapon.name}
+                    </span>
+                    <TierBadge tier={weapon.tier} />
+                    {owned > 0 && (
+                      <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
+                        ×{owned}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-mono text-[11px] text-hud-green/70">
+                      <span className="text-hud-amber">DPS {dps}</span>
+                      <span className="mx-1.5 text-hud-green/30">·</span>
+                      <span>⚡ {weapon.energyCost}</span>
+                      {weapon.projectileCount > 1 && (
+                        <>
+                          <span className="mx-1.5 text-hud-green/30">·</span>
+                          <span>{weapon.damage}×{weapon.projectileCount}</span>
+                        </>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setWeaponDetails(weapon)}
+                        className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
+                      >
+                        DETAILS
+                      </button>
+                      <button
+                        type="button"
+                        disabled={credits < weapon.cost}
+                        onClick={() => {
+                          buyWeapon(weapon.id);
+                          itemSfx.weapon();
+                        }}
+                        className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                      >
+                        BUY · ¢{weapon.cost}
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section className="rounded border border-space-border bg-space-panel/70 p-4 md:col-span-2 sm:p-5">
+          <header className="mb-4 flex items-baseline justify-between">
+            <h2 className="font-display tracking-widest text-hud-green">AUGMENTS</h2>
+            <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
+          </header>
+
+          <p className="mb-3 text-xs text-hud-green/60">
+            Permanent weapon modifiers. One-way install. Open DETAILS for the full description.
+          </p>
+
+          <ul className="flex flex-col gap-1.5">
+            {getAllAugments()
+              .filter((a) => a.cost > 0)
+              .map((aug) => {
+                const { total, free } = countOwnedAugment(ship, aug.id);
+                return (
+                  <li
+                    key={aug.id}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded border border-space-border px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
                       <AugmentDot tint={aug.tint} />
-                      <span className="font-display tracking-wider">{aug.name}</span>
+                      <span className="font-display text-sm tracking-wider truncate">
+                        {aug.name}
+                      </span>
                       {total > 0 && (
-                        <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-2 py-0.5 text-[11px] text-hud-green/80">
-                          {/* Free copies are install-ready in augmentInventory; the
-                              rest are stuck on weapons (one-way install). Show both
-                              so the player knows whether buying another adds an
-                              install-ready spare. */}
-                          owned × {total}
+                        <span className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80">
+                          ×{total}
                           {free !== total ? ` (free ${free})` : ""}
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-hud-green/70">{aug.description}</p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={credits < aug.cost}
-                    onClick={() => {
-                      buyAugment(aug.id);
-                      itemSfx.augment();
-                    }}
-                    className="shrink-0 touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                  >
-                    BUY · ¢ {aug.cost}
-                  </button>
-                </li>
-              );
-            })}
-        </ul>
-      </section>
-    </div>
-  );
-}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setAugmentDetails(aug)}
+                        className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
+                      >
+                        DETAILS
+                      </button>
+                      <button
+                        type="button"
+                        disabled={credits < aug.cost}
+                        onClick={() => {
+                          buyAugment(aug.id);
+                          itemSfx.augment();
+                        }}
+                        className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
+                      >
+                        BUY · ¢{aug.cost}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
+      </div>
 
-function AugmentDot({ tint }: { tint: string }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-block h-2 w-2 rounded-full"
-      style={{ backgroundColor: tint, boxShadow: `0 0 4px ${tint}` }}
-    />
+      {weaponDetails && (
+        <WeaponDetailsModal
+          weapon={weaponDetails}
+          onClose={() => setWeaponDetails(null)}
+        />
+      )}
+      {augmentDetails && (
+        <AugmentDetailsModal
+          augment={augmentDetails}
+          onClose={() => setAugmentDetails(null)}
+        />
+      )}
+    </>
   );
 }
 
