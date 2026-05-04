@@ -270,6 +270,12 @@ describe("storyAudio autoplay recovery (deferred via userActivation)", () => {
     // routes through onUserActivation. In practice users gesture before
     // toggling mute (the toggle IS a click), but a server-pushed unmute
     // could fire pre-gesture and previously stranded silently.
+    //
+    // play() always allocates both music + voice elements regardless of
+    // mute state — the muted branch only skips the play() / fade / voice
+    // timer. So setMuted(false) sees both this.music and this.voice set
+    // and queues a resume callback for each. We verify both fire on
+    // activation; that's the two-callback shape of the consistency fix.
     audioBus.setMasterMuted(true);
     storyAudio.play({
       musicSrc: "/audio/story/music.ogg",
@@ -277,18 +283,16 @@ describe("storyAudio autoplay recovery (deferred via userActivation)", () => {
       voiceDelayMs: 0
     });
     await flushMicrotasks();
-    // While muted, play() allocates only the voice element (the muted
-    // branch in storyAudio.play short-circuits the music allocation
-    // entirely). Activation later won't conjure a music element.
     audioBus.setMasterMuted(false);
     await flushMicrotasks();
-    // setMuted(false) queued the resume callback for the voice element;
-    // it hasn't fired yet because no gesture.
-    const voice = fakes.audio(0);
+    const [music, voice] = [fakes.audio(0), fakes.audio(1)];
+    // Allocation happens during play(); play() calls don't because we
+    // were muted on play() and have no gesture on unmute.
+    expect(music.playCalls).toBe(0);
     expect(voice.playCalls).toBe(0);
     userActivation._markActivatedForTesting();
     await flushMicrotasks();
+    expect(music.playCalls).toBe(1);
     expect(voice.playCalls).toBe(1);
-    audioBus.setMasterMuted(false);
   });
 });
