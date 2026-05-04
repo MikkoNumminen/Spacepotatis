@@ -1,6 +1,7 @@
 "use client";
 
 import { audioBus, type AudioCategory } from "./AudioBus";
+import { onUserActivation } from "./userActivation";
 
 // PUBLIC API — this engine is part of the `audio` module's contract.
 //   Stable. Breaking changes require a coordinated update of every caller.
@@ -294,6 +295,16 @@ class MusicEngine {
     // bails — only the surprise pauses leak through to scheduleRetry().
     el.addEventListener("pause", this.onPause);
     this.el = el;
+    // First-gesture kick. The watchdog (2s) + scheduleRetry (250ms) loop
+    // already heals an autoplay-blocked play() within ~250ms of the first
+    // gesture, but the gesture queue gives an immediate retry inside the
+    // gesture's task — no perceptible delay between "user clicks anywhere"
+    // and "music starts." Fires once per element lifetime; if the engine
+    // is already past the autoplay block by activation, kickIfShouldBePlaying
+    // bails on the !el.paused guard. Fires inline if the user has already
+    // gestured (MenuMusic mounts before /shop, so by the time shopMusic
+    // attaches the page is usually already activated).
+    onUserActivation(() => this.kickIfShouldBePlaying());
   }
 
   private onPause = (): void => {

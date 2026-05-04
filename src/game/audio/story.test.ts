@@ -154,7 +154,10 @@ describe("storyAudio autoplay recovery (deferred via userActivation)", () => {
   // The default beforeEach calls _markActivatedForTesting(); these tests
   // need a fresh module graph WITHOUT pre-activation so we can observe the
   // queue-then-flush-on-gesture flow that browsers actually exercise after
-  // a hard refresh.
+  // a hard refresh. The outer beforeEach already installed the audio fakes
+  // (window/document shims, FakeAudio, fake timers) — we just want fresh
+  // module instances on top of the same global setup, which is exactly
+  // what `vi.resetModules()` + re-import does.
   beforeEach(async () => {
     vi.resetModules();
     ({ storyAudio } = await import("./story"));

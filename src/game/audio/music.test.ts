@@ -212,4 +212,23 @@ describe("watchdog + retry self-healing", () => {
     expect(el.playCalls).toBe(2);
     expect(el.paused).toBe(false);
   });
+
+  it("first user gesture kicks startPlayback() immediately, not waiting for the 250ms retry", async () => {
+    // The watchdog/retry loop already heals an autoplay-blocked play() within
+    // 250ms of activation. The userActivation hook in attachElement skips
+    // that wait — recovery runs inside the gesture's task. This is the
+    // contract that keeps shop refresh from feeling laggy: the player
+    // clicks once, music starts now, not "in 0-250ms."
+    fakes.setNextPlayBehavior("reject");
+    combatMusic.loadTrack("/audio/music/combat-1.ogg");
+    await flushMicrotasks();
+    const el = fakes.audio();
+    expect(el.playCalls).toBe(1);
+    fakes.setNextPlayBehavior("resolve");
+    const userActivation = await import("./userActivation");
+    userActivation._markActivatedForTesting();
+    await flushMicrotasks();
+    expect(el.playCalls).toBe(2);
+    expect(el.paused).toBe(false);
+  });
 });

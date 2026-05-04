@@ -179,13 +179,25 @@ class StoryAudio {
         this.voice?.pause();
       }, VOICE_FADE_OUT_MS);
     } else {
+      // Resume path. In practice the user has already gestured by the time
+      // they toggle mute, so a raw `play()` here would succeed — but the
+      // gesture queue is the consistent shape and survives a (rare)
+      // server-driven unmute that fires before any input.
       if (this.music) {
-        void this.music.play().catch(() => {});
-        this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
+        const music = this.music;
+        onUserActivation(() => {
+          if (audioBus.isMuted("music") || this.music !== music) return;
+          void music.play().catch(() => {});
+          this.fadeMusic(MUSIC_TARGET_VOL, MUSIC_FADE_IN_MS);
+        });
       }
       if (this.voice && this.voiceTimerId === null) {
-        void this.voice.play().catch(() => {});
-        this.fadeVoice(VOICE_TARGET_VOL, VOICE_FADE_OUT_MS);
+        const voice = this.voice;
+        onUserActivation(() => {
+          if (audioBus.isMuted("music") || this.voice !== voice) return;
+          void voice.play().catch(() => {});
+          this.fadeVoice(VOICE_TARGET_VOL, VOICE_FADE_OUT_MS);
+        });
       }
     }
   }
