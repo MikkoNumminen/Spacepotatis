@@ -2,6 +2,7 @@
 
 import type { SolarSystemDefinition, SolarSystemId } from "@/types/game";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
+import { BUTTON_BACK } from "../ui/buttonClasses";
 
 export default function WarpPicker({
   currentSystemId,
@@ -20,16 +21,16 @@ export default function WarpPicker({
 
   return (
     <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-6">
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute left-3 top-3 z-10 min-h-[44px] touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 font-mono text-xs text-hud-green/90 transition-colors hover:bg-hud-green/10 active:bg-hud-green/20 sm:left-6 sm:top-6"
-      >
-        ← Back
-      </button>
       <div className="relative w-[min(28rem,100%)] rounded border border-space-border bg-space-panel/95 p-5">
-        <div className="font-display text-lg tracking-widest text-hud-green">WARP DRIVE</div>
-        <p className="mt-1 text-xs text-hud-amber">Select a destination system.</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className={`absolute left-3 top-3 z-10 min-h-[44px] ${BUTTON_BACK}`}
+        >
+          ← Back
+        </button>
+        <div className="mt-6 text-center font-display text-lg tracking-widest text-hud-green">WARP DRIVE</div>
+        <p className="mt-1 text-center text-xs text-hud-amber">Select a destination system.</p>
         <ul className="mt-4 flex flex-col gap-2">
           {systems.map((sys) => {
             const active = sys.id === currentSystemId;
