@@ -2,6 +2,10 @@
 
 import { audioBus } from "./AudioBus";
 
+// PUBLIC API — this engine is part of the `audio` module's contract.
+//   Stable. Breaking changes require a coordinated update of every caller.
+//   See ./README.md for the rationale.
+//
 // Story audio controller. Plays a music bed and a delayed voiceover for a
 // single narrative beat at a time. Honors the master mute toggle: while
 // muted, play() is a no-op (the popup just shows the text). Toggling the
@@ -24,6 +28,7 @@ const MUSIC_FADE_IN_MS = 1000;
 const MUSIC_FADE_OUT_MS = 1500;
 const VOICE_FADE_OUT_MS = 300;
 
+// INTERNAL — exposed only via the `storyAudio` singleton at file end.
 class StoryAudio {
   private music: HTMLAudioElement | null = null;
   private voice: HTMLAudioElement | null = null;
@@ -44,6 +49,22 @@ class StoryAudio {
     audioBus.register("music", this);
   }
 
+  /**
+   * Play one story beat: optional music bed + delayed voiceover. Cancels
+   * any in-flight beat first (latest call wins). While master/category mute
+   * is on, this is a structural no-op — no element is created and the
+   * popup just shows the text. Mid-playback mute toggles fade both tracks
+   * to silence without resetting the playhead so unmute resumes from the
+   * same spot.
+   *
+   * @param opts.musicSrc URL for the bed, or `null` to play voice-only
+   *                       (used by Story-log replay over the existing bed).
+   * @param opts.voiceSrc URL for the voiceover. Required.
+   * @param opts.voiceDelayMs Delay before the voice starts after the bed
+   *                       fades in. Lets the cinematic breathe.
+   *
+   * @stable
+   */
   play(opts: {
     musicSrc: string | null;
     voiceSrc: string;
@@ -81,6 +102,13 @@ class StoryAudio {
     }
   }
 
+  /**
+   * Fade both bed and voice to silence and release the underlying elements.
+   * Called by StoryModal on Continue or unmount, and by `play()` itself to
+   * tear down a previous beat before starting the next. Idempotent.
+   *
+   * @stable
+   */
   stop(): void {
     this.active = false;
     if (this.voiceTimerId !== null) {
@@ -109,6 +137,13 @@ class StoryAudio {
     }
   }
 
+  /**
+   * AudioBus callback. Fades both bed and voice to silence on mute (without
+   * resetting the playhead — pause happens after the fade so unmute resumes
+   * cleanly), and re-fades them up on unmute.
+   *
+   * @stable
+   */
   setMuted(muted: boolean): void {
     if (!this.active) return;
 
@@ -137,6 +172,8 @@ class StoryAudio {
     }
   }
 
+  // INTERNAL — every method below is private to the engine.
+
   private fadeMusic(toVol: number, durationMs: number): void {
     if (!this.music) return;
     this.cancelMusicFade();
@@ -164,6 +201,7 @@ class StoryAudio {
   }
 }
 
+// INTERNAL
 // Tween an audio element's volume over `durationMs` using rAF. Returns the
 // rAF handle so callers can cancel a stale fade. Calls `onDone` once volume
 // reaches the target (used by stop() to pause AFTER the fade resolves).
@@ -189,10 +227,21 @@ function tweenVolume(
   return requestAnimationFrame(tick);
 }
 
+// INTERNAL
 function clamp01(v: number): number {
   if (v < 0) return 0;
   if (v > 1) return 1;
   return v;
 }
 
+/**
+ * Story cinematic player. Plays a music bed + delayed voiceover for one
+ * narrative beat at a time. Owned by `StoryModal` — it calls `play()` on
+ * mount and `stop()` on Continue or unmount. Currently registered with the
+ * bus as `music` (see TODO inside the constructor about future per-category
+ * voice splits). Story modals duck `menuMusic` while playing so the
+ * cinematic isn't competing with the galaxy bed.
+ *
+ * @stable
+ */
 export const storyAudio = new StoryAudio();
