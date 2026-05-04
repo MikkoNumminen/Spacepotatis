@@ -132,7 +132,7 @@ export function WeaponCard({
                   onClick={() => void buyWeaponUpgrade(position)}
                   className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
                 >
-                  UPG Mk{level + 1} · ¢{upgradeCost}
+                  UPGRADE TO Mk{level + 1} · ¢{upgradeCost}
                 </button>
               ))}
             {sellable && position.kind === "inventory" && (
