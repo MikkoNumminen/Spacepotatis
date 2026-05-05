@@ -6,10 +6,17 @@
 // Numbers here are intentionally loose; tighten only after we've watched
 // real telemetry for false positives.
 
+import { getAllAugments } from "@/game/data/augments";
 import { getEnemy } from "@/game/data/enemies";
 import { getAllLootPools } from "@/game/data/lootPools";
 import { getAllMissions, getMission } from "@/game/data/missions";
+import { getAllWeapons } from "@/game/data/weapons";
 import { getWavesForMission } from "@/game/data/waves";
+import {
+  MAX_LEVEL,
+  weaponUpgradeCost
+} from "@/game/state/ShipConfig";
+import { MAX_AUGMENTS_PER_WEAPON } from "@/game/data/augments";
 import { SYSTEM_UNLOCK_GATES } from "@/game/state/stateCore";
 import type { MissionId, SolarSystemId } from "@/types/game";
 
@@ -51,10 +58,53 @@ const KILL_CADENCE_CEILING = 5;
 const PER_SECOND_SAFETY_FACTOR = 3;
 const PER_CLEAR_SAFETY_FACTOR = 1.5;
 
-// Fixed slack added to every credits delta. Absorbs rounding and the rare
-// frame where the client batches a couple of stray credit awards across the
-// save boundary. Not derived — it's a constant absorption buffer for noise.
-export const CREDITS_DELTA_SLACK = 100;
+// Per-save slack for the credits delta. Two parts:
+//
+// 1) `BASE_SLACK` (100) — absorbs rounding and the rare frame where the
+//    client batches a couple of stray credit awards across the save
+//    boundary. Pre-#159 this was the entire slack.
+//
+// 2) `MAX_SINGLE_EQUIPMENT_REFUND` — the catalog-derived ceiling on a
+//    single legitimate sell event. PR #159 raised the sell rate to 100%,
+//    so a player who sells a fully-upgraded fully-augmented weapon
+//    (max base cost + every Mk-up step paid + the two most expensive
+//    augments) recovers the entire investment in one transaction. The
+//    saveQueue debounces saves to ~1s after the last state change, so
+//    that single transaction can land on a save with deltaTime ≈ 0 —
+//    deltaTime * maxPerSecond would not cover it. Without absorbing the
+//    sell-back into the slack, every Mk5-weapon sell would 422 a
+//    legitimate player.
+//
+// The slack is a server-derived constant from catalog data — same shape
+// as `maxPerFirstClear`. A future balance audit (see ADR 0008) may
+// re-tune this if the cheat surface widens unacceptably; for now the
+// trade-off is documented and accepted: a save with deltaTime=0 can
+// claim up to MAX_SINGLE_EQUIPMENT_REFUND credits "free", but the same
+// player could earn that legitimately by selling one fully-decked-out
+// weapon, and the leaderboard is local-cohort, not competitive.
+const BASE_CREDITS_DELTA_SLACK = 100;
+
+function computeMaxSingleEquipmentRefund(): number {
+  // Worst-case sell from a single weapon: max base cost + the full
+  // Mk-1→MAX_LEVEL upgrade ladder + the two most expensive augments
+  // installed (MAX_AUGMENTS_PER_WEAPON cap).
+  const weaponBaseMax = Math.max(...getAllWeapons().map((w) => w.cost));
+  let upgradeLadder = 0;
+  for (let lv = 1; lv < MAX_LEVEL; lv++) {
+    upgradeLadder += weaponUpgradeCost(lv);
+  }
+  const augmentCosts = getAllAugments()
+    .map((a) => a.cost)
+    .sort((a, b) => b - a);
+  let topAugmentSum = 0;
+  for (let i = 0; i < MAX_AUGMENTS_PER_WEAPON && i < augmentCosts.length; i++) {
+    topAugmentSum += augmentCosts[i] ?? 0;
+  }
+  return weaponBaseMax + upgradeLadder + topAugmentSum;
+}
+
+export const MAX_SINGLE_EQUIPMENT_REFUND = computeMaxSingleEquipmentRefund();
+export const CREDITS_DELTA_SLACK = BASE_CREDITS_DELTA_SLACK + MAX_SINGLE_EQUIPMENT_REFUND;
 
 export interface CreditCaps {
   readonly maxPerSecond: number;
