@@ -135,3 +135,27 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: Converted next.config.mjs → next.config.ts (Next.js 15 supports .ts configs natively) to enable proper TypeScript imports; extracted headers logic to src/lib/securityHeaders.ts so the test can import it directly without the .mjs → .ts module resolution problem (allowJs: false in tsconfig). Test asserts on getSecurityHeaders() rather than importing next.config directly — same behavioral contract.
 - Tests / typecheck / build / lint: green at 05:55
 - PR: TBD
+
+### Phase 3 — finding: SEC-003 — GET /api/leaderboard mission-param as MissionId cast
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a90466e69b8247996
+- Branch: feat/security-sec-014-003-leaderboard-hardening
+- Commit: 97754a8
+- Files changed: src/app/api/leaderboard/route.ts (GET handler: replaced `as MissionId` cast with `MissionIdSchema.safeParse`, returns 400 `invalid_mission` for unknown ids), tests/security/leaderboardMissionIdValidate.test.ts (new, 5 tests)
+- Test added: tests/security/leaderboardMissionIdValidate.test.ts — "SEC-003 — GET /api/leaderboard rejects unknown ?mission= values" (bogus string → 400, UUID-shaped string → 400, SQL-injection string → 400, valid 'tutorial' → 200, all MISSION_IDS accepted)
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: none; Option A (MissionIdSchema.safeParse) executed as approved by orchestrator; prod leaderboard confirmed to have no retired ids
+- Tests / typecheck / build / lint: green at 01:56
+- PR: bundled with SEC-014 in feat/security-sec-014-003-leaderboard-hardening
+
+### Phase 3 — finding: SEC-014 — score field unbounded in ScorePayloadSchema
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a90466e69b8247996
+- Branch: feat/security-sec-014-003-leaderboard-hardening
+- Commit: d51c2a5
+- Files changed: src/app/api/leaderboard/route.ts (POST handler: maxLegitScore cap check → 422 score_implausible), src/lib/saveValidation.ts (new export: maxLegitScore(missionId)), src/lib/schemas/save.ts (ScorePayloadSchema: added min(0).max(SCORE_SANITY_CAP), new export SCORE_SANITY_CAP=10_000_000), tests/security/leaderboardScoreCap.test.ts (new, 11 tests), docs/security/02-findings-and-plan.md (SEC-003 status)
+- Test added: tests/security/leaderboardScoreCap.test.ts — "SEC-014 — POST /api/leaderboard rejects implausible scores" (INT max → 400 validation_failed; score above Zod cap → 400; 10_000_000 for tutorial → 422; negative → 400; score=0 for tutorial → 201; realistic score for tutorial → 201; realistic for combat-1 → 201) + "SEC-014 — maxLegitScore derivation" (every MISSION_IDS id → positive finite cap; tutorial cap > 1500 and < INT max; combat-1 cap > 25000 and < 10M; shops/hubs → fallback cap > 0)
+- Save-roundtrip-audit run? N — not save-touching (leaderboard route only; saveValidation.ts new function is read-only)
+- Migration required? N — no schema change (DB column is already INTEGER; we're enforcing an application-level cap below the column max)
+- Deviations from plan: the Zod sanity cap (10_000_000) catches INT max (2,147,483,647) at the schema level (400), not the per-mission cap (422). This is correct behaviour — any value > 10M is obviously fabricated and the two-layer defence is documented in the schema comment.
+- Tests / typecheck / build / lint: green at 01:58
+- PR: feat/security-sec-014-003-leaderboard-hardening

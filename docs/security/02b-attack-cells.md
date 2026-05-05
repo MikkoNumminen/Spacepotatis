@@ -74,7 +74,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Verification:** integration test in `tests/security/saveRace.test.ts`: dispatch two concurrent POST `/api/save` against a test DB with same player, with the second POST's payload carrying the OLD `completedMissions`. Assert the second is rejected by `validateNoRegression` rather than committing.
 - **Dependencies:** none.
 
-#### SEC-014 — `score` field unbounded in `ScorePayloadSchema` (Cell 3)
+#### SEC-014 — `score` field unbounded in `ScorePayloadSchema` (Cell 3) **Status:** fixed — d51c2a5
 
 - **Severity:** medium (leaderboard-integrity violation; trivial exploit by any authed player)
 - **Location:** [src/lib/schemas/save.ts:459-463](../../src/lib/schemas/save.ts#L459-L463); column at [db/migrations/20260424120000_initial_schema.sql:34](../../db/migrations/20260424120000_initial_schema.sql#L34)
