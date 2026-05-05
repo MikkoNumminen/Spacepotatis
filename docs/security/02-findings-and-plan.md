@@ -81,7 +81,7 @@ None.
 - **Dependencies:** SEC-003 amplification reduces materially when this lands; both can be fixed independently. Recommend SEC-001 → SEC-003 → SEC-002 order so the routes aren't being touched in parallel.
 - **Architectural note:** mini-design needed before Phase 3 starts. Choice of KV vs Upstash + token-bucket parameters needs user sign-off.
 
-### SEC-003 — `GET /api/leaderboard` mission-param `as MissionId` cast — cache-key pollution + DoS surface
+### SEC-003 — `GET /api/leaderboard` mission-param `as MissionId` cast — cache-key pollution + DoS surface **Status:** fixed — 97754a8
 
 - **Severity:** medium (the cast itself is low; the cache-DoS amplification raises it)
 - **Location:** [src/app/api/leaderboard/route.ts:24-28](../../src/app/api/leaderboard/route.ts#L24-L28); [src/lib/leaderboard.ts:42-50](../../src/lib/leaderboard.ts#L42-L50) for the cache-key derivation

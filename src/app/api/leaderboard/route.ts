@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
 import { upsertPlayerId } from "@/lib/players";
 import { MissionIdSchema, ScorePayloadSchema } from "@/lib/schemas/save";
+import { maxLegitScore } from "@/lib/saveValidation";
 
 // Edge runtime — getDb() is now Neon serverless (Edge-compatible) and the
 // NextAuth `auth()` call is JWT-cookie based, so no Node primitives needed.
@@ -54,6 +55,11 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
   const { missionId, score, timeSeconds = null } = parsed.data;
+
+  const cap = maxLegitScore(missionId);
+  if (score > cap) {
+    return NextResponse.json({ error: "score_implausible" }, { status: 422 });
+  }
 
   try {
     const db = getDb();

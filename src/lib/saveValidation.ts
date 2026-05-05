@@ -488,3 +488,37 @@ function safeGetMission(id: MissionId) {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Per-mission score cap — SEC-014
+// ---------------------------------------------------------------------------
+// Derives the theoretical maximum legitimate score for a mission from
+// waves.json + enemies.json. The ScoreSystem caps combo at 8 and rounds
+// per kill: `Math.round(scoreValue * combo)`. The maximum score is therefore
+// `sum(enemy.scoreValue * 8 * spawnCount)` across all waves. A 2× safety
+// factor absorbs any future addScore() bonuses (perks, collectibles) that
+// aren't wave-enemy kills. Missions with no waves (shop/hub planets) get a
+// non-zero fallback so score=0 still passes the guard.
+const SCORE_SAFETY_FACTOR = 2;
+const MAX_COMBO = 8;
+const FALLBACK_MIN_CAP = 100;
+
+export function maxLegitScore(missionId: MissionId): number {
+  const waves = getWavesForMission(missionId);
+  let theoreticalMax = 0;
+  for (const wave of waves) {
+    for (const spawn of wave.spawns) {
+      let enemy;
+      try {
+        enemy = getEnemy(spawn.enemy);
+      } catch {
+        continue;
+      }
+      theoreticalMax += enemy.scoreValue * MAX_COMBO * spawn.count;
+    }
+  }
+  return Math.max(
+    FALLBACK_MIN_CAP,
+    Math.ceil(theoreticalMax * SCORE_SAFETY_FACTOR)
+  );
+}
