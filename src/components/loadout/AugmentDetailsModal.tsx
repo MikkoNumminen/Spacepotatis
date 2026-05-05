@@ -6,6 +6,7 @@ import type { AugmentDefinition } from "@/game/data/augments";
 import type { WeaponInstance } from "@/game/state/ShipConfig";
 import type { WeaponDefinition } from "@/types/game";
 import { BUTTON_BACK } from "../ui/buttonClasses";
+import { Bar } from "./Bar";
 import { AugmentDot } from "./dots";
 import {
   computeAugmentImpact,
@@ -141,35 +142,3 @@ function ImpactDiagram({
   );
 }
 
-function Bar({
-  value,
-  unit,
-  pct,
-  caption,
-  tint
-}: {
-  value: number;
-  unit: string;
-  pct: number;
-  caption: string;
-  tint: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span className="font-mono text-[11px] text-hud-amber">
-        {value}
-        {unit ? ` ${unit}` : ""}
-      </span>
-      <div className="relative h-24 w-8 overflow-hidden rounded border border-space-border bg-space-bg/60">
-        <div
-          className="absolute bottom-0 left-0 right-0 transition-all duration-300 ease-out"
-          style={{ height: `${pct}%`, backgroundColor: tint }}
-          aria-hidden
-        />
-      </div>
-      <span className="font-mono text-[9px] uppercase tracking-widest text-hud-green/60">
-        {caption}
-      </span>
-    </div>
-  );
-}

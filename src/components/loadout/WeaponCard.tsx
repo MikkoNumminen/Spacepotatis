@@ -6,14 +6,12 @@ import {
 } from "@/game/state/GameState";
 import {
   MAX_LEVEL,
-  weaponDamageMultiplier,
   weaponUpgradeCost,
   type WeaponInstance,
   type WeaponPosition
 } from "@/game/state/ShipConfig";
 import {
   MAX_AUGMENTS_PER_WEAPON,
-  foldAugmentEffects,
   getAugment
 } from "@/game/data/augments";
 import { playUiCue } from "@/game/audio/uiCues";
@@ -25,6 +23,7 @@ import { AugmentDot, WeaponDot } from "./dots";
 import { AugmentDetailsModal } from "./AugmentDetailsModal";
 import { StatDetailsModal } from "./StatDetailsModal";
 import { WeaponDetailsModal } from "./WeaponDetailsModal";
+import { dpsOf, energyOf } from "./weaponStats";
 
 // Compact loadout/inventory row. The full spec sheet + flavour description
 // live behind the DETAILS modal so the list scans at a glance.
@@ -71,13 +70,10 @@ export function WeaponCard({
   const canInstall = showInstallButton && slotsFree > 0 && eligibleInventory.length > 0;
 
   // Folds in mark + augments to mirror what the weapon actually fires like —
-  // the player compares DPS / energy at a glance from this row.
-  const markMul = weaponDamageMultiplier(level);
-  const effects = foldAugmentEffects(installedAugments);
-  const projectileTotal = weapon.projectileCount + effects.projectileBonus;
-  const fireRateMs = weapon.fireRateMs * effects.fireRateMul;
-  const dps = Math.round(weapon.damage * markMul * effects.damageMul * projectileTotal * (1000 / fireRateMs));
-  const energy = Math.max(1, Math.round(weapon.energyCost * effects.energyMul));
+  // the player compares DPS / energy at a glance from this row. Same
+  // formula source as LoadoutDpsGraph and AugmentDetailsModal.
+  const dps = dpsOf(weapon, level, installedAugments);
+  const energy = energyOf(weapon, installedAugments);
 
   return (
     <>
