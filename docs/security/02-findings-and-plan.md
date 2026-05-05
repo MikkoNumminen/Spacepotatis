@@ -27,7 +27,7 @@ None.
 
 ## MEDIUM findings
 
-### SEC-001 — No security headers on any response
+### SEC-001 — No security headers on any response **Status:** fixed — 589f698
 
 - **Severity:** medium (defense-in-depth — no current exploit path, but missing layered defenses)
 - **Location:** [next.config.mjs](../../next.config.mjs) (no `headers()` block); [src/app/api/](../../src/app/api/)*** (no per-route header writes); no `src/middleware.ts`

@@ -11,7 +11,9 @@
 // routes entirely. Instead we rely on per-route static-ness to keep the
 // Vercel CPU budget low.
 
+import type { NextConfig } from "next";
 import bundleAnalyzer from "@next/bundle-analyzer";
+import { getSecurityHeaders } from "./src/lib/securityHeaders";
 
 // `openAnalyzer: false` so `ANALYZE=true npm run build` writes the reports
 // to disk (under .next/analyze/) without auto-launching three browser
@@ -23,15 +25,15 @@ const withBundleAnalyzer = bundleAnalyzer({
   openAnalyzer: false
 });
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   devIndicators: false,
   experimental: {
     optimizePackageImports: ["three", "gsap"]
-  }
+  },
+  headers: getSecurityHeaders
 };
 
 export default withBundleAnalyzer(nextConfig);

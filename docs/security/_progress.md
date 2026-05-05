@@ -71,6 +71,7 @@ For Phase 3 finding-level checkpoints (one per `security-fixer` run):
 - Notes: 10 parallel adversarial cells; 22 net-new findings; final tally 0 critical / 0 high / 9 medium / 15 low / 8 informational (3 risk-accept). Highest-impact addition: SEC-011 (audit-table size-cap DoS amplifier).
 
 ### Phase 3 — Remediation (status: in-progress)
+<<<<<<< HEAD
 
 PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (SEC-001, 003, 007+021, 011, 012, 013, 014, 015) in parallel worktree branches off master.
 
@@ -122,3 +123,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: none; Option B (retrofit) executed as chosen by orchestrator
 - Tests / typecheck / build / lint: 1161 tests green, typecheck clean, lint clean, build clean at 05:53
 - PR: pending
+
+### Phase 3 — finding: SEC-001 — security headers
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a94f540848a5cf294
+- Branch: feat/security-sec-001-headers
+- Commit: 589f698
+- Files changed: next.config.mjs (removed), next.config.ts (new), src/lib/securityHeaders.ts (new), tests/security/headers.test.ts (new), vitest.config.ts (include path added), docs/security/02-findings-and-plan.md, docs/security/_progress.md
+- Test added: tests/security/headers.test.ts → "SEC-001 — security headers in next.config.mjs"
+- Save-roundtrip-audit run? N (does not touch save pipeline)
+- Migration required? N
+- Deviations from plan: Converted next.config.mjs → next.config.ts (Next.js 15 supports .ts configs natively) to enable proper TypeScript imports; extracted headers logic to src/lib/securityHeaders.ts so the test can import it directly without the .mjs → .ts module resolution problem (allowJs: false in tsconfig). Test asserts on getSecurityHeaders() rather than importing next.config directly — same behavioral contract.
+- Tests / typecheck / build / lint: green at 05:55
+- PR: TBD
