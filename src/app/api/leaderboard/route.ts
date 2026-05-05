@@ -4,8 +4,7 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
 import { upsertPlayerId } from "@/lib/players";
-import { ScorePayloadSchema } from "@/lib/schemas/save";
-import type { MissionId } from "@/types/game";
+import { MissionIdSchema, ScorePayloadSchema } from "@/lib/schemas/save";
 
 // Edge runtime — getDb() is now Neon serverless (Edge-compatible) and the
 // NextAuth `auth()` call is JWT-cookie based, so no Node primitives needed.
@@ -20,13 +19,14 @@ export async function GET(request: Request): Promise<Response> {
   const parsedLimit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
   const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 20, 1), 50);
 
+  const missionParsed = MissionIdSchema.safeParse(missionIdParam);
+  if (!missionParsed.success) {
+    return NextResponse.json({ error: "invalid_mission" }, { status: 400 });
+  }
+
   try {
-    // Cast: MissionId is a string-literal union; the route accepts any string
-    // here because the leaderboard table itself is the source of truth for
-    // which mission ids exist (legacy ids from older deploys still resolve).
-    const missionId = missionIdParam as MissionId;
-    const entries = await getCachedLeaderboard(missionId, limit);
-    return NextResponse.json({ missionId: missionIdParam, entries });
+    const entries = await getCachedLeaderboard(missionParsed.data, limit);
+    return NextResponse.json({ missionId: missionParsed.data, entries });
   } catch (err) {
     console.error("GET /api/leaderboard failed:", err);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
