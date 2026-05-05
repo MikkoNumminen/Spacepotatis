@@ -99,7 +99,7 @@ describe("wireCollisions", () => {
     expect(captured[3]?.groupB).toBe(powerUps);
   });
 
-  it("player-bullet→enemy callback damages enemy, deactivates bullet, and reports kill flag", () => {
+  it("player-bullet→enemy callback damages enemy, deactivates bullet, and reports kill flag + applied damage", () => {
     const { captured, handlers } = setup();
     const bullet = {
       active: true,
@@ -108,6 +108,7 @@ describe("wireCollisions", () => {
     } as unknown as Bullet;
     const enemy = {
       active: true,
+      hp: 50, // hp before — applied = min(14, 50) = 14
       takeDamage: vi.fn(() => true)
     } as unknown as Enemy;
 
@@ -115,7 +116,25 @@ describe("wireCollisions", () => {
 
     expect(enemy.takeDamage).toHaveBeenCalledWith(14);
     expect(bullet.deactivate).toHaveBeenCalled();
-    expect(handlers.onEnemyHit).toHaveBeenCalledWith(enemy, bullet, true);
+    expect(handlers.onEnemyHit).toHaveBeenCalledWith(enemy, bullet, true, 14);
+  });
+
+  it("caps applied damage at remaining HP so overkill isn't attributed to the weapon", () => {
+    const { captured, handlers } = setup();
+    const bullet = {
+      active: true,
+      damage: 100, // far more than hp
+      deactivate: vi.fn()
+    } as unknown as Bullet;
+    const enemy = {
+      active: true,
+      hp: 7, // overkill: damage=100, applied should be 7
+      takeDamage: vi.fn(() => true)
+    } as unknown as Enemy;
+
+    captured[0]?.cb(bullet, enemy);
+
+    expect(handlers.onEnemyHit).toHaveBeenCalledWith(enemy, bullet, true, 7);
   });
 
   it("player-bullet→enemy callback skips inactive bullets/enemies and never invokes the handler", () => {
@@ -136,9 +155,9 @@ describe("wireCollisions", () => {
   it("propagates the survived flag (false) from enemy.takeDamage", () => {
     const { captured, handlers } = setup();
     const bullet = { active: true, damage: 1, deactivate: vi.fn() } as unknown as Bullet;
-    const enemy = { active: true, takeDamage: vi.fn(() => false) } as unknown as Enemy;
+    const enemy = { active: true, hp: 5, takeDamage: vi.fn(() => false) } as unknown as Enemy;
     captured[0]?.cb(bullet, enemy);
-    expect(handlers.onEnemyHit).toHaveBeenCalledWith(enemy, bullet, false);
+    expect(handlers.onEnemyHit).toHaveBeenCalledWith(enemy, bullet, false, 1);
   });
 
   it("player↔enemy-bullet callback deactivates the bullet and notifies the handler", () => {

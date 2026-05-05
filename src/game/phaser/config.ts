@@ -1,4 +1,4 @@
-import type { MissionId } from "@/types/game";
+import type { MissionId, WeaponId } from "@/types/game";
 import type { MissionReward } from "@/game/state/rewards";
 import { getSummary, setBootData } from "./registry";
 
@@ -29,6 +29,13 @@ export interface CombatSummary {
   credits: number;
   timeSeconds: number;
   victory: boolean;
+  // Per-weapon damage dealt over the mission, capped at remaining HP
+  // per hit (overkill not counted). Empty record on losses where the
+  // player never connected, or scenes that ended via abandon. Sum of
+  // all values equals `totalDamage`. Ephemeral — surfaced in the
+  // VictoryModal only; not persisted to save_games.
+  damageByWeapon: Readonly<Partial<Record<WeaponId, number>>>;
+  totalDamage: number;
   // Set only when this run was the player's first clear of the mission. The
   // banner shows it as an extra "+ first clear" line; replays leave it
   // undefined so they read as standard mission completes.
@@ -74,7 +81,9 @@ export async function createPhaserGame(
           score: 0,
           credits: 0,
           timeSeconds: 0,
-          victory: false
+          victory: false,
+          damageByWeapon: {},
+          totalDamage: 0
         }
       );
     }

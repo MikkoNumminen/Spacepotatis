@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import type { CombatSummary } from "@/game/phaser/config";
 import { itemSfx } from "@/game/audio/itemSfx";
+import { getWeapon } from "@/game/data/weapons";
 import { describeMissionReward } from "@/game/state/rewards";
+import type { WeaponId } from "@/types/game";
 
 // Server-sync outcome surfaced under the stats. GameCanvas drives this from
 // the awaited results of saveNow() / drainScoreQueue(). The states map to:
@@ -129,6 +131,8 @@ export default function VictoryModal({
           </div>
         )}
 
+        <DamageBreakdown summary={summary} />
+
         <SyncStatusLine status={syncStatus} />
 
         <div className="mt-8 flex justify-center">
@@ -158,6 +162,43 @@ function StatRow({
     <div className="flex items-baseline justify-between gap-6 sm:gap-12">
       <span className="text-hud-green/70">{label}</span>
       <span className={`text-right ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// End-of-mission damage report. Shows TOTAL plus a per-weapon row for
+// every weapon that connected with at least 1 damage point, sorted
+// descending. Hidden entirely on zero-damage runs (failures where the
+// player never connected, or scenes that ended via abandon) so the
+// modal stays tight on the failure path.
+function DamageBreakdown({ summary }: { summary: CombatSummary }) {
+  if (summary.totalDamage <= 0) return null;
+  // damageByWeapon is `Partial<Record<WeaponId, number>>` — entries
+  // exist only for weapons that did damage. Sort descending by amount,
+  // resolve display name via the weapons catalog.
+  const rows = (Object.entries(summary.damageByWeapon) as [WeaponId, number][])
+    .filter(([, amount]) => amount > 0)
+    .sort((a, b) => b[1] - a[1]);
+  return (
+    <div className="mt-6">
+      <div className="text-center font-display text-xs tracking-widest text-hud-amber">
+        ─── DAMAGE ───
+      </div>
+      <div className="mt-3 flex flex-col gap-1 font-mono text-sm">
+        <StatRow
+          label="TOTAL"
+          value={summary.totalDamage.toLocaleString()}
+          valueClass="text-hud-amber"
+        />
+        {rows.map(([id, amount]) => (
+          <StatRow
+            key={id}
+            label={getWeapon(id).name}
+            value={amount.toLocaleString()}
+            valueClass="text-hud-green"
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -93,7 +93,12 @@ export class WeaponSystem {
         homing,
         def.bulletSprite,
         def.gravity,
-        effect
+        effect,
+        // Stamp the source weapon on each friendly bullet so the
+        // DamageTracker can attribute hits + AoE damage back to it for
+        // the end-of-mission report. Hostile pools spawn through Enemy
+        // entities directly and pass null at the BulletPool default.
+        friendly ? weaponId : null
       );
     }
     return true;

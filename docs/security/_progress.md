@@ -70,5 +70,17 @@ For Phase 3 finding-level checkpoints (one per `security-fixer` run):
 - PR: #158
 - Notes: 10 parallel adversarial cells; 22 net-new findings; final tally 0 critical / 0 high / 9 medium / 15 low / 8 informational (3 risk-accept). Highest-impact addition: SEC-011 (audit-table size-cap DoS amplifier).
 
-### Phase 3 — Remediation (status: pending)
-Awaits PR #158 merge. Wave 1 dispatches 8 medium findings (SEC-001, 003, 007+021, 011, 012, 013, 014, 015) in parallel worktree branches off master. Subsequent Waves serialize per the order in `02b-attack-cells.md` § Re-prioritized remediation order.
+### Phase 3 — Remediation (status: in-progress)
+
+PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (SEC-001, 003, 007+021, 011, 012, 013, 014, 015) in parallel worktree branches off master.
+
+#### Wave 1 kickoff — decisions log (2026-05-05)
+
+**SEC-007+021 approach** — three options considered:
+- (A) Adopt `fix/restore-script-safety` local branch (deletes `scripts/improve-restore.mjs` entirely). Cleaner final state but requires coordinated updates to CLAUDE.md §11 + §15, INCIDENT_RUNBOOK.md, removal of 2 `writeBackup-wiring.test.mjs` describe blocks, and removal of operator capability for future second-pass restoration. **Logged, not chosen.**
+- (B) **Retrofit `parseFlags` + `requireConfirm` + transaction wrapper onto `improve-restore.mjs`. Smaller blast radius (script + 1 test). Preserves operator capability. CLAUDE.md §15 stays accurate (just removes "predates the helper" language). CHOSEN.**
+- (C) Skip — leave `improve-restore.mjs` as-is. Footgun stays. **Logged, not chosen.**
+
+**Wave 1 parallel-worktree dispatch order** — launching 4 truly-disjoint fixes first (SEC-001 next.config.mjs, SEC-007+021 improve-restore.mjs, SEC-012 auth.ts comment, SEC-015 workflow SHA pins). The 4 file-overlapping fixes (SEC-003+014 share `src/lib/schemas/save.ts` + leaderboard route; SEC-011+013 share save route + schema) come next, sequentially. Alternative considered: launch all 8 simultaneously, accept rebase pain on the second-to-merge of each overlapping pair. **Logged, deferred** — staggered approach is cheaper for review.
+
+**`refactor/zod-content-accessors` CLAUDE.md violation flag.** Local-only WIP branch adds runtime `Schema.parse(jsonData)` at module load — directly contradicts CLAUDE.md §5's hard rule (~98 kB first-load JS regression). Logged in `docs/security/04-other-findings.md` so it doesn't accidentally land. Not a Wave 1 concern.
