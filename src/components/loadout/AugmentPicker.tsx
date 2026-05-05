@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect } from "react";
+import { playUiCue } from "@/game/audio/uiCues";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "@/game/data/augments";
 import type { WeaponPosition } from "@/game/state/ShipConfig";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
@@ -25,6 +29,13 @@ export function AugmentPicker({
   const eligible = augmentInventory
     .map((id, idx) => ({ id, idx }))
     .filter(({ id }) => !installed.includes(id));
+
+  // Picker-open voice — plays once when the modal mounts. No cleanup
+  // `storyAudio.stop()` here because the install-augment cue fired on
+  // a row click would be cut off the moment this modal unmounts.
+  useEffect(() => {
+    playUiCue("augmentPickerOpen");
+  }, []);
 
   return (
     <div
@@ -65,7 +76,10 @@ export function AugmentPicker({
                 <li key={`${id}-${idx}`}>
                   <button
                     type="button"
-                    onClick={() => onPick(id)}
+                    onClick={() => {
+                      playUiCue("installAugment");
+                      onPick(id);
+                    }}
                     className="flex w-full touch-manipulation select-none flex-col gap-1 rounded border border-space-border px-3 py-2 text-left text-xs hover:border-hud-amber/60 active:bg-hud-amber/5"
                   >
                     <span className="flex items-baseline gap-2">
