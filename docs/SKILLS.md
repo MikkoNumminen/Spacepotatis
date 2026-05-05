@@ -46,7 +46,7 @@ The savings figures grow with the codebase, not just with usage. Each new field,
 
 ## What this is supposed to demonstrate
 
-Three things, for the portfolio context:
+Three things:
 
 1. **AI-assisted development is an engineering discipline, not a vibe.** Skills are version-controlled, reviewed, and tested. Drift is a real bug class with a documented mitigation.
 2. **The savings come from architecture, not prompting.** A skill is an explicit specification of the work — agnostic to which model is running. Better models make the same skill cheaper; they don't replace it.
