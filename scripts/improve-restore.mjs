@@ -16,21 +16,60 @@
 // Direct DB write — bypasses /api/save and the regression guard. Be
 // careful.
 //
-// Usage: node --env-file=.env.local scripts/improve-restore.mjs <email>
+// SAFETY CONTRACT (mirrors restore-player.mjs):
+//   1. Default mode is dry-run. You must pass --confirm to write anything.
+//   2. --confirm requires --player-email=<email> matching the positional email.
+//   3. Full BEFORE/AFTER diff is printed in BOTH modes.
+//   4. The UPDATE runs inside a BEGIN … COMMIT transaction; the BEFORE row is
+//      read with SELECT … FOR UPDATE inside the same transaction so a concurrent
+//      operator cannot race the read-then-write window (SEC-021).
+//   5. writeBackup() runs INSIDE the transaction, AFTER the FOR UPDATE read,
+//      BEFORE the UPDATE. If writeBackup throws, ROLLBACK + exit 1.
+//   6. This header. If you're modifying the script, you've read this.
+//
+// USAGE
+//   Dry run (default — safe, prints diff, exits 0):
+//     node --env-file=.env.local scripts/improve-restore.mjs <email>
+//
+//   Apply (requires explicit --confirm + --player-email cross-check):
+//     node --env-file=.env.local scripts/improve-restore.mjs <email> \
+//       --confirm --player-email=<email>
 
 import { Pool } from "@neondatabase/serverless";
 import path from "node:path";
-import { writeBackup } from "./_lib/dbWriteSafety.mjs";
+import { parseFlags, requireConfirm, writeBackup } from "./_lib/dbWriteSafety.mjs";
 
 // Absolute path to <repo>/db-backups, resolved from this script's directory
 // rather than process.cwd(). Operators running from a subdirectory still
 // land snapshots in the same gitignored location.
 const BACKUP_DIR = path.resolve(import.meta.dirname, "../db-backups");
 
-const email = process.argv[2];
-if (!email) {
-  console.error("usage: improve-restore.mjs <email>");
-  process.exit(1);
+const flags = parseFlags(process.argv);
+
+// --player-email cross-check: when --confirm is requested, the operator must
+// also pass --player-email=<email> matching the positional email. This mirrors
+// restore-player.mjs:261-269 — a single transposed character in the positional
+// arg must be caught before the DB opens.
+if (flags.confirm) {
+  const playerEmail = process.argv
+    .slice(2)
+    .find((a) => a.startsWith("--player-email="))
+    ?.slice("--player-email=".length) ?? null;
+
+  if (!playerEmail) {
+    console.error(
+      "\nrefusing: --confirm requires --player-email=<email> matching the positional email."
+    );
+    process.exit(2);
+  }
+  if (playerEmail !== flags.email) {
+    console.error(
+      `\nrefusing: --player-email (${playerEmail}) does not match positional email (${flags.email}).`
+    );
+    process.exit(2);
+  }
+  // Stash for later reference
+  flags.playerEmail = playerEmail;
 }
 
 const dbUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
@@ -66,62 +105,120 @@ const SHIP_CONFIG = {
 try {
   const { rows: players } = await pool.query(
     "SELECT id FROM spacepotatis.players WHERE email = $1",
-    [email]
+    [flags.email]
   );
   if (players.length === 0) {
-    console.error(`no player with email ${email}`);
+    console.error(`no player with email ${flags.email}`);
     process.exit(1);
   }
   const playerId = players[0].id;
 
-  const before = await pool.query(
+  // Dry-run path: pool-read without a transaction is fine — no write, no need
+  // to lock the row.
+  const beforeDry = await pool.query(
     `SELECT credits, completed_missions, unlocked_planets, played_time_seconds,
             ship_config, seen_story_entries, updated_at
      FROM spacepotatis.save_games
      WHERE player_id = $1 AND slot = 1`,
     [playerId]
   );
-  if (before.rows.length === 0) {
+  if (beforeDry.rows.length === 0) {
     console.error(`no save_games row for player_id=${playerId} slot=1`);
     process.exit(1);
   }
-  console.log("BEFORE credits:", before.rows[0].credits);
-  console.log("BEFORE ship_config:", JSON.stringify(before.rows[0].ship_config));
+  const beforeRow = beforeDry.rows[0];
 
-  // Capture the prevRow as a JSON snapshot BEFORE the UPDATE. If this throws
-  // (disk full, permission denied), bail out — running the UPDATE without a
-  // recoverable snapshot defeats the purpose of the safety helper.
+  console.log("\n--- DIFF (BEFORE -> AFTER) ---");
+  console.log("BEFORE credits:    ", beforeRow.credits);
+  console.log("AFTER  credits:    ", CREDITS);
+  console.log("BEFORE ship_config:", JSON.stringify(beforeRow.ship_config));
+  console.log("AFTER  ship_config:", JSON.stringify(SHIP_CONFIG));
+  console.log("--- END DIFF ---\n");
+
+  // Gate: if dry-run (--confirm not passed), print the diff and exit 0.
+  requireConfirm(flags);
+
+  // --confirm path: open a dedicated client for BEGIN/FOR UPDATE/COMMIT.
+  const client = await pool.connect();
+  let txOpen = false;
   try {
-    const backupPath = await writeBackup({
-      prevRow: { ...before.rows[0], player_id: playerId, email },
-      scriptName: "improve-restore",
-      flags: { email, backupDir: BACKUP_DIR },
-    });
-    console.log(`prevRow snapshot: ${backupPath}`);
-  } catch (backupErr) {
-    console.error(
-      `error: writeBackup failed (${backupErr.message}) — refusing to UPDATE without a recoverable snapshot.`
+    await client.query("BEGIN");
+    txOpen = true;
+
+    const beforeRes = await client.query(
+      `SELECT credits, completed_missions, unlocked_planets, played_time_seconds,
+              ship_config, seen_story_entries, updated_at
+       FROM spacepotatis.save_games
+       WHERE player_id = $1 AND slot = 1
+       FOR UPDATE`,
+      [playerId]
     );
-    process.exit(1);
-  }
+    if (beforeRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      console.error(`no save_games row for player_id=${playerId} slot=1`);
+      process.exit(1);
+    }
+    const before = beforeRes.rows[0];
+    console.log(
+      `BEFORE (read at ${new Date().toISOString()}, row LOCKED FOR UPDATE):`
+    );
+    console.log(JSON.stringify(before, null, 2));
 
-  const result = await pool.query(
-    `UPDATE spacepotatis.save_games
-     SET credits = $1,
-         ship_config = $2,
-         updated_at = NOW()
-     WHERE player_id = $3 AND slot = 1
-     RETURNING credits, ship_config`,
-    [CREDITS, SHIP_CONFIG, playerId]
-  );
-  console.log("\nAFTER credits:", result.rows[0]?.credits);
-  console.log("AFTER ship_config:", JSON.stringify(result.rows[0]?.ship_config, null, 2));
+    // Capture the prevRow as a JSON snapshot BEFORE the UPDATE. If this throws
+    // (disk full, permission denied), ROLLBACK and bail out — running the UPDATE
+    // without a recoverable snapshot defeats the purpose of the safety helper.
+    try {
+      const backupPath = await writeBackup({
+        prevRow: { ...before, player_id: playerId, email: flags.email },
+        scriptName: "improve-restore",
+        flags: { email: flags.email, backupDir: BACKUP_DIR },
+      });
+      console.log(`prevRow snapshot: ${backupPath}`);
+    } catch (backupErr) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      console.error(
+        `error: writeBackup failed (${backupErr.message}) — refusing to UPDATE without a recoverable snapshot.`
+      );
+      process.exit(1);
+    }
 
-  if (result.rowCount !== 1) {
-    console.error(`expected 1 row updated, got ${result.rowCount}`);
-    process.exit(1);
+    const result = await client.query(
+      `UPDATE spacepotatis.save_games
+       SET credits = $1,
+           ship_config = $2,
+           updated_at = NOW()
+       WHERE player_id = $3 AND slot = 1
+       RETURNING credits, ship_config`,
+      [CREDITS, SHIP_CONFIG, playerId]
+    );
+
+    if (result.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      console.error(`expected 1 row updated, got ${result.rowCount} — rolled back`);
+      process.exit(1);
+    }
+
+    await client.query("COMMIT");
+    txOpen = false;
+
+    console.log("\nAFTER credits:", result.rows[0]?.credits);
+    console.log("AFTER ship_config:", JSON.stringify(result.rows[0]?.ship_config, null, 2));
+    console.log("\nimprove-restore complete");
+  } catch (err) {
+    if (txOpen) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback failure — original error is what matters
+      }
+    }
+    throw err;
+  } finally {
+    client.release();
   }
-  console.log("\nimprove-restore complete");
 } finally {
   await pool.end();
 }

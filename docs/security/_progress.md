@@ -110,3 +110,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Tests / typecheck / build / lint: green at 05:53 — typecheck pass, lint pass, vitest 1152/1152 pass, next build pass.
 - Operator action required (out-of-band, tracked in PR body checklist): set `AUTH_URL` in Vercel env vars (Production AND Preview) to the canonical production URL; redeploy; verify sign-in still works; confirm Google OAuth Console has only canonical URL (no wildcards) in redirect-URI allow-list.
 - PR: pending push.
+
+### Phase 3 — finding: SEC-007 + SEC-021 — improve-restore.mjs safety harness + transaction wrapper
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-aeb140c0cce751813
+- Branch: feat/security-sec-007-021-improve-restore-harness
+- Commit: af562f847b45757c0c32f101590b7b26d8627371
+- Files changed: scripts/improve-restore.mjs (retrofitted), scripts/improveRestoreHarness.test.mjs (new, 11 tests), docs/security/02-findings-and-plan.md, docs/security/02b-attack-cells.md, docs/security/_progress.md, CLAUDE.md
+- Test added: scripts/improveRestoreHarness.test.mjs — 11 tests covering SEC-007 (parseFlags import, requireConfirm gate, dry-run-by-default, --player-email cross-check) and SEC-021 (BEGIN/FOR UPDATE/COMMIT ordering, ROLLBACK, pool.connect)
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: none; Option B (retrofit) executed as chosen by orchestrator
+- Tests / typecheck / build / lint: 1161 tests green, typecheck clean, lint clean, build clean at 05:53
+- PR: pending
