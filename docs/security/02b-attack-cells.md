@@ -164,7 +164,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** wrap in a Kysely transaction with `FOR UPDATE` row lock, mirroring `restore-player.mjs`'s pattern. Pairs naturally with SEC-007's harness retrofit.
 - **Verification:** code review; no automated test.
 - **Dependencies:** SEC-007 (same script).
-- **Status:** fixed — see PR feat/security-sec-007-021-improve-restore-harness; BEGIN/FOR UPDATE/COMMIT wrapper added, regression test `scripts/improveRestoreHarness.test.mjs` covers transaction presence.
+- **Status:** fixed — commit af562f8, PR feat/security-sec-007-021-improve-restore-harness; BEGIN/FOR UPDATE/COMMIT wrapper added, regression test `scripts/improveRestoreHarness.test.mjs` covers transaction presence.
 
 #### SEC-022 — `WeaponInventorySchema` no `.max()` (Cell 7)
 

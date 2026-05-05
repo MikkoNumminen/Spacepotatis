@@ -114,7 +114,7 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 ### Phase 3 — finding: SEC-007 + SEC-021 — improve-restore.mjs safety harness + transaction wrapper
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-aeb140c0cce751813
 - Branch: feat/security-sec-007-021-improve-restore-harness
-- Commit: staged
+- Commit: af562f847b45757c0c32f101590b7b26d8627371
 - Files changed: scripts/improve-restore.mjs (retrofitted), scripts/improveRestoreHarness.test.mjs (new, 11 tests), docs/security/02-findings-and-plan.md, docs/security/02b-attack-cells.md, docs/security/_progress.md, CLAUDE.md
 - Test added: scripts/improveRestoreHarness.test.mjs — 11 tests covering SEC-007 (parseFlags import, requireConfirm gate, dry-run-by-default, --player-email cross-check) and SEC-021 (BEGIN/FOR UPDATE/COMMIT ordering, ROLLBACK, pool.connect)
 - Save-roundtrip-audit run? N — not save-touching
