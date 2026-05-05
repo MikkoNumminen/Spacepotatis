@@ -456,9 +456,14 @@ export type RemoteSave = z.infer<typeof RemoteSaveSchema>;
  *
  * @stable
  */
+// Sanity-cap: any value above this is obviously fabricated. The per-mission
+// server-side cap in saveValidation.ts (maxLegitScore) is the real guard;
+// this ceiling catches outrageously large values at the Zod parse boundary.
+export const SCORE_SANITY_CAP = 10_000_000;
+
 export const ScorePayloadSchema = z.object({
   missionId: MissionIdSchema,
-  score: z.number().int(),
+  score: z.number().int().min(0).max(SCORE_SANITY_CAP),
   timeSeconds: z.number().int().nonnegative().optional()
 });
 
