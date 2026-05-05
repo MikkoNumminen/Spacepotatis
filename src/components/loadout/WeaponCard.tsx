@@ -16,8 +16,13 @@ import {
   foldAugmentEffects,
   getAugment
 } from "@/game/data/augments";
+import { getStat } from "@/game/data/stats";
+import type { AugmentDefinition } from "@/game/data/augments";
+import type { StatId } from "@/game/data/stats";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
 import { AugmentDot, WeaponDot } from "./dots";
+import { AugmentDetailsModal } from "./AugmentDetailsModal";
+import { StatDetailsModal } from "./StatDetailsModal";
 import { WeaponDetailsModal } from "./WeaponDetailsModal";
 
 // Compact loadout/inventory row. The full spec sheet + flavour description
@@ -46,6 +51,8 @@ export function WeaponCard({
   slotBadge?: string;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [statDetail, setStatDetail] = useState<{ id: StatId; detail: string } | null>(null);
+  const [augmentDetail, setAugmentDetail] = useState<AugmentDefinition | null>(null);
   const level = instance.level;
   const installedAugments = instance.augments;
   // getSellPrice now folds in the instance's level-history + installed
@@ -99,20 +106,26 @@ export function WeaponCard({
         </div>
 
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <div className="font-mono text-[11px] text-hud-green/70">
-              <span
-                className="text-hud-amber"
-                title="Damage per second — folds in projectile count, fire rate, mark level, and installed augments."
-              >
-                DPS {dps}
-              </span>
-              <span className="mx-1.5 text-hud-green/30">·</span>
-              <span title="Energy cost per shot. Drains the reactor; recharges over time.">
-                ⚡ {energy}
-              </span>
-            </div>
-            <AugmentSummary installed={installedAugments} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatChip
+              statId="dps"
+              accent="amber"
+              valueLabel={String(dps)}
+              detail={`DPS ${dps} on this gun, folded`}
+              onOpen={(detail) => setStatDetail({ id: "dps", detail })}
+            />
+            <StatChip
+              statId="energy"
+              accent="green"
+              valueLabel={String(energy)}
+              detail={`${energy} energy per shot`}
+              onOpen={(detail) => setStatDetail({ id: "energy", detail })}
+            />
+            <AugmentSummary
+              installed={installedAugments}
+              onOpenSlots={(detail) => setStatDetail({ id: "augment-slots", detail })}
+              onOpenAugment={(aug) => setAugmentDetail(aug)}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <button
@@ -174,44 +187,101 @@ export function WeaponCard({
           onClose={() => setDetailsOpen(false)}
         />
       )}
+      {statDetail && (
+        <StatDetailsModal
+          stat={getStat(statDetail.id)}
+          detail={statDetail.detail}
+          onClose={() => setStatDetail(null)}
+        />
+      )}
+      {augmentDetail && (
+        <AugmentDetailsModal
+          augment={augmentDetail}
+          onClose={() => setAugmentDetail(null)}
+        />
+      )}
     </>
   );
 }
 
-function AugmentSummary({ installed }: { installed: readonly AugmentId[] }) {
-  const slotsLeft = MAX_AUGMENTS_PER_WEAPON - installed.length;
-  const slotsTitle =
-    `Augments installed (max ${MAX_AUGMENTS_PER_WEAPON} per weapon). ` +
-    `${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} free. ` +
-    `Augments are PERMANENT once installed — they can't be removed or moved to another weapon.`;
-  const namesTitle = installed.length === 0 ? undefined :
-    `Installed augments — permanent, sold with the weapon.`;
-  // Count rendered as a chip with the same border/padding/typography as
-  // SLOT / TIER / MARK so the right-side augment summary visually rhymes
-  // with the left-side row header instead of floating loose at a
-  // different baseline height.
+// One inline stat chip — icon + value, both wrapped in a button so the
+// player can click anywhere on the chip to open the explanation modal.
+// Accent picks the border / text color so DPS (amber, the headline number)
+// reads stronger than energy (green, the supporting fact).
+function StatChip({
+  statId,
+  accent,
+  valueLabel,
+  detail,
+  onOpen
+}: {
+  statId: StatId;
+  accent: "amber" | "green";
+  valueLabel: string;
+  detail: string;
+  onOpen: (detail: string) => void;
+}) {
+  const stat = getStat(statId);
+  const cls = accent === "amber"
+    ? "border-hud-amber/50 text-hud-amber hover:bg-hud-amber/10 active:bg-hud-amber/20"
+    : "border-hud-green/40 text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20";
   return (
-    <div className="flex items-center gap-1.5">
-      <span
-        className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80"
-        title={slotsTitle}
+    <button
+      type="button"
+      onClick={() => onOpen(detail)}
+      title={`${stat.name} — click for details`}
+      className={`touch-manipulation select-none rounded border px-1.5 py-0.5 font-mono text-[11px] ${cls}`}
+    >
+      <span aria-hidden className="mr-1">{stat.icon}</span>
+      {valueLabel}
+    </button>
+  );
+}
+
+function AugmentSummary({
+  installed,
+  onOpenSlots,
+  onOpenAugment
+}: {
+  installed: readonly AugmentId[];
+  onOpenSlots: (detail: string) => void;
+  onOpenAugment: (aug: AugmentDefinition) => void;
+}) {
+  const slotsLeft = MAX_AUGMENTS_PER_WEAPON - installed.length;
+  const slotsDetail =
+    `${installed.length}/${MAX_AUGMENTS_PER_WEAPON} used · ` +
+    `${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} free`;
+  const slotsStat = getStat("augment-slots");
+  // Every chip renders as a button so the player can click anywhere on
+  // the chip — slot-count or per-augment — to hear the matching Grandma
+  // line. Per-augment chips reuse AugmentDetailsModal (already wired
+  // with `/audio/augments/<id>-voice.mp3`).
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onOpenSlots(slotsDetail)}
+        title={`${slotsStat.name} — click for details`}
+        className="touch-manipulation select-none shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
       >
+        <span aria-hidden className="mr-1">{slotsStat.icon}</span>
         {installed.length}/{MAX_AUGMENTS_PER_WEAPON}
-      </span>
-      <div className="flex items-center gap-1">
-        {installed.map((id, idx) => {
-          const aug = getAugment(id);
-          return <AugmentDot key={`${id}-${idx}`} tint={aug.tint} title={aug.name} />;
-        })}
-      </div>
-      {installed.length > 0 && (
-        <span
-          className="font-mono text-[10px] text-hud-amber/70 truncate"
-          title={namesTitle}
-        >
-          {installed.map((id) => getAugment(id).name).join(" · ")}
-        </span>
-      )}
+      </button>
+      {installed.map((id, idx) => {
+        const aug = getAugment(id);
+        return (
+          <button
+            key={`${id}-${idx}`}
+            type="button"
+            onClick={() => onOpenAugment(aug)}
+            title={`${aug.name} — click for details`}
+            className="touch-manipulation select-none flex items-center gap-1 rounded border border-hud-amber/40 px-1.5 py-0.5 font-mono text-[10px] text-hud-amber/80 hover:bg-hud-amber/10 active:bg-hud-amber/20"
+          >
+            <AugmentDot tint={aug.tint} />
+            <span>{aug.name}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
