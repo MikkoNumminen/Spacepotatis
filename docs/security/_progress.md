@@ -97,3 +97,16 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Pinned SHAs: actions/checkout → 34e114876b0b11c390a56381ad16ebd13914f8d5 (v4.3.1); actions/setup-node → 49933ea5288caeca8642d1e84afbd3f7d6820020 (v4.4.0); actions/upload-artifact → ea165f8d65b6e75b540449e92b4886f43607fa02 (v4.6.2)
 - Tests / typecheck / build / lint: green (1161 tests, 82 files)
 - PR: pending
+
+#### Phase 3 — finding: SEC-012 — `AUTH_URL` not pinned; `trustHost: true` falls back to `x-forwarded-host`
+- Worktree: `D:/koodaamista/Spacepotatis/.claude/worktrees/agent-acd0538c39458ce89`
+- Branch: `feat/security-sec-012-auth-url-pin` (off master 5a255fb)
+- Commit: pending
+- Files changed: `src/lib/auth.ts` (added 12-line SECURITY-CRITICAL comment block before `trustHost: true`), `src/lib/authUrlPin.test.ts` (new regression test), `docs/security/02b-attack-cells.md` (status note on SEC-012), `docs/security/02-findings-and-plan.md` (status note: SEC-009 superseded by SEC-012), `docs/security/_progress.md` (this entry).
+- Test added: `src/lib/authUrlPin.test.ts` — `SEC-012 — auth.ts documents the AUTH_URL pin requirement > contains a SECURITY-CRITICAL comment about AUTH_URL + trustHost`. Test placed under `src/lib/` (not `tests/security/`) because `vitest.config.ts:include` is `src/**/*.test.ts` — files under `tests/` are not collected by the test runner.
+- Save-roundtrip-audit run? N (not save-touching).
+- Migration required? N.
+- Deviations from plan: (1) test path moved from `tests/security/authUrlPin.test.ts` to `src/lib/authUrlPin.test.ts` so vitest actually picks it up; the test body is unchanged in spirit. (2) The SECURITY-CRITICAL comment lands above the `trustHost: true` line *inside* the NextAuth config object literal (the spec asked for "before line 12"; this is exactly that spot in the current file).
+- Tests / typecheck / build / lint: green at 05:53 — typecheck pass, lint pass, vitest 1152/1152 pass, next build pass.
+- Operator action required (out-of-band, tracked in PR body checklist): set `AUTH_URL` in Vercel env vars (Production AND Preview) to the canonical production URL; redeploy; verify sign-in still works; confirm Google OAuth Console has only canonical URL (no wildcards) in redirect-URI allow-list.
+- PR: pending push.

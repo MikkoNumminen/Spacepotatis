@@ -197,6 +197,7 @@ None.
 - **Phase 3 model:** Opus (auth surface) — even though it's doc-only.
 - **Verification:** code review of the comment; confirm sign-in still works on Vercel preview.
 - **Dependencies:** none.
+- **Status:** superseded by SEC-012 (fixed in `feat/security-sec-012-auth-url-pin`). See [02b-attack-cells.md §SEC-012](02b-attack-cells.md) for the merged finding and the codebase doc fix; the operator-action checklist (set `AUTH_URL` in Vercel) is carried in the PR body.
 
 ### SEC-010 — GDPR right-to-erasure runbook missing
 

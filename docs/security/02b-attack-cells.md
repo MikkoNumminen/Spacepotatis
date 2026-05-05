@@ -58,6 +58,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Phase 3 model:** Opus (auth surface).
 - **Verification:** confirm `AUTH_URL` is set in Vercel env, sign-in still works on production after deploy.
 - **Dependencies:** supersedes SEC-009 (mark SEC-009 as merged into SEC-012).
+- **Status:** fixed — codebase doc-only fix landed in `feat/security-sec-012-auth-url-pin` (SECURITY-CRITICAL comment block at [src/lib/auth.ts](../../src/lib/auth.ts) + regression test [src/lib/authUrlPin.test.ts](../../src/lib/authUrlPin.test.ts)). Operator action (set `AUTH_URL` in Vercel env vars; verify Google Console allow-list has only canonical URL) tracked in the PR body checklist — must be completed out-of-band before this finding is fully closed.
 
 #### SEC-013 — TOCTOU on `prevRow` SELECT in `POST /api/save` (Cells 2 + 4)
 
