@@ -9,6 +9,18 @@ import Google from "next-auth/providers/google";
  * API routes — saves a round trip on every auth check).
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // SECURITY-CRITICAL: trustHost: true makes @auth/core fall back to the
+  //   request's Host / X-Forwarded-Host header for callback-URL construction
+  //   when AUTH_URL is unset. In production we rely on TWO upstream guards:
+  //     1. Vercel sanitizes the Host header upstream of this code.
+  //     2. Google's OAuth Console allow-list pins the redirect URI to the
+  //        canonical https://spacepotatis.app — a spoofed Host that builds
+  //        a different callback URL is rejected by Google.
+  //   PIN AUTH_URL in the Vercel env vars (Production AND Preview) to the
+  //   canonical production URL so this code path stops depending on the
+  //   request headers; if the deploy ever migrates off Vercel or the Google
+  //   Console allow-list loosens, this becomes account-takeover-class.
+  //   See SEC-012 in docs/security/02b-attack-cells.md.
   trustHost: true,
   providers: [
     Google({
