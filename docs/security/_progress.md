@@ -86,9 +86,9 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 **`refactor/zod-content-accessors` CLAUDE.md violation flag.** Local-only WIP branch adds runtime `Schema.parse(jsonData)` at module load — directly contradicts CLAUDE.md §5's hard rule (~98 kB first-load JS regression). Logged in `docs/security/04-other-findings.md` so it doesn't accidentally land. Not a Wave 1 concern.
 
 ### Phase 3 — finding: SEC-015 actions SHA pinning
-- Worktree: main (feat/security-sec-015-actions-sha-pin)
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a326bfefbb4f7b904
 - Branch: feat/security-sec-015-actions-sha-pin
-- Commit: staged
+- Commit: 8720175
 - Files changed: .github/workflows/ci.yml, .github/workflows/audit-readiness-check.yml, src/__tests__/actionsShaPinning.test.ts, docs/security/02b-attack-cells.md, docs/security/_progress.md
 - Test added: src/__tests__/actionsShaPinning.test.ts: "SEC-015 — GitHub Actions are pinned to commit SHAs, not mutable tags"
 - Save-roundtrip-audit run? N — not save-touching
