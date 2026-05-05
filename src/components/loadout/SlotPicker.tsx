@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect } from "react";
+import { playUiCue } from "@/game/audio/uiCues";
 import type { WeaponInstance } from "@/game/state/ShipConfig";
 import { slotLabel } from "./SlotGrid";
 import { WeaponDot } from "./dots";
@@ -16,6 +20,11 @@ export function SlotPicker({
   onPick: (inventoryIndex: number | null) => void;
   onClose: () => void;
 }) {
+  // Picker-open voice — plays once on mount. No cleanup so the
+  // equip / unequip cues can play through after the modal unmounts.
+  useEffect(() => {
+    playUiCue("slotPickerOpen");
+  }, []);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6"
@@ -48,7 +57,10 @@ export function SlotPicker({
               <li>
                 <button
                   type="button"
-                  onClick={() => onPick(null)}
+                  onClick={() => {
+                    playUiCue("unequipWeapon");
+                    onPick(null);
+                  }}
                   className="w-full touch-manipulation select-none rounded border border-hud-red/40 px-3 py-2 text-left text-xs text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
                 >
                   UNEQUIP
@@ -61,7 +73,10 @@ export function SlotPicker({
                 <li key={entry.key}>
                   <button
                     type="button"
-                    onClick={() => onPick(entry.position.index)}
+                    onClick={() => {
+                      playUiCue("equipWeapon");
+                      onPick(entry.position.index);
+                    }}
                     className="flex w-full touch-manipulation select-none items-center justify-between rounded border border-space-border px-3 py-2 text-left text-xs hover:border-hud-amber/60 active:bg-hud-amber/5"
                   >
                     <span className="flex items-baseline gap-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import { playUiCue } from "@/game/audio/uiCues";
 import { getAugment } from "@/game/data/augments";
 import { sellAugment } from "@/game/state/GameState";
 import { getAugmentSellPrice } from "@/game/state/pricing";
@@ -38,7 +39,9 @@ export function AugmentInventoryList({ inventory }: { inventory: readonly Augmen
                 {sellPrice > 0 && (
                   <button
                     type="button"
-                    onClick={() => void sellAugment(idx)}
+                    onClick={() => {
+                      if (sellAugment(idx)) playUiCue("sellAugment");
+                    }}
                     className="shrink-0 touch-manipulation select-none rounded border border-hud-red/60 px-2 py-0.5 font-mono text-[11px] text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
                   >
                     SELL · ¢{sellPrice}

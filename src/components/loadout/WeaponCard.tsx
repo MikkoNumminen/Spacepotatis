@@ -16,6 +16,7 @@ import {
   foldAugmentEffects,
   getAugment
 } from "@/game/data/augments";
+import { playUiCue } from "@/game/audio/uiCues";
 import { getStat } from "@/game/data/stats";
 import type { AugmentDefinition } from "@/game/data/augments";
 import type { StatId } from "@/game/data/stats";
@@ -151,7 +152,9 @@ export function WeaponCard({
                 <button
                   type="button"
                   disabled={!canAffordUpgrade}
-                  onClick={() => void buyWeaponUpgrade(position)}
+                  onClick={() => {
+                    if (buyWeaponUpgrade(position)) playUiCue("upgradeMark");
+                  }}
                   className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
                 >
                   UPGRADE TO Mk{level + 1} · ¢{upgradeCost}
@@ -169,7 +172,9 @@ export function WeaponCard({
               {sellable && position.kind === "inventory" && (
                 <button
                   type="button"
-                  onClick={() => void sellWeapon(position.index)}
+                  onClick={() => {
+                    if (sellWeapon(position.index)) playUiCue("sellWeapon");
+                  }}
                   className="touch-manipulation select-none rounded border border-hud-red/60 px-2 py-0.5 font-mono text-[11px] text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20"
                 >
                   SELL · ¢{sellPrice}
