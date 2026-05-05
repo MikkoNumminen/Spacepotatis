@@ -73,6 +73,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Phase 3 model:** Opus (save-pipeline scrutiny).
 - **Verification:** integration test in `tests/security/saveRace.test.ts`: dispatch two concurrent POST `/api/save` against a test DB with same player, with the second POST's payload carrying the OLD `completedMissions`. Assert the second is rejected by `validateNoRegression` rather than committing.
 - **Dependencies:** none.
+- **Status:** fixed — pending-commit-sha; PR feat/security-sec-013-011-save-route-hardening; prev-row SELECT + validators + upsert wrapped in `db.transaction().execute(async trx => { ... .forUpdate() ... })`. Regression test [tests/security/saveRace.test.ts](../../tests/security/saveRace.test.ts) asserts the transaction is opened, `.forUpdate()` is called on the prev-row SELECT, and a stale-baseline POST after a richer save commit is rejected by `validateNoRegression`.
 
 #### SEC-014 — `score` field unbounded in `ScorePayloadSchema` (Cell 3) **Status:** fixed — d51c2a5
 

@@ -71,7 +71,6 @@ For Phase 3 finding-level checkpoints (one per `security-fixer` run):
 - Notes: 10 parallel adversarial cells; 22 net-new findings; final tally 0 critical / 0 high / 9 medium / 15 low / 8 informational (3 risk-accept). Highest-impact addition: SEC-011 (audit-table size-cap DoS amplifier).
 
 ### Phase 3 — Remediation (status: in-progress)
-<<<<<<< HEAD
 
 PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (SEC-001, 003, 007+021, 011, 012, 013, 014, 015) in parallel worktree branches off master.
 
@@ -159,3 +158,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: the Zod sanity cap (10_000_000) catches INT max (2,147,483,647) at the schema level (400), not the per-mission cap (422). This is correct behaviour — any value > 10M is obviously fabricated and the two-layer defence is documented in the schema comment.
 - Tests / typecheck / build / lint: green at 01:58
 - PR: feat/security-sec-014-003-leaderboard-hardening
+
+### Phase 3 — finding: SEC-013 — TOCTOU on prevRow SELECT in POST /api/save
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a1ccfac1f3f4c253f
+- Branch: feat/security-sec-013-011-save-route-hardening
+- Commit: pending-sha (commit 1 of 2 on this bundled branch — orchestrator override of the no-bundling rule because both findings touch src/app/api/save/route.ts)
+- Files changed: src/app/api/save/route.ts (prev-row SELECT + validators + upsert wrapped in db.transaction().execute(async trx => { ... .forUpdate() ... }); audit writes moved AFTER the transaction so they never block the critical path; sessionEmail hoisted so the closure keeps the type narrowing from the auth guard); src/app/api/save/route.test.ts (mock now exposes `transaction()` returning a trx with the same selectFrom/insertInto chains; selectChain gains a passthrough `forUpdate()`); tests/security/saveRace.test.ts (new — 3 tests: transaction opened, forUpdate called inside the tx, stale-baseline rejected by validateNoRegression after concurrent richer commit); docs/security/02b-attack-cells.md (status note); docs/security/_progress.md (this entry)
+- Test added: tests/security/saveRace.test.ts — `SEC-013 — POST /api/save wraps prev-row read + validate + upsert in a transaction with FOR UPDATE` (3 tests)
+- Save-roundtrip-audit run? Pending (will run before PR push, after commit 2)
+- Migration required? N — no schema change
+- Deviations from plan: (1) Audit writes (`writeSaveAudit`) deliberately stay OUTSIDE the transaction so a Neon outage on `save_audit` cannot roll back the user-visible save. The contract that audit failures never block saves was already in `writeSaveAudit`'s try/catch — moving the audit out of the tx preserves it. (2) The `sessionEmail` local was hoisted because the async closure inside `db.transaction().execute(...)` re-evaluates the `session.user.email` narrowing — TS18048 otherwise.
+- Tests / typecheck / build / lint: green at 01:55 — typecheck pass, lint pass, vitest 1177/1177 pass, next build pass.
+- PR: pending push (bundled with SEC-011)

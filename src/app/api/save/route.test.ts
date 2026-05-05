@@ -37,6 +37,11 @@ function selectChain() {
     // test can stub the "previous credits" by setting it.
     select: () => selectChain(),
     where: () => selectChain(),
+    // SEC-013 — the prev-row SELECT inside the transaction calls
+    // `.forUpdate()`. The mock just chains through; serialization isn't
+    // simulated here (the dedicated saveRace.test.ts asserts the structural
+    // contract). Returning the same shape keeps existing route tests green.
+    forUpdate: () => selectChain(),
     executeTakeFirst: async () => dbStub.selectRow
   };
 }
@@ -54,11 +59,23 @@ function insertChain(table: string) {
   };
 }
 
-vi.mock("@/lib/db", () => ({
-  getDb: () => ({
+// The route opens a transaction for the read-validate-write critical path
+// (SEC-013). The mock's `.transaction().execute(cb)` runs `cb` against a trx
+// shaped like the top-level db — same selectFrom + insertInto chains — so
+// the existing test stubs just work inside the transaction.
+function makeDbHandle() {
+  return {
     selectFrom: () => selectChain(),
-    insertInto: (table: string) => insertChain(table)
-  })
+    insertInto: (table: string) => insertChain(table),
+    transaction: () => ({
+      execute: async <T>(cb: (trx: ReturnType<typeof makeDbHandle>) => Promise<T>): Promise<T> =>
+        cb(makeDbHandle())
+    })
+  };
+}
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => makeDbHandle()
 }));
 
 beforeEach(() => {
