@@ -4,6 +4,7 @@ import {
   GLOBAL_CREDIT_CAPS,
   MAX_CREDITS_PER_FIRST_CLEAR,
   MAX_CREDITS_PER_SECOND,
+  MAX_SINGLE_EQUIPMENT_REFUND,
   PLAYTIME_DELTA_SLACK_SECONDS,
   computeCreditCapsForPlayer,
   computeCreditCapsForSystems,
@@ -320,17 +321,18 @@ describe("validateCreditsDelta with per-player caps", () => {
   it("rejects a tubernovae-tier credit jump for a player still in tutorial", () => {
     // A player who's only completed tutorial missions tries to claim
     // credits that would only be plausible with tubernovae loot rewards.
-    // Their per-clear cap (tutorial only, max 500 from loot pool + 500
-    // from boss kill) shouldn't admit a 5000-credit single-clear bonus.
+    // Cap is roughly: 0 (no playtime delta) + 1 * tutorialCaps.maxPerFirstClear
+    // + CREDITS_DELTA_SLACK (BASE_SLACK + MAX_SINGLE_EQUIPMENT_REFUND, the
+    // worst-case legitimate sell). Tutorial maxPerFirstClear ≈ 1500.
+    // MAX_SINGLE_EQUIPMENT_REFUND for the current catalog is ~6900
+    // (1400 + 3000 + 2500), so the legit ceiling is ~8500. We push well
+    // past that to trigger the reject.
     const tutorialCaps = computeCreditCapsForPlayer(["tutorial"]);
     const result = validateCreditsDelta({
       prev: { credits: 0, playedTimeSeconds: 60, completedMissionsCount: 1 },
-      next: { credits: 5000, playedTimeSeconds: 60, completedMissionsCount: 2 },
+      next: { credits: 50000, playedTimeSeconds: 60, completedMissionsCount: 2 },
       caps: tutorialCaps
     });
-    // Cap is roughly: 0 (no playtime delta) + 1 * tutorialCaps.maxPerFirstClear + 100 slack.
-    // Tutorial maxPerFirstClear ≈ ceil((500 + 500) * 1.5) = 1500.
-    // 5000 - 0 = 5000 > 1500 + 100 = 1600 → rejected.
     expect(result.ok).toBe(false);
   });
 
@@ -377,6 +379,55 @@ describe("module-load diagnostics", () => {
       (args) => typeof args[0] === "string" && args[0].includes("[saveValidation]")
     );
     expect(fired).toBe(true);
+  });
+});
+
+describe("MAX_SINGLE_EQUIPMENT_REFUND covers a worst-case sell event", () => {
+  // PR #159 raised the sell rate to 100%. A player who sells one
+  // fully-upgraded fully-augmented weapon gets the full investment back
+  // in one transaction, and the saveQueue can land that on a save with
+  // deltaTime ≈ 0. The credit-delta cap MUST allow that single-event
+  // refund or every Mk5-weapon sell 422s legitimately.
+
+  it("a single max-refund sell with deltaTime ≈ 0 passes the cap", () => {
+    // Worst-case: player just sold a fully-decked-out weapon. The save
+    // queue debounce fires ~immediately. No mission completion, no time
+    // accrual, only the +refund credit delta.
+    const caps = computeCreditCapsForPlayer([]);
+    const result = validateCreditsDelta({
+      prev: { credits: 0, playedTimeSeconds: 100, completedMissionsCount: 1 },
+      next: {
+        credits: MAX_SINGLE_EQUIPMENT_REFUND,
+        playedTimeSeconds: 100,
+        completedMissionsCount: 1
+      },
+      caps
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("a delta that exceeds the slack by 1 still rejects", () => {
+    // Pin the upper bound: anything beyond the slack + per-clear + 0
+    // playtime delta is still a cheat signal.
+    const caps = computeCreditCapsForPlayer([]);
+    // No mission delta either — bare slack is the only allowance.
+    const tooMuch = CREDITS_DELTA_SLACK + 1;
+    const result = validateCreditsDelta({
+      prev: { credits: 0, playedTimeSeconds: 100, completedMissionsCount: 1 },
+      next: {
+        credits: tooMuch,
+        playedTimeSeconds: 100,
+        completedMissionsCount: 1
+      },
+      caps
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("MAX_SINGLE_EQUIPMENT_REFUND is positive and big enough to matter", () => {
+    // Smoke test on the catalog-derived constant — if a future balance
+    // pass nukes weapon costs we want to know.
+    expect(MAX_SINGLE_EQUIPMENT_REFUND).toBeGreaterThan(1000);
   });
 });
 
