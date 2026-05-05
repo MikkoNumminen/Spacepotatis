@@ -74,45 +74,45 @@ export function WeaponCard({
   return (
     <>
       <li className="rounded border border-space-border px-3 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           {/* Row header: chips around the dot+name identity in a deliberate
               reading order — slot (where) → tier (quality class) → name
               (what) → mark (upgrade level). Each chip explicitly names its
               concept (`TIER 2`, `MARK 3`) so the player learns the
               vocabulary; no abbreviated single letters that need a tooltip. */}
-          <div className="flex items-center gap-2 min-w-0">
-            {slotBadge && (
-              <span className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80">
-                {slotBadge}
-              </span>
-            )}
-            <TierBadge tier={weapon.tier} />
-            <WeaponDot tint={weapon.tint} />
-            <span className="font-display text-sm tracking-wider truncate">{weapon.name}</span>
-            {level > 1 && (
-              <span
-                className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80"
-                title={`Mark ${level} — weapon upgrade level. Each Mark adds damage; max Mark ${MAX_LEVEL}.`}
-              >
-                MARK {level}
-              </span>
-            )}
-          </div>
-          <AugmentSummary installed={installedAugments} />
+          {slotBadge && (
+            <span className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80">
+              {slotBadge}
+            </span>
+          )}
+          <TierBadge tier={weapon.tier} />
+          <WeaponDot tint={weapon.tint} />
+          <span className="font-display text-sm tracking-wider truncate">{weapon.name}</span>
+          {level > 1 && (
+            <span
+              className="shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-hud-green/80"
+              title={`Mark ${level} — weapon upgrade level. Each Mark adds damage; max Mark ${MAX_LEVEL}.`}
+            >
+              MARK {level}
+            </span>
+          )}
         </div>
 
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <div className="font-mono text-[11px] text-hud-green/70">
-            <span
-              className="text-hud-amber"
-              title="Damage per second — folds in projectile count, fire rate, mark level, and installed augments."
-            >
-              DPS {dps}
-            </span>
-            <span className="mx-1.5 text-hud-green/30">·</span>
-            <span title="Energy cost per shot. Drains the reactor; recharges over time.">
-              ⚡ {energy}
-            </span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="font-mono text-[11px] text-hud-green/70">
+              <span
+                className="text-hud-amber"
+                title="Damage per second — folds in projectile count, fire rate, mark level, and installed augments."
+              >
+                DPS {dps}
+              </span>
+              <span className="mx-1.5 text-hud-green/30">·</span>
+              <span title="Energy cost per shot. Drains the reactor; recharges over time.">
+                ⚡ {energy}
+              </span>
+            </div>
+            <AugmentSummary installed={installedAugments} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <button
