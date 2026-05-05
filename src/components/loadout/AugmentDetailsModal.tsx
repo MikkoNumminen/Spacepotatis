@@ -105,7 +105,7 @@ export function AugmentDetailsModal({
 function contextLabel(context: AugmentDetailsContext | null): string {
   if (!context) return "";
   const lvl = context.instance.level;
-  return lvl > 1 ? `${context.weapon.name} · Mark ${lvl}` : context.weapon.name;
+  return lvl > 1 ? `${context.weapon.name} · MARK ${lvl}` : context.weapon.name;
 }
 
 function ImpactDiagram({
@@ -125,7 +125,7 @@ function ImpactDiagram({
   // For energy, lower is better — flip the colour mapping so "after"
   // is green when it represents an improvement.
   const afterIsBetter = impact.stat === "energy" ? after < before : after > before;
-  const afterColor = afterIsBetter ? "var(--hud-green-strong, #66ffaa)" : "#ff5566";
+  const afterColor = afterIsBetter ? "#66ffaa" : "#ff5566";
 
   return (
     <div className="mb-4 rounded border border-space-border bg-space-bg/40 p-3">
