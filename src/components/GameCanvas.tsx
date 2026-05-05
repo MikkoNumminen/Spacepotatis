@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionDefinition, MissionId } from "@/types/game";
-import { combatMusic, menuMusic } from "@/game/audio/music";
+import { combatMusic, menuMusic, shopMusic } from "@/game/audio/music";
 import HudFrame from "@/components/galaxy/HudFrame";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import VictoryModal from "@/components/galaxy/VictoryModal";
@@ -127,6 +127,13 @@ export default function GameCanvas() {
   // top of each other during the fade-cross. The combat scene also calls
   // combatMusic.loadTrack on its own create(), so this effect is the
   // teardown half of the contract.
+  //
+  // shopMusic is also stopped on every entry to non-combat: if the player
+  // arrived from /shop, ShopUI's own cleanup should already have stopped
+  // the shop bed, but the 4-sec fade can race against rapid navigation
+  // and the new ShopTabs lifecycle (ShopUI mounts/unmounts on tab switch),
+  // so a defensive stop here guarantees the galaxy view never holds the
+  // shop bed alive.
   useEffect(() => {
     if (mode === "combat") {
       menuMusic.duck();
@@ -135,10 +142,12 @@ export default function GameCanvas() {
       cancelPendingBriefing();
     } else {
       combatMusic.stop();
+      shopMusic.stop();
       menuMusic.unduck();
     }
     return () => {
       combatMusic.stop();
+      shopMusic.stop();
       menuMusic.unduck();
     };
   }, [mode, cancelPendingBriefing]);
