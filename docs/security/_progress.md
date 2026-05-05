@@ -84,3 +84,16 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 **Wave 1 parallel-worktree dispatch order** — launching 4 truly-disjoint fixes first (SEC-001 next.config.mjs, SEC-007+021 improve-restore.mjs, SEC-012 auth.ts comment, SEC-015 workflow SHA pins). The 4 file-overlapping fixes (SEC-003+014 share `src/lib/schemas/save.ts` + leaderboard route; SEC-011+013 share save route + schema) come next, sequentially. Alternative considered: launch all 8 simultaneously, accept rebase pain on the second-to-merge of each overlapping pair. **Logged, deferred** — staggered approach is cheaper for review.
 
 **`refactor/zod-content-accessors` CLAUDE.md violation flag.** Local-only WIP branch adds runtime `Schema.parse(jsonData)` at module load — directly contradicts CLAUDE.md §5's hard rule (~98 kB first-load JS regression). Logged in `docs/security/04-other-findings.md` so it doesn't accidentally land. Not a Wave 1 concern.
+
+### Phase 3 — finding: SEC-015 actions SHA pinning
+- Worktree: main (feat/security-sec-015-actions-sha-pin)
+- Branch: feat/security-sec-015-actions-sha-pin
+- Commit: staged
+- Files changed: .github/workflows/ci.yml, .github/workflows/audit-readiness-check.yml, src/__tests__/actionsShaPinning.test.ts, docs/security/02b-attack-cells.md, docs/security/_progress.md
+- Test added: src/__tests__/actionsShaPinning.test.ts: "SEC-015 — GitHub Actions are pinned to commit SHAs, not mutable tags"
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: none
+- Pinned SHAs: actions/checkout → 34e114876b0b11c390a56381ad16ebd13914f8d5 (v4.3.1); actions/setup-node → 49933ea5288caeca8642d1e84afbd3f7d6820020 (v4.4.0); actions/upload-artifact → ea165f8d65b6e75b540449e92b4886f43607fa02 (v4.6.2)
+- Tests / typecheck / build / lint: green (1161 tests, 82 files)
+- PR: pending

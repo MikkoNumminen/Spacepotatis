@@ -99,6 +99,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** pin every action to its full commit SHA, e.g. `actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11`. Add a `# v4.2.2` comment alongside so future bumps are deliberate. Apply to both workflows.
 - **Verification:** `grep "uses:" .github/workflows/*.yml` shows only SHA-pinned actions.
 - **Dependencies:** none.
+- **Status:** fixed — pinned in `feat/security-sec-015-actions-sha-pin`; regression test at [src/__tests__/actionsShaPinning.test.ts](../../src/__tests__/actionsShaPinning.test.ts). SEC-028 (Dependabot) + SEC-029 (`permissions:` block) are separate Wave 5 tasks.
 
 #### SEC-016 — `LegacyShipSchema` unbounded `record`/`array` fields (Cell 7)
 
