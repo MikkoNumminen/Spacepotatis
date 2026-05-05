@@ -119,6 +119,30 @@ describe("wireCollisions", () => {
     expect(handlers.onEnemyHit).toHaveBeenCalledWith(enemy, bullet, true, 14);
   });
 
+  it("invokes the handler BEFORE deactivating the bullet so weaponId/effect are still readable", () => {
+    // Regression: an earlier version called bullet.deactivate() FIRST, which
+    // wipes weaponId/effect — every DamageTracker.record call then silently
+    // dropped because bullet.weaponId was null by the time the handler read
+    // it, and the post-mission damage breakdown showed nothing.
+    const { captured, handlers } = setup();
+    const callOrder: string[] = [];
+    const bullet = {
+      active: true,
+      damage: 5,
+      deactivate: vi.fn(() => callOrder.push("deactivate"))
+    } as unknown as Bullet;
+    const enemy = {
+      active: true,
+      hp: 10,
+      takeDamage: vi.fn(() => false)
+    } as unknown as Enemy;
+    handlers.onEnemyHit = vi.fn(() => callOrder.push("onEnemyHit"));
+
+    captured[0]?.cb(bullet, enemy);
+
+    expect(callOrder).toEqual(["onEnemyHit", "deactivate"]);
+  });
+
   it("caps applied damage at remaining HP so overkill isn't attributed to the weapon", () => {
     const { captured, handlers } = setup();
     const bullet = {

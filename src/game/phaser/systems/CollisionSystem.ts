@@ -44,9 +44,14 @@ export function wireCollisions(
     // mattered.
     const hpBefore = enemy.hp;
     const killed = enemy.takeDamage(bullet.damage);
-    bullet.deactivate();
     const applied = Math.max(0, Math.min(bullet.damage, hpBefore));
+    // IMPORTANT: run the handler BEFORE bullet.deactivate(). Deactivate
+    // wipes bullet.weaponId / bullet.effect, and the handler reads both
+    // (DamageTracker attribution + AoE/slow scan). Calling deactivate
+    // first silently drops every damage attribution because weaponId is
+    // null by the time the handler reads it.
     handlers.onEnemyHit(enemy, bullet, killed, applied);
+    bullet.deactivate();
   });
 
   scene.physics.add.overlap(player, enemyBullets, (_playerObj, bulletObj) => {
