@@ -12,7 +12,12 @@ import type { PowerUp, PowerUpPool } from "../entities/PowerUp";
 const OBSTACLE_HIT_COOLDOWN_MS = 400;
 
 export interface CollisionHandlers {
-  onEnemyHit: (enemy: Enemy, bullet: Bullet, killed: boolean) => void;
+  // `applied` is the damage actually subtracted from the enemy's HP —
+  // capped at the enemy's HP-before-hit so overkill is excluded. The
+  // DamageTracker uses this value (not raw bullet.damage) so big-hit
+  // weapons can't inflate the per-mission damage attribution by
+  // oversizing low-HP targets.
+  onEnemyHit: (enemy: Enemy, bullet: Bullet, killed: boolean, applied: number) => void;
   onPlayerHitByBullet: (bullet: Bullet) => void;
   onPlayerTouchEnemy: (enemy: Enemy) => void;
   onPlayerGetPowerUp: (power: PowerUp) => void;
@@ -33,9 +38,15 @@ export function wireCollisions(
     const bullet = bulletObj as Bullet;
     const enemy = enemyObj as Enemy;
     if (!bullet.active || !enemy.active) return;
+    // Snapshot HP before takeDamage so we can cap the attributed
+    // damage at remaining HP. takeDamage allows hp to go negative on
+    // overkill; the tracker only cares about damage that actually
+    // mattered.
+    const hpBefore = enemy.hp;
     const killed = enemy.takeDamage(bullet.damage);
     bullet.deactivate();
-    handlers.onEnemyHit(enemy, bullet, killed);
+    const applied = Math.max(0, Math.min(bullet.damage, hpBefore));
+    handlers.onEnemyHit(enemy, bullet, killed, applied);
   });
 
   scene.physics.add.overlap(player, enemyBullets, (_playerObj, bulletObj) => {

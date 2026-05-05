@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import type { WeaponId } from "@/types/game";
 import { steerVelocity } from "../systems/weaponMath";
 
 export const BULLET_TEXTURE_FRIENDLY = "bullet-friendly";
@@ -33,6 +34,11 @@ const NO_EFFECT: BulletEffect = {
 export class Bullet extends Phaser.Physics.Arcade.Sprite {
   friendly = true;
   damage = 0;
+  // Source weapon for friendly bullets; null for hostile bullets and the
+  // rare friendly that spawns outside WeaponSystem (none today). Read by
+  // CombatScene's DamageTracker when attributing damage to a weapon for
+  // the end-of-mission report.
+  weaponId: WeaponId | null = null;
   effect: BulletEffect = NO_EFFECT;
   private homing: HomingConfig | null = null;
   private gravity = 0;
@@ -51,10 +57,12 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     homing: HomingConfig | null = null,
     spriteKey?: string,
     gravity: number = 0,
-    effect: BulletEffect = NO_EFFECT
+    effect: BulletEffect = NO_EFFECT,
+    weaponId: WeaponId | null = null
   ): void {
     this.friendly = friendly;
     this.damage = damage;
+    this.weaponId = weaponId;
     this.homing = homing;
     this.gravity = gravity;
     this.effect = effect;
@@ -82,6 +90,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.homing = null;
     this.gravity = 0;
     this.effect = NO_EFFECT;
+    this.weaponId = null;
     this.setAngularVelocity(0);
     this.setRotation(0);
     this.disableBody(true, true);
@@ -167,7 +176,8 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
     homing: { readonly turnRateRadPerSec: number } | null = null,
     spriteKey?: string,
     gravity?: number,
-    effect?: BulletEffect
+    effect?: BulletEffect,
+    weaponId: WeaponId | null = null
   ): Bullet | null {
     const bullet = this.get() as Bullet | null;
     if (!bullet) return null;
@@ -175,7 +185,7 @@ export class BulletPool extends Phaser.Physics.Arcade.Group {
       homing && this.findTarget
         ? { turnRateRadPerSec: homing.turnRateRadPerSec, findTarget: this.findTarget }
         : null;
-    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey, gravity, effect);
+    bullet.fire(x, y, vx, vy, damage, friendly, homingConfig, spriteKey, gravity, effect, weaponId);
     return bullet;
   }
 }

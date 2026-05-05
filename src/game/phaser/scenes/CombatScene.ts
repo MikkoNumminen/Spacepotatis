@@ -20,6 +20,7 @@ import { wireCollisions } from "../systems/CollisionSystem";
 import { ScoreSystem } from "../systems/ScoreSystem";
 import { CombatVfx } from "./combat/CombatVfx";
 import { CombatHud } from "./combat/CombatHud";
+import { DamageTracker } from "./combat/DamageTracker";
 import { DropController } from "./combat/DropController";
 import { PerkController } from "./combat/PerkController";
 
@@ -37,6 +38,7 @@ export class CombatScene extends Phaser.Scene {
   private hud!: CombatHud;
   private dropController!: DropController;
   private perks!: PerkController;
+  private damageTracker = new DamageTracker();
 
   private startedAt = 0;
   private allWavesDone = false;
@@ -50,6 +52,9 @@ export class CombatScene extends Phaser.Scene {
     this.bootData = data;
     this.allWavesDone = false;
     this.finished = false;
+    // Wipe any leftover totals from the previous run — Phaser reuses
+    // scene instances when restart()ing.
+    this.damageTracker.reset();
   }
 
   create(): void {
@@ -127,8 +132,12 @@ export class CombatScene extends Phaser.Scene {
       this.enemies,
       this.powerUps,
       {
-        onEnemyHit: (enemy, bullet, killed) => {
+        onEnemyHit: (enemy, bullet, killed, applied) => {
           this.vfx.floatDamageNumber(enemy.x, enemy.y, bullet.damage);
+          // Direct-hit damage attribution. CollisionSystem already
+          // capped `applied` at the enemy's HP-before-hit so overkill
+          // is excluded from the per-mission stat.
+          this.damageTracker.record(bullet.weaponId, applied);
           // Secondary effect: AoE explosion + slow tag. Runs even when the
           // direct hit killed the primary target — pirate explosives are
           // supposed to clear adjacent threats whether or not the bullet's
@@ -228,7 +237,15 @@ export class CombatScene extends Phaser.Scene {
       const dy = e.y - cy;
       if (dx * dx + dy * dy > radiusSq) return true;
       if (explosionDamage > 0) {
+        // Same overkill-cap pattern as CollisionSystem's direct-hit
+        // path: snapshot HP, take damage, attribute Math.min(dmg, hpBefore)
+        // so AoE damage on a low-HP target doesn't inflate the
+        // attributed total. Credits the FIRING weapon, not the chained
+        // victim's last hit.
+        const hpBefore = e.hp;
         const killed = e.takeDamage(explosionDamage);
+        const applied = Math.max(0, Math.min(explosionDamage, hpBefore));
+        this.damageTracker.record(bullet.weaponId, applied);
         this.vfx.floatDamageNumber(e.x, e.y, explosionDamage);
         if (killed) this.handleEnemyKilled(e);
       }
@@ -269,7 +286,9 @@ export class CombatScene extends Phaser.Scene {
       score: this.score.score,
       credits: this.score.credits,
       timeSeconds,
-      victory
+      victory,
+      damageByWeapon: this.damageTracker.snapshot(),
+      totalDamage: this.damageTracker.total()
     };
 
     GameState.addPlayedTime(timeSeconds);
