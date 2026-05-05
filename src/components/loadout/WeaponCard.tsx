@@ -202,6 +202,7 @@ export function WeaponCard({
       {augmentDetail && (
         <AugmentDetailsModal
           augment={augmentDetail}
+          context={{ weapon, instance }}
           onClose={() => setAugmentDetail(null)}
         />
       )}

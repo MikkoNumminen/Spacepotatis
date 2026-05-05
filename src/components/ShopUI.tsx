@@ -356,6 +356,7 @@ export default function ShopUI() {
       {augmentDetails && (
         <AugmentDetailsModal
           augment={augmentDetails}
+          context={null}
           onClose={() => setAugmentDetails(null)}
         />
       )}
