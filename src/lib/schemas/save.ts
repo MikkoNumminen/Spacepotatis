@@ -380,7 +380,13 @@ export const SavePayloadSchema = z.object({
   // catalog inside hydrate() (isKnownStoryId), so the schema only checks
   // the array shape. Unknown ids fall out client-side and never reach
   // the live state.
-  seenStoryEntries: z.array(z.string()).optional()
+  //
+  // SEC-011 — bounded at 200 entries x 64 chars each. Story IDs today are
+  // short (e.g. "great-potato-awakening", "tubernovae-arrival"); the cap
+  // is generous for legitimate saves and forecloses the audit-table
+  // storage-DoS amplifier (an unbounded 4 MB array would write ~4 MB
+  // into save_audit per request without rate limiting).
+  seenStoryEntries: z.array(z.string().max(64)).max(200).optional()
 });
 
 /**
@@ -419,7 +425,11 @@ export const RemoteSaveSchema = z.object({
   completedMissions: z.array(MissionIdSchema),
   unlockedPlanets: z.array(MissionIdSchema),
   playedTimeSeconds: z.number().int().nonnegative(),
-  seenStoryEntries: z.array(z.string()).optional(),
+  // SEC-011 — same cap as SavePayloadSchema. Server-stored rows are
+  // already bounded by the POST schema, but mirroring the constraint here
+  // means a future direct-INSERT path (e.g. an admin script) can't seed
+  // an unbounded list that the client then dutifully accepts.
+  seenStoryEntries: z.array(z.string().max(64)).max(200).optional(),
   // Nullable: rows that pre-date the column return null. Client falls
   // back to the first unlocked system in that case (see hydrate()).
   currentSolarSystemId: SolarSystemIdSchema.nullable().optional(),

@@ -63,6 +63,15 @@ export async function GET(): Promise<Response> {
   }
 }
 
+// SEC-011 — cap on request_payload bytes written to save_audit. The audit
+// row stores the *pre-validation* request body for forensics; without a
+// cap, an authenticated attacker could POST a 4 MB body and amplify it
+// into 4 MB of Neon storage per request (see docs/security/02b-attack-cells.md
+// §SEC-011). 64 KB is far above any legitimate save body and small enough
+// that the table can't be exhausted by a scripted attacker faster than
+// rate-limiting (SEC-002, separate fix) catches up.
+const AUDIT_PAYLOAD_BYTE_CAP = 64 * 1024;
+
 // Forensic audit row written for every authenticated POST /api/save attempt
 // — success, validator rejection, or server error. Designed so the next data
 // loss incident has actual evidence to investigate instead of guesswork.
@@ -87,13 +96,30 @@ async function writeSaveAudit(
     userAgent: string | null;
   }
 ): Promise<void> {
+  // SEC-011 — truncate the payload BEFORE writing it. JSON.stringify is
+  // cheap relative to a Neon round-trip, and a 64 KB cap is generous for
+  // legitimate saves (a fully-decked-out shipConfig today sits well under
+  // 4 KB). On overflow, store a small marker — the response status +
+  // error code on the audit row still tell the operator which guard
+  // rejected, and the request_ip + user_agent still identify the caller.
+  let storedPayload: Record<string, unknown> = row.requestPayload;
+  try {
+    const serialized = JSON.stringify(row.requestPayload);
+    if (serialized.length > AUDIT_PAYLOAD_BYTE_CAP) {
+      storedPayload = { truncated: true, size: serialized.length };
+    }
+  } catch {
+    // A circular-ref or BigInt-laden payload can't be JSON-stringified;
+    // record that so the audit still lands without throwing.
+    storedPayload = { truncated: true, reason: "unserializable" };
+  }
   try {
     await db
       .insertInto("spacepotatis.save_audit")
       .values({
         player_id: row.playerId,
         slot: 1,
-        request_payload: row.requestPayload,
+        request_payload: storedPayload,
         response_status: row.responseStatus,
         response_error: row.responseError,
         prev_snapshot: row.prevSnapshot,
@@ -167,241 +193,303 @@ export async function POST(request: Request): Promise<Response> {
   const credits = body.credits ?? 0;
   const playedTimeSeconds = body.playedTimeSeconds ?? 0;
 
-  // Resolve player + previous row up front so every audit path has the
-  // diagnostic context (prev_snapshot in particular). If this fails the
-  // request becomes 500 and we audit that too.
+  // Resolve player + DB handle. The prev-row SELECT moves into the
+  // transaction below so a concurrent save can't slip a stale baseline past
+  // the regression / credits / playtime guards. See SEC-013.
+  // Hoist the session email locally — the closure inside `db.transaction()`
+  // would otherwise lose the narrowing the guard at the top performed.
+  const sessionEmail = session.user.email;
   let db: Kysely<Database>;
   let playerId: string;
-  let prevRow:
-    | {
-        credits: number;
-        current_planet: string | null;
-        ship_config: Record<string, unknown>;
-        played_time_seconds: number;
-        completed_missions: string[];
-        unlocked_planets: string[];
-        seen_story_entries: string[];
-        current_solar_system_id: string | null;
-        updated_at: Date;
-      }
-    | undefined;
   try {
     db = getDb();
-    playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
-    prevRow = await db
-      .selectFrom("spacepotatis.save_games")
-      .select([
-        "credits",
-        "current_planet",
-        "ship_config",
-        "played_time_seconds",
-        "completed_missions",
-        "unlocked_planets",
-        "seen_story_entries",
-        "current_solar_system_id",
-        "updated_at"
-      ])
-      .where("player_id", "=", playerId)
-      .where("slot", "=", 1)
-      .executeTakeFirst();
+    playerId = await upsertPlayerId(sessionEmail, session.user.name ?? null);
   } catch (err) {
     console.error("POST /api/save failed (pre-validation lookup):", err);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
-  // Snapshot serialized for prev_snapshot — JSON-friendly shape with the
-  // updated_at field flattened to ISO string so the audit row is portable.
-  const prevSnapshot: Record<string, unknown> | null = prevRow
-    ? {
-        credits: prevRow.credits,
-        currentPlanet: prevRow.current_planet,
-        shipConfig: prevRow.ship_config,
-        completedMissions: prevRow.completed_missions,
-        unlockedPlanets: prevRow.unlocked_planets,
-        playedTimeSeconds: prevRow.played_time_seconds,
-        seenStoryEntries: prevRow.seen_story_entries ?? [],
-        currentSolarSystemId: prevRow.current_solar_system_id,
-        updatedAt:
-          prevRow.updated_at instanceof Date
-            ? prevRow.updated_at.toISOString()
-            : String(prevRow.updated_at)
+  // SEC-013 — wrap prev-row SELECT + validators + upsert in a single
+  // Kysely transaction with `.forUpdate()` on the SELECT. The row lock is
+  // held until COMMIT, so a second concurrent POST blocks until Tab A's
+  // transaction commits, then re-reads the now-updated row. Without this
+  // guard, two tabs (or a malicious local script firing parallel POSTs)
+  // each read the same pre-write baseline; one tab's stale `completedMissions`
+  // payload can overwrite the other tab's richer state because both passed
+  // `validateNoRegression` against the stale prev row.
+  //
+  // The audit write happens OUTSIDE the transaction below — best-effort
+  // diagnostic, never blocks the critical path. Snapshot capture stays
+  // inside the transaction so the audit row reflects the FOR-UPDATE-locked
+  // baseline rather than a fresh re-read after the upsert.
+  type TxOutcome =
+    | {
+        kind: "ok";
+        prevSnapshot: Record<string, unknown> | null;
       }
-    : null;
+    | {
+        kind: "reject";
+        status: 422;
+        error:
+          | "mission_graph_invalid"
+          | "save_regression"
+          | "playtime_delta_invalid"
+          | "credits_delta_invalid";
+        // The validators return ValidationResult { ok, error? } where the
+        // error string is optional; NextResponse.json drops undefined fields.
+        message: string | undefined;
+        prevSnapshot: Record<string, unknown> | null;
+      };
 
-  // All audit writes share the same context; build a small helper that
-  // captures prevSnapshot + headers + payload once and just needs the
-  // outcome at the call site.
-  const recordAudit = (status: number, error: string | null): Promise<void> =>
-    writeSaveAudit(db, {
+  let outcome: TxOutcome;
+  try {
+    outcome = await db.transaction().execute(async (trx): Promise<TxOutcome> => {
+      const prevRow = await trx
+        .selectFrom("spacepotatis.save_games")
+        .select([
+          "credits",
+          "current_planet",
+          "ship_config",
+          "played_time_seconds",
+          "completed_missions",
+          "unlocked_planets",
+          "seen_story_entries",
+          "current_solar_system_id",
+          "updated_at"
+        ])
+        .where("player_id", "=", playerId)
+        .where("slot", "=", 1)
+        .forUpdate()
+        .executeTakeFirst();
+
+      // Snapshot serialized for prev_snapshot — JSON-friendly shape with the
+      // updated_at field flattened to ISO string so the audit row is portable.
+      const prevSnapshot: Record<string, unknown> | null = prevRow
+        ? {
+            credits: prevRow.credits,
+            currentPlanet: prevRow.current_planet,
+            shipConfig: prevRow.ship_config,
+            completedMissions: prevRow.completed_missions,
+            unlockedPlanets: prevRow.unlocked_planets,
+            playedTimeSeconds: prevRow.played_time_seconds,
+            seenStoryEntries: prevRow.seen_story_entries ?? [],
+            currentSolarSystemId: prevRow.current_solar_system_id,
+            updatedAt:
+              prevRow.updated_at instanceof Date
+                ? prevRow.updated_at.toISOString()
+                : String(prevRow.updated_at)
+          }
+        : null;
+
+      const graphResult = validateMissionGraph({
+        completedMissions,
+        unlockedPlanets
+      });
+      if (!graphResult.ok) {
+        console.warn(
+          "[/api/save] mission graph violation",
+          sessionEmail,
+          graphResult.error
+        );
+        return {
+          kind: "reject",
+          status: 422,
+          error: "mission_graph_invalid",
+          message: graphResult.error,
+          prevSnapshot
+        };
+      }
+
+      const prev = prevRow
+        ? {
+            credits: prevRow.credits,
+            playedTimeSeconds: prevRow.played_time_seconds,
+            completedMissionsCount: Array.isArray(prevRow.completed_missions)
+              ? (prevRow.completed_missions as MissionId[]).length
+              : 0
+          }
+        : null;
+
+      // Save-state regression guard. Catches the wipe pattern where a buggy
+      // client POSTs INITIAL_STATE on top of an existing save (credits=0,
+      // completedMissions=[], playtime=0). The cheat-delta guards below only
+      // catch INFLATION, not regression — this is the matching defense.
+      const prevForRegression = prevRow
+        ? {
+            playedTimeSeconds: prevRow.played_time_seconds,
+            completedMissions: Array.isArray(prevRow.completed_missions)
+              ? (prevRow.completed_missions as readonly MissionId[])
+              : [],
+            unlockedPlanets: Array.isArray(prevRow.unlocked_planets)
+              ? (prevRow.unlocked_planets as readonly MissionId[])
+              : []
+          }
+        : null;
+      const regressionResult = validateNoRegression({
+        prev: prevForRegression,
+        next: {
+          playedTimeSeconds,
+          completedMissions,
+          unlockedPlanets
+        }
+      });
+      if (!regressionResult.ok) {
+        console.warn(
+          "[/api/save] regression rejected",
+          sessionEmail,
+          regressionResult.error
+        );
+        return {
+          kind: "reject",
+          status: 422,
+          error: "save_regression",
+          message: regressionResult.error,
+          prevSnapshot
+        };
+      }
+
+      // Playtime first: the credits cap depends on `playedTimeSeconds`, so
+      // catching an inflated playtime here prevents the inflated value from
+      // unlocking a bigger credits budget downstream.
+      const playtimeResult = validatePlaytimeDelta({
+        prev: prevRow
+          ? { playedTimeSeconds: prevRow.played_time_seconds, updatedAt: prevRow.updated_at }
+          : null,
+        next: { playedTimeSeconds },
+        nowMs: Date.now()
+      });
+      if (!playtimeResult.ok) {
+        console.warn(
+          "[/api/save] playtime delta violation",
+          sessionEmail,
+          playtimeResult.error
+        );
+        return {
+          kind: "reject",
+          status: 422,
+          error: "playtime_delta_invalid",
+          message: playtimeResult.error,
+          prevSnapshot
+        };
+      }
+
+      // Per-player cap based on the trusted server-side completedMissions
+      // (the post-mission-graph-validation list, so unlock-chain cheats
+      // can't expand the cap). A brand-new player gets tutorial-only caps;
+      // a tubernovae unlocker gets tutorial+tubernovae caps; future systems
+      // light up the moment their gating mission is in completedMissions.
+      const caps = computeCreditCapsForPlayer(completedMissions);
+
+      const creditsResult = validateCreditsDelta({
+        prev,
+        next: {
+          credits,
+          playedTimeSeconds,
+          completedMissionsCount: completedMissions.length
+        },
+        caps
+      });
+      if (!creditsResult.ok) {
+        console.warn(
+          "[/api/save] credits delta violation",
+          sessionEmail,
+          creditsResult.error
+        );
+        return {
+          kind: "reject",
+          status: 422,
+          error: "credits_delta_invalid",
+          message: creditsResult.error,
+          prevSnapshot
+        };
+      }
+
+      // Snapshot serialization sends the ship under `ship`; the legacy /api
+      // contract calls it `shipConfig`. Accept both, prefer the explicit one.
+      const shipPayload = body.shipConfig ?? body.ship;
+      const shipConfig =
+        shipPayload && typeof shipPayload === "object"
+          ? (shipPayload as Record<string, unknown>)
+          : {};
+
+      const seenStoryEntries = Array.isArray(body.seenStoryEntries) ? body.seenStoryEntries : [];
+      const currentSolarSystemId = body.currentSolarSystemId ?? null;
+
+      await trx
+        .insertInto("spacepotatis.save_games")
+        .values({
+          player_id: playerId,
+          slot: 1,
+          credits,
+          current_planet: body.currentPlanet ?? null,
+          ship_config: shipConfig,
+          completed_missions: completedMissions,
+          unlocked_planets: unlockedPlanets,
+          played_time_seconds: playedTimeSeconds,
+          seen_story_entries: seenStoryEntries,
+          current_solar_system_id: currentSolarSystemId,
+          updated_at: new Date()
+        })
+        .onConflict((oc) =>
+          oc.columns(["player_id", "slot"]).doUpdateSet({
+            credits: sql`EXCLUDED.credits`,
+            current_planet: sql`EXCLUDED.current_planet`,
+            ship_config: sql`EXCLUDED.ship_config`,
+            completed_missions: sql`EXCLUDED.completed_missions`,
+            unlocked_planets: sql`EXCLUDED.unlocked_planets`,
+            played_time_seconds: sql`EXCLUDED.played_time_seconds`,
+            seen_story_entries: sql`EXCLUDED.seen_story_entries`,
+            current_solar_system_id: sql`EXCLUDED.current_solar_system_id`,
+            updated_at: sql`EXCLUDED.updated_at`
+          })
+        )
+        .execute();
+
+      return { kind: "ok", prevSnapshot };
+    });
+  } catch (err) {
+    console.error("POST /api/save failed:", err);
+    // Best-effort audit on the transaction-level failure path. We don't have
+    // a prevSnapshot here (the SELECT itself or the upsert may have thrown);
+    // record the attempt with prev_snapshot = null so the row still lands.
+    await writeSaveAudit(db, {
       playerId,
       requestPayload,
-      responseStatus: status,
-      responseError: error,
-      prevSnapshot,
+      responseStatus: 500,
+      responseError: "server_error",
+      prevSnapshot: null,
       requestIp,
       userAgent
     });
-
-  const graphResult = validateMissionGraph({
-    completedMissions,
-    unlockedPlanets
-  });
-  if (!graphResult.ok) {
-    console.warn(
-      "[/api/save] mission graph violation",
-      session.user.email,
-      graphResult.error
-    );
-    await recordAudit(422, "mission_graph_invalid");
-    return NextResponse.json(
-      { error: "mission_graph_invalid", message: graphResult.error },
-      { status: 422 }
-    );
-  }
-
-  try {
-    const prev = prevRow
-      ? {
-          credits: prevRow.credits,
-          playedTimeSeconds: prevRow.played_time_seconds,
-          completedMissionsCount: Array.isArray(prevRow.completed_missions)
-            ? (prevRow.completed_missions as MissionId[]).length
-            : 0
-        }
-      : null;
-
-    // Save-state regression guard. Catches the wipe pattern where a buggy
-    // client POSTs INITIAL_STATE on top of an existing save (credits=0,
-    // completedMissions=[], playtime=0). The cheat-delta guards below only
-    // catch INFLATION, not regression — this is the matching defense.
-    const prevForRegression = prevRow
-      ? {
-          playedTimeSeconds: prevRow.played_time_seconds,
-          completedMissions: Array.isArray(prevRow.completed_missions)
-            ? (prevRow.completed_missions as readonly MissionId[])
-            : [],
-          unlockedPlanets: Array.isArray(prevRow.unlocked_planets)
-            ? (prevRow.unlocked_planets as readonly MissionId[])
-            : []
-        }
-      : null;
-    const regressionResult = validateNoRegression({
-      prev: prevForRegression,
-      next: {
-        playedTimeSeconds,
-        completedMissions,
-        unlockedPlanets
-      }
-    });
-    if (!regressionResult.ok) {
-      console.warn(
-        "[/api/save] regression rejected",
-        session.user.email,
-        regressionResult.error
-      );
-      await recordAudit(422, "save_regression");
-      return NextResponse.json(
-        { error: "save_regression", message: regressionResult.error },
-        { status: 422 }
-      );
-    }
-
-    // Playtime first: the credits cap depends on `playedTimeSeconds`, so
-    // catching an inflated playtime here prevents the inflated value from
-    // unlocking a bigger credits budget downstream.
-    const playtimeResult = validatePlaytimeDelta({
-      prev: prevRow
-        ? { playedTimeSeconds: prevRow.played_time_seconds, updatedAt: prevRow.updated_at }
-        : null,
-      next: { playedTimeSeconds },
-      nowMs: Date.now()
-    });
-    if (!playtimeResult.ok) {
-      console.warn(
-        "[/api/save] playtime delta violation",
-        session.user.email,
-        playtimeResult.error
-      );
-      await recordAudit(422, "playtime_delta_invalid");
-      return NextResponse.json(
-        { error: "playtime_delta_invalid", message: playtimeResult.error },
-        { status: 422 }
-      );
-    }
-
-    // Per-player cap based on the trusted server-side completedMissions
-    // (the post-mission-graph-validation list, so unlock-chain cheats
-    // can't expand the cap). A brand-new player gets tutorial-only caps;
-    // a tubernovae unlocker gets tutorial+tubernovae caps; future systems
-    // light up the moment their gating mission is in completedMissions.
-    const caps = computeCreditCapsForPlayer(completedMissions);
-
-    const creditsResult = validateCreditsDelta({
-      prev,
-      next: {
-        credits,
-        playedTimeSeconds,
-        completedMissionsCount: completedMissions.length
-      },
-      caps
-    });
-    if (!creditsResult.ok) {
-      console.warn(
-        "[/api/save] credits delta violation",
-        session.user.email,
-        creditsResult.error
-      );
-      await recordAudit(422, "credits_delta_invalid");
-      return NextResponse.json(
-        { error: "credits_delta_invalid", message: creditsResult.error },
-        { status: 422 }
-      );
-    }
-
-    // Snapshot serialization sends the ship under `ship`; the legacy /api
-    // contract calls it `shipConfig`. Accept both, prefer the explicit one.
-    const shipPayload = body.shipConfig ?? body.ship;
-    const shipConfig =
-      shipPayload && typeof shipPayload === "object" ? (shipPayload as Record<string, unknown>) : {};
-
-    const seenStoryEntries = Array.isArray(body.seenStoryEntries) ? body.seenStoryEntries : [];
-    const currentSolarSystemId = body.currentSolarSystemId ?? null;
-
-    await db
-      .insertInto("spacepotatis.save_games")
-      .values({
-        player_id: playerId,
-        slot: 1,
-        credits,
-        current_planet: body.currentPlanet ?? null,
-        ship_config: shipConfig,
-        completed_missions: completedMissions,
-        unlocked_planets: unlockedPlanets,
-        played_time_seconds: playedTimeSeconds,
-        seen_story_entries: seenStoryEntries,
-        current_solar_system_id: currentSolarSystemId,
-        updated_at: new Date()
-      })
-      .onConflict((oc) =>
-        oc.columns(["player_id", "slot"]).doUpdateSet({
-          credits: sql`EXCLUDED.credits`,
-          current_planet: sql`EXCLUDED.current_planet`,
-          ship_config: sql`EXCLUDED.ship_config`,
-          completed_missions: sql`EXCLUDED.completed_missions`,
-          unlocked_planets: sql`EXCLUDED.unlocked_planets`,
-          played_time_seconds: sql`EXCLUDED.played_time_seconds`,
-          seen_story_entries: sql`EXCLUDED.seen_story_entries`,
-          current_solar_system_id: sql`EXCLUDED.current_solar_system_id`,
-          updated_at: sql`EXCLUDED.updated_at`
-        })
-      )
-      .execute();
-
-    await recordAudit(204, null);
-    return new NextResponse(null, { status: 204 });
-  } catch (err) {
-    console.error("POST /api/save failed:", err);
-    await recordAudit(500, "server_error");
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
+
+  // Audit write happens AFTER the transaction commits/rolls back. Failure
+  // here never affects the user-visible outcome.
+  if (outcome.kind === "reject") {
+    await writeSaveAudit(db, {
+      playerId,
+      requestPayload,
+      responseStatus: outcome.status,
+      responseError: outcome.error,
+      prevSnapshot: outcome.prevSnapshot,
+      requestIp,
+      userAgent
+    });
+    return NextResponse.json(
+      { error: outcome.error, message: outcome.message },
+      { status: outcome.status }
+    );
+  }
+
+  await writeSaveAudit(db, {
+    playerId,
+    requestPayload,
+    responseStatus: 204,
+    responseError: null,
+    prevSnapshot: outcome.prevSnapshot,
+    requestIp,
+    userAgent
+  });
+  return new NextResponse(null, { status: 204 });
 }

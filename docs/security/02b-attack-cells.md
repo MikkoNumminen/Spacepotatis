@@ -45,6 +45,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Save-pipeline scrutiny:** Phase 3 must run `/save-roundtrip-audit` before this fix lands.
 - **Verification:** unit test in `tests/security/auditAmplification.test.ts`: POST a 4 MB body, assert audit row's `request_payload` is the truncation marker, not the full body.
 - **Dependencies:** SEC-002 (rate limit) reduces blast radius; both fixes desirable.
+- **Status:** fixed — pending-sha; PR feat/security-sec-013-011-save-route-hardening; layer (1) caps `seenStoryEntries` at 200 entries × 64 chars on both `SavePayloadSchema` and `RemoteSaveSchema`; layer (2) `writeSaveAudit` truncates `request_payload` to `{truncated: true, size: <n>}` when `JSON.stringify(payload).length > 64 KB` (also handles unserializable payloads with `{truncated: true, reason: "unserializable"}`). Regression test [tests/security/auditAmplification.test.ts](../../tests/security/auditAmplification.test.ts) covers both layers — 7 tests including the worst-case 10000×400-char attack body and the boundary cases for the schema cap.
 
 #### SEC-012 — `AUTH_URL` not pinned; `trustHost: true` falls back to `x-forwarded-host` (Cell 1)
 
@@ -73,6 +74,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Phase 3 model:** Opus (save-pipeline scrutiny).
 - **Verification:** integration test in `tests/security/saveRace.test.ts`: dispatch two concurrent POST `/api/save` against a test DB with same player, with the second POST's payload carrying the OLD `completedMissions`. Assert the second is rejected by `validateNoRegression` rather than committing.
 - **Dependencies:** none.
+- **Status:** fixed — 6ebce98; PR feat/security-sec-013-011-save-route-hardening; prev-row SELECT + validators + upsert wrapped in `db.transaction().execute(async trx => { ... .forUpdate() ... })`. Regression test [tests/security/saveRace.test.ts](../../tests/security/saveRace.test.ts) asserts the transaction is opened, `.forUpdate()` is called on the prev-row SELECT, and a stale-baseline POST after a richer save commit is rejected by `validateNoRegression`.
 
 #### SEC-014 — `score` field unbounded in `ScorePayloadSchema` (Cell 3) **Status:** fixed — d51c2a5
 
