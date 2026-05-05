@@ -3,17 +3,15 @@
 // augment changes and the numeric values without and with the augment.
 //
 // Lives next to the modal because it's purely UI-presentation math.
-// Game logic still goes through `foldAugmentEffects` at fire time.
+// Per-stat calculations (dpsOf / energyOf / turnRateOf) live in
+// `weaponStats.ts` so WeaponCard, this module, and LoadoutDpsGraph
+// share one formula. Game logic still goes through `foldAugmentEffects`
+// at fire time.
 
-import {
-  foldAugmentEffects,
-  type AugmentDefinition
-} from "@/game/data/augments";
-import {
-  weaponDamageMultiplier,
-  type WeaponInstance
-} from "@/game/state/ShipConfig";
+import type { AugmentDefinition } from "@/game/data/augments";
+import type { WeaponInstance } from "@/game/state/ShipConfig";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
+import { dpsOf, energyOf, turnRateOf } from "./weaponStats";
 
 export type ImpactStat = "dps" | "energy" | "turnRate";
 
@@ -23,26 +21,6 @@ export interface AugmentImpact {
   readonly unit: string;
   readonly before: number;
   readonly after: number;
-}
-
-const DEFAULT_TURN_RATE = 3.5;
-
-function dpsOf(weapon: WeaponDefinition, level: number, augmentIds: readonly AugmentId[]): number {
-  const eff = foldAugmentEffects(augmentIds);
-  const projTotal = weapon.projectileCount + eff.projectileBonus;
-  const fireRateMs = weapon.fireRateMs * eff.fireRateMul;
-  return Math.round(weapon.damage * weaponDamageMultiplier(level) * eff.damageMul * projTotal * (1000 / fireRateMs));
-}
-
-function energyOf(weapon: WeaponDefinition, augmentIds: readonly AugmentId[]): number {
-  const eff = foldAugmentEffects(augmentIds);
-  return Math.max(1, Math.round(weapon.energyCost * eff.energyMul));
-}
-
-function turnRateOf(weapon: WeaponDefinition, augmentIds: readonly AugmentId[]): number {
-  const eff = foldAugmentEffects(augmentIds);
-  const base = weapon.turnRateRadPerSec ?? DEFAULT_TURN_RATE;
-  return Math.round(base * eff.turnRateMul * 100) / 100;
 }
 
 // Returns the single stat the augment changes on this weapon, with

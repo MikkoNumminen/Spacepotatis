@@ -7,6 +7,7 @@ import {
   slotPurchaseCost
 } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
+import { LoadoutDpsGraph } from "@/components/loadout/LoadoutDpsGraph";
 import { SlotGrid } from "@/components/loadout/SlotGrid";
 import { SlotPicker } from "@/components/loadout/SlotPicker";
 import { AugmentPicker } from "@/components/loadout/AugmentPicker";
@@ -73,6 +74,8 @@ export default function LoadoutMenu(_props: Props) {
           <span className="shrink-0 font-mono text-xs text-hud-green/50">slots maxed</span>
         )}
       </div>
+
+      <LoadoutDpsGraph ship={ship} />
 
       {/* Surface equipped weapons so the player can upgrade / install
           augments without unequipping. INVENTORY below covers
