@@ -70,6 +70,20 @@ export type UpgradeId =
   | "reactor-recharge";
 
 /**
+ * Canonical id for every clickable inline-stat chip on a weapon card
+ * (DPS, energy-per-shot, augment-slot count). Each id keys both the body
+ * copy in `src/game/data/stats.ts` and the per-stat Grandma voiceover at
+ * `/audio/stats/<id>-voice.mp3`, so renaming one is a breaking
+ * audio-asset change. Same shape as `UpgradeId`.
+ *
+ * @stable
+ */
+export type StatId =
+  | "dps"
+  | "energy"
+  | "augment-slots";
+
+/**
  * Catalog family — discriminator for shop / loadout filtering.
  *
  * The tutorial-system shop is gated to `family: "potato"` so pirate
