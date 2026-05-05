@@ -111,7 +111,7 @@ export function WeaponCard({
               statId="dps"
               accent="amber"
               valueLabel={String(dps)}
-              detail={`DPS ${dps} on this gun, folded`}
+              detail={`${dps} DPS`}
               onOpen={(detail) => setStatDetail({ id: "dps", detail })}
             />
             <StatChip

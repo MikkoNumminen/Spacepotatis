@@ -2,15 +2,21 @@
 //   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
 //   See ./README.md for the rationale.
 
-// Inline-stat flavour copy. The actual numeric behaviour for each stat
-// is computed at render time from `WeaponDefinition` + `WeaponInstance` +
-// installed augments — this module is a thin presentation registry:
-// id → display label + icon + body copy for the StatDetailsModal, and an
-// id-to-voice-file convention for Grandma.
+// Inline-stat presentation copy. The actual numeric behaviour for each
+// stat is computed at render time from `WeaponDefinition` +
+// `WeaponInstance` + installed augments — this module is a thin
+// presentation registry: id → display label + icon + body copy for the
+// StatDetailsModal, and an id-to-voice-file convention for the
+// matching audio cue.
+//
+// IMPORTANT: unlike weapons / augments / upgrades (where `body` is the
+// transcript Grandma reads), the stat-chip `body` is intentionally
+// dry UI documentation — formula factors, units, and update rules.
+// This is the "spec" view; the voice file is independent flavour
+// commentary that does NOT need to match word-for-word.
 //
 // Voice path: `/audio/stats/<id>-voice.mp3`. Missing files fail silently
-// (HTMLAudioElement doesn't throw on 404), matching weapons / augments /
-// upgrades.
+// (HTMLAudioElement doesn't throw on 404).
 //
 // `StatId` lives in `src/types/game.ts` next to `WeaponId` / `AugmentId` /
 // `UpgradeId` so non-content modules can depend on it without pulling
@@ -23,9 +29,9 @@ export type { StatId };
 
 /**
  * One-row presentation entry for an inline weapon-card stat. `body`
- * paragraphs are what Grandma reads aloud and are also rendered as text
- * in the modal — kept in sync so a player who has muted audio still
- * gets the full description.
+ * paragraphs are dry UI documentation rendered as text in the modal —
+ * formula factors, units, and update rules. Independent of the
+ * matching voice file (which is flavour commentary, not a transcript).
  *
  * @stable Part of `content` public API.
  */
@@ -42,9 +48,9 @@ const REGISTRY: Readonly<Record<StatId, StatDefinition>> = {
     name: "Damage Per Second",
     icon: "💥",
     body: [
-      "Damage per second — how much hurt this gun puts out if you hold the trigger and nothing moves.",
-      "It's not just the raw bullet damage. We fold in the fire rate, how many projectiles you spit per shot, your Mark level, and every augment you've bolted on. The number on the row is the gun you're actually firing today, captain — not the brochure number.",
-      "Compare DPS across slots when you're picking a loadout. The one with the higher number is doing more work."
+      "Effective damage per second of this weapon at its current configuration.",
+      "Formula: base damage × Mark multiplier × augment damage multiplier × projectile count × (1000 / fire rate in ms).",
+      "Updates live when the weapon is upgraded (Mark) or an augment is installed that affects damage, fire rate, or projectile count."
     ]
   },
   energy: {
@@ -52,8 +58,9 @@ const REGISTRY: Readonly<Record<StatId, StatDefinition>> = {
     name: "Energy Per Shot",
     icon: "⚡",
     body: [
-      "How much reactor charge each pull of the trigger costs. Your reactor refills on its own; bigger guns just empty it faster.",
-      "Stack two thirsty weapons in your slots and you'll find the trigger goes quiet mid-fight while you wait for charge. A cheap gun and a hungry gun on the same ship is often a better mix than two hungry ones."
+      "Reactor energy consumed per fire event (per trigger pull, not per bullet).",
+      "Formula: base energy cost × augment energy multiplier, rounded, minimum 1.",
+      "The reactor recharges over time. Lower energy cost = more shots before the reactor empties; higher cost = longer pauses while it refills."
     ]
   },
   "augment-slots": {
@@ -61,9 +68,9 @@ const REGISTRY: Readonly<Record<StatId, StatDefinition>> = {
     name: "Augment Slots",
     icon: "🧩",
     body: [
-      "Every weapon has two augment slots. The chip shows how many you've used and how many are free.",
-      "Once you bolt an augment in, it's permanent. Welded, soldered, fused — pick your favourite verb. You can't pull it back out, you can't shuffle it to another gun. Selling the weapon takes the augments with it (you do get the credits back at full refund, while we're being kind about that).",
-      "Pick augments that match how you actually fight. A damage booster on a fast little potato cannon is fine. A damage booster AND an extra-projectile module on the same gun? Now we're talking."
+      "Augments installed on this weapon, out of the maximum allowed.",
+      "Maximum: 2 per weapon. Once installed, augments are permanent — they cannot be removed, swapped to another weapon, or refunded individually.",
+      "Selling the weapon refunds 100% of its base cost + every upgrade paid + every installed augment's cost."
     ]
   }
 } as const;
