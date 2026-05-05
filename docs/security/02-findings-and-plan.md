@@ -166,6 +166,7 @@ None.
   - **Recommendation: Option A.** The helper exists; using it is mechanical. The cost of NOT using it is exactly the rake CLAUDE.md §15 was written to fix.
 - **Verification:** `node scripts/improve-restore.mjs --help` lists the new flags. `node scripts/improve-restore.mjs <email>` (no `--confirm`) prints the intended UPDATE without executing. `node scripts/improve-restore.mjs <wrong-positional> --player-email=<other> --confirm` aborts with the cross-check error.
 - **Dependencies:** none.
+- **Status:** fixed — see PR feat/security-sec-007-021-improve-restore-harness; regression test `scripts/improveRestoreHarness.test.mjs` (11 tests).
 
 ## INFORMATIONAL findings
 
