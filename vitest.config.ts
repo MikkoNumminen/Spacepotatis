@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs", "tests/**/*.test.ts"],
     exclude: ["node_modules", ".next", "out"],
     coverage: {
       provider: "v8",
