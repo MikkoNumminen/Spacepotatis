@@ -9,6 +9,23 @@ Created three security-specific agent definitions under `.claude/agents/`. They 
 
 Pre-existing agents (`refactor-architect`, `module-extractor`, `doc-writer`) were **not** modified or removed — they belong to the `audit` (modular-architecture) skill and remain orthogonal.
 
+## How invocation works (important)
+
+Custom agent files under `.claude/agents/` are **contract specs**, not registered `subagent_types`. In this Claude Code setup the only first-class subagent types available to the `Agent` tool are the built-ins (`general-purpose`, `Plan`, `Explore`, `claude-code-guide`, `statusline-setup`). Calling `Agent({ subagent_type: "security-auditor" })` returns `Agent type 'security-auditor' not found`.
+
+The orchestrator therefore invokes:
+
+```ts
+Agent({
+  subagent_type: "general-purpose",
+  model: "opus",            // or "sonnet" for security-fixer routine work
+  description: "Phase N — <phase name>",
+  prompt: "<the agent contract from .claude/agents/<name>.md, inlined verbatim, plus the per-phase brief>"
+})
+```
+
+This is the same pattern the parallel `/audit` skill uses for `refactor-architect`, `module-extractor`, `doc-writer`. The contract files exist so a human (or a future Claude Code release that auto-registers `.claude/agents/`) can read the boundaries without re-deriving them; the orchestrator's job is to keep the inlined prompt faithful to the contract.
+
 ## Agents created
 
 ### `.claude/agents/security-auditor.md`

@@ -277,7 +277,7 @@ Updated waves (parallelizability respected):
 - Medium: **9** (SEC-001, SEC-002, SEC-003, SEC-011, SEC-012, SEC-013, SEC-014, SEC-015, SEC-016)
 - Low: **15** (SEC-004, SEC-005, SEC-006, SEC-007, SEC-017, SEC-018, SEC-019, SEC-020, SEC-021, SEC-022, SEC-023, SEC-024, SEC-025, SEC-026, plus the merged SEC-009 → SEC-012)
 - Informational: **8** (SEC-008, SEC-010, SEC-027, SEC-028, SEC-029, SEC-030, SEC-031, SEC-032)
-- **Total tracked findings: 32** (3 of which are risk-accept candidates)
+- **Total tracked findings: 32 = 29 actionable + 3 risk-accept** (the risk-accept three sit inside the 8 informational; SEC-030, SEC-031, SEC-032 are documented and intentionally not scheduled for fix).
 
 ## Bottom line
 
