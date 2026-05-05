@@ -147,10 +147,7 @@ export default function ShopUI() {
     <>
       <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_1fr]">
         <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-          <header className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
-            <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
-          </header>
+          <h2 className="mb-4 font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
 
           <Row
             label="Shield capacity"
@@ -197,10 +194,7 @@ export default function ShopUI() {
         </section>
 
         <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-          <header className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-display tracking-widest text-hud-green">BUY WEAPONS</h2>
-            <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
-          </header>
+          <h2 className="mb-4 font-display tracking-widest text-hud-green">BUY WEAPONS</h2>
 
           {visibleWeapons.length === 0 && (
             <p className="text-xs text-hud-green/60">
@@ -286,10 +280,7 @@ export default function ShopUI() {
         </section>
 
         <section className="rounded border border-space-border bg-space-panel/70 p-4 md:col-span-2 sm:p-5">
-          <header className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-display tracking-widest text-hud-green">AUGMENTS</h2>
-            <span className="font-mono text-xs text-hud-amber">¢ {credits}</span>
-          </header>
+          <h2 className="mb-4 font-display tracking-widest text-hud-green">AUGMENTS</h2>
 
           <p className="mb-3 text-xs text-hud-green/60">
             Permanent weapon modifiers. One-way install. Open DETAILS for the full description.
