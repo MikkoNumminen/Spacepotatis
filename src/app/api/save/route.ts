@@ -63,6 +63,15 @@ export async function GET(): Promise<Response> {
   }
 }
 
+// SEC-011 — cap on request_payload bytes written to save_audit. The audit
+// row stores the *pre-validation* request body for forensics; without a
+// cap, an authenticated attacker could POST a 4 MB body and amplify it
+// into 4 MB of Neon storage per request (see docs/security/02b-attack-cells.md
+// §SEC-011). 64 KB is far above any legitimate save body and small enough
+// that the table can't be exhausted by a scripted attacker faster than
+// rate-limiting (SEC-002, separate fix) catches up.
+const AUDIT_PAYLOAD_BYTE_CAP = 64 * 1024;
+
 // Forensic audit row written for every authenticated POST /api/save attempt
 // — success, validator rejection, or server error. Designed so the next data
 // loss incident has actual evidence to investigate instead of guesswork.
@@ -87,13 +96,30 @@ async function writeSaveAudit(
     userAgent: string | null;
   }
 ): Promise<void> {
+  // SEC-011 — truncate the payload BEFORE writing it. JSON.stringify is
+  // cheap relative to a Neon round-trip, and a 64 KB cap is generous for
+  // legitimate saves (a fully-decked-out shipConfig today sits well under
+  // 4 KB). On overflow, store a small marker — the response status +
+  // error code on the audit row still tell the operator which guard
+  // rejected, and the request_ip + user_agent still identify the caller.
+  let storedPayload: Record<string, unknown> = row.requestPayload;
+  try {
+    const serialized = JSON.stringify(row.requestPayload);
+    if (serialized.length > AUDIT_PAYLOAD_BYTE_CAP) {
+      storedPayload = { truncated: true, size: serialized.length };
+    }
+  } catch {
+    // A circular-ref or BigInt-laden payload can't be JSON-stringified;
+    // record that so the audit still lands without throwing.
+    storedPayload = { truncated: true, reason: "unserializable" };
+  }
   try {
     await db
       .insertInto("spacepotatis.save_audit")
       .values({
         player_id: row.playerId,
         slot: 1,
-        request_payload: row.requestPayload,
+        request_payload: storedPayload,
         response_status: row.responseStatus,
         response_error: row.responseError,
         prev_snapshot: row.prevSnapshot,

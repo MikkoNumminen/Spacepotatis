@@ -162,7 +162,7 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 ### Phase 3 — finding: SEC-013 — TOCTOU on prevRow SELECT in POST /api/save
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a1ccfac1f3f4c253f
 - Branch: feat/security-sec-013-011-save-route-hardening
-- Commit: pending-sha (commit 1 of 2 on this bundled branch — orchestrator override of the no-bundling rule because both findings touch src/app/api/save/route.ts)
+- Commit: 6ebce98 (commit 1 of 2 on this bundled branch — orchestrator override of the no-bundling rule because both findings touch src/app/api/save/route.ts)
 - Files changed: src/app/api/save/route.ts (prev-row SELECT + validators + upsert wrapped in db.transaction().execute(async trx => { ... .forUpdate() ... }); audit writes moved AFTER the transaction so they never block the critical path; sessionEmail hoisted so the closure keeps the type narrowing from the auth guard); src/app/api/save/route.test.ts (mock now exposes `transaction()` returning a trx with the same selectFrom/insertInto chains; selectChain gains a passthrough `forUpdate()`); tests/security/saveRace.test.ts (new — 3 tests: transaction opened, forUpdate called inside the tx, stale-baseline rejected by validateNoRegression after concurrent richer commit); docs/security/02b-attack-cells.md (status note); docs/security/_progress.md (this entry)
 - Test added: tests/security/saveRace.test.ts — `SEC-013 — POST /api/save wraps prev-row read + validate + upsert in a transaction with FOR UPDATE` (3 tests)
 - Save-roundtrip-audit run? Pending (will run before PR push, after commit 2)
@@ -170,3 +170,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: (1) Audit writes (`writeSaveAudit`) deliberately stay OUTSIDE the transaction so a Neon outage on `save_audit` cannot roll back the user-visible save. The contract that audit failures never block saves was already in `writeSaveAudit`'s try/catch — moving the audit out of the tx preserves it. (2) The `sessionEmail` local was hoisted because the async closure inside `db.transaction().execute(...)` re-evaluates the `session.user.email` narrowing — TS18048 otherwise.
 - Tests / typecheck / build / lint: green at 01:55 — typecheck pass, lint pass, vitest 1177/1177 pass, next build pass.
 - PR: pending push (bundled with SEC-011)
+
+### Phase 3 — finding: SEC-011 — seenStoryEntries unbounded → audit-table storage DoS
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a1ccfac1f3f4c253f
+- Branch: feat/security-sec-013-011-save-route-hardening
+- Commit: pending-sha (commit 2 of 2 on this bundled branch)
+- Files changed: src/lib/schemas/save.ts (cap seenStoryEntries at 200 entries × 64 chars on both SavePayloadSchema AND RemoteSaveSchema); src/app/api/save/route.ts (writeSaveAudit serializes request_payload, replaces with `{truncated: true, size: <n>}` when JSON length exceeds AUDIT_PAYLOAD_BYTE_CAP = 64 KB; falls back to `{truncated: true, reason: "unserializable"}` for circular-ref / BigInt payloads); tests/security/auditAmplification.test.ts (new — 7 tests: schema cap boundaries 200/201, 64/65 chars; worst-case 10000×400 attack body; layer 2 truncation marker on oversized; passthrough on normal-sized); docs/security/02b-attack-cells.md (status note); docs/security/_progress.md (this entry)
+- Test added: tests/security/auditAmplification.test.ts — `SEC-011 layer 1 — schema cap on seenStoryEntries` (5 tests) + `SEC-011 layer 2 — audit-row request_payload truncated above 64 KB` (2 tests)
+- Save-roundtrip-audit run? Y — PASS, no field drops introduced. The transactional restructure preserves all 9 fields' insert + upsert wiring; the SEC-011 schema change is a tightening (length cap) — the field shape is unchanged.
+- Migration required? N — no schema change (existing TEXT[] column accommodates the capped values; the truncation marker is a JSONB subtree on save_audit.request_payload which was always Record<string, unknown>).
+- Deviations from plan: (1) Cap also applied to RemoteSaveSchema (line 422), not just SavePayloadSchema, so a future direct-INSERT path can't seed an unbounded list that the client then accepts. The spec said "appears at lines 383 and 422" — interpreted as both. (2) Truncation extracted to writeSaveAudit rather than the route call sites, so all four audit paths (success 204, validation_failed 400, validator-rejection 422, server_error 500) share one cap. (3) Added an `unserializable` fallback for circular-ref / BigInt payloads — the JSON.stringify try/catch keeps the audit insert resilient; without it a malformed body would throw before the audit insert and we'd lose the forensic record.
+- Tests / typecheck / build / lint: green at 02:00 — typecheck pass, lint pass, vitest 1183/1183 pass (86 files), next build pass.
+- PR: pending push.
