@@ -346,7 +346,7 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Migration required? N
 - Deviations from plan: dropped the raw payload entirely (simplest fix per spec option 2) rather than replacing with a hash. Issues array alone is sufficient for diagnosis; the raw row is in the save_audit table and DB snapshots.
 - Tests / typecheck / build / lint: green at 02:32 — typecheck pass, lint pass, vitest 1252/1252 pass, next build pass.
-- PR: feat/security-sec-025-026-client-save-hygiene
+- PR: #192
 
 ### Phase 3 — finding: SEC-026 — save+leaderboard ordering race
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a988c4b7274500b23
@@ -358,4 +358,4 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Migration required? N
 - Deviations from plan: fix is in GameCanvas.tsx (not useCloudSaveSync*.ts as spec suggested); the post-mission-complete chain lives in GameCanvas's handleMissionComplete callback, not in a hook. Spec said "in src/components/hooks/useCloudSaveSync*" — that was the suggested search location; actual call site is GameCanvas.tsx. No functional deviation.
 - Tests / typecheck / build / lint: green at 02:32 — typecheck pass, lint pass, vitest 1252/1252 pass, next build pass.
-- PR: feat/security-sec-025-026-client-save-hygiene
+- PR: #192
