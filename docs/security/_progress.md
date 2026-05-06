@@ -335,3 +335,27 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: audit-readiness-check.yml already had permissions: contents: read / issues: write from the SEC-015 wave — no change needed there. Only ci.yml was missing the block.
 - Tests / typecheck / build / lint: green — vitest 1257/1257 pass, typecheck pass, lint pass, next build pass.
 - PR: feat/security-ci-git-hardening (bundled with SEC-023, SEC-024, SEC-028)
+
+### Phase 3 — finding: SEC-025 — raw save-row JSON dumped to browser console on parse failure
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a988c4b7274500b23
+- Branch: feat/security-sec-025-026-client-save-hygiene
+- Commit: f6cfe0a
+- Files changed: src/game/state/sync.ts (removed `\nraw: JSON.stringify(raw, null, 2)` from console.error call in parse-failure branch), tests/security/saveLogPayload.test.ts (new, 5 tests), docs/security/02b-attack-cells.md (status note)
+- Test added: tests/security/saveLogPayload.test.ts — "SEC-025 — loadSave parse-failure branch does not log raw save-row payload" (5 tests: error is called; no raw JSON string in args; no raw object ref; issues array is logged; returns schema_rejected)
+- Save-roundtrip-audit run? Y — PASS, no field drops. Change is console.error arg trimming only; no data path affected.
+- Migration required? N
+- Deviations from plan: dropped the raw payload entirely (simplest fix per spec option 2) rather than replacing with a hash. Issues array alone is sufficient for diagnosis; the raw row is in the save_audit table and DB snapshots.
+- Tests / typecheck / build / lint: green at 02:32 — typecheck pass, lint pass, vitest 1252/1252 pass, next build pass.
+- PR: #192
+
+### Phase 3 — finding: SEC-026 — save+leaderboard ordering race
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a988c4b7274500b23
+- Branch: feat/security-sec-025-026-client-save-hygiene
+- Commit: 45408ed
+- Files changed: src/components/GameCanvas.tsx (`void drainScoreQueue().then(...)` replaced with `await drainScoreQueue()` + inline seq-guard), tests/security/saveScoreOrdering.test.ts (new, 3 tests), docs/security/02b-attack-cells.md (status note)
+- Test added: tests/security/saveScoreOrdering.test.ts — "SEC-026 — drainScoreQueue is called after saveNow resolves in post-mission flow" (3 tests: save resolves before drain called; void-vs-await race documentation; fixed path awaits drain result before syncStatus update)
+- Save-roundtrip-audit run? Y — PASS, no field drops. Change is call-ordering only; no data path affected.
+- Migration required? N
+- Deviations from plan: fix is in GameCanvas.tsx (not useCloudSaveSync*.ts as spec suggested); the post-mission-complete chain lives in GameCanvas's handleMissionComplete callback, not in a hook. Spec said "in src/components/hooks/useCloudSaveSync*" — that was the suggested search location; actual call site is GameCanvas.tsx. No functional deviation.
+- Tests / typecheck / build / lint: green at 02:32 — typecheck pass, lint pass, vitest 1252/1252 pass, next build pass.
+- PR: #192

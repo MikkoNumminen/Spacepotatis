@@ -270,21 +270,23 @@ export default function GameCanvas() {
         // entry (and any older queued entries that didn't post yet), POSTs
         // each, drops on success, retries transients next drain. We update
         // the modal status from the drain outcome.
-        void drainScoreQueue().then((drainResult) => {
-          if (missionSeqRef.current !== seq) return;
-          if (drainResult.remaining === 0) {
-            setSyncStatus({ kind: "ok" });
-          } else if (drainResult.succeeded > 0) {
-            // Some entries posted, others still queued. From this player's
-            // POV their latest win went through — show "ok" but the queue
-            // will still retry the others on the next drain trigger.
-            setSyncStatus({ kind: "ok" });
-          } else {
-            // Nothing posted this drain. Could be transient; the next
-            // drain (mount / visibility / auth-change) will retry.
-            setSyncStatus({ kind: "queued", message: QUEUED_MESSAGE });
-          }
-        });
+        // SEC-026: await the drain so the save POST always commits before the
+        // leaderboard POST — eliminates the 422 mission_not_completed retry
+        // storm that fires when the score races ahead of the save.
+        const drainResult = await drainScoreQueue();
+        if (missionSeqRef.current !== seq) return;
+        if (drainResult.remaining === 0) {
+          setSyncStatus({ kind: "ok" });
+        } else if (drainResult.succeeded > 0) {
+          // Some entries posted, others still queued. From this player's
+          // POV their latest win went through — show "ok" but the queue
+          // will still retry the others on the next drain trigger.
+          setSyncStatus({ kind: "ok" });
+        } else {
+          // Nothing posted this drain. Could be transient; the next
+          // drain (mount / visibility / auth-change) will retry.
+          setSyncStatus({ kind: "queued", message: QUEUED_MESSAGE });
+        }
       }
 
       await fadeOverlay(1);

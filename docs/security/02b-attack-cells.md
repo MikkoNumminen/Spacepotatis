@@ -211,6 +211,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** log the issues only; replace `\nraw:` block with `\n(raw payload omitted; see server-side logs by issue id <X>)`. Or: log a hash of the raw payload for correlation, not the payload itself.
 - **Verification:** unit test mocks a parse failure, asserts `console.error` is not called with the full raw object.
 - **Dependencies:** none.
+- **Status:** fixed — f6cfe0a; PR #192 feat/security-sec-025-026-client-save-hygiene; `\nraw:` block removed from `console.error` call; only the Zod issues array is logged. Regression test [tests/security/saveLogPayload.test.ts](../../tests/security/saveLogPayload.test.ts) — 5 tests covering parse failure logs issues (not raw), no raw object passed, no PII field values in output.
 
 #### SEC-026 — Save+leaderboard ordering race (Cell 4)
 
@@ -220,6 +221,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** in [src/components/hooks/useCloudSaveSync*](../../src/components/hooks/), confirm save POST resolves before kicking off `drainScoreQueue()`. The convention exists in comments; enforce in code with an `await saveNow()` then `await drainScoreQueue()` chain.
 - **Verification:** integration test simulating the race.
 - **Dependencies:** none.
+- **Status:** fixed — 45408ed; PR #192 feat/security-sec-025-026-client-save-hygiene; `void drainScoreQueue().then(...)` replaced with `await drainScoreQueue()` in `handleMissionComplete` in [src/components/GameCanvas.tsx](../../src/components/GameCanvas.tsx). Regression test [tests/security/saveScoreOrdering.test.ts](../../tests/security/saveScoreOrdering.test.ts) — 3 tests covering save-before-drain ordering, void-vs-await race documentation, and drain-result-before-status-update contract.
 
 ### INFORMATIONAL (5 new)
 
