@@ -216,3 +216,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Migration required? N
 - Deviations from plan: Orchestrator explicitly bundled with SEC-016 (one branch, two commits).
 - Tests / typecheck / build / lint: green at 00:54 — typecheck pass, lint pass, vitest 1211/1211 pass (90 files), next build pass
+
+### Phase 3 — finding: SEC-017 — credit-cap input derived from prevRow, not user-submitted completedMissions
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-abfaf7bab724784a0
+- Branch: feat/security-sec-017-credit-cap-server-derived (off origin/master f5d5233)
+- Commit: pending push
+- Files changed: src/lib/saveValidation.ts (new export `deriveCapInputMissions(prev, submitted)`), src/app/api/save/route.ts (cap call site uses derived list anchored to `prevRow.completed_missions`), tests/security/creditCapCircular.test.ts (new, 10 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
+- Test added: tests/security/creditCapCircular.test.ts — "SEC-017 — credit-cap input is derived from prevRow, not user-submitted completedMissions" (10 tests: brand-new player tutorial; normal progression; future-rake admitted only when prev=[]; future-rake REJECTED for ember-run when pirate-beacon not in prev; chained future rake; un-grounded burnt-spud; unknown id defensively dropped; integration vs computeCreditCapsForPlayer; body-trust-vs-derived inequality; getReachableSolarSystems sanity)
+- Save-roundtrip-audit run? Y — PASS, no field drops. Logic-only substitution in cap derivation; no StateSnapshot field added/removed/renamed; all `.values({...})`, `.onConflict(...).doUpdateSet({...})`, schemas, db.ts, migrations, sync.ts, hydrate unchanged. The fix swaps `computeCreditCapsForPlayer(body.completedMissions)` for `computeCreditCapsForPlayer(deriveCapInputMissions(prev, body.completedMissions))`.
+- Migration required? N — no schema change (helper is pure TS, reads prev.completed_missions which the route already SELECTed under FOR UPDATE).
+- Deviations from plan: (1) Helper named `deriveCapInputMissions` (rather than the spec sketch's `deriveCapInput`) for symmetry with the existing `computeCreditCapsForPlayer` / `getReachableSolarSystems` naming. (2) The helper returns a `readonly MissionId[]` rather than mutating the `Set` in place; matches existing accessor style.
+- Tests / typecheck / build / lint: green at 01:43 — typecheck pass, lint pass, vitest 1224/1224 pass (92 files), next build pass.
+- PR: pending push

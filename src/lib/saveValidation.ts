@@ -196,6 +196,55 @@ export function computeCreditCapsForPlayer(
   return computeCreditCapsForSystems(getReachableSolarSystems(completedMissions));
 }
 
+// SEC-017 — Credit-cap input must be SERVER-DERIVED, not the user-submitted
+// `completedMissions` list. `validateMissionGraph` enforces internal
+// consistency of the body (every entry's `requires` are also in the body),
+// but does NOT require any entry to be present in `prevRow.completed_missions`.
+// If a future PR adds a mission with `requires: []` outside the tutorial
+// system, an attacker could submit it as completed in the same POST that
+// requests inflated credits — expanding their cap on the same request.
+//
+// `deriveCapInputMissions` starts from the trusted server-stored list
+// (`prev`) and grows ONLY by submitted missions whose `requires` are
+// entirely already-trusted. The unlock chain must be grounded in the
+// previously-stored row, not bootstrapped inside the same request.
+//
+// Today's content has no `requires: []` mission past `tutorial`, so this is
+// a no-op for legitimate saves. The future-rake closure is the value.
+//
+// Iteration order matters: we walk `submitted` in order and grow `trusted`
+// monotonically. `validateMissionGraph` already guarantees the chain is
+// acyclic and internally consistent, so a single pass is enough — every
+// new mission's prereqs either come from `prev` or from missions earlier
+// in `submitted` that themselves grounded against `prev`.
+//
+// Defensive on unknown ids: `safeGetMission` returns null rather than
+// throwing, so an attacker-supplied unknown id is silently dropped from
+// the cap-input set. The schema layer (`SavePayloadSchema`) already
+// rejects unknown ids before this runs; this is belt-and-braces.
+export function deriveCapInputMissions(
+  prev: readonly MissionId[],
+  submitted: readonly MissionId[]
+): readonly MissionId[] {
+  const trusted = new Set<MissionId>(prev);
+  for (const id of submitted) {
+    if (trusted.has(id)) continue;
+    const mission = safeGetMission(id);
+    if (!mission) continue;
+    let allRequiresGrounded = true;
+    for (const req of mission.requires) {
+      if (!trusted.has(req)) {
+        allRequiresGrounded = false;
+        break;
+      }
+    }
+    if (allRequiresGrounded) {
+      trusted.add(id);
+    }
+  }
+  return Array.from(trusted);
+}
+
 // Surface the tutorial-only baseline caps once on cold start so a
 // regression after a balance change shows up during local dev without
 // needing extra instrumentation. Tutorial-only is the floor — every

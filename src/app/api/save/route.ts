@@ -6,6 +6,7 @@ import { upsertPlayerId } from "@/lib/players";
 import { SavePayloadSchema } from "@/lib/schemas/save";
 import {
   computeCreditCapsForPlayer,
+  deriveCapInputMissions,
   validateCreditsDelta,
   validateMissionGraph,
   validateNoRegression,
@@ -372,12 +373,27 @@ export async function POST(request: Request): Promise<Response> {
         };
       }
 
-      // Per-player cap based on the trusted server-side completedMissions
-      // (the post-mission-graph-validation list, so unlock-chain cheats
-      // can't expand the cap). A brand-new player gets tutorial-only caps;
-      // a tubernovae unlocker gets tutorial+tubernovae caps; future systems
-      // light up the moment their gating mission is in completedMissions.
-      const caps = computeCreditCapsForPlayer(completedMissions);
+      // Per-player cap. SEC-017: the cap input is derived from
+      // `prevRow.completed_missions` (the server-stored, FOR-UPDATE-locked
+      // baseline) and grows ONLY by submitted missions whose `requires`
+      // are entirely already-trusted. A future zero-prereq mission cannot
+      // bootstrap inside the same request that also requests inflated
+      // credits — the unlock chain must be grounded in the previously-
+      // stored row.
+      //
+      // A brand-new player (prevRow=null) gets tutorial-only caps; a
+      // tubernovae unlocker gets tutorial+tubernovae caps; future systems
+      // light up only on the save AFTER their gating mission lands.
+      const prevCompletedForCap: readonly MissionId[] = prevRow
+        ? Array.isArray(prevRow.completed_missions)
+          ? (prevRow.completed_missions as readonly MissionId[])
+          : []
+        : [];
+      const capInputMissions = deriveCapInputMissions(
+        prevCompletedForCap,
+        completedMissions
+      );
+      const caps = computeCreditCapsForPlayer(capInputMissions);
 
       const creditsResult = validateCreditsDelta({
         prev,
