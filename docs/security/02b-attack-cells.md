@@ -129,6 +129,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Save-pipeline scrutiny:** Phase 3 must run `/save-roundtrip-audit`.
 - **Verification:** unit test in `tests/security/creditCapCircular.test.ts` constructing the future scenario.
 - **Dependencies:** SEC-013 (the FOR UPDATE transaction also helps here by holding the prevRow stable).
+- **Status:** fixed — staged; new `deriveCapInputMissions(prev, submitted)` helper in `src/lib/saveValidation.ts` derives the cap-input list from `prevRow.completed_missions` (FOR-UPDATE-locked) and grows only by submitted missions whose `requires` are entirely grounded in the trusted set. `src/app/api/save/route.ts` calls the helper before `computeCreditCapsForPlayer`. Regression test `tests/security/creditCapCircular.test.ts` (10 tests). Today's content is no-op for legitimate saves.
 
 #### SEC-018 — `upsertPlayerId` SELECT-then-INSERT race (Cells 1 + 4)
 
