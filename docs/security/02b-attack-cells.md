@@ -159,6 +159,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Save-pipeline scrutiny:** Phase 3 must run `/save-roundtrip-audit`.
 - **Verification:** unit test in `tests/security/validatorOpaqueCode.test.ts`: trigger each rejection class, assert response body is `{error: "save_rejected"}` (or `save_regression`), no per-validator code leaked.
 - **Dependencies:** none.
+- **Status:** fixed — a44782c; deviation: `isPermanent()` in `saveQueue.ts` updated to add `save_rejected` to the TRANSIENT list (the spec mentioned only `syncCache.ts` but `saveQueue.ts` is the actual retry-logic home; `playtime_delta_invalid`/`credits_delta_invalid` were TRANSIENT and their collapsed form must remain so).
 
 #### SEC-021 — `improve-restore.mjs` missing transaction wrapper (Cells 6 + 4)
 

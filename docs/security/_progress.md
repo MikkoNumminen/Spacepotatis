@@ -220,11 +220,35 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 ### Phase 3 — finding: SEC-017 — credit-cap input derived from prevRow, not user-submitted completedMissions
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-abfaf7bab724784a0
 - Branch: feat/security-sec-017-credit-cap-server-derived (off origin/master f5d5233)
-- Commit: pending push
+- Commit: 29288a6
 - Files changed: src/lib/saveValidation.ts (new export `deriveCapInputMissions(prev, submitted)`), src/app/api/save/route.ts (cap call site uses derived list anchored to `prevRow.completed_missions`), tests/security/creditCapCircular.test.ts (new, 10 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
-- Test added: tests/security/creditCapCircular.test.ts — "SEC-017 — credit-cap input is derived from prevRow, not user-submitted completedMissions" (10 tests: brand-new player tutorial; normal progression; future-rake admitted only when prev=[]; future-rake REJECTED for ember-run when pirate-beacon not in prev; chained future rake; un-grounded burnt-spud; unknown id defensively dropped; integration vs computeCreditCapsForPlayer; body-trust-vs-derived inequality; getReachableSolarSystems sanity)
-- Save-roundtrip-audit run? Y — PASS, no field drops. Logic-only substitution in cap derivation; no StateSnapshot field added/removed/renamed; all `.values({...})`, `.onConflict(...).doUpdateSet({...})`, schemas, db.ts, migrations, sync.ts, hydrate unchanged. The fix swaps `computeCreditCapsForPlayer(body.completedMissions)` for `computeCreditCapsForPlayer(deriveCapInputMissions(prev, body.completedMissions))`.
-- Migration required? N — no schema change (helper is pure TS, reads prev.completed_missions which the route already SELECTed under FOR UPDATE).
-- Deviations from plan: (1) Helper named `deriveCapInputMissions` (rather than the spec sketch's `deriveCapInput`) for symmetry with the existing `computeCreditCapsForPlayer` / `getReachableSolarSystems` naming. (2) The helper returns a `readonly MissionId[]` rather than mutating the `Set` in place; matches existing accessor style.
-- Tests / typecheck / build / lint: green at 01:43 — typecheck pass, lint pass, vitest 1224/1224 pass (92 files), next build pass.
-- PR: pending push
+- Test added: tests/security/creditCapCircular.test.ts — "SEC-017 — credit-cap input is derived from prevRow, not user-submitted completedMissions" (10 tests)
+- Save-roundtrip-audit run? Y — PASS, no field drops. Logic-only substitution in cap derivation.
+- Migration required? N
+- Deviations from plan: (1) Helper named `deriveCapInputMissions` for symmetry with existing accessor names. (2) Returns `readonly MissionId[]` rather than mutating a Set.
+- Tests / typecheck / build / lint: green at 01:43 — vitest 1224/1224 pass (92 files).
+- PR: #186 (merged)
+
+### Phase 3 — finding: SEC-005 — player email logged in console.warn on save-rejection paths
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-aa2cbc10cea34bf88
+- Branch: feat/security-sec-005-020-save-rejection-hygiene
+- Commit: fa6eeea
+- Files changed: src/app/api/save/route.ts (4 console.warn calls: sessionEmail → playerId), tests/security/saveLoggingPii.test.ts (new, 4 tests), docs/security/02-findings-and-plan.md (status note)
+- Test added: tests/security/saveLoggingPii.test.ts — "SEC-005 — console.warn on save-rejection paths must log playerId, not email" (4 tests: one per rejection path — mission_graph_invalid, save_regression, playtime_delta_invalid, credits_delta_invalid — each captures console.warn and asserts no "@" in args and UUID present)
+- Save-roundtrip-audit run? Y — PASS, no field drops. The change touches only console.warn call arguments, not any read/write/schema path.
+- Migration required? N
+- Deviations from plan: none
+- Tests / typecheck / build / lint: green (all 4 SEC-005 tests pass; pre-commit hook typecheck + lint-staged clean)
+- PR: feat/security-sec-005-020-save-rejection-hygiene (bundled with SEC-020 per orchestrator override)
+
+### Phase 3 — finding: SEC-020 — validator error-code ordering exposes guard-pass/fail structure
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-aa2cbc10cea34bf88
+- Branch: feat/security-sec-005-020-save-rejection-hygiene
+- Commit: a44782c
+- Files changed: src/app/api/save/route.ts (post-tx rejection emission: clientError collapses 3 codes to save_rejected, save_regression preserved; audit row still gets specific code), src/game/state/saveQueue.ts (isPermanent: add save_rejected to TRANSIENT list — the collapsed form of playtime_delta_invalid/credits_delta_invalid which were already TRANSIENT), src/game/state/sync.ts (humanizeSaveError: add save_rejected branch with generic retry message), tests/security/validatorOpaqueCode.test.ts (new, 8 tests), docs/security/02b-attack-cells.md (status note), docs/security/02-findings-and-plan.md (SEC-005 status already in prior commit)
+- Test added: tests/security/validatorOpaqueCode.test.ts — "SEC-020 — 422 response body codes are opaque (save_rejected) except save_regression" (8 tests: 3 collapsed codes → save_rejected in body; save_regression → save_regression in body; all 4 → specific code in save_audit.response_error)
+- Save-roundtrip-audit run? Y — PASS (run before commit 1; SEC-020 change is response-emission only, no field drops)
+- Migration required? N
+- Deviations from plan: (1) The spec cited syncCache.ts as the reason save_regression must stay distinct; the actual retry logic is in saveQueue.ts (isPermanent()). saveQueue.ts was updated to add save_rejected to the TRANSIENT list so that the collapsed form of playtime_delta_invalid/credits_delta_invalid retains TRANSIENT semantics — without this, the queue would drop the slot on save_rejected (treating it as permanent). The spec was incomplete on this point; the fix is correct. (2) humanizeSaveError() in sync.ts updated to handle save_rejected with a generic retry message — necessary for a complete client-side error-message surface.
+- Tests / typecheck / build / lint: green (8 SEC-020 tests + 34 saveQueue tests + 39 sync tests pass; pre-commit hook typecheck + lint-staged clean)
+- PR: feat/security-sec-005-020-save-rejection-hygiene

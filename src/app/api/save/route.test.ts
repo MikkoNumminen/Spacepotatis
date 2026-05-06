@@ -283,7 +283,9 @@ describe("POST /api/save", () => {
     const res = await POST(req);
     warnSpy.mockRestore();
     expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe("playtime_delta_invalid");
+    // SEC-020 — playtime_delta_invalid is collapsed to save_rejected in the
+    // client-visible response. The specific code lives in save_audit.response_error.
+    expect((await res.json()).error).toBe("save_rejected");
     expect(saveInsertSpy).not.toHaveBeenCalled();
   });
 
