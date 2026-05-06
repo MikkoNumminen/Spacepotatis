@@ -252,3 +252,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: (1) The spec cited syncCache.ts as the reason save_regression must stay distinct; the actual retry logic is in saveQueue.ts (isPermanent()). saveQueue.ts was updated to add save_rejected to the TRANSIENT list so that the collapsed form of playtime_delta_invalid/credits_delta_invalid retains TRANSIENT semantics — without this, the queue would drop the slot on save_rejected (treating it as permanent). The spec was incomplete on this point; the fix is correct. (2) humanizeSaveError() in sync.ts updated to handle save_rejected with a generic retry message — necessary for a complete client-side error-message surface.
 - Tests / typecheck / build / lint: green (8 SEC-020 tests + 34 saveQueue tests + 39 sync tests pass; pre-commit hook typecheck + lint-staged clean)
 - PR: feat/security-sec-005-020-save-rejection-hygiene
+
+### Phase 3 — finding: SEC-018 — upsertPlayerId SELECT-then-INSERT race
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a431222786f2418f2
+- Branch: feat/security-sec-018-upsert-player-race
+- Commit: ab772ea
+- Files changed: src/lib/players.ts (rewritten to single INSERT ... ON CONFLICT round-trip), src/lib/players.test.ts (updated to match new contract — no SELECT), tests/security/upsertPlayerRace.test.ts (new, 2 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
+- Test added: tests/security/upsertPlayerRace.test.ts — "SEC-018 — upsertPlayerId collapses SELECT-then-INSERT to a single ON CONFLICT round-trip" (race scenario: both concurrent calls resolve to same id with no SELECT; repeat scenario: second call with different name resolves via ON CONFLICT path)
+- Save-roundtrip-audit run? N — players table is auth/identity; not part of StateSnapshot fields
+- Migration required? N — the `email` unique constraint already exists in the schema; ON CONFLICT targets it without schema change
+- Deviations from plan: (1) Updated src/lib/players.test.ts alongside the fix — its three tests were validating the old SELECT-then-INSERT contract (one even asserted selectFrom was called, one asserted no insertInto was called when email existed). Updated to match new single-INSERT contract; this is necessary to keep the suite green. (2) Bonus: one fewer DB round-trip per sign-in (was 1–2, now always 1).
+- Tests / typecheck / build / lint: green at 01:57 — typecheck pass, lint pass, vitest 1238/1238 pass (95 files), next build pass
+- PR: pending
