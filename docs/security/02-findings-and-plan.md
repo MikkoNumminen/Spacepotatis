@@ -135,6 +135,7 @@ None.
 - **Save-pipeline scrutiny:** Phase 3 must run /save-roundtrip-audit before this fix lands (touches `src/app/api/save/route.ts` though only the logging surface).
 - **Verification:** unit test in `tests/security/saveLoggingPii.test.ts` capturing `console.warn` calls during validator rejection — assert no `@` character in the captured args (sentinel for email).
 - **Dependencies:** none.
+- **Status:** fixed — fa6eeea
 
 ### SEC-006 — `save_audit` PII retention policy unimplemented
 

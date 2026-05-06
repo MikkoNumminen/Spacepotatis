@@ -495,6 +495,12 @@ function humanizeSaveError(status: number, errCode: string | null): string {
     if (errCode === "credits_delta_invalid") {
       return "Save rejected (credits delta too large).";
     }
+    // SEC-020 — server collapses playtime_delta_invalid and credits_delta_invalid
+    // to save_rejected in the client-visible response body. Generic message is
+    // appropriate: these are transient — the queue retries automatically.
+    if (errCode === "save_rejected") {
+      return "Save rejected (will retry automatically).";
+    }
     return `Save rejected${errCode ? ` (${errCode})` : ""}.`;
   }
   return `Save failed (HTTP ${status}${errCode ? ` ${errCode}` : ""}).`;
