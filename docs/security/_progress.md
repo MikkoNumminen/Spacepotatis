@@ -258,9 +258,22 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Branch: feat/security-sec-018-upsert-player-race
 - Commit: ab772ea
 - Files changed: src/lib/players.ts (rewritten to single INSERT ... ON CONFLICT round-trip), src/lib/players.test.ts (updated to match new contract — no SELECT), tests/security/upsertPlayerRace.test.ts (new, 2 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
-- Test added: tests/security/upsertPlayerRace.test.ts — "SEC-018 — upsertPlayerId collapses SELECT-then-INSERT to a single ON CONFLICT round-trip" (race scenario: both concurrent calls resolve to same id with no SELECT; repeat scenario: second call with different name resolves via ON CONFLICT path)
-- Save-roundtrip-audit run? N — players table is auth/identity; not part of StateSnapshot fields
-- Migration required? N — the `email` unique constraint already exists in the schema; ON CONFLICT targets it without schema change
-- Deviations from plan: (1) Updated src/lib/players.test.ts alongside the fix — its three tests were validating the old SELECT-then-INSERT contract (one even asserted selectFrom was called, one asserted no insertInto was called when email existed). Updated to match new single-INSERT contract; this is necessary to keep the suite green. (2) Bonus: one fewer DB round-trip per sign-in (was 1–2, now always 1).
-- Tests / typecheck / build / lint: green at 01:57 — typecheck pass, lint pass, vitest 1238/1238 pass (95 files), next build pass
-- PR: pending
+- Test added: tests/security/upsertPlayerRace.test.ts — "SEC-018 — upsertPlayerId collapses SELECT-then-INSERT to a single ON CONFLICT round-trip"
+- Save-roundtrip-audit run? N
+- Migration required? N
+- Deviations from plan: (1) Updated src/lib/players.test.ts. (2) Bonus: one fewer DB round-trip per sign-in.
+- Tests / typecheck / build / lint: green at 01:57 — vitest 1238/1238 pass (95 files).
+- PR: #188 (merged)
+
+### Phase 3 — finding: SEC-019 — email_verified not checked when issuing the JWT
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-ac8957cad0ebfe226
+- Branch: feat/security-sec-019-email-verified-check (off origin/master 67e8795)
+- Commit: pending push
+- Files changed: src/lib/auth.ts (NEW `signIn` callback delegates to `isEmailVerifiedAcceptable`; existing `jwt` + `session` callbacks unchanged), src/lib/authEmailVerified.ts (new — pure helper module), tests/security/emailVerified.test.ts (new — 6 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
+- Test added: tests/security/emailVerified.test.ts — "SEC-019 — sign-in is rejected when OAuth profile.email_verified === false" (6 tests: strict-false rejected; explicit-true accepted; omitted/null/undefined fall through to allow; profile undefined accepted; "email looks legit + verified false" combo rejected)
+- Save-roundtrip-audit run? N — auth surface, not save pipeline
+- Migration required? N
+- Callback hook chosen: **`signIn` callback** (NOT `jwt` callback). Rationale: `signIn` is the canonical NextAuth v5 reject hook — returning `false` redirects to the error page instead of issuing a JWT (per `@auth/core/src/index.ts:305-346`). The spec named the `jwt` callback as the location of the bug, but explicitly authorized moving the fix to `signIn` if that was the canonical pattern. `jwt` cannot cleanly reject — at best you can refuse to write `email` into the token, but that doesn't stop the session from being issued. `signIn` is the right hook.
+- Deviations from plan: (1) Helper extracted to its own module `src/lib/authEmailVerified.ts` rather than living inside `auth.ts`. Reason: the regression test must import the pure helper without pulling in the NextAuth runtime — `next-auth` references `next/server` at module load, which fails under vitest's node environment (the same constraint that put authUrlPin.test.ts in `src/lib/` rather than under `tests/`; here we kept the test under `tests/security/` per spec by splitting the helper instead). (2) Helper checks for strict `=== false` only; missing/null/undefined claims fall through to allow. Matches Google's consumer contract (always `true`) and preserves provider-agnostic posture for any future provider that doesn't emit the claim (e.g. GitHub).
+- Tests / typecheck / build / lint: green at 02:00 — typecheck pass, lint pass, vitest 1227/1227 pass, next build pass.
+- PR: pending push.

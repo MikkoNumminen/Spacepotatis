@@ -150,6 +150,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Phase 3 model:** Opus (auth surface).
 - **Verification:** unit test mocks the OAuth profile with `email_verified: false`, asserts sign-in fails.
 - **Dependencies:** none.
+- **Status:** fixed — pending-sha; PR feat/security-sec-019-email-verified-check; rejection placed in NextAuth's `signIn` callback (canonical reject hook — `signIn` returning `false` redirects to the error page instead of issuing a JWT; the `jwt` callback cannot cleanly reject) backed by a pure helper `isEmailVerifiedAcceptable(profile)` exported from [src/lib/authEmailVerified.ts](../../src/lib/authEmailVerified.ts) (split out of `auth.ts` so the regression test imports the helper without dragging in the NextAuth runtime — `next-auth` pulls `next/server` at module load which breaks under vitest's node env). Helper rejects strict `email_verified === false` only; missing/null/undefined claims fall through to allow (matches Google consumer contract; preserves provider-agnostic posture). Regression test [tests/security/emailVerified.test.ts](../../tests/security/emailVerified.test.ts) — 6 tests covering the strict-false reject, the verified-true accept, the omitted/null/undefined fall-through, and the dangerous "email looks legit + verified false" combo.
 
 #### SEC-020 — Validator error-code ordering exposes guard-pass/fail structure (Cell 9)
 

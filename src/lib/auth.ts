@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { isEmailVerifiedAcceptable } from "@/lib/authEmailVerified";
 
 /**
  * NextAuth v5 / Auth.js config.
@@ -30,6 +31,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   session: { strategy: "jwt" },
   callbacks: {
+    async signIn({ profile }) {
+      // SEC-019: reject when the OAuth profile reports the email as
+      // unverified. Returning `false` is the canonical NextAuth v5 reject
+      // path (see @auth/core callbacks.signIn — `false` redirects to the
+      // error page instead of issuing a JWT). `jwt`/`session` cannot
+      // cleanly reject; rejection belongs here.
+      return isEmailVerifiedAcceptable(profile);
+    },
     async jwt({ token, profile }) {
       // Carry email through to the session so API routes can look up the
       // player record without an extra DB call inside auth middleware.
