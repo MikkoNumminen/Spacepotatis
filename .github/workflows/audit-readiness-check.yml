@@ -77,38 +77,36 @@ jobs:
             echo "An open save-architecture-ready issue already exists; skipping creation."
             exit 0
           fi
-          # Strip the YAML block indentation (10 spaces) so the issue body
-          # renders as Markdown, not as a code block.
-          body=$(sed 's/^          //' <<'EOF'
-          The `spacepotatis.save_audit` table has accumulated enough rows / distinct players / elapsed days to inform the next-session structural fix — the append-only `save_snapshots` architecture sketched in `TODO.md` "Phase Save-Architecture".
+          # Build the issue body in a temp file so the readiness-report content
+          # is never shell-interpolated (SEC-023 — prevents command injection if
+          # DB output ever contains shell metacharacters like $(cmd) or backticks).
+          cat > /tmp/issue-body.txt <<'BODY_EOF'
+The `spacepotatis.save_audit` table has accumulated enough rows / distinct players / elapsed days to inform the next-session structural fix — the append-only `save_snapshots` architecture sketched in `TODO.md` "Phase Save-Architecture".
 
-          ### Readiness report
+### Readiness report
 
-          ```
-          REPORT_PLACEHOLDER
-          ```
+```
+BODY_EOF
+          cat /tmp/readiness.txt >> /tmp/issue-body.txt
+          cat >> /tmp/issue-body.txt <<'BODY_EOF'
+```
 
-          ### Next steps
+### Next steps
 
-          1. Read `TODO.md` "Phase Save-Architecture" for the planned shape.
-          2. Use the audit data to decide payload size / retention / index strategy for `save_snapshots`.
-          3. Open the implementation PR.
-          4. Close this issue when the PR is opened.
+1. Read `TODO.md` "Phase Save-Architecture" for the planned shape.
+2. Use the audit data to decide payload size / retention / index strategy for `save_snapshots`.
+3. Open the implementation PR.
+4. Close this issue when the PR is opened.
 
-          ---
+---
 
-          This issue was opened automatically by `.github/workflows/audit-readiness-check.yml`. The job re-runs daily at 07:00 UTC and only opens a new issue when none is already open with the `save-architecture-ready` label, so it won't spam.
-          EOF
-          )
-          # Inject the captured script output into the body. Using awk so the
-          # /tmp/readiness.txt content is not interpreted by the shell.
-          report=$(cat /tmp/readiness.txt)
-          body="${body//REPORT_PLACEHOLDER/$report}"
+This issue was opened automatically by `.github/workflows/audit-readiness-check.yml`. The job re-runs daily at 07:00 UTC and only opens a new issue when none is already open with the `save-architecture-ready` label, so it won't spam.
+BODY_EOF
           gh issue create \
             --title "save_audit ready — start Phase Save-Architecture" \
             --label save-architecture-ready \
             --label enhancement \
-            --body "$body"
+            --body-file /tmp/issue-body.txt
 
       - name: Log NOT YET status (exit 1)
         if: steps.check.outputs.exit_code == '1'
