@@ -183,6 +183,7 @@ None.
 - **Phase 3 model:** Opus (auth/crypto/secrets/save scrutiny).
 - **Verification:** `npm test`; manual sign-in/sign-out smoke; re-run `npm audit` and confirm no new advisories introduced by the bump.
 - **Dependencies:** none.
+- **Status:** fixed — pending commit on `feat/security-sec-008-next-auth-bump`. Bumped `next-auth` strict pin `5.0.0-beta.25` → `5.0.0-beta.31`. Bonus: cleared advisory `GHSA-5jpx-9hw9-2fx4` (NextAuthjs Email misdelivery, range `>=5.0.0-beta.0 <5.0.0-beta.30`) — not exploitable in this codebase (only Google provider configured), but no longer surfaces in `npm audit`. No new advisories introduced. All callbacks (`signIn`, `jwt`, `session`) and the `Profile` type import in `authEmailVerified.ts` remain compatible. CI gates green: typecheck, lint, vitest 1244/1244, next build.
 
 ### SEC-009 — `trustHost: true` in NextAuth config — defense-in-depth review
 
