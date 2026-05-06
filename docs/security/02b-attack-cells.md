@@ -177,7 +177,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** `z.array(WeaponInstanceSchema).max(50)` (current shop balance: ~10 weapons; 50 is generous).
 - **Verification:** unit test parses array of length 51, asserts failure.
 - **Dependencies:** SEC-011 (same fix shape).
-- **Status:** fixed — pending-sha (commit 2 on feat/security-sec-016-022-schema-caps); `WeaponInventorySchema` now `.max(50)`. Regression test `tests/security/weaponInventoryCap.test.ts` — 4 tests (51 rejected, 50 accepted, empty accepted, single-element accepted).
+- **Status:** fixed — 0dcf615; `WeaponInventorySchema` now `.max(50)`. Regression test `tests/security/weaponInventoryCap.test.ts` — 4 tests (51 rejected, 50 accepted, empty accepted, single-element accepted).
 
 #### SEC-023 — Shell-interpolation in `audit-readiness-check.yml` issue body (Cell 8)
 

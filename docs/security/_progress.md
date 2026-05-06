@@ -209,7 +209,7 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 ### Phase 3 — finding: SEC-022 — WeaponInventorySchema no .max()
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a7716749a8a2f0a4b
 - Branch: feat/security-sec-016-022-schema-caps
-- Commit: pending-sha (commit 2 of 2)
+- Commit: 0dcf615
 - Files changed: src/lib/schemas/save.ts (WeaponInventorySchema .max(50) + JSDoc comment), tests/security/weaponInventoryCap.test.ts (new, 4 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
 - Test added: tests/security/weaponInventoryCap.test.ts — "SEC-022 — WeaponInventorySchema caps array length at 50" (4 tests: 51 rejected, 50 accepted, empty accepted, single-element accepted)
 - Save-roundtrip-audit run? N — schema-only tightening, no shape change, no DB column change
