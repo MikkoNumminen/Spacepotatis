@@ -115,6 +115,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** add `.max()` caps to all three fields. `unlockedWeapons: z.array(z.string()).max(50).optional()`, `weaponLevels: z.record(z.string(), z.number()).superRefine((rec, ctx) => Object.keys(rec).length <= 50 || ctx.addIssue(...))` (Zod 4 records use `.superRefine` for size; the exact pattern depends on the Zod version). Or: deprecate the legacy schema entirely if no live save format depends on it; an equivalent `.refine(() => false)` collapses it.
 - **Verification:** unit test in `tests/security/legacyShipSchema.test.ts`: parse a 100k-key `weaponLevels`, assert validation failure.
 - **Dependencies:** SEC-011 (similar fix shape).
+- **Status:** fixed — 4aafede; `unlockedWeapons` capped at `.max(50)`; `weaponLevels` and `weaponAugments` capped at 50 keys via `.superRefine` with `code: "custom"` (Zod 4 does not allow `too_big` without `origin`). Regression test `tests/security/legacyShipSchema.test.ts` — 8 tests covering all three fields and the 100k-key DoS scenario.
 
 ### LOW (11 new)
 
@@ -176,6 +177,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** `z.array(WeaponInstanceSchema).max(50)` (current shop balance: ~10 weapons; 50 is generous).
 - **Verification:** unit test parses array of length 51, asserts failure.
 - **Dependencies:** SEC-011 (same fix shape).
+- **Status:** fixed — 0dcf615; `WeaponInventorySchema` now `.max(50)`. Regression test `tests/security/weaponInventoryCap.test.ts` — 4 tests (51 rejected, 50 accepted, empty accepted, single-element accepted).
 
 #### SEC-023 — Shell-interpolation in `audit-readiness-check.yml` issue body (Cell 8)
 
