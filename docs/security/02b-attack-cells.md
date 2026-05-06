@@ -139,7 +139,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** rewrite as `INSERT INTO ... ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id;` (single round-trip; Postgres serializes via the unique index).
 - **Verification:** integration test with two concurrent calls.
 - **Dependencies:** none.
-- **Status:** fixed — pending-sha; PR feat/security-sec-018-upsert-player-race; `upsertPlayerId` collapsed to single `INSERT ... ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id` — no SELECT issued. Regression tests in `tests/security/upsertPlayerRace.test.ts` (race scenario + repeat scenario) and updated `src/lib/players.test.ts` to match new contract. Bonus: one fewer DB round-trip per sign-in.
+- **Status:** fixed — ab772ea; PR feat/security-sec-018-upsert-player-race; `upsertPlayerId` collapsed to single `INSERT ... ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id` — no SELECT issued. Regression tests in `tests/security/upsertPlayerRace.test.ts` (race scenario + repeat scenario) and updated `src/lib/players.test.ts` to match new contract. Bonus: one fewer DB round-trip per sign-in.
 
 #### SEC-019 — `email_verified` not checked in JWT callback (Cell 1)
 

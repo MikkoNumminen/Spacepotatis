@@ -256,7 +256,7 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 ### Phase 3 — finding: SEC-018 — upsertPlayerId SELECT-then-INSERT race
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a431222786f2418f2
 - Branch: feat/security-sec-018-upsert-player-race
-- Commit: pending-sha
+- Commit: ab772ea
 - Files changed: src/lib/players.ts (rewritten to single INSERT ... ON CONFLICT round-trip), src/lib/players.test.ts (updated to match new contract — no SELECT), tests/security/upsertPlayerRace.test.ts (new, 2 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
 - Test added: tests/security/upsertPlayerRace.test.ts — "SEC-018 — upsertPlayerId collapses SELECT-then-INSERT to a single ON CONFLICT round-trip" (race scenario: both concurrent calls resolve to same id with no SELECT; repeat scenario: second call with different name resolves via ON CONFLICT path)
 - Save-roundtrip-audit run? N — players table is auth/identity; not part of StateSnapshot fields
