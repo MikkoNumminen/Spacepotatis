@@ -288,7 +288,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!graphResult.ok) {
         console.warn(
           "[/api/save] mission graph violation",
-          sessionEmail,
+          playerId,
           graphResult.error
         );
         return {
@@ -336,7 +336,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!regressionResult.ok) {
         console.warn(
           "[/api/save] regression rejected",
-          sessionEmail,
+          playerId,
           regressionResult.error
         );
         return {
@@ -361,7 +361,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!playtimeResult.ok) {
         console.warn(
           "[/api/save] playtime delta violation",
-          sessionEmail,
+          playerId,
           playtimeResult.error
         );
         return {
@@ -407,7 +407,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!creditsResult.ok) {
         console.warn(
           "[/api/save] credits delta violation",
-          sessionEmail,
+          playerId,
           creditsResult.error
         );
         return {
