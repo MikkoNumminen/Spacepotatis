@@ -370,4 +370,4 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Migration required? N — no schema change; the existing `current_solar_system_id` column is unchanged.
 - Deviations from plan: (1) Test case 3 in the spec said "POST with currentSolarSystemId: null → success". The SavePayloadSchema field is `.optional()` (not `.nullable()`), so `null` in a JSON body fails Zod validation before the route handler runs — the correct representation of "no preference" is omitting the field. Test updated to use "omitted field → 204" which matches actual schema semantics. (2) Existing `route.test.ts` test "persists currentSolarSystemId on the upsert" was updated to add `unlockedSolarSystems: ["tubernovae"]` to its payload — the test was asserting field persistence (not validating the guard), and it needed the unlock entry to remain valid under the new check. This is a narrowly scoped fix to keep the suite green, not scope expansion.
 - Tests / typecheck / build / lint: green — typecheck pass, lint pass, vitest all SEC-027 tests pass + pre-existing failures unchanged, next build pass.
-- PR: pending.
+- PR: #193
