@@ -39,8 +39,7 @@ export async function GET(): Promise<Response> {
     return NextResponse.json({ handle: row?.handle ?? null });
   } catch (err) {
     console.error("GET /api/handle failed:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: "server_error", message }, { status: 500 });
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
 
@@ -104,7 +103,6 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ handle });
   } catch (err) {
     console.error("POST /api/handle failed:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: "server_error", message }, { status: 500 });
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

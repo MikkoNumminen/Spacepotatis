@@ -102,7 +102,7 @@ None.
 
 ## LOW findings
 
-### SEC-004 — Error-message reflection inconsistency on `GET /api/save` + both `/api/handle` paths
+### SEC-004 — Error-message reflection inconsistency on `GET /api/save` + both `/api/handle` paths **Status:** fixed — 6a3682c
 
 - **Severity:** low
 - **Location:** [src/app/api/save/route.ts:60-63](../../src/app/api/save/route.ts#L60-L63); [src/app/api/handle/route.ts:42-43](../../src/app/api/handle/route.ts#L42-L43); [src/app/api/handle/route.ts:106-108](../../src/app/api/handle/route.ts#L106-L108)

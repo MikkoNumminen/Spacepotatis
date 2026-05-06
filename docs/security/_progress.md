@@ -174,7 +174,7 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 ### Phase 3 — finding: SEC-011 — seenStoryEntries unbounded → audit-table storage DoS
 - Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a1ccfac1f3f4c253f
 - Branch: feat/security-sec-013-011-save-route-hardening
-- Commit: pending-sha (commit 2 of 2 on this bundled branch)
+- Commit: 6a3682c (commit 2 of 2 on this bundled branch)
 - Files changed: src/lib/schemas/save.ts (cap seenStoryEntries at 200 entries × 64 chars on both SavePayloadSchema AND RemoteSaveSchema); src/app/api/save/route.ts (writeSaveAudit serializes request_payload, replaces with `{truncated: true, size: <n>}` when JSON length exceeds AUDIT_PAYLOAD_BYTE_CAP = 64 KB; falls back to `{truncated: true, reason: "unserializable"}` for circular-ref / BigInt payloads); tests/security/auditAmplification.test.ts (new — 7 tests: schema cap boundaries 200/201, 64/65 chars; worst-case 10000×400 attack body; layer 2 truncation marker on oversized; passthrough on normal-sized); docs/security/02b-attack-cells.md (status note); docs/security/_progress.md (this entry)
 - Test added: tests/security/auditAmplification.test.ts — `SEC-011 layer 1 — schema cap on seenStoryEntries` (5 tests) + `SEC-011 layer 2 — audit-row request_payload truncated above 64 KB` (2 tests)
 - Save-roundtrip-audit run? Y — PASS, no field drops introduced. The transactional restructure preserves all 9 fields' insert + upsert wiring; the SEC-011 schema change is a tightening (length cap) — the field shape is unchanged.
@@ -182,3 +182,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: (1) Cap also applied to RemoteSaveSchema (line 422), not just SavePayloadSchema, so a future direct-INSERT path can't seed an unbounded list that the client then accepts. The spec said "appears at lines 383 and 422" — interpreted as both. (2) Truncation extracted to writeSaveAudit rather than the route call sites, so all four audit paths (success 204, validation_failed 400, validator-rejection 422, server_error 500) share one cap. (3) Added an `unserializable` fallback for circular-ref / BigInt payloads — the JSON.stringify try/catch keeps the audit insert resilient; without it a malformed body would throw before the audit insert and we'd lose the forensic record.
 - Tests / typecheck / build / lint: green at 02:00 — typecheck pass, lint pass, vitest 1183/1183 pass (86 files), next build pass.
 - PR: pending push.
+
+### Phase 3 — finding: SEC-004 — error-message reflection on GET /api/save + both /api/handle paths
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a55bf74b42f9ec856
+- Branch: feat/security-sec-004-error-reflection
+- Commit: 6a3682c
+- Files changed: src/app/api/save/route.ts (GET handler — drop message field), src/app/api/handle/route.ts (GET + POST handlers — drop message field), src/app/api/save/route.test.ts (update existing test to match opaque response), tests/security/errorReflection.test.ts (new, 3 tests)
+- Test added: tests/security/errorReflection.test.ts — "SEC-004 — GET /api/save does not reflect err.message to the client", "SEC-004 — GET /api/handle does not reflect err.message to the client", "SEC-004 — POST /api/handle does not reflect err.message to the client"
+- Save-roundtrip-audit run? N — error-response shape only, not save-touching
+- Migration required? N
+- Deviations from plan: updated src/app/api/save/route.test.ts (existing test asserting the old leaking response) alongside the fix — necessary to keep the suite green; the old assertion was validating the vulnerability, not a desired behaviour
+- Tests / typecheck / build / lint: green at 00:53 — typecheck pass, lint pass, vitest 1203/1203 pass (89 files), next build pass
+- PR: pending

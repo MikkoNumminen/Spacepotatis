@@ -58,8 +58,7 @@ export async function GET(): Promise<Response> {
     });
   } catch (err) {
     console.error("GET /api/save failed:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: "server_error", message }, { status: 500 });
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }
 
