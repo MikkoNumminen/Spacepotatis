@@ -191,6 +191,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** pass the report via `--body-file /tmp/readiness.txt` to `gh issue create`. No shell interpolation.
 - **Verification:** code review; manual sanity-check by triggering the workflow.
 - **Dependencies:** none.
+- **Status:** fixed — 9fce81f; body assembled via heredoc concatenation + `cat >> /tmp/issue-body.txt`, passed to `gh issue create --body-file`; no shell interpolation of report content. Regression test [tests/security/auditReadinessYml.test.ts](../../tests/security/auditReadinessYml.test.ts).
 
 #### SEC-024 — `npx lint-staged` in `.husky/pre-commit` without `--no` (Cell 8)
 
@@ -200,6 +201,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Recommended fix:** `npx --no lint-staged` (refuses to download if not locally installed) or `./node_modules/.bin/lint-staged`.
 - **Verification:** test that `git commit` still triggers lint-staged.
 - **Dependencies:** none.
+- **Status:** fixed — ca6ead0; `.husky/pre-commit` changed to `npx --no lint-staged`. Regression test [tests/security/preCommitHook.test.ts](../../tests/security/preCommitHook.test.ts).
 
 #### SEC-025 — Full raw save-row JSON dumped to browser console on parse failure (Cell 10)
 
@@ -233,12 +235,14 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **Location:** repo root
 - **What's wrong:** zero automated dependency-update PRs; CVEs accumulate.
 - **Fix:** add `.github/dependabot.yml` with `npm` ecosystem, weekly schedule, group security updates.
+- **Status:** fixed — 2221345; `.github/dependabot.yml` added with weekly Monday schedule, minor+patch grouped into one PR, major bumps individual, limit 5 open PRs. Regression test [tests/security/dependabotConfig.test.ts](../../tests/security/dependabotConfig.test.ts).
 
 #### SEC-029 — No explicit `permissions:` block in `ci.yml` (Cell 8)
 
 - **Location:** [.github/workflows/ci.yml](../../.github/workflows/ci.yml)
 - **What's wrong:** workflow inherits repo default `GITHUB_TOKEN` permissions (may be read-write on legacy repos).
 - **Fix:** add `permissions: contents: read` at workflow level.
+- **Status:** fixed — 9a83242; `ci.yml` gains `permissions: contents: read` at workflow level. `audit-readiness-check.yml` already had `permissions: contents: read / issues: write` (confirmed). Regression test [tests/security/workflowPermissions.test.ts](../../tests/security/workflowPermissions.test.ts).
 
 #### SEC-030 — Leaderboard cache hit/miss fingerprints mission popularity (Cell 9)
 

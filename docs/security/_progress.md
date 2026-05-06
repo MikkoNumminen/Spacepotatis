@@ -279,16 +279,59 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - PR: pending push.
 
 ### Phase 3 — finding: SEC-008 — `next-auth` 5.0.0-beta.25 → 5.0.0-beta.31 hygiene bump
-- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a9171901dbe766568
-- Branch: feat/security-sec-008-next-auth-bump (off origin/master 181c95f)
-- Commit: pending push
-- Files changed: package.json (next-auth strict pin `5.0.0-beta.25` → `5.0.0-beta.31`), package-lock.json (regenerated), docs/security/02-findings-and-plan.md (SEC-008 status note), docs/security/_progress.md (this entry)
-- Test added: none — dependency bump, no new code surface. Existing auth tests (tests/security/emailVerified.test.ts, src/lib/authUrlPin.test.ts, src/lib/players.test.ts) cover the auth surface and all pass.
-- Save-roundtrip-audit run? N — auth/deps surface, not save pipeline
+- Branch: feat/security-sec-008-next-auth-bump
+- Commit: 59109b9
+- Files changed: package.json + package-lock.json + docs
+- Save-roundtrip-audit run? N
 - Migration required? N
-- Versions: from `5.0.0-beta.25` to `5.0.0-beta.31` (latest beta as of 2026-05-07; `npm view next-auth versions` showed beta.31 as the head of the 5.0.0-beta line, no stable 5.0 yet).
-- Audit delta: pre-bump npm audit reported 4 advisories — kysely (high, pre-existing risk-accepted), next (moderate, postcss-chain pre-existing), **next-auth GHSA-5jpx-9hw9-2fx4 "NextAuthjs Email misdelivery" (moderate, range `>=5.0.0-beta.0 <5.0.0-beta.30`)**. Post-bump: 3 advisories — kysely + next + postcss (all pre-existing). The next-auth advisory is gone. No new advisories introduced. Bonus catch: the bump was scoped as hygiene-only in 02-findings-and-plan.md, but it also clears an active (though non-exploitable in this codebase — only Google provider configured) advisory.
-- Compatibility verification: `signIn` callback (SEC-019, accepts `{profile}`, returns `boolean`), `jwt` callback (`{token, profile}`), `session` callback (`{session, token}`) — all signatures unchanged in beta.31. `Profile` type import in `src/lib/authEmailVerified.ts` and `tests/security/emailVerified.test.ts` still exports with the same shape (specifically `email_verified: boolean | undefined`). `src/lib/authUrlPin.test.ts` is a string-grep test on auth.ts source, unaffected by runtime changes.
-- Deviations from plan: none. Plan named beta.31 as the target; that is also the latest beta.X available today.
-- Tests / typecheck / build / lint: green at 02:30 — typecheck pass, lint pass, vitest 1244/1244 pass (96 files), next build pass.
-- PR: pending push.
+- Versions: 5.0.0-beta.25 → 5.0.0-beta.31. Cleared GHSA-5jpx-9hw9-2fx4 (Email misdelivery — non-exploitable here, Google-only). Compatibility verified: signIn/jwt/session/Profile shapes unchanged.
+- Tests / typecheck / build / lint: green at 02:30 — vitest 1244/1244 pass.
+- PR: #190 (merged)
+
+### Phase 3 — finding: SEC-023 — shell-interpolation in audit-readiness-check.yml issue body
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a194b6dcb5c414c87
+- Branch: feat/security-ci-git-hardening
+- Commit: 9fce81f
+- Files changed: .github/workflows/audit-readiness-check.yml (replace shell-interpolated body with heredoc + cat >> /tmp/issue-body.txt + --body-file), tests/security/auditReadinessYml.test.ts (new, 3 tests), docs/security/02b-attack-cells.md (status note)
+- Test added: tests/security/auditReadinessYml.test.ts — "SEC-023 — audit-readiness-check.yml passes issue body via --body-file" (3 tests: --body-file present; ${body// absent; no --body "$variable" pattern)
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: body assembled via heredoc concatenation and `cat >>` instead of a single `--body-file /tmp/readiness.txt`. The issue body wraps the report content with Markdown; using readiness.txt directly as the body-file would lose the surrounding Markdown structure. The cat-append approach avoids all shell interpolation while preserving the full body layout.
+- Tests / typecheck / build / lint: green — vitest 1257/1257 pass (100 files), typecheck pass, lint pass, next build pass.
+- PR: feat/security-ci-git-hardening (bundled with SEC-024, SEC-028, SEC-029)
+
+### Phase 3 — finding: SEC-024 — npx lint-staged without --no in pre-commit hook
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a194b6dcb5c414c87
+- Branch: feat/security-ci-git-hardening
+- Commit: ca6ead0
+- Files changed: .husky/pre-commit (npx lint-staged → npx --no lint-staged), tests/security/preCommitHook.test.ts (new, 2 tests), docs/security/02b-attack-cells.md (status note)
+- Test added: tests/security/preCommitHook.test.ts — "SEC-024 — .husky/pre-commit uses npx --no to block auto-download" (2 tests: --no flag present; bare npx lint-staged absent)
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: none
+- Tests / typecheck / build / lint: green — vitest 1257/1257 pass, typecheck pass, lint pass, next build pass.
+- PR: feat/security-ci-git-hardening (bundled with SEC-023, SEC-028, SEC-029)
+
+### Phase 3 — finding: SEC-028 — no dependabot.yml
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a194b6dcb5c414c87
+- Branch: feat/security-ci-git-hardening
+- Commit: 2221345
+- Files changed: .github/dependabot.yml (new), tests/security/dependabotConfig.test.ts (new, 4 tests), docs/security/02b-attack-cells.md (status note)
+- Test added: tests/security/dependabotConfig.test.ts — "SEC-028 — .github/dependabot.yml exists and is correctly configured" (4 tests: version: 2; npm ecosystem; weekly interval; updates block)
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: grouped minor+patch together in a single weekly PR; major bumps remain individual PRs. Security updates are auto-merged into the grouped weekly PR per dependabot's default behavior (security updates are always open-pull-requests-limit exempt). Helsinki timezone (Europe/Helsinki) chosen for the operator's locale.
+- Tests / typecheck / build / lint: green — vitest 1257/1257 pass, typecheck pass, lint pass, next build pass.
+- PR: feat/security-ci-git-hardening (bundled with SEC-023, SEC-024, SEC-029)
+
+### Phase 3 — finding: SEC-029 — no explicit permissions: block in ci.yml
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a194b6dcb5c414c87
+- Branch: feat/security-ci-git-hardening
+- Commit: 9a83242
+- Files changed: .github/workflows/ci.yml (added permissions: contents: read at workflow level), tests/security/workflowPermissions.test.ts (new, 4 tests), docs/security/02b-attack-cells.md (status note)
+- Test added: tests/security/workflowPermissions.test.ts — "SEC-029 — workflows have explicit permissions: blocks" (4 tests: both workflows have top-level permissions: block; neither grants contents: write)
+- Save-roundtrip-audit run? N — not save-touching
+- Migration required? N
+- Deviations from plan: audit-readiness-check.yml already had permissions: contents: read / issues: write from the SEC-015 wave — no change needed there. Only ci.yml was missing the block.
+- Tests / typecheck / build / lint: green — vitest 1257/1257 pass, typecheck pass, lint pass, next build pass.
+- PR: feat/security-ci-git-hardening (bundled with SEC-023, SEC-024, SEC-028)
