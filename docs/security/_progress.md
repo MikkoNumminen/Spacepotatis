@@ -193,4 +193,26 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Migration required? N
 - Deviations from plan: updated src/app/api/save/route.test.ts (existing test asserting the old leaking response) alongside the fix — necessary to keep the suite green; the old assertion was validating the vulnerability, not a desired behaviour
 - Tests / typecheck / build / lint: green at 00:53 — typecheck pass, lint pass, vitest 1203/1203 pass (89 files), next build pass
-- PR: pending
+- PR: #184 (merged)
+
+### Phase 3 — finding: SEC-016 — LegacyShipSchema unbounded record/array fields
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a7716749a8a2f0a4b
+- Branch: feat/security-sec-016-022-schema-caps
+- Commit: 4aafede
+- Files changed: src/lib/schemas/save.ts (unlockedWeapons .max(50); weaponLevels + weaponAugments .superRefine 50-key cap), tests/security/legacyShipSchema.test.ts (new, 8 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
+- Test added: tests/security/legacyShipSchema.test.ts — "SEC-016 — LegacyShipSchema caps unbounded array/record fields" (8 tests: all three fields at 51/50/100k boundary + normal save)
+- Save-roundtrip-audit run? N — schema-only tightening, no shape change, no DB column change
+- Migration required? N
+- Deviations from plan: (1) Used `code: "custom"` in superRefine addIssue instead of `too_big` — Zod 4.3.6 requires an `origin` field on `too_big` issues that the TS type enforces; `custom` is the portable alternative. (2) Orchestrator explicitly bundled SEC-016 and SEC-022 into one branch (two commits) due to near-identical fix shape in the same file.
+- Tests / typecheck / build / lint: green at 00:54 — typecheck pass, lint pass, vitest 1211/1211 pass (90 files), next build pass
+
+### Phase 3 — finding: SEC-022 — WeaponInventorySchema no .max()
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a7716749a8a2f0a4b
+- Branch: feat/security-sec-016-022-schema-caps
+- Commit: pending-sha (commit 2 of 2)
+- Files changed: src/lib/schemas/save.ts (WeaponInventorySchema .max(50) + JSDoc comment), tests/security/weaponInventoryCap.test.ts (new, 4 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
+- Test added: tests/security/weaponInventoryCap.test.ts — "SEC-022 — WeaponInventorySchema caps array length at 50" (4 tests: 51 rejected, 50 accepted, empty accepted, single-element accepted)
+- Save-roundtrip-audit run? N — schema-only tightening, no shape change, no DB column change
+- Migration required? N
+- Deviations from plan: Orchestrator explicitly bundled with SEC-016 (one branch, two commits).
+- Tests / typecheck / build / lint: green at 00:54 — typecheck pass, lint pass, vitest 1211/1211 pass (90 files), next build pass

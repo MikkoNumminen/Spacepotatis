@@ -185,9 +185,14 @@ export const WeaponSlotsSchema = z
  * Order is acquisition order so picker UIs stay stable across loads.
  * Mirrors `WeaponInventory` in `src/game/state/ShipConfig.ts`.
  *
+ * SEC-022 — bounded at 50 elements (current shop has ~10 weapons; 50 is
+ * generous). Defense-in-depth: each element is already validated by
+ * WeaponInstanceSchema, but an unbounded array is parseable by Zod at any
+ * length — same pattern as SEC-011's seenStoryEntries cap.
+ *
  * @stable
  */
-export const WeaponInventorySchema = z.array(WeaponInstanceSchema);
+export const WeaponInventorySchema = z.array(WeaponInstanceSchema).max(50);
 
 /**
  * Reactor upgrade levels (capacity + recharge).
