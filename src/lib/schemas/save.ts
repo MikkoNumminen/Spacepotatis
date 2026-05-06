@@ -310,11 +310,34 @@ export const LegacyShipSchema = z.object({
     ])
     .optional(),
   inventory: z.array(LegacyWeaponInstanceSchema).optional(),
-  unlockedWeapons: z.array(z.string()).optional(),
-  weaponLevels: z.record(z.string(), z.number().finite()).optional(),
+  // SEC-016 — cap at 50 entries; current shop has ~10 weapons, 50 is generous.
+  unlockedWeapons: z.array(z.string()).max(50).optional(),
+  // SEC-016 — cap at 50 keys via superRefine; z.record has no built-in max().
+  weaponLevels: z
+    .record(z.string(), z.number().finite())
+    .superRefine((rec, ctx) => {
+      if (Object.keys(rec).length > 50) {
+        ctx.addIssue({
+          code: "custom",
+          message: "weaponLevels may not exceed 50 keys"
+        });
+      }
+    })
+    .optional(),
   // Legacy snapshots may carry unknown augment ids; migrateShip filters
   // them. So accept arbitrary string lists here.
-  weaponAugments: z.record(z.string(), z.array(z.string())).optional(),
+  // SEC-016 — cap at 50 keys via superRefine; same pattern as weaponLevels.
+  weaponAugments: z
+    .record(z.string(), z.array(z.string()))
+    .superRefine((rec, ctx) => {
+      if (Object.keys(rec).length > 50) {
+        ctx.addIssue({
+          code: "custom",
+          message: "weaponAugments may not exceed 50 keys"
+        });
+      }
+    })
+    .optional(),
   augmentInventory: z.array(z.string()).optional(),
   shieldLevel: z.number().optional(),
   armorLevel: z.number().optional(),
