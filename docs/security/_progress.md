@@ -182,3 +182,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: (1) Cap also applied to RemoteSaveSchema (line 422), not just SavePayloadSchema, so a future direct-INSERT path can't seed an unbounded list that the client then accepts. The spec said "appears at lines 383 and 422" — interpreted as both. (2) Truncation extracted to writeSaveAudit rather than the route call sites, so all four audit paths (success 204, validation_failed 400, validator-rejection 422, server_error 500) share one cap. (3) Added an `unserializable` fallback for circular-ref / BigInt payloads — the JSON.stringify try/catch keeps the audit insert resilient; without it a malformed body would throw before the audit insert and we'd lose the forensic record.
 - Tests / typecheck / build / lint: green at 02:00 — typecheck pass, lint pass, vitest 1183/1183 pass (86 files), next build pass.
 - PR: pending push.
+
+### Phase 3 — finding: SEC-004 — error-message reflection on GET /api/save + both /api/handle paths
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a55bf74b42f9ec856
+- Branch: feat/security-sec-004-error-reflection
+- Commit: pending-sha
+- Files changed: src/app/api/save/route.ts (GET handler — drop message field), src/app/api/handle/route.ts (GET + POST handlers — drop message field), src/app/api/save/route.test.ts (update existing test to match opaque response), tests/security/errorReflection.test.ts (new, 3 tests)
+- Test added: tests/security/errorReflection.test.ts — "SEC-004 — GET /api/save does not reflect err.message to the client", "SEC-004 — GET /api/handle does not reflect err.message to the client", "SEC-004 — POST /api/handle does not reflect err.message to the client"
+- Save-roundtrip-audit run? N — error-response shape only, not save-touching
+- Migration required? N
+- Deviations from plan: updated src/app/api/save/route.test.ts (existing test asserting the old leaking response) alongside the fix — necessary to keep the suite green; the old assertion was validating the vulnerability, not a desired behaviour
+- Tests / typecheck / build / lint: green at 00:53 — typecheck pass, lint pass, vitest 1203/1203 pass (89 files), next build pass
+- PR: pending
