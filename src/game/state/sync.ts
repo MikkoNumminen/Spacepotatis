@@ -239,11 +239,13 @@ async function doLoadSave(): Promise<LoadResult> {
           // console.error: schema rejection means the user's save row exists
           // but this client can't read it. They'll see INITIAL_STATE and
           // panic — operator needs the issues dump to diagnose.
+          // The raw payload is NOT logged: it contains PII (credits, ship
+          // config, mission list). Issues alone are enough to diagnose the
+          // schema drift; the raw row is available in server-side DB snapshots.
+          // SEC-025: raw payload removed from browser-console output.
           console.error(
             "loadSave: schema rejected save row\nissues:",
-            JSON.stringify(parsed.error.issues, null, 2),
-            "\nraw:",
-            JSON.stringify(raw, null, 2)
+            JSON.stringify(parsed.error.issues, null, 2)
           );
           // DELIBERATELY do not markHydrationCompleted: a parse failure means
           // GameState was NOT hydrated from the server, so it's still at
