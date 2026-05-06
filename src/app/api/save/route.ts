@@ -482,6 +482,19 @@ export async function POST(request: Request): Promise<Response> {
   // Audit write happens AFTER the transaction commits/rolls back. Failure
   // here never affects the user-visible outcome.
   if (outcome.kind === "reject") {
+    // SEC-020 — collapse three of the four 422 codes to `save_rejected` in
+    // the client-visible response body to remove the validator-ordering
+    // side-channel. The specific code is preserved in save_audit.response_error
+    // and console.warn for ops forensics.
+    //
+    // EXCEPTION: `save_regression` stays distinct because saveQueue.ts's
+    // isPermanent() treats it as TRANSIENT — the queue holds the snapshot and
+    // retries after a fresher loadSave reconciles state. Collapsing it to
+    // `save_rejected` would flip isPermanent() to true (save_rejected is not
+    // in the TRANSIENT list), causing the queue to drop the pending save and
+    // breaking the save-durability contract.
+    const clientError: string =
+      outcome.error === "save_regression" ? "save_regression" : "save_rejected";
     await writeSaveAudit(db, {
       playerId,
       requestPayload,
@@ -492,7 +505,7 @@ export async function POST(request: Request): Promise<Response> {
       userAgent
     });
     return NextResponse.json(
-      { error: outcome.error, message: outcome.message },
+      { error: clientError, message: outcome.message },
       { status: outcome.status }
     );
   }

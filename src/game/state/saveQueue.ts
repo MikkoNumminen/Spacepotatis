@@ -332,6 +332,12 @@ function isPermanent(status: number, errorCode: string | null): boolean {
   //    holding the slot lets a future saveNow with the freshest in-memory
   //    state pass, OR lets the snapshot age out via MAX_ATTEMPTS / MAX_AGE_MS
   //    if it really is stale. The defense must never delete queued data.
+  //  - save_rejected → TRANSIENT. SEC-020 collapsed playtime_delta_invalid
+  //    and credits_delta_invalid to this opaque code in the client-visible
+  //    response body. The underlying guard is still transient (the server's
+  //    stale baseline is the root cause); retrying with a fresher snapshot
+  //    after a successful loadSave can pass. Keep the slot — same semantics
+  //    as playtime_delta_invalid / credits_delta_invalid.
   //  - mission_graph_invalid / validation_failed / other → PERMANENT.
   //    The unlock chain or schema is wrong in the snapshot itself; replay
   //    can't fix it.
@@ -339,7 +345,8 @@ function isPermanent(status: number, errorCode: string | null): boolean {
     return (
       errorCode !== "playtime_delta_invalid" &&
       errorCode !== "credits_delta_invalid" &&
-      errorCode !== "save_regression"
+      errorCode !== "save_regression" &&
+      errorCode !== "save_rejected"
     );
   }
   return false;
