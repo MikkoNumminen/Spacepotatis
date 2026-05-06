@@ -277,3 +277,18 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: (1) Helper extracted to its own module `src/lib/authEmailVerified.ts` rather than living inside `auth.ts`. Reason: the regression test must import the pure helper without pulling in the NextAuth runtime — `next-auth` references `next/server` at module load, which fails under vitest's node environment (the same constraint that put authUrlPin.test.ts in `src/lib/` rather than under `tests/`; here we kept the test under `tests/security/` per spec by splitting the helper instead). (2) Helper checks for strict `=== false` only; missing/null/undefined claims fall through to allow. Matches Google's consumer contract (always `true`) and preserves provider-agnostic posture for any future provider that doesn't emit the claim (e.g. GitHub).
 - Tests / typecheck / build / lint: green at 02:00 — typecheck pass, lint pass, vitest 1227/1227 pass, next build pass.
 - PR: pending push.
+
+### Phase 3 — finding: SEC-008 — `next-auth` 5.0.0-beta.25 → 5.0.0-beta.31 hygiene bump
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a9171901dbe766568
+- Branch: feat/security-sec-008-next-auth-bump (off origin/master 181c95f)
+- Commit: pending push
+- Files changed: package.json (next-auth strict pin `5.0.0-beta.25` → `5.0.0-beta.31`), package-lock.json (regenerated), docs/security/02-findings-and-plan.md (SEC-008 status note), docs/security/_progress.md (this entry)
+- Test added: none — dependency bump, no new code surface. Existing auth tests (tests/security/emailVerified.test.ts, src/lib/authUrlPin.test.ts, src/lib/players.test.ts) cover the auth surface and all pass.
+- Save-roundtrip-audit run? N — auth/deps surface, not save pipeline
+- Migration required? N
+- Versions: from `5.0.0-beta.25` to `5.0.0-beta.31` (latest beta as of 2026-05-07; `npm view next-auth versions` showed beta.31 as the head of the 5.0.0-beta line, no stable 5.0 yet).
+- Audit delta: pre-bump npm audit reported 4 advisories — kysely (high, pre-existing risk-accepted), next (moderate, postcss-chain pre-existing), **next-auth GHSA-5jpx-9hw9-2fx4 "NextAuthjs Email misdelivery" (moderate, range `>=5.0.0-beta.0 <5.0.0-beta.30`)**. Post-bump: 3 advisories — kysely + next + postcss (all pre-existing). The next-auth advisory is gone. No new advisories introduced. Bonus catch: the bump was scoped as hygiene-only in 02-findings-and-plan.md, but it also clears an active (though non-exploitable in this codebase — only Google provider configured) advisory.
+- Compatibility verification: `signIn` callback (SEC-019, accepts `{profile}`, returns `boolean`), `jwt` callback (`{token, profile}`), `session` callback (`{session, token}`) — all signatures unchanged in beta.31. `Profile` type import in `src/lib/authEmailVerified.ts` and `tests/security/emailVerified.test.ts` still exports with the same shape (specifically `email_verified: boolean | undefined`). `src/lib/authUrlPin.test.ts` is a string-grep test on auth.ts source, unaffected by runtime changes.
+- Deviations from plan: none. Plan named beta.31 as the target; that is also the latest beta.X available today.
+- Tests / typecheck / build / lint: green at 02:30 — typecheck pass, lint pass, vitest 1244/1244 pass (96 files), next build pass.
+- PR: pending push.
