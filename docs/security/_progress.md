@@ -371,3 +371,26 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: (1) Test case 3 in the spec said "POST with currentSolarSystemId: null → success". The SavePayloadSchema field is `.optional()` (not `.nullable()`), so `null` in a JSON body fails Zod validation before the route handler runs — the correct representation of "no preference" is omitting the field. Test updated to use "omitted field → 204" which matches actual schema semantics. (2) Existing `route.test.ts` test "persists currentSolarSystemId on the upsert" was updated to add `unlockedSolarSystems: ["tubernovae"]` to its payload — the test was asserting field persistence (not validating the guard), and it needed the unlock entry to remain valid under the new check. This is a narrowly scoped fix to keep the suite green, not scope expansion.
 - Tests / typecheck / build / lint: green — typecheck pass, lint pass, vitest all SEC-027 tests pass + pre-existing failures unchanged, next build pass.
 - PR: #193
+
+### Phase 3 — finding: SEC-010 — GDPR right-to-erasure runbook + erase-player.mjs script
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-abe8dbda2104e132a
+- Branch: feat/security-sec-010-gdpr-runbook
+- Commit: c548b27
+- Files changed: docs/RIGHT_TO_ERASURE.md (new — operator runbook), scripts/erase-player.mjs (new — GDPR erasure script), docs/security/02-findings-and-plan.md (SEC-010 status note)
+- Test added: none — destructive script; manual test procedure in PR body per spec
+- Save-roundtrip-audit run? N — doc + DELETE script, not the save round-trip
+- Migration required? N — CASCADE chain (players.id ON DELETE CASCADE) was already in place from initial_schema.sql
+- Deviations from plan: (1) parseFlags from dbWriteSafety doesn't natively support --player-email cross-check, so parseEraseFlags wraps parseFlags and adds a second argv scan for --player-email. Functionally equivalent to restore-player.mjs pattern. (2) Script exports parseEraseFlags so a future test can exercise arg-parsing without touching the DB. (3) No regression test per spec (destructive nature + no test DB in CI).
+- Tests / typecheck / build / lint: green — 1270/1270 tests, typecheck clean, lint clean, build clean.
+- PR: pending push
+
+### Phase 3 — SEC-027 follow-up log entry (logged-not-fixed, 2026-05-07)
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-abe8dbda2104e132a
+- Branch: feat/security-sec-010-gdpr-runbook
+- Commit: 66e1e14
+- Files changed: docs/security/04-other-findings.md (new Logged-not-fixed section + SEC-027 follow-up entry)
+- Save-roundtrip-audit run? N — doc-only
+- Migration required? N
+- Deviations from plan: none
+- Tests / typecheck / build / lint: green (doc-only commit)
+- PR: pending push (bundled with SEC-010)
