@@ -22,3 +22,17 @@ This file is the bin for non-security issues that the security audit observed bu
 - **Why it isn't a security finding:** the parse-at-load pattern is a build-output / page-weight regression, not a vulnerability. The data being parsed is static JSON shipped with the repo — there's no untrusted input flowing through the parser. The harm is the bundle-size regression and the maintenance trap of having two equivalent validation paths (CI test + runtime parse).
 - **Recommended action:** before this branch is merged, owner replaces the runtime `Schema.parse()` calls with the cast pattern documented in CLAUDE.md §5 (one `as readonly XDefinition[]` cast at module load, no runtime Zod), and confirms the CI drift gate (`jsonSchemaValidation.test.ts`) covers any newly-added accessors. If the branch is abandoned, no action needed. The audit does not own this decision — surfacing it for the human operator who scheduled the refactor.
 - **Status:** open (logged 2026-05-05).
+
+## Logged-not-fixed
+
+## SEC-027 follow-up — derive unlocked solar systems server-side (logged 2026-05-07)
+
+**Background**: SEC-027 (PR #193) added a server-side check that rejects `currentSolarSystemId` not in `body.unlockedSolarSystems`. The check uses the user-submitted `unlockedSolarSystems` list as the source of truth — same self-referential rake that SEC-017 (PR #186) closed for credit caps.
+
+**Why it's not exploitable today**: `unlockedSolarSystems` is NOT persisted server-side; only `current_solar_system_id` is written to `save_games`. On load, the client recomputes `unlockedSolarSystems` from the server-trusted `unlockedPlanets` (via `persistence.ts:68-70`).
+
+**Why it matters for the future**: if a future PR adds direct persistence of `unlocked_solar_systems` to the DB, this rake re-emerges as a progression-bypass surface. The principled fix is to derive the trusted unlock set server-side (mission→system mapping, like SEC-017's `deriveCapInputMissions`) and check against that — not against the user-submitted list.
+
+**Proposed fix shape** (when needed): add `deriveUnlockedSolarSystems(prevCompletedMissions, submittedCompletedMissions)` to `src/lib/saveValidation.ts`, mirroring `deriveCapInputMissions`. Update SEC-027's check to compare `currentSolarSystemId` against the derived list.
+
+**Severity**: informational while `unlocked_solar_systems` stays client-derived. Promote if the field gets persisted server-side.
