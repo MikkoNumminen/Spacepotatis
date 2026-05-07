@@ -8,17 +8,26 @@ This is the closing artifact of the security audit started by `/security-audit` 
 
 ## Headline
 
-- **22 SEC-XXX findings closed** (across 16 PRs).
-- **3 SEC-XXX findings deferred or risk-accepted**:
-  - SEC-002 (rate limiting) — blocked on user A-001 infra-choice gate (Vercel KV / Upstash Redis / in-memory + monitoring).
+- **26 SEC-XXX findings closed** across **17 fix PRs** (#174, #175, #176, #177, #180, #181, #184, #185, #186, #187, #188, #189, #190, #191, #192, #193, #199), plus 5 supporting PRs (#158 audit scaffold; #173 Wave-1 kickoff log; #200 tooling archive; #201 Phase-4 docs; #202 this report). Some PRs bundle multiple findings (e.g. #191 closes SEC-023/024/028/029; #181 closes SEC-011/013).
+- **5 SEC-XXX findings deferred or risk-accepted, plus 1 superseded**:
+  - SEC-002 (rate limiting) — deferred, blocked on user A-001 infra-choice gate (Vercel KV / Upstash Redis / in-memory + monitoring).
   - SEC-006 (`save_audit` 90-day retention) — deferred until the GH Actions cron opens the save-architecture-ready issue (memory: experiment-window protection).
+  - SEC-009 (`trustHost: true` informational) — superseded by SEC-012; the SEC-012 fix (PR #176) carries the closing rationale.
   - SEC-030 / SEC-031 / SEC-032 — informational, risk-accepted at Phase 2.
 - **0 NEW findings surfaced during Phase 5.** The re-walk produced only minor line-drift observations within the invariants doc's stated "line numbers drift; the citation is a hint, not a contract" tolerance.
 - **Test surface:** `tests/security/` runs **98 tests across 20 files** as a dedicated CI step; full suite (`npm test`) totals 1280 tests across the codebase, all green.
 - **Lint:** `npm run lint` green; the 3 new Phase-4 security ESLint rules each tie to a SEC-XXX finding and have zero existing matches.
 - **Phase 4 documentation pass** verified intact: 25 invariants, 9 per-module SECURITY.md, 14 code-level markers across 8 files, root SECURITY.md, threat model, CLAUDE.md §18.
 
-## Coverage matrix (all 27 actionable findings)
+## Coverage matrix (all 31 distinct SEC-XXX findings + 1 architectural)
+
+The matrix lists every SEC-XXX finding from `02-findings-and-plan.md` and `02b-attack-cells.md` (32 total minus SEC-009 which was merged into SEC-012, leaving 31 distinct), plus the A-001 architectural item. Status counts:
+
+- 26 fixed (across 17 PRs — see headline)
+- 2 deferred actionable (SEC-002 + SEC-006)
+- 3 risk-accepted informational (SEC-030/031/032)
+- 1 architectural pending (A-001)
+- = **28 actionable SEC-XXX entries** (excludes risk-accepted), of which 26 closed + 2 deferred.
 
 | Surface | Findings verified | Status |
 |---|---|---|
@@ -27,7 +36,7 @@ This is the closing artifact of the security audit started by `/security-audit` 
 | Leaderboard | SEC-003, SEC-014 | All confirmed fixed |
 | Schema boundary | SEC-016, SEC-022 | All confirmed fixed |
 | Client save / load | SEC-025, SEC-026 | All confirmed fixed |
-| Production-write scripts | SEC-007 + SEC-021 (bundled), SEC-010 | All confirmed fixed |
+| Production-write scripts | SEC-007, SEC-021 (both bundled in PR #175), SEC-010 | All confirmed fixed (3 findings) |
 | CI + supply chain | SEC-015, SEC-023, SEC-024, SEC-028, SEC-029 | All confirmed fixed |
 | HTTP perimeter | SEC-001, SEC-004 | All confirmed fixed |
 | Rate limiting | SEC-002 | Deferred (user A-001 decision) |
@@ -93,17 +102,16 @@ All 11 confirmed fixed. Per-finding evidence:
 
 **Tests run:** scripts (20 tests across 2 files) + tests/security/ (98 tests across 20 files) + lint + dependabot YAML parse — all green.
 
-## Open concerns (logged-not-fixed)
+## Open concerns (logged in `docs/security/04-other-findings.md`)
 
-These are non-blocking observations that surfaced during Phase 5. None affect correctness; flagged for the next maintenance pass.
+The Phase 5 cells surfaced four logged-not-fixed observations. To make sure the next `/security-audit` Phase 1 picks them up automatically, they live in `docs/security/04-other-findings.md` ("Phase 5 close — observations logged-not-fixed" section). Summary:
 
-1. **Minor line-drift in `docs/security/invariants.md`.** Several entries cite line numbers that are off by 1–7 lines after intervening commits (e.g. INV-SAVE-8 cites `route.ts:510-525`; actual `clientError` lives at 526-527; INV-LB-1 / INV-LB-2 / INV-LB-3 each off by 1–3 lines). The doc's preamble explicitly warns "line numbers drift across refactors, so the line range is a hint to where to look, not a contract." All current drift is within that tolerance. Recommend a one-shot refresh pass on the next round of audit doc maintenance.
+1. **NSC-002** — Minor line-drift in `docs/security/invariants.md` citations (within doc tolerance; one-shot refresh recommended).
+2. **NSC-003** — SEC-015 (Actions SHA pinning) lacks a regression test (mechanical fix: grep for 40-char-SHA in `uses:` lines).
+3. **NSC-004** — SEC-008 (next-auth bump) hygiene-class without dedicated test (risk-accepted, by design).
+4. **SEC-027 follow-up** (already in `04-other-findings.md` from PR #199) — derive `unlockedSolarSystems` server-side if the field ever gets persisted to the DB.
 
-2. **No dedicated regression test for SEC-015 (Actions SHA pinning).** Coverage relies on PR review. Closing the gap is mechanical: a `tests/security/actionsShaPinning.test.ts` that greps `uses:` lines against a `^[a-f0-9]{40}$` regex would lock the contract automatically. Logged as a possible follow-up.
-
-3. **No dedicated regression test for SEC-008 (next-auth bump).** This is by design (per the plan, hygiene class — verified by `npm audit` + existing auth tests). Not a gap, just an inventory anomaly noted for completeness.
-
-4. **SEC-027 follow-up logged in `docs/security/04-other-findings.md`** during PR #199. The current SEC-027 check uses `body.unlockedSolarSystems` (user-submitted) as the source of truth; same self-referential rake that SEC-017 closed for credit caps. Not exploitable today (the `unlocked_solar_systems` column doesn't exist; client recomputes on load from server-trusted `unlockedPlanets`). Re-read the follow-up before persisting `unlockedSolarSystems` server-side.
+None of these affect correctness or expose a vulnerability today. They are pure forward-looking maintenance items.
 
 ## Phase 4 documentation status
 
@@ -132,9 +140,21 @@ These remain risk-accepted. Re-evaluate on next audit if the threat model change
 
 The audit's posture as of 2026-05-07: **0 critical, 0 high, all medium and below remediated or explicitly deferred with rationale.** The cheat guards in `saveValidation.ts`, the FOR-UPDATE transaction wrapping `/api/save`, the `writeBackup` contract in `scripts/`, and the `playerEmail` stamp on the save queue continue to do the work CLAUDE.md describes — verified end-to-end in Phase 5.
 
-The Phase 4 documentation pass means a future agent reading CLAUDE.md → §18 → threat model → invariants → per-module SECURITY.md should arrive at the same defaults this audit established without re-deriving them. The dedicated CI security regression suite means a regression in any of the 22 closed findings shows up as a clearly-named failed check rather than buried in 1300+ lines of vitest output.
+The Phase 4 documentation pass means a future agent reading CLAUDE.md → §18 → threat model → invariants → per-module SECURITY.md should arrive at the same defaults this audit established without re-deriving them. The dedicated CI security regression suite means a regression in any of the 26 closed findings shows up as a clearly-named failed check rather than buried in 1300+ lines of vitest output.
 
-**Phase 5 status: complete.** The security-audit skill has run its course for this audit cycle. Next invocation should kick off a fresh `/security-audit` against a moved baseline.
+**Phase 5 status: complete.** The security-audit skill has run its course for this audit cycle.
+
+### When to kick off the next `/security-audit`
+
+A fresh audit is warranted when ANY of the following triggers fire:
+
+1. **Calendar:** roughly every 6 months, even if nothing structural changed. Drift is real even on a well-documented codebase.
+2. **Major dependency bump:** `next` major version, `next-auth` stable (5.0.0 GA → 5.x → 6.x), `kysely` major, or any dependency with a published CVE that overlaps the codebase's actual usage (not just `npm audit` output).
+3. **Touching the load-bearing files:** any non-trivial change to `src/lib/auth.ts`, `src/lib/saveValidation.ts`, `src/app/api/save/route.ts`, `src/lib/schemas/save.ts`, `src/game/state/persistence.ts`, `src/game/state/saveQueue.ts`, or the migration set under `db/migrations/`. These are the surfaces the cheat guards + transaction + audit truncation live on; a "harmless refactor" can re-open a closed finding (the AI-NOTE markers in those files explicitly call out the simplifications-that-look-tempting).
+4. **Adding a new auth provider** beyond Google OAuth, OR migrating off Vercel.
+5. **Adding multiplayer / PvP / cross-player features** — the current threat model explicitly out-of-scopes "inference attacks against other players' state"; multiplayer changes that.
+6. **First arrival of any external bug-bounty / security-disclosure email** under the policy in `SECURITY.md`. Triage by replying, then audit.
+7. **Production write incident** (any `scripts/` operation against prod that did NOT go through the `parseFlags` + `requireConfirm` + `writeBackup` harness — even successful ones — should trigger an audit pass on `scripts/_lib/` and the affected scripts).
 
 ## Next phase (do not start)
 
