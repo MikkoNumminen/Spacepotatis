@@ -397,3 +397,64 @@ for the migration shipping rule.
 
 For the data-flow walkthrough of a save POST through the modules, see
 ARCHITECTURE.md "Module dependency graph (post-audit)".
+
+## 18. Security defaults (read before changing anything in §15-adjacent surfaces)
+
+This section is the agent's quick-reference for the security posture. The
+detail lives in three sibling docs — read them before touching any of the
+load-bearing surfaces below.
+
+- [`SECURITY.md`](SECURITY.md) — vulnerability-report procedure (operator
+  email, scope, disclosure). Public-facing.
+- [`docs/security/threat-model.md`](docs/security/threat-model.md) — attacker
+  categories, assets, defenses-by-layer, what is explicitly out of scope.
+- [`docs/security/invariants.md`](docs/security/invariants.md) — every
+  non-negotiable rule with file:line + impact. **A "simplification" that
+  removes one of these is the regression.**
+
+### The three most load-bearing invariants
+
+If you remember nothing else from §18, remember these three. Each one
+captures a class of bug whose recurrence costs hours of incident response
+and, in the worst case, destroys player progression irreversibly:
+
+1. **Cheat-guard chain in `src/lib/saveValidation.ts`.** Every save POST
+   runs `validateMissionGraph` → `validateNoRegression` →
+   `validatePlaytimeDelta` → `validateCreditsDelta` (plus the SEC-027
+   solar-system unlock check). The credit-cap input is derived from
+   `prevRow.completed_missions` via `deriveCapInputMissions`, NOT from the
+   user-submitted list (SEC-017). `validateNoRegression` catches the
+   2026-05-02 wipe pattern (POST INITIAL_STATE on top of a real save) by
+   guarding three monotonic fields — credits is intentionally NOT guarded
+   because the market drains credits. **Don't simplify these into one
+   "validateSave" or move any of them to the client.**
+2. **`POST /api/save` runs the prev-row SELECT, all validators, and the
+   upsert inside ONE Kysely transaction with `.forUpdate()` on the
+   SELECT.** The row lock is held until COMMIT, so a second concurrent
+   POST blocks until the first transaction commits. Without the
+   transaction, two tabs each pass their guards against a stale baseline
+   and one overwrites the other (SEC-013). The `writeSaveAudit` calls
+   stay OUTSIDE the transaction so an audit-table outage cannot roll back
+   a user-visible save.
+3. **`writeBackup()` runs BEFORE every UPDATE / DELETE in any
+   `scripts/*.mjs` that mutates production.** Every prod-write script
+   uses `scripts/_lib/dbWriteSafety.mjs` — `parseFlags` (dry-run by
+   default), `requireConfirm` (gate), `writeBackup` (snapshot to
+   `db-backups/`). The 2026-05-02 wipe taught us that direct DB writes are
+   the highest-risk operations in this codebase. CLAUDE.md §15 is the
+   long-form rule; §18 is the one-line summary.
+
+### When to read which doc
+
+| If you are about to… | Read first |
+|---|---|
+| Touch any file under `src/lib/saveValidation.ts` or `src/app/api/save/route.ts` | `docs/security/invariants.md` (INV-SAVE-* and INV-LOG-* sections) and `src/lib/saveValidation/SECURITY.md` if it exists |
+| Touch `src/lib/auth.ts` or `src/lib/authEmailVerified.ts` | `docs/security/invariants.md` (INV-AUTH-* section) and the in-file SECURITY-CRITICAL comment |
+| Add a new API route under `src/app/api/` | `docs/security/threat-model.md` (every-route checklist), `docs/security/invariants.md` (INV-SCHEMA-1) |
+| Change a Zod schema in `src/lib/schemas/` | `docs/security/invariants.md` (INV-SCHEMA-* section); add `.max()` on every new array field |
+| Add a new `scripts/*.mjs` that writes to prod | CLAUDE.md §15, `docs/security/invariants.md` (INV-SCRIPT-* section); use `scripts/_lib/dbWriteSafety.mjs` |
+| Modify a GitHub workflow | `docs/security/invariants.md` (INV-OPS-* section); SHA-pin every action and declare an explicit `permissions:` block |
+
+When in doubt, run `npm test -- tests/security/` before committing — the
+regression suite is the executable form of the invariants and a failing
+test there ALWAYS means a security regression.
