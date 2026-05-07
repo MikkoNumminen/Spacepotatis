@@ -235,6 +235,14 @@ async function doLoadSave(): Promise<LoadResult> {
         // snapshot in and queue it for the cloud. saveQueue stamps with
         // the now-known email, and step 3's flushSaveQueue below picks it
         // up automatically. See guestCache.ts for the writer side.
+        //
+        // Note: hydrate() applies legacy migrations (migrateShip, salvage
+        // refunds for removed weapons, retroactive system-unlock backfill).
+        // The snapshot we POST via toSnapshot() is therefore the migrated
+        // version — NOT a byte-for-byte copy of what was in the cache.
+        // That's intentional: the server should receive normalized state,
+        // and any salvage credits the user is owed for catalog churn
+        // shouldn't disappear just because they hit this claim path.
         if (playerEmail !== null) {
           const guestSnapshot = readGuestSnapshot();
           if (guestSnapshot) {
