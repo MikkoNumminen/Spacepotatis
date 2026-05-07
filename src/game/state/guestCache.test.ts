@@ -6,7 +6,7 @@ import {
   resetGuestPersistenceForTests,
   writeGuestSnapshot
 } from "./guestCache";
-import { addCredits, completeMission, resetForTests } from "./GameState";
+import { addCredits, completeMission, getState, resetForTests } from "./GameState";
 import { setCurrentPlayerEmail } from "./syncCache";
 import { installFakeLocalStorage, FakeStorage } from "../../__tests__/fakeStorage";
 
@@ -14,8 +14,39 @@ const STORAGE_KEY = "spacepotatis:guest-progress:v1";
 
 let storage: FakeStorage;
 
+// Tiny event-listener shim on the fake window so the cross-tab `storage`
+// listener can be exercised in the Node test env (no DOM by default).
+// Mirrors the bits guestCache.ts actually uses: addEventListener,
+// removeEventListener, dispatchEvent.
+interface FakeListenerWindow {
+  addEventListener?: (type: string, listener: (e: unknown) => void) => void;
+  removeEventListener?: (type: string, listener: (e: unknown) => void) => void;
+  dispatchEvent?: (e: { type: string }) => boolean;
+}
+
+function installFakeWindowEvents(): void {
+  const w = globalThis as unknown as FakeListenerWindow;
+  const listeners = new Map<string, Array<(e: unknown) => void>>();
+  w.addEventListener = (type, listener) => {
+    if (!listeners.has(type)) listeners.set(type, []);
+    listeners.get(type)?.push(listener);
+  };
+  w.removeEventListener = (type, listener) => {
+    const arr = listeners.get(type);
+    if (!arr) return;
+    const idx = arr.indexOf(listener);
+    if (idx >= 0) arr.splice(idx, 1);
+  };
+  w.dispatchEvent = (e) => {
+    const arr = listeners.get(e.type) ?? [];
+    for (const l of arr) l(e);
+    return true;
+  };
+}
+
 beforeEach(() => {
   storage = installFakeLocalStorage();
+  installFakeWindowEvents();
   resetForTests();
   resetGuestPersistenceForTests();
   setCurrentPlayerEmail(null);
@@ -248,5 +279,131 @@ describe("bindGuestPersistenceOnce — boot recovery", () => {
     addCredits(1);
     expect(readGuestSnapshot()?.credits).toBe(1);
     unbind();
+  });
+
+  it("a returning authenticated user (auth cache + email both set) leaves the cache untouched", () => {
+    // Production-faithful: a returning authenticated user has BOTH the
+    // auth cache populated AND `currentPlayerEmail` set by the time
+    // GuestProgressMount runs (useCloudSaveSync's setCurrentPlayerEmail
+    // effect fires before bindGuestPersistenceOnce). Boot recovery must
+    // skip, AND the writer subscription must skip on commits because the
+    // email gate evaluates non-null.
+    storage.setItem(
+      "spacepotatis:auth",
+      JSON.stringify({ v: 1, status: "authenticated", handle: "TestPilot", hasSave: true })
+    );
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        v: 1,
+        savedAtMs: Date.now(),
+        snapshot: { credits: 999 }
+      })
+    );
+    setCurrentPlayerEmail("returning@example.com");
+    const unbind = bindGuestPersistenceOnce();
+    // Authenticated user plays — every commit goes through saveQueue, NOT
+    // the guest cache. The cache must remain at the seeded 999.
+    addCredits(50);
+    expect(readGuestSnapshot()?.credits).toBe(999);
+    unbind();
+  });
+});
+
+describe("bindGuestPersistenceOnce — cross-tab sync", () => {
+  function dispatchStorageEvent(key: string, newValue: string | null): void {
+    const w = globalThis as unknown as { dispatchEvent?: (e: { type: string }) => boolean };
+    w.dispatchEvent?.({ type: "storage", key, newValue } as unknown as { type: string });
+  }
+
+  it("a storage event from another tab hydrates this tab's GameState", () => {
+    setCurrentPlayerEmail(null);
+    const unbind = bindGuestPersistenceOnce();
+    // Simulate Tab B writing a fresh envelope and dispatching a storage
+    // event into Tab A (the one running the test).
+    const fresh = JSON.stringify({
+      v: 1,
+      savedAtMs: Date.now(),
+      snapshot: {
+        credits: 777,
+        completedMissions: [],
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        ship: {
+          slots: [],
+          inventory: [],
+          augmentInventory: [],
+          shieldLevel: 0,
+          armorLevel: 0,
+          reactor: { capacityLevel: 0, rechargeLevel: 0 }
+        },
+        saveSlot: 1,
+        currentSolarSystemId: "tutorial",
+        unlockedSolarSystems: ["tutorial"],
+        seenStoryEntries: []
+      }
+    });
+    storage.setItem(STORAGE_KEY, fresh);
+    dispatchStorageEvent(STORAGE_KEY, fresh);
+    // GameState should reflect the cross-tab write — and the writer must
+    // NOT have ping-ponged a re-write back into the cache (suppressed
+    // during the cross-tab hydrate).
+    expect(getState().credits).toBe(777);
+    // Storage still has the original sibling write — same envelope, same
+    // savedAtMs. If the writer had fired despite suppression, savedAtMs
+    // would have advanced; we don't assert that here because Date.now is
+    // mocked at test boundaries and the structural equality is enough.
+    expect(readGuestSnapshot()?.credits).toBe(777);
+    unbind();
+  });
+
+  it("ignores a sibling-tab clear (newValue=null) instead of resetting GameState", () => {
+    setCurrentPlayerEmail(null);
+    const unbind = bindGuestPersistenceOnce();
+    addCredits(150); // local progress in this tab — also writes to cache
+    // Sibling tab clears the cache (e.g. they just signed in and consumed
+    // the snapshot via the claim path).
+    storage.removeItem(STORAGE_KEY);
+    dispatchStorageEvent(STORAGE_KEY, null);
+    // This tab's in-memory progress is unaffected — sibling's clear is
+    // about THEIR session, not ours. The cache is empty, but our state
+    // still reads 150.
+    expect(getState().credits).toBe(150);
+    expect(readGuestSnapshot()).toBeNull();
+    unbind();
+  });
+
+  it("storage events for unrelated keys are ignored", () => {
+    setCurrentPlayerEmail(null);
+    const unbind = bindGuestPersistenceOnce();
+    addCredits(50);
+    const beforeCredits = readGuestSnapshot()?.credits ?? null;
+    // An unrelated key firing a storage event must NOT re-hydrate or
+    // trigger any guest-cache logic.
+    dispatchStorageEvent("spacepotatis:auth", '{"v":1,"status":"authenticated"}');
+    const afterCredits = readGuestSnapshot()?.credits ?? null;
+    expect(afterCredits).toBe(beforeCredits);
+    expect(getState().credits).toBe(50);
+    unbind();
+  });
+});
+
+describe("bindGuestPersistenceOnce — reference counting", () => {
+  it("two callers share a single subscription; only the last cleanup unbinds", () => {
+    setCurrentPlayerEmail(null);
+    const unbindA = bindGuestPersistenceOnce();
+    const unbindB = bindGuestPersistenceOnce();
+    addCredits(10);
+    expect(readGuestSnapshot()?.credits).toBe(10);
+    // First cleanup decrements; subscription stays alive.
+    unbindA();
+    addCredits(5);
+    expect(readGuestSnapshot()?.credits).toBe(15);
+    // Last cleanup detaches the writer.
+    unbindB();
+    addCredits(20);
+    // After the final unbind, the writer no longer fires — the previous
+    // value (15) persists in the cache.
+    expect(readGuestSnapshot()?.credits).toBe(15);
   });
 });
