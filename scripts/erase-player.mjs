@@ -70,21 +70,48 @@ const BACKUP_DIR = path.resolve(import.meta.dirname, "../db-backups");
 // The backupDir default ("./db-backups") is overridden below to the absolute
 // BACKUP_DIR so the snapshot lands in a stable location regardless of cwd.
 function parseEraseFlags(argv) {
-  // parseFlags from dbWriteSafety reads the first non-flag token as email
-  // and also handles --confirm / --dry-run / --backup-dir. We layer the
-  // --player-email cross-check on top.
-  const baseFlags = parseFlags(argv);
+  // parseFlags from dbWriteSafety reads the first non-flag token as email and
+  // handles --confirm / --dry-run / --backup-dir. It exits(1) on unknown args,
+  // so strip --player-email= BEFORE delegating, then re-scan the original argv
+  // for it. Without this strip step the shared helper would refuse the cross-
+  // check flag entirely and the script would never reach apply mode.
+  const filtered = argv.filter((arg) => !arg.startsWith("--player-email="));
+  const baseFlags = parseFlags(filtered);
   const flags = { ...baseFlags, playerEmail: null, backupDir: BACKUP_DIR };
 
-  // Re-scan for --player-email=<email> which dbWriteSafety doesn't know.
-  const args = argv.slice(2);
-  for (const arg of args) {
+  for (const arg of argv) {
     if (arg.startsWith("--player-email=")) {
       flags.playerEmail = arg.slice("--player-email=".length);
     }
   }
 
   return flags;
+}
+
+// Pure gate logic — extracted from main() so tests can verify the cross-check
+// without spinning up a DB. Returns { ok: true } when the flags are valid for
+// the current mode, or { ok: false, reason, message } when --confirm requires
+// the --player-email cross-check and one of the gates fails.
+function validateEraseFlags(flags) {
+  // Dry-run: no cross-check required (the harness prints the plan and exits).
+  if (!flags.confirm || flags.dryRun) return { ok: true };
+
+  if (!flags.playerEmail) {
+    return {
+      ok: false,
+      reason: "missing-cross-check",
+      message:
+        "refusing: --confirm requires --player-email=<email> matching the positional email.",
+    };
+  }
+  if (flags.playerEmail !== flags.email) {
+    return {
+      ok: false,
+      reason: "email-mismatch",
+      message: `refusing: --player-email (${flags.playerEmail}) does not match positional email (${flags.email}).`,
+    };
+  }
+  return { ok: true };
 }
 
 async function main() {
@@ -110,23 +137,15 @@ async function main() {
     "           (cascades to save_games, leaderboard, save_audit)",
   );
 
-  if (flags.confirm && !flags.dryRun) {
-    // --confirm mode: require the cross-check flag
-    if (!flags.playerEmail) {
-      console.error(
-        "\nrefusing: --confirm requires --player-email=<email> matching the positional email.",
-      );
+  const gate = validateEraseFlags(flags);
+  if (!gate.ok) {
+    console.error(`\n${gate.message}`);
+    if (gate.reason === "missing-cross-check") {
       console.error(
         "This cross-check exists to catch typos — re-invoke with both flags set to the same address.",
       );
-      process.exit(2);
     }
-    if (flags.playerEmail !== flags.email) {
-      console.error(
-        `\nrefusing: --player-email (${flags.playerEmail}) does not match positional email (${flags.email}).`,
-      );
-      process.exit(2);
-    }
+    process.exit(2);
   }
 
   const dbUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
@@ -228,6 +247,29 @@ async function main() {
       );
       const txSaveRow = txSaveRes.rows[0] ?? null;
 
+      // Snapshot the FULL leaderboard + save_audit rows (not just counts)
+      // before deletion so the backup is a complete recoverability artefact.
+      // Counts alone don't let an operator restore an accidental erasure;
+      // full row dumps do. Keep these reads inside the same transaction so
+      // the backup is consistent with the row that actually gets DELETEd.
+      const [txLbRes, txAuditRes] = await Promise.all([
+        client.query(
+          `SELECT id, mission_id, score, time_seconds, created_at
+           FROM spacepotatis.leaderboard WHERE player_id = $1
+           ORDER BY created_at`,
+          [lockedPlayer.id],
+        ),
+        client.query(
+          `SELECT id, slot, request_payload, response_status, response_error,
+                  prev_snapshot, request_ip, user_agent, created_at
+           FROM spacepotatis.save_audit WHERE player_id = $1
+           ORDER BY created_at`,
+          [lockedPlayer.id],
+        ),
+      ]);
+      const txLbRows = txLbRes.rows;
+      const txAuditRows = txAuditRes.rows;
+
       // Write the backup BEFORE deleting. If writeBackup throws (disk full,
       // permission denied), ROLLBACK and refuse to delete — the backup is the
       // recoverability contract.
@@ -236,13 +278,16 @@ async function main() {
           prevRow: {
             player: { ...lockedPlayer },
             save_games: txSaveRow,
-            leaderboard_count: lbCount,
-            save_audit_count: auditCount,
+            leaderboard: txLbRows,
+            save_audit: txAuditRows,
           },
           scriptName: "erase-player",
           flags: { email: flags.email, backupDir: flags.backupDir },
         });
         console.log(`\nprevRow snapshot: ${backupPath}`);
+        console.log(
+          `  (includes player + save_games + ${txLbRows.length} leaderboard rows + ${txAuditRows.length} save_audit rows)`,
+        );
       } catch (backupErr) {
         await client.query("ROLLBACK");
         txOpen = false;
@@ -315,4 +360,4 @@ if (isEntryPoint) {
   });
 }
 
-export { parseEraseFlags };
+export { parseEraseFlags, validateEraseFlags };

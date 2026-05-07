@@ -28,6 +28,8 @@ Before running the erasure script:
 
 3. **Print or screenshot the current save row before deletion.** The dry-run step below prints the `save_games` row. Screenshot the terminal output before running `--confirm`. This screenshot is the support-side audit trail for "what existed before we deleted it."
 
+4. **First-time use: validate the script in dev/staging first.** This script will eventually be run against prod. The first time you use it, run it end-to-end against a test player on a non-prod database to confirm the harness works on your environment (DATABASE_URL points where you expect, `db-backups/` is writable, the cascade scopes look right). Cost: ~5 minutes. Worth it once.
+
 ## Running the erasure
 
 ### Step 1 — dry run (mandatory before every apply)
@@ -57,9 +59,10 @@ What the script does in apply mode:
 1. Opens a `BEGIN` transaction.
 2. Reads the `players` row with `SELECT … FOR UPDATE` (blocks concurrent save POSTs from racing the delete).
 3. Re-reads the `save_games` row under `FOR UPDATE` inside the transaction.
-4. Calls `writeBackup()` to write a timestamped JSON snapshot of the player's data to `db-backups/` (see §Backup retention below). If the backup write fails, the script rolls back and exits non-zero — **the backup is the recoverability contract**.
-5. Issues `DELETE FROM spacepotatis.players WHERE id = $1` — the cascade handles child rows.
-6. Commits.
+4. Reads the **full** `leaderboard` and `save_audit` rows for the player (not just counts) inside the same transaction.
+5. Calls `writeBackup()` to write a timestamped JSON snapshot of the player's data to `db-backups/` (see §Backup retention below). If the backup write fails, the script rolls back and exits non-zero — **the backup is the recoverability contract**.
+6. Issues `DELETE FROM spacepotatis.players WHERE id = $1` — the cascade handles child rows.
+7. Commits.
 
 ### Step 3 — cascade verification
 
@@ -92,7 +95,10 @@ db-backups/erase-player_<email>_<timestamp>.json
 The backup captures:
 - The `players` row (id, email, name, created_at).
 - The `save_games` row (all fields, at the moment the transaction locked the row).
-- Counts of `leaderboard` and `save_audit` rows that cascaded.
+- **All** `leaderboard` rows for the player (id, mission_id, score, time_seconds, created_at).
+- **All** `save_audit` rows for the player (id, slot, request_payload, response_status, response_error, prev_snapshot, request_ip, user_agent, created_at).
+
+The full row dumps mean an accidental erasure can be reconstructed end-to-end from the backup file — counts alone wouldn't allow that. If the player's request comes in legitimately and the erasure is intentional, this just means the support-side audit trail is complete.
 
 Keep the backup for at least 90 days (matching the GDPR response window + a reasonable dispute window). The `db-backups/` directory is gitignored; it is not automatically retained. Copy the file to the support ticket if you need to document "what was deleted."
 
