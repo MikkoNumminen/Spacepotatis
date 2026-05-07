@@ -36,3 +36,34 @@ This file is the bin for non-security issues that the security audit observed bu
 **Proposed fix shape** (when needed): add `deriveUnlockedSolarSystems(prevCompletedMissions, submittedCompletedMissions)` to `src/lib/saveValidation.ts`, mirroring `deriveCapInputMissions`. Update SEC-027's check to compare `currentSolarSystemId` against the derived list.
 
 **Severity**: informational while `unlocked_solar_systems` stays client-derived. Promote if the field gets persisted server-side.
+
+## Phase 5 close — observations logged-not-fixed (2026-05-07)
+
+These items were observed by the Phase 5 verification cells but are not in scope for fix during the current audit cycle. Surfaced here so the next `/security-audit` Phase 1 picks them up automatically.
+
+### NSC-002 — Minor line-drift in `docs/security/invariants.md` citations (2026-05-07)
+
+- **Where spotted:** `docs/security/invariants.md` (multiple INV-XXX entries). Examples:
+  - INV-LB-1 cites `route.ts:59-62` and `saveValidation.ts:555` and `schemas/save.ts:500, 504`; current code is at +1–3 lines past those references.
+  - INV-SAVE-8 cites `route.ts:510-525`; the `clientError` derivation now sits at lines 526-527.
+  - INV-SAVE-2/3/4/5/6/7 each drift +1 to +7 lines.
+- **What:** the file:line citations in the invariants doc are off by 1–7 lines from current master. The doc's preamble explicitly disclaims this: *"line numbers drift across refactors, so the line range is a hint to where to look, not a contract."*
+- **Why it isn't a security finding:** the rules and impact statements are correct; only the line-number hints are slightly stale. A reader following the doc still arrives at the right code.
+- **Recommended action:** one-shot refresh pass on the next maintenance cycle. Mechanical work — could be a Sonnet agent reading each invariant, locating the current file:line, updating the entry. Bonus: adds a small `tests/security/invariantsLineDrift.test.ts` that grep-checks every cited file:line against the current code (would surface drift automatically).
+- **Status:** open (logged 2026-05-07).
+
+### NSC-003 — SEC-015 (Actions SHA pinning) lacks a regression test (2026-05-07)
+
+- **Where spotted:** `tests/security/` directory listing — every other Phase 3 fix has a regression test; SEC-015 relies on PR review only.
+- **What:** the SEC-015 fix pins `actions/checkout`, `actions/setup-node`, `actions/upload-artifact` to commit SHAs in both workflows. Drift to `@vN` mutable tags would not surface in CI.
+- **Why it isn't a security finding:** the fix is correctly applied today; the gap is regression-coverage, not a vulnerability.
+- **Recommended action:** add `tests/security/actionsShaPinning.test.ts` that reads each `.github/workflows/*.yml`, finds every `uses:` line, and asserts the `@<ref>` portion matches `^[a-f0-9]{40}$`. Closes the gap mechanically.
+- **Status:** open (logged 2026-05-07).
+
+### NSC-004 — SEC-008 (next-auth bump) hygiene-class without dedicated test (2026-05-07)
+
+- **Where spotted:** `tests/security/` — no dedicated SEC-008 regression test.
+- **What:** SEC-008 was a dependency-version bump. Coverage is via `npm audit` + the existing auth tests. The next-auth → next-auth bump pattern doesn't lend itself naturally to a per-PR regression test.
+- **Why it isn't a security finding:** by design — version bumps verified by audit-tool output rather than per-fix unit tests.
+- **Recommended action:** none required. Logged for inventory completeness so a future audit doesn't add it as a "gap".
+- **Status:** risk-accepted (logged 2026-05-07).

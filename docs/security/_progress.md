@@ -394,3 +394,17 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: none
 - Tests / typecheck / build / lint: green (doc-only commit)
 - PR: pending push (bundled with SEC-010)
+
+### Phase 4 — AI-first documentation pass (status: complete)
+- Started: 2026-05-07
+- Completed: 2026-05-07
+- Artifact: SECURITY.md (root) + docs/security/threat-model.md + docs/security/invariants.md + 9 per-module SECURITY.md + CLAUDE.md §18 + 14 code markers + ESLint rules + CI security step + docs/security/03-documentation-summary.md
+- PR: #201
+- Notes: 24 files, +2099/-0 lines. Zero logic changes. AI-readability self-test PASS on saveValidation.ts + save/route.ts.
+
+### Phase 5 — Final verification (status: complete)
+- Started: 2026-05-07
+- Completed: 2026-05-07
+- Artifact: docs/security/05-final-report.md
+- PR: pending push
+- Notes: 3 parallel security-auditor cells re-walked the audit surface against master 6428cd6. All 22 actionable findings confirmed fixed; no new findings introduced; minor invariants line-drift logged within doc tolerance. Audit cycle closed.
