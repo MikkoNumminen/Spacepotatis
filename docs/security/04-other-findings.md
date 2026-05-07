@@ -58,7 +58,9 @@ These items were observed by the Phase 5 verification cells but are not in scope
 - **What:** the SEC-015 fix pins `actions/checkout`, `actions/setup-node`, `actions/upload-artifact` to commit SHAs in both workflows. Drift to `@vN` mutable tags would not surface in CI.
 - **Why it isn't a security finding:** the fix is correctly applied today; the gap is regression-coverage, not a vulnerability.
 - **Recommended action:** add `tests/security/actionsShaPinning.test.ts` that reads each `.github/workflows/*.yml`, finds every `uses:` line, and asserts the `@<ref>` portion matches `^[a-f0-9]{40}$`. Closes the gap mechanically.
-- **Status:** open (logged 2026-05-07).
+- **Status:** resolved (Cell C false-positive — test exists at `src/__tests__/actionsShaPinning.test.ts`).
+
+The finding was a false-positive from Phase 5 verification. Cell C searched only the `tests/security/` directory and concluded no regression test existed. The test was already present at `src/__tests__/actionsShaPinning.test.ts` (in master since PR #177). It lives under `src/__tests__/` rather than `tests/security/` because it exercises repo-root workflow files rather than application code — the same convention used for other repo-level checks in that directory. The test reads every `.github/workflows/*.yml`, finds every `uses:` line, and asserts the SHA-pin pattern, which is exactly the gap NSC-003 described. No new test is needed; the entry is retained here so future audits see the investigation trail.
 
 ### NSC-004 — SEC-008 (next-auth bump) hygiene-class without dedicated test (2026-05-07)
 

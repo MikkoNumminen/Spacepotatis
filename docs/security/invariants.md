@@ -77,8 +77,8 @@ and the impact only.
   `validateCreditsDelta`, the SEC-027 unlock check), and the upsert
   execute inside one `db.transaction().execute(async (trx) => { … })`,
   with `.forUpdate()` on the SELECT. The row lock is held until COMMIT.
-- **Where:** `src/app/api/save/route.ts:247-490` (transaction body),
-  with `.forUpdate()` at line ~263.
+- **Where:** `src/app/api/save/route.ts:250-494` (transaction body),
+  with `.forUpdate()` at line 266.
 - **Impact:** without the transaction, two tabs (or a malicious local
   script firing parallel POSTs) each read the same pre-write baseline,
   and one tab's stale `completedMissions` payload can overwrite the
@@ -93,10 +93,10 @@ and the impact only.
   `src/lib/saveValidation.ts` stay pure (no I/O, no module-level mutation
   of catalog data). They run inside the save POST transaction. The
   client never gates on them.
-- **Where:** `src/lib/saveValidation.ts:302` (`validateMissionGraph`),
-  `src/lib/saveValidation.ts:482` (`validateNoRegression`),
-  `src/lib/saveValidation.ts:409` (`validatePlaytimeDelta`),
-  `src/lib/saveValidation.ts:358` (`validateCreditsDelta`).
+- **Where:** `src/lib/saveValidation.ts:303` (`validateMissionGraph`),
+  `src/lib/saveValidation.ts:484` (`validateNoRegression`),
+  `src/lib/saveValidation.ts:410` (`validatePlaytimeDelta`),
+  `src/lib/saveValidation.ts:359` (`validateCreditsDelta`).
 - **Impact:** if any of these guards is removed, weakened, or moved to
   the client, every cheat scenario in `docs/security/threat-model.md` §A4
   re-opens. The 2026-05-02 wipe was exactly this class of regression.
@@ -109,7 +109,7 @@ and the impact only.
   `completedMissions`, `unlockedPlanets`, or `playedTimeSeconds` shrinks
   relative to the FOR-UPDATE-locked prev row. Credits are intentionally
   NOT guarded — market spend is a legitimate down-delta.
-- **Where:** `src/lib/saveValidation.ts:482-517`.
+- **Where:** `src/lib/saveValidation.ts:484-519`.
 - **Impact:** removing the guard re-opens the 2026-05-02 wipe pattern
   (POSTing INITIAL_STATE on top of a real save). Adding credits to the
   guarded set would 422 every legitimate shop purchase. The asymmetry
@@ -125,8 +125,8 @@ and the impact only.
   the trusted set when ALL of its `requires` are already in the trusted
   set — the unlock chain must be grounded in the previously-stored row,
   not bootstrapped inside the same request.
-- **Where:** `src/lib/saveValidation.ts:225` (`deriveCapInputMissions`);
-  call site at `src/app/api/save/route.ts:393`.
+- **Where:** `src/lib/saveValidation.ts:226` (`deriveCapInputMissions`);
+  call site at `src/app/api/save/route.ts:397`.
 - **Impact:** without this indirection, an attacker could submit a
   mission with `requires: []` in the same POST that requests inflated
   credits, and the cap would expand on the same request. Today's content
@@ -143,7 +143,7 @@ and the impact only.
   shape-not-state mismatches; if `unlocked_solar_systems` ever gets
   persisted server-side, the check should switch to a server-derived
   trusted set (see `04-other-findings.md` SEC-027 follow-up).
-- **Where:** `src/app/api/save/route.ts:423-446`.
+- **Where:** `src/app/api/save/route.ts:431-450`.
 - **Findings:** SEC-027.
 
 ### INV-SAVE-6 — `save_audit.request_payload` is capped at 64 KB before insert
@@ -151,8 +151,8 @@ and the impact only.
 - **Rule:** `writeSaveAudit` in `src/app/api/save/route.ts` JSON-
   serializes the request payload, and on overflow stores
   `{truncated: true, size: <n>}` instead of the original body.
-- **Where:** `src/app/api/save/route.ts:73` (`AUDIT_PAYLOAD_BYTE_CAP`),
-  ~line 99-115 (the truncation logic inside `writeSaveAudit`).
+- **Where:** `src/app/api/save/route.ts:74` (`AUDIT_PAYLOAD_BYTE_CAP`),
+  ~line 106-116 (the truncation logic inside `writeSaveAudit`).
 - **Impact:** without the cap, an authenticated attacker can POST a
   4 MB body and amplify it into 4 MB of Neon storage per request — a
   storage-DoS amplifier. The Zod schema's `.max()` caps on
@@ -166,8 +166,8 @@ and the impact only.
 - **Rule:** `writeSaveAudit` is called AFTER the transaction commits
   / rolls back. The `writeSaveAudit` body itself catches every error and
   logs it via `console.error` — it never re-throws.
-- **Where:** `src/app/api/save/route.ts:87-135` (`writeSaveAudit`
-  function); call sites after the transaction at lines ~496-547.
+- **Where:** `src/app/api/save/route.ts:88-136` (`writeSaveAudit`
+  function); call sites after the transaction at lines ~500-551.
 - **Impact:** without the outside-transaction placement, a Neon
   outage on `save_audit` could roll back the user-visible save —
   the audit is for diagnostics, not the critical path.
@@ -181,7 +181,7 @@ and the impact only.
   single opaque `save_rejected`. The exception is `save_regression`,
   which stays distinct because `saveQueue.ts:isPermanent()` treats it
   as TRANSIENT.
-- **Where:** `src/app/api/save/route.ts` (~line 510-525, the
+- **Where:** `src/app/api/save/route.ts` (~line 526-527, the
   `clientError` derivation).
 - **Impact:** keeping the specific code in the response body would
   expose the validator-ordering side-channel (an attacker can see
@@ -201,10 +201,10 @@ and the impact only.
   above it with 422 `score_implausible`. The `ScorePayloadSchema` Zod
   cap (`SCORE_SANITY_CAP = 10_000_000`) is the first-layer defense for
   obviously-fabricated values; `maxLegitScore` is the per-mission cap.
-- **Where:** `src/app/api/leaderboard/route.ts:59-62` (cap check);
-  `src/lib/saveValidation.ts:555` (`maxLegitScore`);
-  `src/lib/schemas/save.ts:500` (`SCORE_SANITY_CAP`),
-  `src/lib/schemas/save.ts:504` (`.max(SCORE_SANITY_CAP)`).
+- **Where:** `src/app/api/leaderboard/route.ts:60-63` (cap check);
+  `src/lib/saveValidation.ts:558` (`maxLegitScore`);
+  `src/lib/schemas/save.ts:501` (`SCORE_SANITY_CAP`),
+  `src/lib/schemas/save.ts:505` (`.max(SCORE_SANITY_CAP)`).
 - **Impact:** without the cap, an attacker can post `Number.MAX_SAFE_
   INTEGER` and take over the leaderboard.
 - **Findings:** SEC-014.
@@ -215,7 +215,7 @@ and the impact only.
   `completed_missions` from `save_games` (server-trusted) and rejects
   with 422 `mission_not_completed` when the submitted `missionId` is
   not in the list.
-- **Where:** `src/app/api/leaderboard/route.ts:72-92`.
+- **Where:** `src/app/api/leaderboard/route.ts:74-93`.
 - **Impact:** without this, an authenticated attacker can post scores
   for any mission, including ones they have not played.
 - **Findings:** baseline of Phase 1 §3 (Authorization).
@@ -242,8 +242,8 @@ and the impact only.
   `POST /api/handle` each call `<Schema>.safeParse(raw)` BEFORE
   computing `playerId`, BEFORE any DB read, BEFORE any DB write. There
   are no `as` casts at the network edge for parsed bodies.
-- **Where:** `src/app/api/save/route.ts:162` (`SavePayloadSchema`),
-  `src/app/api/leaderboard/route.ts:50` (`ScorePayloadSchema`),
+- **Where:** `src/app/api/save/route.ts:164` (`SavePayloadSchema`),
+  `src/app/api/leaderboard/route.ts:51` (`ScorePayloadSchema`),
   `src/app/api/handle/route.ts` (`HandlePayloadSchema`).
 - **Impact:** removing the parse re-opens every input-validation
   finding (SEC-011, SEC-014, SEC-016, SEC-022) and the structural
@@ -300,9 +300,9 @@ and the impact only.
   Email)` which returns null when the stamp does not match the
   current session — the slot is left in place (a sign-in to the
   original account would still flush it).
-- **Where:** `src/game/state/saveQueue.ts:82-93` (interface),
-  `src/game/state/saveQueue.ts:165-175` (`readPendingForPlayer`),
-  `src/game/state/saveQueue.ts:198-213` (`markSavePending`).
+- **Where:** `src/game/state/saveQueue.ts:83-94` (interface),
+  `src/game/state/saveQueue.ts:170-176` (`readPendingForPlayer`),
+  `src/game/state/saveQueue.ts:199-214` (`markSavePending`).
 - **Impact:** without the stamp, a sign-out → sign-in by another
   account on the same browser would hydrate the new session with the
   prior account's snapshot and POST it as the new account — the
@@ -340,9 +340,9 @@ and the impact only.
   transaction ROLLBACKs and the script exits non-zero — the backup is
   the recoverability contract.
 - **Where:** `scripts/_lib/dbWriteSafety.mjs:100` (the helper);
-  `scripts/restore-player.mjs:406` (call site),
-  `scripts/improve-restore.mjs:172` (call site),
-  `scripts/erase-player.mjs:277` (call site).
+  `scripts/restore-player.mjs:407` (call site),
+  `scripts/improve-restore.mjs:173` (call site),
+  `scripts/erase-player.mjs:278` (call site).
 - **Impact:** the 2026-05-02 wipe taught us that direct DB writes are
   the highest-risk operations in this codebase. Without
   `writeBackup`, a misfired script destroys progression irreversibly.
@@ -459,7 +459,7 @@ and the impact only.
   player's `playerId` (UUID) rather than `session.user.email`. The
   forensic mapping from UUID to email is the `players` table; the
   audit log uses `player_id` too.
-- **Where:** `src/app/api/save/route.ts:285-446` (the four
+- **Where:** `src/app/api/save/route.ts:288-450` (the four
   rejection branches inside the transaction).
 - **Impact:** Vercel function logs have ~3-7 day retention and are
   accessible via the dashboard. Email addresses are PII under EU/UK
@@ -472,9 +472,9 @@ and the impact only.
   `/api/handle` return `{ error: "server_error" }` — never the raw
   `err.message`. Server-side `console.error` keeps the full error
   for ops forensics.
-- **Where:** `src/app/api/save/route.ts:62, 209, 505`,
+- **Where:** `src/app/api/save/route.ts:62, 211, 509`,
   `src/app/api/handle/route.ts` (5xx branches),
-  `src/app/api/leaderboard/route.ts:33, 110`.
+  `src/app/api/leaderboard/route.ts:34, 112`.
 - **Impact:** Kysely / Neon error messages can leak SQL fragments,
   table names, and internal column names — fingerprinting the
   schema and aiding follow-up attacks.
