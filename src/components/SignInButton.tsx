@@ -17,7 +17,12 @@ import { BUTTON_NAV } from "./ui/buttonClasses";
 // GDPR, etc.) will hang off the same trigger; sign-out and switch-account
 // stay here on the landing page so the player can't trigger a destructive
 // account change mid-mission.
-export default function SignInButton({ compact = false }: { compact?: boolean }) {
+//
+// (Earlier iterations had a `compact` prop for HUD-bar use. It was never
+// actually mounted with compact=true; a future tight-layout caller should
+// add a dedicated, well-tested variant rather than re-introducing the
+// untested code path.)
+export default function SignInButton() {
   const { status, handle, firstVisit } = useOptimisticAuth();
 
   // Shared scrub-this-device cleanup. Both sign-out and switch-account end
@@ -57,11 +62,19 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
   // own cleanup is the matching server-side guard — hydrationCompleted
   // resets to false so the new account's loadSave verifies before any
   // saveNow can POST.
+  //
+  // .finally(...) so the signIn fires regardless of signOut outcome. The
+  // user clicked "switch", not "sign out" — leaving them stuck signed-out
+  // because of a transient signOut failure (CSRF blip, network hiccup) is
+  // a worse UX than re-running OAuth and letting Google reconcile session
+  // state. signOut errors are surfaced via the original Promise's
+  // rejection, which `void` swallows — same behavior we already accept
+  // for the regular sign-out flow.
   function handleSwitchAccount() {
     scrubLocalAccountState();
-    void signOut({ redirect: false }).then(() =>
-      signIn("google", { callbackUrl: "/play" }, { prompt: "select_account" })
-    );
+    void signOut({ redirect: false }).finally(() => {
+      void signIn("google", { callbackUrl: "/play" }, { prompt: "select_account" });
+    });
   }
 
   // Only show the loading placeholder on a true first visit. Returning
@@ -72,24 +85,20 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
 
   if (status === "authenticated") {
     const label = handle ?? "Pilot";
-    // Non-compact variant lives in the landing nav and must match the
-    // BUTTON_NAV box (px-8 py-3 text-sm, block w-full text-center) so it
-    // sits flush with PLAY/CONTINUE and Leaderboard. Hover stays red so
-    // the destructive sign-out affordance reads distinctly from the rest.
+    // Sits in the landing nav and matches the BUTTON_NAV box (px-8 py-3
+    // text-sm, block w-full text-center) so it lines up with PLAY /
+    // CONTINUE / Leaderboard. Hover stays red so the destructive sign-out
+    // affordance reads distinctly from the rest.
     //
-    // The switch-account button is rendered as a smaller secondary
-    // affordance below sign-out — discoverable but visually subordinate
-    // so it doesn't compete with PLAY for attention.
+    // The switch-account button below is a smaller secondary affordance —
+    // discoverable but visually subordinate so it doesn't compete with
+    // PLAY for attention.
     return (
-      <div className={compact ? "flex items-center gap-2" : "flex w-full flex-col gap-2"}>
+      <div className="flex w-full flex-col gap-2">
         <button
           type="button"
           onClick={handleSignOut}
-          className={`touch-manipulation select-none rounded border border-hud-amber/40 ${
-            compact
-              ? "px-2 py-1 text-xs"
-              : "flex h-12 w-full items-center justify-center px-8 text-sm"
-          } text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red active:border-hud-red/80 active:text-hud-red`}
+          className="flex h-12 w-full touch-manipulation select-none items-center justify-center rounded border border-hud-amber/40 px-8 text-sm text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red active:border-hud-red/80 active:text-hud-red"
           title="Sign out"
         >
           {label} · sign out
@@ -97,11 +106,7 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
         <button
           type="button"
           onClick={handleSwitchAccount}
-          className={`touch-manipulation select-none rounded border border-space-border ${
-            compact
-              ? "px-2 py-1 text-[11px]"
-              : "flex h-9 w-full items-center justify-center px-8 text-xs"
-          } text-hud-green/70 hover:border-hud-green/40 hover:text-hud-green active:border-hud-green/60`}
+          className="flex h-9 w-full touch-manipulation select-none items-center justify-center rounded border border-space-border px-8 text-xs text-hud-green/70 hover:border-hud-green/40 hover:text-hud-green active:border-hud-green/60"
           title="Switch to a different Google account"
         >
           Switch account
@@ -110,18 +115,13 @@ export default function SignInButton({ compact = false }: { compact?: boolean })
     );
   }
 
-  // Sign-in (unauthenticated). Compact variant uses tighter padding for
-  // HUD bars; the default uses BUTTON_NAV so it matches the rest of the
-  // landing-page nav column.
+  // Sign-in (unauthenticated). Matches the rest of the landing-page nav
+  // column via BUTTON_NAV.
   return (
     <button
       type="button"
       onClick={() => void signIn("google")}
-      className={
-        compact
-          ? "touch-manipulation select-none rounded border border-hud-green/60 px-2 py-1 text-xs hover:bg-space-panel active:bg-space-panel/80"
-          : BUTTON_NAV
-      }
+      className={BUTTON_NAV}
     >
       Sign in with Google
     </button>
