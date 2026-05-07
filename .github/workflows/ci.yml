@@ -34,6 +34,15 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # Security regression tests are also exercised by `npm test` above (the
+      # `tests/security/` suite is part of the default vitest collection), but
+      # this dedicated step re-runs them on their own so a Phase-3 regression
+      # surfaces as a clearly-named failed check ("Security regression tests
+      # failed") in the PR review UI rather than buried in the 1300+ lines of
+      # general vitest output. Adding a NEW finding with a regression test
+      # under tests/security/ is what keeps this gate honest.
+      - name: Security regression tests
+        run: npx vitest run tests/security/
       - name: Build (with first-load JS summary)
         run: |
           set -o pipefail
