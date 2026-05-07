@@ -43,11 +43,17 @@
 
 "use client";
 
+import { readAuthCache } from "@/lib/authCache";
 import { subscribe } from "./stateCore";
 import { hydrate, toSnapshot, type StateSnapshot } from "./persistence";
 import { getCurrentPlayerEmail } from "./syncCache";
 
-const STORAGE_KEY = "spacepotatis:guest-progress";
+// `:v1` suffix in the key matches the convention used by saveQueue's
+// `spacepotatis:pendingSave:v2`. Versioning the key (in addition to the
+// inner `v: 1` field) means a future shape break can nuke a whole version
+// atomically by removing the suffixed key, without risking a parser that
+// trips over a half-migrated envelope.
+const STORAGE_KEY = "spacepotatis:guest-progress:v1";
 const SCHEMA_VERSION = 1;
 
 interface GuestEnvelope {
@@ -119,6 +125,14 @@ export function clearGuestSnapshot(): void {
 // reload, or a stray double-render in dev) doesn't re-bind the writer
 // twice. The unsubscribe is idempotent — calling the returned cleanup more
 // than once is harmless.
+//
+// Dev note: React 18 StrictMode runs effects mount → cleanup → mount in
+// development. The cleanup flips `bound` back to false, so the second mount
+// re-runs boot recovery and re-subscribes. That's idempotent — the snapshot
+// it re-reads is the same one we just wrote, and `subscribe()` returns a
+// fresh callback registration. There's a marginal extra read/write per
+// mount in dev, but production never hits this path. Not worth a separate
+// "did we already boot-recover?" flag.
 let bound = false;
 
 // Idempotent boot-side wiring:
@@ -139,17 +153,14 @@ export function bindGuestPersistenceOnce(): () => void {
   // an anonymous session. The auth cache check avoids a flicker — a
   // returning authenticated user would briefly see anon progress before
   // server-loaded overwrites it.
+  //
+  // We delegate to authCache.readAuthCache rather than substring-sniffing the
+  // raw localStorage entry so this module isn't coupled to the auth cache's
+  // serialization format. authCache has zero runtime deps so the import cost
+  // is negligible.
   if (typeof window !== "undefined" && getCurrentPlayerEmail() === null) {
-    const cachedAuthRaw = (() => {
-      try {
-        return window.localStorage.getItem("spacepotatis:auth");
-      } catch {
-        return null;
-      }
-    })();
-    const looksAuthenticated =
-      typeof cachedAuthRaw === "string" && cachedAuthRaw.includes('"status":"authenticated"');
-    if (!looksAuthenticated) {
+    const authCached = readAuthCache();
+    if (authCached?.status !== "authenticated") {
       const cached = readGuestSnapshot();
       if (cached) hydrate(cached);
     }

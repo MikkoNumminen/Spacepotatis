@@ -877,7 +877,7 @@ describe("drainScoreQueue (via queueAwareSubmit fetch adapter)", () => {
 //   3. The claim only fires when the server has confirmed no row exists,
 //      so it can never destroy real data.
 describe("guest-progress claim on first-time sign-in", () => {
-  const GUEST_KEY = "spacepotatis:guest-progress";
+  const GUEST_KEY = "spacepotatis:guest-progress:v1";
 
   it("hydrates from the guest cache and queues for upload when the server has no row", async () => {
     // Prep: an anonymous play session left a guest snapshot behind.

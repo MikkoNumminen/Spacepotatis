@@ -10,7 +10,7 @@ import { addCredits, completeMission, resetForTests } from "./GameState";
 import { setCurrentPlayerEmail } from "./syncCache";
 import { installFakeLocalStorage, FakeStorage } from "../../__tests__/fakeStorage";
 
-const STORAGE_KEY = "spacepotatis:guest-progress";
+const STORAGE_KEY = "spacepotatis:guest-progress:v1";
 
 let storage: FakeStorage;
 
