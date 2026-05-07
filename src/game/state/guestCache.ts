@@ -207,6 +207,13 @@ export function bindGuestPersistenceOnce(): () => void {
   // cleanups were asymmetric (first binder owns teardown, others just
   // decrement), the first binder calling its cleanup early would leave the
   // teardown closure orphaned and the writer would leak past the final unbind.
+  //
+  // INVARIANT: `activeUnsubscribe` is set EXACTLY ONCE per binding cycle —
+  // when activeRefs transitions 0 → 1 — and nulled when refs return to 0.
+  // The closure relies on this monotonicity. Do NOT reassign
+  // `activeUnsubscribe` mid-cycle (e.g. via a hypothetical "rebind with new
+  // options" path) without rethinking the ref-count bookkeeping; an
+  // overlapping reassign would silently leak the previous teardown.
   const decrementAndMaybeUnsub = (): void => {
     activeRefs = Math.max(0, activeRefs - 1);
     if (activeRefs === 0 && activeUnsubscribe !== null) {
@@ -243,6 +250,18 @@ export function bindGuestPersistenceOnce(): () => void {
       // Storage events fire across tabs (NOT in the originating tab). We
       // mirror sibling-tab writes into our in-memory GameState so two
       // anonymous tabs stay coherent.
+      //
+      // We treat the event as ADVISORY — a "the cache may have changed"
+      // signal — and re-read storage via readGuestSnapshot rather than
+      // parsing `e.newValue` directly. Two reasons:
+      //   1. Storage events can be dispatched by browser extensions or
+      //      other JS on the page; the `newValue` they carry is untrusted.
+      //      readGuestSnapshot runs the structural validator, so a hostile
+      //      `newValue` that fakes the right key but bogus content gets
+      //      rejected on parse.
+      //   2. If the cache was further mutated between dispatch and the
+      //      handler firing (multi-tab burst), `e.newValue` is stale.
+      //      Storage is the single source of truth — re-read it.
       if (e.key !== STORAGE_KEY) return;
       if (getCurrentPlayerEmail() !== null) return; // not our concern once authenticated
       if (e.newValue === null) {
