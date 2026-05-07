@@ -213,6 +213,7 @@ None.
 - **Recommended fix:** Add `docs/RIGHT_TO_ERASURE.md` with: (a) the exact SQL the operator runs, (b) the safety steps (FOR UPDATE row-lock, `writeBackup()` of the player's row before deletion), (c) confirmation queries to verify cascade completion. Also add a per-player `scripts/erase-player.mjs` using `scripts/_lib/dbWriteSafety.mjs` with `--apply` gate, dry-run default, `--player-email=<email>` cross-check. Phase 3 may defer the script if the user prefers the doc-only path.
 - **Verification:** dry-run of `scripts/erase-player.mjs` against a test player on a local DB; confirm cascade leaves no orphans.
 - **Dependencies:** SEC-007 (sets the precedent of using `dbWriteSafety.mjs` for new scripts).
+- **Status:** fixed — activation requires the operator to use the runbook on first erasure request. `docs/RIGHT_TO_ERASURE.md` + `scripts/erase-player.mjs` ship with the `--confirm` gate; the CASCADE chain was already in place.
 
 ## Architectural findings (cannot be fixed in isolation)
 
