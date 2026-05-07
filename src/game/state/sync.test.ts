@@ -869,3 +869,171 @@ describe("drainScoreQueue (via queueAwareSubmit fetch adapter)", () => {
     expect(queue[0]?.missionId).toBe("combat-1");
   });
 });
+
+// First-time-sign-in claim path — see guestCache.ts. Three properties:
+//   1. Empty cloud + guest cache → claim (player keeps anonymous progress).
+//   2. Existing cloud save → cloud wins (NEVER overwritten); guest cache is
+//      cleared to defend against future first-time-sign-in inheritance.
+//   3. The claim only fires when the server has confirmed no row exists,
+//      so it can never destroy real data.
+describe("guest-progress claim on first-time sign-in", () => {
+  const GUEST_KEY = "spacepotatis:guest-progress";
+
+  it("hydrates from the guest cache and queues for upload when the server has no row", async () => {
+    // Prep: an anonymous play session left a guest snapshot behind.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      GUEST_KEY,
+      JSON.stringify({
+        v: 1,
+        savedAtMs: Date.now(),
+        snapshot: {
+          credits: 1234,
+          completedMissions: ["tutorial"],
+          unlockedPlanets: ["tutorial", "combat-1"],
+          playedTimeSeconds: 90,
+          ship: {
+            slots: [],
+            inventory: [],
+            augmentInventory: [],
+            shieldLevel: 0,
+            armorLevel: 0,
+            reactor: { capacityLevel: 0, rechargeLevel: 0 }
+          },
+          saveSlot: 1,
+          currentSolarSystemId: "tutorial",
+          unlockedSolarSystems: ["tutorial"],
+          seenStoryEntries: []
+        }
+      })
+    );
+    setCurrentPlayerEmail("newuser@example.com");
+    // Distinguish GET (which returns null = no save) from POST (the upload
+    // triggered by step 3's flushSaveQueue). Without this branch, the POST
+    // would also see the GET's "null" response, succeed, and the queue
+    // would be cleared before our assertions land.
+    fetchImpl.current = async (_url, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "POST") {
+        // Defer: respond never (Promise that won't resolve in this test).
+        // flushSaveQueue's in-flight machinery doesn't block loadSave.
+        return new Promise<Response>(() => undefined);
+      }
+      return new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+    };
+
+    const result = await loadSave();
+
+    // Result resolves to "pending-only" because the claim populated the
+    // saveQueue and step 2 of doLoadSave re-hydrated from it. From the
+    // UI's perspective this is just "loaded".
+    expect(["pending-only", "no-save"]).toContain(result.kind);
+    // GameState reflects the claimed guest data.
+    const s = getState();
+    expect(s.credits).toBe(1234);
+    expect(s.completedMissions).toContain("tutorial");
+    expect(s.playedTimeSeconds).toBe(90);
+    // Guest cache is consumed (one-shot claim).
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(GUEST_KEY)
+    ).toBeNull();
+    // The snapshot is queued for upload, stamped to the new account. The
+    // mock keeps the POST in-flight so the queue persists for the
+    // assertion; in production, flushSaveQueue clears the slot once the
+    // POST returns 2xx.
+    const queued = readPendingSaveForTest("newuser@example.com");
+    expect(queued).not.toBeNull();
+    expect(queued?.snapshot.credits).toBe(1234);
+    // And the upload IS attempted: a POST went out with the claimed data.
+    const savePost = fetchCalls.find(
+      (c) => c.input === "/api/save" && c.init?.method === "POST"
+    );
+    expect(savePost).toBeDefined();
+    const body = JSON.parse((savePost?.init?.body as string) ?? "{}");
+    expect(body.credits).toBe(1234);
+  });
+
+  it("does NOT overwrite an existing cloud save — server-loaded path wins", async () => {
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      GUEST_KEY,
+      JSON.stringify({
+        v: 1,
+        savedAtMs: Date.now(),
+        // Anonymous progress that should NOT be claimed because the user's
+        // account already has a real save on the server.
+        snapshot: { credits: 9999 }
+      })
+    );
+    setCurrentPlayerEmail("returning@example.com");
+    fetchImpl.current = async () =>
+      new Response(
+        JSON.stringify({
+          slot: 1,
+          credits: 500,
+          currentPlanet: null,
+          shipConfig: {
+            slots: [{ id: "rapid-fire", level: 1, augments: [] }],
+            inventory: [],
+            augmentInventory: [],
+            shieldLevel: 0,
+            armorLevel: 0,
+            reactor: { capacityLevel: 0, rechargeLevel: 0 }
+          },
+          completedMissions: ["tutorial"],
+          unlockedPlanets: ["tutorial"],
+          playedTimeSeconds: 30,
+          updatedAt: "2025-01-01T00:00:00.000Z"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+
+    const result = await loadSave();
+
+    expect(result.kind).toBe("server-loaded");
+    // Cloud wins, NOT the 9999-credit guest cache.
+    expect(getState().credits).toBe(500);
+    expect(getState().completedMissions).toEqual(["tutorial"]);
+    // Guest cache cleared so a future first-time sign-in on this browser
+    // can't inadvertently claim what was actually this user's anonymous
+    // play. (Cross-account leak defense.)
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(GUEST_KEY)
+    ).toBeNull();
+  });
+
+  it("returns kind=no-save unchanged when no guest cache is present", async () => {
+    setCurrentPlayerEmail("fresh@example.com");
+    fetchImpl.current = async () =>
+      new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+
+    const result = await loadSave();
+
+    expect(result.kind).toBe("no-save");
+    expect(getState().credits).toBe(0);
+    expect(readPendingSaveForTest("fresh@example.com")).toBeNull();
+  });
+
+  it("does not run the claim logic on a 401 anon load (no email to stamp the queue)", async () => {
+    // A guest cache exists; the user is browsing /play anonymously. A 401
+    // GET /api/save must NOT trigger the claim — there's no signed-in
+    // account to attach the progress to.
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      GUEST_KEY,
+      JSON.stringify({
+        v: 1,
+        savedAtMs: Date.now(),
+        snapshot: { credits: 7777 }
+      })
+    );
+    setCurrentPlayerEmail(null);
+    fetchImpl.current = async () => new Response(null, { status: 401 });
+
+    const result = await loadSave();
+
+    expect(result.kind).toBe("anon");
+    // Guest cache is left intact — the user hasn't signed in yet, so we
+    // have no destination to claim it to.
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(GUEST_KEY)
+    ).not.toBeNull();
+  });
+});
