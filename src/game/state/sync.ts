@@ -12,6 +12,7 @@
 // reach the network.
 
 import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
+import { clearGuestSnapshot, readGuestSnapshot } from "./guestCache";
 import { ROUTES } from "@/lib/routes";
 import {
   drainScoreQueue as drainQueueWith,
@@ -226,6 +227,25 @@ async function doLoadSave(): Promise<LoadResult> {
         // saveNow calls are creating the first save, not clobbering one.
         markHydrationCompleted();
         serverOutcome = { kind: "no-save" };
+
+        // Guest-progress claim. Triggered ONLY on this branch — we have
+        // proof from the server that no row exists for this account, so we
+        // can never overwrite real data here. If the user played as guest
+        // before signing in (the OAuth-redirect data-loss case), pull that
+        // snapshot in and queue it for the cloud. saveQueue stamps with
+        // the now-known email, and step 3's flushSaveQueue below picks it
+        // up automatically. See guestCache.ts for the writer side.
+        if (playerEmail !== null) {
+          const guestSnapshot = readGuestSnapshot();
+          if (guestSnapshot) {
+            hydrate(guestSnapshot);
+            markSavePending(
+              toSnapshot() as unknown as Record<string, unknown>,
+              playerEmail
+            );
+            clearGuestSnapshot();
+          }
+        }
       } else {
         // Lazy-load the Zod schema only when we actually have a payload to
         // parse. Hoisting this import to module top would drag ~98 kB of
@@ -274,6 +294,15 @@ async function doLoadSave(): Promise<LoadResult> {
           hydrate(snapshot);
           markHydrationCompleted();
           serverOutcome = { kind: "server-loaded" };
+
+          // Server is now this account's authoritative source. Any
+          // anonymous progress in the guest cache from a prior session is
+          // no longer relevant for THIS user, and leaving it would let a
+          // future first-time sign-in on the same browser inadvertently
+          // claim it under a different account. Clearing here is the
+          // cross-account leak defense for the claim path. (See INV in
+          // guestCache.ts.)
+          clearGuestSnapshot();
         }
       }
     }
