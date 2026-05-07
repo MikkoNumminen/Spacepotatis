@@ -20,10 +20,14 @@
 //   - Storage key: `STORAGE_KEY` (distinct from saveQueue's per-account
 //     queue — these never share state).
 //   - Writer: subscribes to GameState commits. Writes only when the user
-//     is anonymous (`getCurrentPlayerEmail() === null`).
+//     is anonymous (`getCurrentPlayerEmail() === null`). Synchronous —
+//     see "Why no debounce?" below.
 //   - Reader / claim: triggered exactly once, in sync.ts's `no-save`
 //     branch — the only code path that knows the cloud has no row to
 //     overwrite.
+//   - Cross-tab sync: a `storage` event listener mirrors writes from
+//     other tabs into this tab's GameState so two anonymous tabs don't
+//     silently overwrite each other.
 //
 // Strict invariants:
 //
@@ -38,8 +42,28 @@
 //   4. Validation on read is structural only — Zod stays out of the hot
 //      bundle path. The writer is the only producer; we trust its output
 //      and rely on `hydrate()`'s missing-field tolerance for forward-compat.
-//      Server-side storage is the actual security boundary; this module is
-//      a UX feature, not a trust boundary.
+//
+// THE TRUST BOUNDARY for the claim flow is `/api/save`, NOT this module.
+// localStorage is per-origin so anyone with the same browser can edit it
+// via DevTools, and our structural-only validator on read (`isEnvelopeShape`)
+// will pass anything with the right top-level keys. The downstream POST
+// goes through SavePayloadSchema + saveValidation.ts on the server, which
+// is where bad data is actually rejected. Treat this module as a UX
+// affordance, never as a security guard.
+//
+// Why no debounce?
+//
+//   The writer fires on every GameState commit — typically ~50 per mission
+//   (kills, mission-complete, etc.). Each `localStorage.setItem` is ~1 ms,
+//   so total amortized cost is ~50 ms across a 30-minute mission. We
+//   considered coalescing via `setTimeout`, but a debounced write opens a
+//   "data not flushed before navigation" race the synchronous version
+//   doesn't have: when the user clicks "Sign in with Google", the OAuth
+//   redirect can leave the page before a pending timer fires, leaking the
+//   last few seconds of progress. With synchronous writes, the moment any
+//   commit returns, the cache reflects the freshest snapshot. Re-evaluate
+//   if commit rates ever climb past ~300/mission (roughly the point where
+//   amortized localStorage cost becomes user-perceptible).
 
 "use client";
 
@@ -94,6 +118,7 @@ export function readGuestSnapshot(): StateSnapshot | null {
   // We trust the inner shape because the writer is the only producer; the
   // hydrate() consumer downstream falls back to INITIAL_STATE for any
   // missing/unrecognized fields, so a partial snapshot can't corrupt state.
+  // The actual trust boundary is /api/save; see the module header.
   return parsed.snapshot;
 }
 
@@ -121,66 +146,145 @@ export function clearGuestSnapshot(): void {
   }
 }
 
-// Module-level guard so a second mount of the Providers tree (e.g. a hot
-// reload, or a stray double-render in dev) doesn't re-bind the writer
-// twice. The unsubscribe is idempotent — calling the returned cleanup more
-// than once is harmless.
+// ---------------------------------------------------------------------------
+// Binding lifecycle.
 //
-// Dev note: React 18 StrictMode runs effects mount → cleanup → mount in
-// development. The cleanup flips `bound` back to false, so the second mount
-// re-runs boot recovery and re-subscribes. That's idempotent — the snapshot
-// it re-reads is the same one we just wrote, and `subscribe()` returns a
-// fresh callback registration. There's a marginal extra read/write per
-// mount in dev, but production never hits this path. Not worth a separate
-// "did we already boot-recover?" flag.
-let bound = false;
+// Reference-counted: every call increments refs and only the LAST cleanup
+// actually unsubscribes. This handles both the production case (single
+// caller — GuestProgressMount) and the StrictMode dev double-mount cycle
+// without leaking the writer or losing in-flight progress on rebind.
+//
+// Boot recovery runs at most once per page lifetime — gated by its own
+// flag so a remount can't wipe in-memory progress that was earned between
+// the first mount and the remount.
+// ---------------------------------------------------------------------------
 
-// Idempotent boot-side wiring:
-//   1. If the user is anonymous AND the auth cache doesn't say they're a
-//      returning authenticated user, hydrate from any persisted guest
-//      snapshot. That makes guest progress survive a plain refresh too —
-//      not just the OAuth redirect.
-//   2. Subscribe future state commits. On every commit, if still anonymous,
-//      persist the latest snapshot.
+let activeRefs = 0;
+let activeUnsubscribe: (() => void) | null = null;
+let storageListener: ((e: StorageEvent) => void) | null = null;
+let bootRecoveryDone = false;
+
+// Suppresses the writer for the duration of a cross-tab hydrate. Without
+// this, hydrating from a `storage` event would commit, the writer would
+// fire, write a fresh envelope (new savedAtMs), the OTHER tab would
+// receive its own storage event, hydrate again, write again — infinite
+// ping-pong as savedAtMs advances each cycle.
+let suppressWriterDuringRemoteHydrate = false;
+
+function attemptBootRecovery(): boolean {
+  if (bootRecoveryDone) return false;
+  bootRecoveryDone = true;
+  if (typeof window === "undefined") return false;
+  if (getCurrentPlayerEmail() !== null) return false;
+  // Don't auto-hydrate if the auth cache says this is a returning
+  // authenticated user — they'd briefly see anon progress before
+  // server-loaded overwrites it. Delegate to authCache.readAuthCache so
+  // we're not coupled to its serialization format.
+  const authCached = readAuthCache();
+  if (authCached?.status === "authenticated") return false;
+  const cached = readGuestSnapshot();
+  if (!cached) return false;
+  hydrate(cached);
+  return true;
+}
+
+// Idempotent boot-side wiring. Reference-counted: each call returns its
+// own cleanup, and only the last cleanup actually tears the writer down.
+// Boot recovery runs once per page lifetime (not once per call).
 //
-// Returns a cleanup that removes the subscription. Calling twice (without
-// an intervening cleanup) returns a no-op cleanup.
+// Production: GuestProgressMount calls this exactly once on mount.
+// Dev (StrictMode): React calls mount → cleanup → remount → cleanup at
+// hot reload boundaries. Refs go 1 → 0 → 1 → 0; the writer is correctly
+// reattached and detached around each cycle. Boot recovery only runs the
+// first time, so in-memory progress earned between mount cycles isn't
+// clobbered by re-reading a stale localStorage snapshot.
 export function bindGuestPersistenceOnce(): () => void {
-  if (bound) return () => undefined;
-  bound = true;
+  activeRefs++;
 
-  // Boot recovery: only restore if we can be reasonably sure the user is in
-  // an anonymous session. The auth cache check avoids a flicker — a
-  // returning authenticated user would briefly see anon progress before
-  // server-loaded overwrites it.
-  //
-  // We delegate to authCache.readAuthCache rather than substring-sniffing the
-  // raw localStorage entry so this module isn't coupled to the auth cache's
-  // serialization format. authCache has zero runtime deps so the import cost
-  // is negligible.
-  if (typeof window !== "undefined" && getCurrentPlayerEmail() === null) {
-    const authCached = readAuthCache();
-    if (authCached?.status !== "authenticated") {
-      const cached = readGuestSnapshot();
-      if (cached) hydrate(cached);
+  // Shared cleanup: every caller (first binder or later) gets THIS closure.
+  // The teardown logic checks ref count + activeUnsubscribe at call time, so
+  // whichever cleanup runs LAST is the one that actually detaches. If the
+  // cleanups were asymmetric (first binder owns teardown, others just
+  // decrement), the first binder calling its cleanup early would leave the
+  // teardown closure orphaned and the writer would leak past the final unbind.
+  const decrementAndMaybeUnsub = (): void => {
+    activeRefs = Math.max(0, activeRefs - 1);
+    if (activeRefs === 0 && activeUnsubscribe !== null) {
+      const unsub = activeUnsubscribe;
+      activeUnsubscribe = null;
+      unsub();
     }
+  };
+
+  if (activeRefs > 1) {
+    // Already bound by an earlier caller. The subscription is alive; this
+    // caller just rides on the existing one.
+    return decrementAndMaybeUnsub;
   }
 
-  const unsubscribe = subscribe(() => {
+  // First binder. Run boot recovery and attach all the listeners.
+  attemptBootRecovery();
+
+  const unsubFromState = subscribe(() => {
     if (typeof window === "undefined") return;
+    if (suppressWriterDuringRemoteHydrate) return;
     if (getCurrentPlayerEmail() !== null) return;
     writeGuestSnapshot(toSnapshot());
   });
 
-  return () => {
-    bound = false;
-    unsubscribe();
+  // Cross-tab sync via the `storage` event. Test environments install a
+  // plain-object `window` shim that lacks addEventListener; bail out
+  // cleanly in that case rather than throwing — the storage listener is a
+  // production-only nicety, not a correctness requirement (the same-tab
+  // writer still works without it).
+  const canListen = typeof window.addEventListener === "function";
+  if (canListen) {
+    storageListener = (e: StorageEvent) => {
+      // Storage events fire across tabs (NOT in the originating tab). We
+      // mirror sibling-tab writes into our in-memory GameState so two
+      // anonymous tabs stay coherent.
+      if (e.key !== STORAGE_KEY) return;
+      if (getCurrentPlayerEmail() !== null) return; // not our concern once authenticated
+      if (e.newValue === null) {
+        // Sibling tab cleared the cache — typically because it just signed
+        // in and consumed the snapshot. Don't overwrite our in-memory state
+        // back to INITIAL; just leave it. The next legitimate write here
+        // will repopulate the cache.
+        return;
+      }
+      const fresh = readGuestSnapshot();
+      if (!fresh) return;
+      suppressWriterDuringRemoteHydrate = true;
+      try {
+        hydrate(fresh);
+      } finally {
+        suppressWriterDuringRemoteHydrate = false;
+      }
+    };
+    window.addEventListener("storage", storageListener);
+  }
+
+  activeUnsubscribe = () => {
+    unsubFromState();
+    if (storageListener && typeof window.removeEventListener === "function") {
+      window.removeEventListener("storage", storageListener);
+    }
+    storageListener = null;
   };
+
+  return decrementAndMaybeUnsub;
 }
 
-// Test-only — reset the bound flag so a fresh test case can rebind. The
-// production codepath calls `bindGuestPersistenceOnce` once per page load
-// and never explicitly unbinds outside StrictMode tear-downs.
+// Test-only — reset the binding flags and any active subscription so a
+// fresh test case can rebind without leaking listeners from a previous
+// case. Production calls bindGuestPersistenceOnce once per page load and
+// never explicitly unbinds outside StrictMode tear-downs.
 export function resetGuestPersistenceForTests(): void {
-  bound = false;
+  if (activeUnsubscribe) {
+    activeUnsubscribe();
+    activeUnsubscribe = null;
+  }
+  activeRefs = 0;
+  bootRecoveryDone = false;
+  suppressWriterDuringRemoteHydrate = false;
 }
