@@ -244,13 +244,37 @@ async function doLoadSave(): Promise<LoadResult> {
         // and any salvage credits the user is owed for catalog churn
         // shouldn't disappear just because they hit this claim path.
         if (playerEmail !== null) {
-          const guestSnapshot = readGuestSnapshot();
-          if (guestSnapshot) {
-            hydrate(guestSnapshot);
-            markSavePending(
-              toSnapshot() as unknown as Record<string, unknown>,
-              playerEmail
+          // Wrap the claim so a corrupted cache can't crash the load.
+          // Without this, a guest snapshot that passes the structural
+          // validator but trips up `migrateShip` (e.g. a non-existent
+          // weapon id, a circular ref from a manual DevTools edit, a
+          // future shape break) would propagate up to doLoadSave's
+          // outer catch and surface as kind=load-failed reason=network_error.
+          // The user would see SaveLoadErrorOverlay even though the
+          // server returned a clean 200 + null. Catching here lets us
+          // forfeit the claim (correct fallback: server has no row, so
+          // INITIAL_STATE is genuinely the right starting state) AND
+          // purge the corrupted entry so it can't trip every subsequent
+          // sign-in attempt forever.
+          try {
+            const guestSnapshot = readGuestSnapshot();
+            if (guestSnapshot) {
+              hydrate(guestSnapshot);
+              markSavePending(
+                toSnapshot() as unknown as Record<string, unknown>,
+                playerEmail
+              );
+              clearGuestSnapshot();
+            }
+          } catch (claimErr) {
+            console.warn(
+              "loadSave: guest claim failed; continuing as no-save",
+              describeError(claimErr)
             );
+            // Drop the corrupted cache so the next load doesn't repeat
+            // the failure. We're in the no-save branch — the server has
+            // no row, so losing the local cache costs the user at most
+            // their guest progress (which we couldn't apply anyway).
             clearGuestSnapshot();
           }
         }

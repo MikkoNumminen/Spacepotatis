@@ -122,6 +122,12 @@ export function readGuestSnapshot(): StateSnapshot | null {
   return parsed.snapshot;
 }
 
+// Set once per page lifetime when the first localStorage write fails.
+// Prevents log spam when quota errors persist (e.g. mobile Safari, private
+// browsing) while still leaving a single breadcrumb in production logs so
+// "my progress vanished after sign-in" reports are debuggable.
+let storageWarnedThisSession = false;
+
 export function writeGuestSnapshot(snapshot: StateSnapshot): void {
   if (typeof window === "undefined") return;
   const envelope: GuestEnvelope = {
@@ -131,9 +137,19 @@ export function writeGuestSnapshot(snapshot: StateSnapshot): void {
   };
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope));
-  } catch {
-    // Quota / private mode / disk full — silently skip. The cache is a UX
-    // affordance, never load-bearing for correctness.
+  } catch (err) {
+    // Quota / private mode / disk full. The cache is a UX affordance,
+    // never load-bearing for correctness, so we never crash. But we do
+    // warn ONCE per page lifetime so the failure leaves a trail in
+    // production console logs — silent-forever made user reports of
+    // "my progress disappeared after sign-in" undebuggable.
+    if (!storageWarnedThisSession) {
+      storageWarnedThisSession = true;
+      console.warn(
+        "guestCache: localStorage write failed (quota / private mode?)",
+        err
+      );
+    }
   }
 }
 
@@ -276,6 +292,15 @@ export function bindGuestPersistenceOnce(): () => void {
       suppressWriterDuringRemoteHydrate = true;
       try {
         hydrate(fresh);
+      } catch (err) {
+        // A sibling tab wrote an envelope that passes our structural
+        // validator but trips up `migrateShip` (or any future field-level
+        // hydration check). The exception would otherwise escape the event
+        // listener and surface as "Uncaught error in event handler" in
+        // production console logs. Swallow + warn — our in-memory state
+        // is unaffected because hydrate is atomic (commits at the end), so
+        // skipping is the safe outcome.
+        console.warn("guestCache: cross-tab hydrate failed; ignoring storage event", err);
       } finally {
         suppressWriterDuringRemoteHydrate = false;
       }
@@ -306,4 +331,5 @@ export function resetGuestPersistenceForTests(): void {
   activeRefs = 0;
   bootRecoveryDone = false;
   suppressWriterDuringRemoteHydrate = false;
+  storageWarnedThisSession = false;
 }
