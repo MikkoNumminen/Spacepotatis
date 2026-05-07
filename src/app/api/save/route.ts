@@ -234,7 +234,8 @@ export async function POST(request: Request): Promise<Response> {
           | "mission_graph_invalid"
           | "save_regression"
           | "playtime_delta_invalid"
-          | "credits_delta_invalid";
+          | "credits_delta_invalid"
+          | "solar_system_not_unlocked";
         // The validators return ValidationResult { ok, error? } where the
         // error string is optional; NextResponse.json drops undefined fields.
         message: string | undefined;
@@ -417,6 +418,31 @@ export async function POST(request: Request): Promise<Response> {
           message: creditsResult.error,
           prevSnapshot
         };
+      }
+
+      // SEC-027 — reject a save that parks the player in a solar system they
+      // haven't unlocked. Impact is UI-cosmetic only (galaxy opens at the wrong
+      // system), but the schema validates shape-not-state; this closes the gap.
+      // The field is optional — absent means "no preference" and is always fine.
+      const incomingSystemId = body.currentSolarSystemId;
+      if (incomingSystemId !== undefined) {
+        const unlockedSystems = Array.isArray(body.unlockedSolarSystems)
+          ? body.unlockedSolarSystems
+          : [];
+        if (!unlockedSystems.includes(incomingSystemId)) {
+          console.warn(
+            "[/api/save] solar_system_not_unlocked",
+            playerId,
+            incomingSystemId
+          );
+          return {
+            kind: "reject",
+            status: 422,
+            error: "solar_system_not_unlocked",
+            message: `currentSolarSystemId "${incomingSystemId}" is not in unlockedSolarSystems`,
+            prevSnapshot
+          };
+        }
       }
 
       // Snapshot serialization sends the ship under `ship`; the legacy /api

@@ -359,3 +359,15 @@ PR #158 merged at `cd3d0f2` (2026-05-05). Wave 1 dispatches 8 medium findings (S
 - Deviations from plan: fix is in GameCanvas.tsx (not useCloudSaveSync*.ts as spec suggested); the post-mission-complete chain lives in GameCanvas's handleMissionComplete callback, not in a hook. Spec said "in src/components/hooks/useCloudSaveSync*" — that was the suggested search location; actual call site is GameCanvas.tsx. No functional deviation.
 - Tests / typecheck / build / lint: green at 02:32 — typecheck pass, lint pass, vitest 1252/1252 pass, next build pass.
 - PR: #192
+
+### Phase 3 — finding: SEC-027 — currentSolarSystemId not validated against unlockedSolarSystems
+- Worktree: D:\koodaamista\Spacepotatis\.claude\worktrees\agent-a1098cd0f5eef83cc
+- Branch: feat/security-sec-027-solar-system-unlock-check (off origin/master)
+- Commit: f71bca7
+- Files changed: src/app/api/save/route.ts (new validator block inside SEC-013 transaction, after credits guard, before upsert; `solar_system_not_unlocked` added to TxOutcome error union), src/app/api/save/route.test.ts (existing `currentSolarSystemId` persistence test updated to include `unlockedSolarSystems` in payload — the test was testing persistence, not the guard), tests/security/currentSolarSystemUnlock.test.ts (new — 5 tests), docs/security/02b-attack-cells.md (status note), docs/security/_progress.md (this entry)
+- Test added: tests/security/currentSolarSystemUnlock.test.ts — "SEC-027 — POST /api/save rejects currentSolarSystemId not in unlockedSolarSystems" (5 tests: locked system → 422 save_rejected; locked system → audit response_error is solar_system_not_unlocked; unlocked system → 204; omitted currentSolarSystemId → 204; non-empty system id with empty unlockedSolarSystems → 422 defense-in-depth)
+- Save-roundtrip-audit run? Y — PASS, no field drops. The change is a new validator only; no field shape, DB column, schema, or layer-7/8 wiring was changed.
+- Migration required? N — no schema change; the existing `current_solar_system_id` column is unchanged.
+- Deviations from plan: (1) Test case 3 in the spec said "POST with currentSolarSystemId: null → success". The SavePayloadSchema field is `.optional()` (not `.nullable()`), so `null` in a JSON body fails Zod validation before the route handler runs — the correct representation of "no preference" is omitting the field. Test updated to use "omitted field → 204" which matches actual schema semantics. (2) Existing `route.test.ts` test "persists currentSolarSystemId on the upsert" was updated to add `unlockedSolarSystems: ["tubernovae"]` to its payload — the test was asserting field persistence (not validating the guard), and it needed the unlock entry to remain valid under the new check. This is a narrowly scoped fix to keep the suite green, not scope expansion.
+- Tests / typecheck / build / lint: green — typecheck pass, lint pass, vitest all SEC-027 tests pass + pre-existing failures unchanged, next build pass.
+- PR: #193

@@ -370,7 +370,9 @@ describe("POST /api/save", () => {
         playedTimeSeconds: 0,
         completedMissions: [],
         unlockedPlanets: [],
-        currentSolarSystemId: "tubernovae"
+        currentSolarSystemId: "tubernovae",
+        // SEC-027: currentSolarSystemId must be in unlockedSolarSystems.
+        unlockedSolarSystems: ["tubernovae"]
       })
     });
     const res = await POST(req);

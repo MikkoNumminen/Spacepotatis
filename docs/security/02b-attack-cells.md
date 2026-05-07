@@ -231,6 +231,7 @@ The 22 net-new findings below augment the original SEC-001..SEC-010 plan. New ID
 - **What's wrong:** the schema enum allows any valid system id; the server doesn't check the player has unlocked it.
 - **Impact:** UI cosmetic — galaxy view opens at a system the player technically can't enter. No progression bypass.
 - **Fix:** add a check `unlockedSolarSystems.includes(currentSolarSystemId) ?? throw 422`.
+- **Status:** fixed — f71bca7; branch feat/security-sec-027-solar-system-unlock-check. Check fires inside the SEC-013 transaction after the credits guard. Rejection follows the SEC-020 collapsed-code pattern: response body returns `{error: "save_rejected"}`; `save_audit.response_error` carries `"solar_system_not_unlocked"` for forensics. Existing `route.test.ts` updated to include `unlockedSolarSystems` alongside `currentSolarSystemId` (the test was testing field persistence, not the new guard). Regression tests in `tests/security/currentSolarSystemUnlock.test.ts` (5 tests).
 
 #### SEC-028 — No `dependabot.yml` (Cell 8)
 
