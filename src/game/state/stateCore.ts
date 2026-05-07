@@ -143,6 +143,21 @@ export function isPlanetUnlocked(id: MissionId): boolean {
   return state.unlockedPlanets.includes(id);
 }
 
-export function resetForTests(): void {
+// Reset live in-memory state to INITIAL_STATE.
+//
+// Originally only used by tests (hence `resetForTests`). The sign-out flow
+// also needs this — without it, after `setCurrentPlayerEmail(null)` the
+// guest-progress writer (which is gated on email===null) would re-populate
+// the guest cache from the just-signed-out user's still-in-memory state, and
+// a subsequent fresh sign-in on the same browser would inherit it. Clearing
+// state on sign-out closes that window. See `bindGuestPersistenceOnce` in
+// guestCache.ts.
+export function resetState(): void {
   commit(INITIAL_STATE);
+}
+
+// Test-only alias kept for backwards compat with the existing test suite.
+// Production code should call `resetState()` instead.
+export function resetForTests(): void {
+  resetState();
 }
