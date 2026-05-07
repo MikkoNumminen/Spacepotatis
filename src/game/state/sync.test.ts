@@ -1012,6 +1012,37 @@ describe("guest-progress claim on first-time sign-in", () => {
     expect(readPendingSaveForTest("fresh@example.com")).toBeNull();
   });
 
+  it("does NOT consume the guest cache on a 5xx — preserved for retry", async () => {
+    // Structurally the claim is gated on kind=no-save, so a load-failed
+    // path can't fire it. This test pins that contract: a future refactor
+    // that accidentally moves the claim outside the no-save branch would
+    // break here and surface in CI before it could destroy guest progress
+    // on a transient server outage.
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      GUEST_KEY,
+      JSON.stringify({
+        v: 1,
+        savedAtMs: Date.now(),
+        snapshot: { credits: 4242 }
+      })
+    );
+    setCurrentPlayerEmail("transient@example.com");
+    fetchImpl.current = async () => new Response("oops", { status: 503 });
+
+    const result = await loadSave();
+
+    expect(result.kind).toBe("load-failed");
+    // The cache survives — when the server recovers and the user retries
+    // the load, the claim path can fire normally.
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(GUEST_KEY)
+    ).not.toBeNull();
+    // GameState was NOT hydrated from the guest cache either — INITIAL
+    // is the only safe state when we don't know the server's authority.
+    expect(getState().credits).toBe(0);
+  });
+
   it("does not run the claim logic on a 401 anon load (no email to stamp the queue)", async () => {
     // A guest cache exists; the user is browsing /play anonymously. A 401
     // GET /api/save must NOT trigger the claim — there's no signed-in
