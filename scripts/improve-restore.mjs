@@ -168,6 +168,7 @@ try {
     // Capture the prevRow as a JSON snapshot BEFORE the UPDATE. If this throws
     // (disk full, permission denied), ROLLBACK and bail out — running the UPDATE
     // without a recoverable snapshot defeats the purpose of the safety helper.
+    // SECURITY-CRITICAL: writeBackup must run BEFORE the destructive op (CLAUDE.md §15, INV-SCRIPT-1)
     try {
       const backupPath = await writeBackup({
         prevRow: { ...before, player_id: playerId, email: flags.email },

@@ -402,6 +402,7 @@ async function main() {
       // throws (disk full, permission denied), ROLLBACK and exit non-zero —
       // the whole point of the backup is recoverability, so a missing
       // snapshot must veto the mutation.
+      // SECURITY-CRITICAL: writeBackup must run BEFORE the destructive op (CLAUDE.md §15, INV-SCRIPT-1)
       try {
         const backupPath = await writeBackup({
           prevRow: { ...before, player_id: playerId, email: args.email },

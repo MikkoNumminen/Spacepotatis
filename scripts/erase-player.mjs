@@ -273,6 +273,7 @@ async function main() {
       // Write the backup BEFORE deleting. If writeBackup throws (disk full,
       // permission denied), ROLLBACK and refuse to delete — the backup is the
       // recoverability contract.
+      // SECURITY-CRITICAL: writeBackup must run BEFORE the destructive op (CLAUDE.md §15, INV-SCRIPT-1)
       try {
         const backupPath = await writeBackup({
           prevRow: {
