@@ -12,6 +12,7 @@
 // reach the network.
 
 import { hydrate, toSnapshot, type StateSnapshot } from "./GameState";
+import { clearGuestSnapshot, readGuestSnapshot } from "./guestCache";
 import { ROUTES } from "@/lib/routes";
 import {
   drainScoreQueue as drainQueueWith,
@@ -226,6 +227,57 @@ async function doLoadSave(): Promise<LoadResult> {
         // saveNow calls are creating the first save, not clobbering one.
         markHydrationCompleted();
         serverOutcome = { kind: "no-save" };
+
+        // Guest-progress claim. Triggered ONLY on this branch — we have
+        // proof from the server that no row exists for this account, so we
+        // can never overwrite real data here. If the user played as guest
+        // before signing in (the OAuth-redirect data-loss case), pull that
+        // snapshot in and queue it for the cloud. saveQueue stamps with
+        // the now-known email, and step 3's flushSaveQueue below picks it
+        // up automatically. See guestCache.ts for the writer side.
+        //
+        // Note: hydrate() applies legacy migrations (migrateShip, salvage
+        // refunds for removed weapons, retroactive system-unlock backfill).
+        // The snapshot we POST via toSnapshot() is therefore the migrated
+        // version — NOT a byte-for-byte copy of what was in the cache.
+        // That's intentional: the server should receive normalized state,
+        // and any salvage credits the user is owed for catalog churn
+        // shouldn't disappear just because they hit this claim path.
+        if (playerEmail !== null) {
+          // Wrap the claim so a corrupted cache can't crash the load.
+          // Without this, a guest snapshot that passes the structural
+          // validator but trips up `migrateShip` (e.g. a non-existent
+          // weapon id, a circular ref from a manual DevTools edit, a
+          // future shape break) would propagate up to doLoadSave's
+          // outer catch and surface as kind=load-failed reason=network_error.
+          // The user would see SaveLoadErrorOverlay even though the
+          // server returned a clean 200 + null. Catching here lets us
+          // forfeit the claim (correct fallback: server has no row, so
+          // INITIAL_STATE is genuinely the right starting state) AND
+          // purge the corrupted entry so it can't trip every subsequent
+          // sign-in attempt forever.
+          try {
+            const guestSnapshot = readGuestSnapshot();
+            if (guestSnapshot) {
+              hydrate(guestSnapshot);
+              markSavePending(
+                toSnapshot() as unknown as Record<string, unknown>,
+                playerEmail
+              );
+              clearGuestSnapshot();
+            }
+          } catch (claimErr) {
+            console.warn(
+              "loadSave: guest claim failed; continuing as no-save",
+              describeError(claimErr)
+            );
+            // Drop the corrupted cache so the next load doesn't repeat
+            // the failure. We're in the no-save branch — the server has
+            // no row, so losing the local cache costs the user at most
+            // their guest progress (which we couldn't apply anyway).
+            clearGuestSnapshot();
+          }
+        }
       } else {
         // Lazy-load the Zod schema only when we actually have a payload to
         // parse. Hoisting this import to module top would drag ~98 kB of
@@ -274,6 +326,15 @@ async function doLoadSave(): Promise<LoadResult> {
           hydrate(snapshot);
           markHydrationCompleted();
           serverOutcome = { kind: "server-loaded" };
+
+          // Server is now this account's authoritative source. Any
+          // anonymous progress in the guest cache from a prior session is
+          // no longer relevant for THIS user, and leaving it would let a
+          // future first-time sign-in on the same browser inadvertently
+          // claim it under a different account. Clearing here is the
+          // cross-account leak defense for the claim path. (See INV in
+          // guestCache.ts.)
+          clearGuestSnapshot();
         }
       }
     }
