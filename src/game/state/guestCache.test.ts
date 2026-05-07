@@ -174,6 +174,46 @@ describe("writeGuestSnapshot / clearGuestSnapshot", () => {
       })
     ).not.toThrow();
   });
+
+  it("warns once per session when localStorage write fails (debuggability)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const throwing = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("QuotaExceeded");
+      },
+      removeItem: () => undefined,
+      clear: () => undefined,
+      length: 0,
+      key: () => null
+    };
+    (globalThis as unknown as { localStorage: typeof throwing }).localStorage = throwing;
+    const stub = {
+      credits: 0,
+      completedMissions: [],
+      unlockedPlanets: [],
+      playedTimeSeconds: 0,
+      ship: {
+        slots: [],
+        inventory: [],
+        augmentInventory: [],
+        shieldLevel: 0,
+        armorLevel: 0,
+        reactor: { capacityLevel: 0, rechargeLevel: 0 }
+      },
+      saveSlot: 1,
+      currentSolarSystemId: "tutorial" as const,
+      unlockedSolarSystems: ["tutorial" as const],
+      seenStoryEntries: []
+    };
+    // Three write attempts, but only ONE warn — log spam is the failure
+    // mode the once-per-session guard protects against.
+    writeGuestSnapshot(stub);
+    writeGuestSnapshot(stub);
+    writeGuestSnapshot(stub);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toMatch(/localStorage write failed/i);
+  });
 });
 
 describe("bindGuestPersistenceOnce — writer gate", () => {
@@ -384,6 +424,61 @@ describe("bindGuestPersistenceOnce — cross-tab sync", () => {
     const afterCredits = readGuestSnapshot()?.credits ?? null;
     expect(afterCredits).toBe(beforeCredits);
     expect(getState().credits).toBe(50);
+    unbind();
+  });
+});
+
+describe("bindGuestPersistenceOnce — cross-tab error handling", () => {
+  function dispatchStorageEvent(key: string, newValue: string | null): void {
+    const w = globalThis as unknown as { dispatchEvent?: (e: { type: string }) => boolean };
+    w.dispatchEvent?.({ type: "storage", key, newValue } as unknown as { type: string });
+  }
+
+  it("a sibling-tab envelope that crashes hydrate is swallowed + warned, not propagated", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    setCurrentPlayerEmail(null);
+    const unbind = bindGuestPersistenceOnce();
+    // Structurally valid envelope, semantically broken inner snapshot:
+    // shipConfig has a recognizably bogus shape that trips up migrateShip
+    // (slots is a string instead of object/array). We rely on the
+    // existing isEnvelopeShape only checking the top-level keys.
+    const malformed = JSON.stringify({
+      v: 1,
+      savedAtMs: Date.now(),
+      snapshot: {
+        credits: 50,
+        // Non-array completedMissions — passes the structural envelope
+        // check but hydrate calls `.includes(...)` on it, which throws on
+        // a plain object. Same shape used in the matching sync.test.ts
+        // case.
+        completedMissions: { not: "an array" },
+        unlockedPlanets: [],
+        playedTimeSeconds: 0,
+        ship: {
+          slots: [],
+          inventory: [],
+          augmentInventory: [],
+          shieldLevel: 0,
+          armorLevel: 0,
+          reactor: { capacityLevel: 0, rechargeLevel: 0 }
+        },
+        saveSlot: 1,
+        currentSolarSystemId: "tutorial",
+        unlockedSolarSystems: ["tutorial"],
+        seenStoryEntries: []
+      }
+    });
+    storage.setItem(STORAGE_KEY, malformed);
+    // The dispatch must NOT throw out of the listener — production
+    // browsers would log "Uncaught error in event handler" and stop
+    // running other listeners on the same event.
+    expect(() => dispatchStorageEvent(STORAGE_KEY, malformed)).not.toThrow();
+    // We logged a single warning so the failure leaves a trail.
+    expect(warn).toHaveBeenCalled();
+    // Subsequent same-tab commits still trigger the writer — the suppress
+    // flag was correctly reset in the finally block.
+    addCredits(7);
+    expect(readGuestSnapshot()?.credits).toBe(7);
     unbind();
   });
 });

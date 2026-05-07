@@ -1012,6 +1012,62 @@ describe("guest-progress claim on first-time sign-in", () => {
     expect(readPendingSaveForTest("fresh@example.com")).toBeNull();
   });
 
+  it("a corrupted guest cache is purged + claim is forfeited (no spurious load-failed)", async () => {
+    // Defensive: a structurally-valid envelope with semantically broken
+    // inner data (here, a shipConfig that migrateShip can't process)
+    // would otherwise propagate up to doLoadSave's outer catch and
+    // surface as kind=load-failed reason=network_error — wrong UX, since
+    // the server returned a clean 200 + null. The claim's own try/catch
+    // forfeits cleanly: result stays at no-save, GameState gets a fresh
+    // INITIAL_STATE (server has no row anyway), and the corrupted cache
+    // is purged so the next sign-in attempt doesn't repeat the failure.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
+      GUEST_KEY,
+      JSON.stringify({
+        v: 1,
+        savedAtMs: Date.now(),
+        snapshot: {
+          credits: 100,
+          // Non-array `completedMissions` — passes the structural envelope
+          // check (it's truthy, so `??` doesn't substitute the default),
+          // but hydrate calls `.includes(...)` on it, which throws on a
+          // plain object: "completedMissions.includes is not a function".
+          // This is the kind of localStorage tamper / cross-version drift
+          // the new try/catch defends against.
+          completedMissions: { not: "an array" },
+          unlockedPlanets: [],
+          playedTimeSeconds: 0,
+          ship: {
+            slots: [],
+            inventory: [],
+            augmentInventory: [],
+            shieldLevel: 0,
+            armorLevel: 0,
+            reactor: { capacityLevel: 0, rechargeLevel: 0 }
+          },
+          saveSlot: 1,
+          currentSolarSystemId: "tutorial",
+          unlockedSolarSystems: ["tutorial"],
+          seenStoryEntries: []
+        }
+      })
+    );
+    setCurrentPlayerEmail("victim@example.com");
+    fetchImpl.current = async () =>
+      new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+
+    const result = await loadSave();
+
+    // Important: NOT load-failed. The server's no-save outcome stands,
+    // the user gets a clean fresh start, and the cache is purged.
+    expect(result.kind).toBe("no-save");
+    expect(getState().credits).toBe(0);
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(GUEST_KEY)
+    ).toBeNull();
+  });
+
   it("does NOT consume the guest cache on a 5xx — preserved for retry", async () => {
     // Structurally the claim is gated on kind=no-save, so a load-failed
     // path can't fire it. This test pins that contract: a future refactor
