@@ -63,6 +63,7 @@ export async function GET(): Promise<Response> {
   }
 }
 
+// SECURITY-CRITICAL: 64 KB cap forecloses save_audit storage-DoS amplifier (SEC-011, INV-SAVE-6)
 // SEC-011 — cap on request_payload bytes written to save_audit. The audit
 // row stores the *pre-validation* request body for forensics; without a
 // cap, an authenticated attacker could POST a 4 MB body and amplify it
@@ -159,6 +160,7 @@ export async function POST(request: Request): Promise<Response> {
   const requestIp = request.headers.get("x-forwarded-for");
   const userAgent = request.headers.get("user-agent");
 
+  // TRUST-BOUNDARY: untrusted request body becomes program input here; everything after this point assumes parsed/validated (INV-SCHEMA-1)
   const parsed = SavePayloadSchema.safeParse(raw);
   if (!parsed.success) {
     // Surface only the issue list — Zod's full error object leaks internals
@@ -209,6 +211,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
+  // INVARIANT: prev-row read + validators + upsert run inside ONE tx with FOR UPDATE (SEC-013, INV-SAVE-1)
   // SEC-013 — wrap prev-row SELECT + validators + upsert in a single
   // Kysely transaction with `.forUpdate()` on the SELECT. The row lock is
   // held until COMMIT, so a second concurrent POST blocks until Tab A's
@@ -374,6 +377,7 @@ export async function POST(request: Request): Promise<Response> {
         };
       }
 
+      // DO NOT INLINE: deriveCapInputMissions intentionally separates trusted-prev from user-submitted (SEC-017, INV-SAVE-4)
       // Per-player cap. SEC-017: the cap input is derived from
       // `prevRow.completed_missions` (the server-stored, FOR-UPDATE-locked
       // baseline) and grows ONLY by submitted missions whose `requires`

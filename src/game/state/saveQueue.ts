@@ -79,6 +79,7 @@ export const SAVE_QUEUED_MESSAGE =
 // to /api/save. Loosening this validator means a malformed local blob
 // round-trips one rejection before being dropped from the queue — no
 // integrity risk.
+// INVARIANT: every PendingSave carries a non-empty playerEmail stamp; cross-account leak vector closes here (INV-QUEUE-1)
 export interface PendingSave {
   readonly snapshot: Record<string, unknown>;
   readonly firstSeenMs: number;

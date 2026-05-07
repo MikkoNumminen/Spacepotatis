@@ -494,6 +494,7 @@ export type RemoteSave = z.infer<typeof RemoteSaveSchema>;
  *
  * @stable
  */
+// SECURITY-CRITICAL: first-layer score cap; per-mission cap in maxLegitScore is the second layer (SEC-014, INV-LB-1)
 // Sanity-cap: any value above this is obviously fabricated. The per-mission
 // server-side cap in saveValidation.ts (maxLegitScore) is the real guard;
 // this ceiling catches outrageously large values at the Zod parse boundary.

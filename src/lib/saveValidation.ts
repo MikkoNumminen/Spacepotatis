@@ -196,6 +196,7 @@ export function computeCreditCapsForPlayer(
   return computeCreditCapsForSystems(getReachableSolarSystems(completedMissions));
 }
 
+// DO NOT INLINE: deriveCapInputMissions intentionally separates trusted-prev from user-submitted (SEC-017, INV-SAVE-4)
 // SEC-017 — Credit-cap input must be SERVER-DERIVED, not the user-submitted
 // `completedMissions` list. `validateMissionGraph` enforces internal
 // consistency of the body (every entry's `requires` are also in the body),
@@ -479,6 +480,7 @@ export interface RegressionGuardInput {
   };
 }
 
+// INVARIANT: guards three monotonic fields, intentionally NOT credits — market spend is a legitimate down-delta (INV-SAVE-3)
 export function validateNoRegression(input: RegressionGuardInput): ValidationResult {
   const { prev, next } = input;
   // No prior row → first save → nothing to regress from.
@@ -552,6 +554,7 @@ const SCORE_SAFETY_FACTOR = 2;
 const MAX_COMBO = 8;
 const FALLBACK_MIN_CAP = 100;
 
+// SECURITY-CRITICAL: per-mission cap derived from waves+enemies bounds leaderboard score takeover (SEC-014, INV-LB-1)
 export function maxLegitScore(missionId: MissionId): number {
   const waves = getWavesForMission(missionId);
   let theoreticalMax = 0;

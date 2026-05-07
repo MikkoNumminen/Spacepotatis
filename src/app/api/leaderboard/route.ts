@@ -20,6 +20,7 @@ export async function GET(request: Request): Promise<Response> {
   const parsedLimit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
   const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 20, 1), 50);
 
+  // TRUST-BOUNDARY: ?mission= query param becomes program input here; unknown ids 400 instead of polluting the unstable_cache key (SEC-003, INV-LB-3)
   const missionParsed = MissionIdSchema.safeParse(missionIdParam);
   if (!missionParsed.success) {
     return NextResponse.json({ error: "invalid_mission" }, { status: 400 });
@@ -56,6 +57,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const { missionId, score, timeSeconds = null } = parsed.data;
 
+  // SECURITY-CRITICAL: per-mission cap rejects fabricated scores (SEC-014, INV-LB-1)
   const cap = maxLegitScore(missionId);
   if (score > cap) {
     return NextResponse.json({ error: "score_implausible" }, { status: 422 });
