@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { PHASE_EXPORT, PHASE_PRODUCTION_BUILD } from "next/constants";
 import { sql } from "kysely";
 import { getDb } from "@/lib/db";
 import type { MissionId } from "@/types/game";
@@ -21,6 +22,36 @@ export interface PilotEntry {
   readonly clears: number;
   readonly playtimeSeconds: number;
   readonly bestScore: number;
+}
+
+// Skip Neon during the static prerender. Neon's serverless WebSocket
+// driver occasionally dangles a connection the Vercel build worker
+// can't unwind in its 60s budget, killing the deploy with "Connection
+// terminated unexpectedly". Runtime is fine — its retry + warmup
+// absorb the same blip. We let ISR (revalidate: 60) fill real data
+// on the first request post-deploy. Cost: ≤60s warming window vs. a
+// build that won't ship.
+//
+// PLACEMENT INVARIANT: this check runs at the PUBLIC ENTRY, BEFORE the
+// `unstable_cache` wrapper. Inside the wrapped fetcher, the empty `[]`
+// would be persisted into Vercel's data cache (60s TTL) and could
+// outlive the build, serving stale empties to runtime requests. The
+// matching tests pin captured.length === 0 to catch a future refactor
+// that drops this ordering.
+//
+// PHASE_EXPORT covers `next export` defense-in-depth — the project
+// doesn't enable `output: "export"`, but if anyone does they get the
+// same protection without re-discovering the gotcha.
+//
+// Long-term alternatives if Neon's driver stays flaky:
+//   1. /leaderboard → `dynamic = "force-dynamic"`. Skips build entirely;
+//      slight per-request CPU, still bounded by unstable_cache(60s).
+//   2. Build-time fetch with a hard ~5s timeout. Real data when Neon is
+//      fast, falls back to this empty-build path otherwise.
+//   3. Wait for Neon to fix the dangling-WebSocket teardown upstream.
+export function isBuildPhase(): boolean {
+  const phase = process.env.NEXT_PHASE;
+  return phase === PHASE_PRODUCTION_BUILD || phase === PHASE_EXPORT;
 }
 
 async function fetchLeaderboardEntries(
@@ -54,11 +85,22 @@ async function fetchLeaderboardEntries(
 // served without touching Neon. revalidateTag(LEADERBOARD_CACHE_TAG) from
 // the leaderboard POST flushes every cached slice so new scores show up
 // on the next request.
-export const getCachedLeaderboard = unstable_cache(
+const cachedFetchLeaderboardEntries = unstable_cache(
   fetchLeaderboardEntries,
   ["leaderboard-entries-v1"],
   { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
+
+// Public entry: short-circuits BEFORE delegating to `unstable_cache` so
+// build-phase prerenders never enter the data cache. See the long
+// header on `isBuildPhase` for why that ordering matters.
+export async function getCachedLeaderboard(
+  missionId: MissionId,
+  limit: number
+): Promise<LeaderboardEntry[]> {
+  if (isBuildPhase()) return [];
+  return cachedFetchLeaderboardEntries(missionId, limit);
+}
 
 // "Top Pilots" composite ranking — a single board across the whole game,
 // sitting above the per-mission grid on /leaderboard. Each row aggregates
@@ -120,8 +162,14 @@ async function fetchTopPilots(limit: number): Promise<PilotEntry[]> {
   return rows.map(mapRowToPilot);
 }
 
-export const getCachedTopPilots = unstable_cache(
+const cachedFetchTopPilots = unstable_cache(
   fetchTopPilots,
   ["top-pilots-v1"],
   { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
+
+// Same entry-level short-circuit as getCachedLeaderboard.
+export async function getCachedTopPilots(limit: number): Promise<PilotEntry[]> {
+  if (isBuildPhase()) return [];
+  return cachedFetchTopPilots(limit);
+}

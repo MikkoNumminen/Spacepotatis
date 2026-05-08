@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // Capture the unstable_cache call so we can assert on its tag/TTL/key without
 // pulling in the real next/cache module (which expects to run inside a Next
@@ -296,5 +296,87 @@ describe("fetchTopPilots (via getCachedTopPilots, db mocked)", () => {
       playtimeSeconds: 600,
       bestScore: 5000
     });
+  });
+});
+
+// Build-phase short-circuit. Without this, recent Vercel builds were timing
+// out at 60s on /leaderboard's static prerender because Neon's serverless
+// WebSocket driver dangles connections during build. A future refactor that
+// drops the early-return without realizing why it was there would silently
+// re-introduce the build hang. Pin the contract here.
+describe("build-phase short-circuit", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("isBuildPhase() matches both production-build and export phases", async () => {
+    const { isBuildPhase } = await import("./leaderboard");
+
+    // The path we actually hit on Vercel.
+    vi.stubEnv("NEXT_PHASE", "phase-production-build");
+    expect(isBuildPhase()).toBe(true);
+
+    // Defense-in-depth: `next export` would have the same Neon-driver
+    // hang. Project doesn't use export today, but if anyone enables
+    // `output: "export"` they get the same protection.
+    vi.stubEnv("NEXT_PHASE", "phase-export");
+    expect(isBuildPhase()).toBe(true);
+
+    // All non-build phases must fall through to the real fetcher.
+    vi.stubEnv("NEXT_PHASE", "phase-production-server");
+    expect(isBuildPhase()).toBe(false);
+
+    vi.stubEnv("NEXT_PHASE", "phase-development-server");
+    expect(isBuildPhase()).toBe(false);
+
+    vi.stubEnv("NEXT_PHASE", "phase-test");
+    expect(isBuildPhase()).toBe(false);
+
+    // Unset env returns false too — tests, scripts, etc.
+    vi.unstubAllEnvs();
+    expect(isBuildPhase()).toBe(false);
+  });
+
+  it("getCachedLeaderboard returns [] and bypasses the cache wrapper entirely during build", async () => {
+    vi.stubEnv("NEXT_PHASE", "phase-production-build");
+    fakeRows.rows = [
+      { player_handle: "should-not-be-seen", score: 9999, time_seconds: 60, created_at: new Date() }
+    ];
+    const { getCachedLeaderboard } = await import("./leaderboard");
+    const entries = await getCachedLeaderboard("tutorial" as never, 10);
+
+    expect(entries).toEqual([]);
+    // ZERO captured DB calls proves the public entry short-circuited
+    // BEFORE delegating to the unstable_cache wrapper. Important: the
+    // check must run at the public entry, not inside the wrapped
+    // fetcher — otherwise the empty `[]` would land in Vercel's data
+    // cache and outlive the build.
+    expect(captured).toHaveLength(0);
+  });
+
+  it("getCachedLeaderboard short-circuits during phase-export too", async () => {
+    vi.stubEnv("NEXT_PHASE", "phase-export");
+    const { getCachedLeaderboard } = await import("./leaderboard");
+    expect(await getCachedLeaderboard("tutorial" as never, 10)).toEqual([]);
+    expect(captured).toHaveLength(0);
+  });
+
+  it("getCachedTopPilots returns [] and bypasses the cache wrapper entirely during build", async () => {
+    vi.stubEnv("NEXT_PHASE", "phase-production-build");
+    fakeRows.rows = [
+      { handle: "should-not-be-seen", clears: 5, playtime: 100, best_score: 9999 }
+    ];
+    const { getCachedTopPilots } = await import("./leaderboard");
+    const pilots = await getCachedTopPilots(10);
+
+    expect(pilots).toEqual([]);
+    expect(captured).toHaveLength(0);
+  });
+
+  it("getCachedTopPilots short-circuits during phase-export too", async () => {
+    vi.stubEnv("NEXT_PHASE", "phase-export");
+    const { getCachedTopPilots } = await import("./leaderboard");
+    expect(await getCachedTopPilots(5)).toEqual([]);
+    expect(captured).toHaveLength(0);
   });
 });

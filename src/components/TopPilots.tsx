@@ -1,4 +1,4 @@
-import { getCachedTopPilots } from "@/lib/leaderboard";
+import { getCachedTopPilots, isBuildPhase } from "@/lib/leaderboard";
 
 // "Top Pilots" composite leaderboard. Sits above the per-mission grid on
 // /leaderboard. Server Component; reads via the cached helper so the page
@@ -17,6 +17,17 @@ export default async function TopPilots({ limit = 10 }: { limit?: number }) {
   }
 
   if (entries.length === 0) {
+    // Build-phase skip vs. genuinely empty — see Leaderboard.tsx for the
+    // same rationale. Avoid the misleading "no pilots yet" copy during
+    // the post-deploy warming window, and tell the user a refresh will
+    // bring real data forward.
+    if (isBuildPhase()) {
+      return (
+        <div className="rounded border border-space-border bg-space-panel/70 p-4 text-xs text-space-border">
+          Top pilots warming up — refresh in a few seconds to see the latest.
+        </div>
+      );
+    }
     return (
       <div className="rounded border border-space-border bg-space-panel/70 p-4 text-xs text-space-border">
         No pilots yet — clear a mission and you&apos;ll be the first.
