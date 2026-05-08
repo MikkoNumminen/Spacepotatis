@@ -1,5 +1,5 @@
 import type { MissionId } from "@/types/game";
-import { getCachedLeaderboard } from "@/lib/leaderboard";
+import { getCachedLeaderboard, isBuildPhase } from "@/lib/leaderboard";
 
 // Server Component. Reads via the `unstable_cache`-wrapped helper so a fresh
 // page render hits Neon at most once per revalidate window per (mission,
@@ -26,6 +26,13 @@ export default async function Leaderboard({
   }
 
   if (entries.length === 0) {
+    // Distinguish "we skipped Neon at build time, real data lands after
+    // ISR refresh" from "this mission genuinely has zero scores". Both
+    // render the empty branch, but the copy users see for ~60s after
+    // deploy should not falsely imply their progress was wiped.
+    if (isBuildPhase()) {
+      return <div className="text-xs text-space-border">Loading leaderboard…</div>;
+    }
     return <div className="text-xs text-space-border">No scores yet — be the first.</div>;
   }
 

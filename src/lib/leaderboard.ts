@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { sql } from "kysely";
 import { getDb } from "@/lib/db";
 import type { MissionId } from "@/types/game";
@@ -34,11 +35,21 @@ export interface PilotEntry {
 // up to ~60s of empty leaderboard immediately after a deploy, vs. a
 // hung build that prevents the deploy from shipping at all.
 //
-// `phase-production-build` is the env Next.js sets while statically
-// generating pages at build time. Production runtime, dev, and export
-// phases don't match.
-function isBuildPhase(): boolean {
-  return process.env.NEXT_PHASE === "phase-production-build";
+// `PHASE_PRODUCTION_BUILD` (= "phase-production-build") is the env
+// Next.js sets while statically generating pages at build time.
+// Production runtime, dev, and export phases don't match.
+//
+// Long-term alternatives if Neon's driver doesn't get more reliable:
+//   1. Switch /leaderboard to `dynamic = "force-dynamic"`. Page renders
+//      at request time; never touches Neon at build. Slight CPU cost per
+//      request, still bounded by `unstable_cache(revalidate: 60)`.
+//   2. Add a build-time fetch with a short hard timeout (~5s). Real data
+//      ships in the prerender when Neon is fast; falls back to the
+//      empty-build path otherwise. More moving parts than this fix.
+//   3. Wait for Neon driver to ship a fix for the dangling-WebSocket
+//      teardown.
+export function isBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD;
 }
 
 async function fetchLeaderboardEntries(
