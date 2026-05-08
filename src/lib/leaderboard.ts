@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { PHASE_EXPORT, PHASE_PRODUCTION_BUILD } from "next/constants";
 import { sql } from "kysely";
 import { getDb } from "@/lib/db";
 import type { MissionId } from "@/types/game";
@@ -35,9 +35,21 @@ export interface PilotEntry {
 // up to ~60s of empty leaderboard immediately after a deploy, vs. a
 // hung build that prevents the deploy from shipping at all.
 //
-// `PHASE_PRODUCTION_BUILD` (= "phase-production-build") is the env
-// Next.js sets while statically generating pages at build time.
-// Production runtime, dev, and export phases don't match.
+// We match BOTH `PHASE_PRODUCTION_BUILD` (Next.js static page
+// generation during a production build, the path we actually hit) and
+// `PHASE_EXPORT` (the `next export` flow). The project doesn't use
+// `next export` today, but defense-in-depth: if anyone ever flips on
+// `output: "export"` they shouldn't have to rediscover this gotcha.
+// Production runtime, dev, and test phases don't match.
+//
+// CRITICAL: this check runs at the PUBLIC ENTRY (getCachedLeaderboard /
+// getCachedTopPilots) — BEFORE the `unstable_cache` wrapper sees the
+// call. Putting it inside the wrapped fetcher would still skip Neon,
+// but the empty `[]` would be persisted into Vercel's data cache (TTL
+// 60s) and could outlive the build. Any runtime read within that window
+// would hit the cached `[]` instead of querying Neon. By short-circuiting
+// at the public entry, the data cache stays untouched during prerender
+// and the first runtime read populates it cleanly with real data.
 //
 // Long-term alternatives if Neon's driver doesn't get more reliable:
 //   1. Switch /leaderboard to `dynamic = "force-dynamic"`. Page renders
@@ -49,14 +61,14 @@ export interface PilotEntry {
 //   3. Wait for Neon driver to ship a fix for the dangling-WebSocket
 //      teardown.
 export function isBuildPhase(): boolean {
-  return process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD;
+  const phase = process.env.NEXT_PHASE;
+  return phase === PHASE_PRODUCTION_BUILD || phase === PHASE_EXPORT;
 }
 
 async function fetchLeaderboardEntries(
   missionId: MissionId,
   limit: number
 ): Promise<LeaderboardEntry[]> {
-  if (isBuildPhase()) return [];
   const db = getDb();
   const rows = await db
     .selectFrom("spacepotatis.leaderboard as lb")
@@ -84,11 +96,22 @@ async function fetchLeaderboardEntries(
 // served without touching Neon. revalidateTag(LEADERBOARD_CACHE_TAG) from
 // the leaderboard POST flushes every cached slice so new scores show up
 // on the next request.
-export const getCachedLeaderboard = unstable_cache(
+const cachedFetchLeaderboardEntries = unstable_cache(
   fetchLeaderboardEntries,
   ["leaderboard-entries-v1"],
   { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
+
+// Public entry: short-circuits BEFORE delegating to `unstable_cache` so
+// build-phase prerenders never enter the data cache. See the long
+// header on `isBuildPhase` for why that ordering matters.
+export async function getCachedLeaderboard(
+  missionId: MissionId,
+  limit: number
+): Promise<LeaderboardEntry[]> {
+  if (isBuildPhase()) return [];
+  return cachedFetchLeaderboardEntries(missionId, limit);
+}
 
 // "Top Pilots" composite ranking — a single board across the whole game,
 // sitting above the per-mission grid on /leaderboard. Each row aggregates
@@ -103,7 +126,6 @@ export const getCachedLeaderboard = unstable_cache(
 // Sort: clears DESC (real progress signal), then best_score DESC (skill
 // peak), then playtime ASC (faster runs win ties — punishes idling).
 async function fetchTopPilots(limit: number): Promise<PilotEntry[]> {
-  if (isBuildPhase()) return [];
   const db = getDb();
   const rows = await db
     .selectFrom("spacepotatis.players as p")
@@ -151,8 +173,14 @@ async function fetchTopPilots(limit: number): Promise<PilotEntry[]> {
   return rows.map(mapRowToPilot);
 }
 
-export const getCachedTopPilots = unstable_cache(
+const cachedFetchTopPilots = unstable_cache(
   fetchTopPilots,
   ["top-pilots-v1"],
   { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
+
+// Same entry-level short-circuit as getCachedLeaderboard.
+export async function getCachedTopPilots(limit: number): Promise<PilotEntry[]> {
+  if (isBuildPhase()) return [];
+  return cachedFetchTopPilots(limit);
+}
