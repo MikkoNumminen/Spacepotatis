@@ -24,42 +24,31 @@ export interface PilotEntry {
   readonly bestScore: number;
 }
 
-// During the production build, Vercel gives each page a 60s wall budget.
-// Neon's serverless WebSocket driver occasionally dangles a connection
-// that the build worker can't unwind, killing the deploy with a generic
-// "Connection terminated unexpectedly" trace and a "took more than 60
-// seconds" timeout. The page renders fine at request time (the runtime
-// path has its own retry + warmup behavior), so the safe move is to
-// skip the Neon hit entirely during the static prerender and let the
-// ISR refresh on the first real request fill in the data. The cost is
-// up to ~60s of empty leaderboard immediately after a deploy, vs. a
-// hung build that prevents the deploy from shipping at all.
+// Skip Neon during the static prerender. Neon's serverless WebSocket
+// driver occasionally dangles a connection the Vercel build worker
+// can't unwind in its 60s budget, killing the deploy with "Connection
+// terminated unexpectedly". Runtime is fine — its retry + warmup
+// absorb the same blip. We let ISR (revalidate: 60) fill real data
+// on the first request post-deploy. Cost: ≤60s warming window vs. a
+// build that won't ship.
 //
-// We match BOTH `PHASE_PRODUCTION_BUILD` (Next.js static page
-// generation during a production build, the path we actually hit) and
-// `PHASE_EXPORT` (the `next export` flow). The project doesn't use
-// `next export` today, but defense-in-depth: if anyone ever flips on
-// `output: "export"` they shouldn't have to rediscover this gotcha.
-// Production runtime, dev, and test phases don't match.
+// PLACEMENT INVARIANT: this check runs at the PUBLIC ENTRY, BEFORE the
+// `unstable_cache` wrapper. Inside the wrapped fetcher, the empty `[]`
+// would be persisted into Vercel's data cache (60s TTL) and could
+// outlive the build, serving stale empties to runtime requests. The
+// matching tests pin captured.length === 0 to catch a future refactor
+// that drops this ordering.
 //
-// CRITICAL: this check runs at the PUBLIC ENTRY (getCachedLeaderboard /
-// getCachedTopPilots) — BEFORE the `unstable_cache` wrapper sees the
-// call. Putting it inside the wrapped fetcher would still skip Neon,
-// but the empty `[]` would be persisted into Vercel's data cache (TTL
-// 60s) and could outlive the build. Any runtime read within that window
-// would hit the cached `[]` instead of querying Neon. By short-circuiting
-// at the public entry, the data cache stays untouched during prerender
-// and the first runtime read populates it cleanly with real data.
+// PHASE_EXPORT covers `next export` defense-in-depth — the project
+// doesn't enable `output: "export"`, but if anyone does they get the
+// same protection without re-discovering the gotcha.
 //
-// Long-term alternatives if Neon's driver doesn't get more reliable:
-//   1. Switch /leaderboard to `dynamic = "force-dynamic"`. Page renders
-//      at request time; never touches Neon at build. Slight CPU cost per
-//      request, still bounded by `unstable_cache(revalidate: 60)`.
-//   2. Add a build-time fetch with a short hard timeout (~5s). Real data
-//      ships in the prerender when Neon is fast; falls back to the
-//      empty-build path otherwise. More moving parts than this fix.
-//   3. Wait for Neon driver to ship a fix for the dangling-WebSocket
-//      teardown.
+// Long-term alternatives if Neon's driver stays flaky:
+//   1. /leaderboard → `dynamic = "force-dynamic"`. Skips build entirely;
+//      slight per-request CPU, still bounded by unstable_cache(60s).
+//   2. Build-time fetch with a hard ~5s timeout. Real data when Neon is
+//      fast, falls back to this empty-build path otherwise.
+//   3. Wait for Neon to fix the dangling-WebSocket teardown upstream.
 export function isBuildPhase(): boolean {
   const phase = process.env.NEXT_PHASE;
   return phase === PHASE_PRODUCTION_BUILD || phase === PHASE_EXPORT;

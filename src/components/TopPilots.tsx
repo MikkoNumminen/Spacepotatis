@@ -19,11 +19,12 @@ export default async function TopPilots({ limit = 10 }: { limit?: number }) {
   if (entries.length === 0) {
     // Build-phase skip vs. genuinely empty — see Leaderboard.tsx for the
     // same rationale. Avoid the misleading "no pilots yet" copy during
-    // the post-deploy warming window.
+    // the post-deploy warming window, and tell the user a refresh will
+    // bring real data forward.
     if (isBuildPhase()) {
       return (
         <div className="rounded border border-space-border bg-space-panel/70 p-4 text-xs text-space-border">
-          Loading top pilots…
+          Top pilots warming up — refresh in a few seconds to see the latest.
         </div>
       );
     }

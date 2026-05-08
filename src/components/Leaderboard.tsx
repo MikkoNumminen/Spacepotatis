@@ -29,9 +29,15 @@ export default async function Leaderboard({
     // Distinguish "we skipped Neon at build time, real data lands after
     // ISR refresh" from "this mission genuinely has zero scores". Both
     // render the empty branch, but the copy users see for ~60s after
-    // deploy should not falsely imply their progress was wiped.
+    // deploy should not falsely imply their progress was wiped — and
+    // should be ACTIONABLE (the user can refresh to bring it forward
+    // rather than wait for organic ISR).
     if (isBuildPhase()) {
-      return <div className="text-xs text-space-border">Loading leaderboard…</div>;
+      return (
+        <div className="text-xs text-space-border">
+          Leaderboard warming up — refresh in a few seconds to see the latest.
+        </div>
+      );
     }
     return <div className="text-xs text-space-border">No scores yet — be the first.</div>;
   }
