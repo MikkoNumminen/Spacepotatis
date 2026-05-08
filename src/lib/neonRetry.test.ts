@@ -1,5 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isTransientNeonError, withNeonRetry } from "./neonRetry";
+
+// withNeonRetry warn-logs on every retry. Mute it in this file so the
+// unit-test output stays clean — production behavior is unchanged and the
+// warn is observable in Vercel logs where it actually matters.
+let warnSpy: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+afterEach(() => {
+  warnSpy.mockRestore();
+});
 
 describe("isTransientNeonError", () => {
   it("matches Neon control plane flake — the symptom we actually saw on /leaderboard", () => {
@@ -78,5 +89,47 @@ describe("withNeonRetry", () => {
     });
     await expect(withNeonRetry(fn, { attempts: 1, baseDelayMs: 0 })).rejects.toThrow();
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("guards `attempts: 0` to a single try (no infinite-loop or undefined-throw footgun)", async () => {
+    const fn = vi.fn(async () => "ok");
+    // Without the Math.max(1, ...) guard this would skip the loop and
+    // throw `undefined` — silent footgun if a caller ever passed 0.
+    const result = await withNeonRetry(fn, { attempts: 0, baseDelayMs: 0 });
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes the supplied `label` in the retry warn-log so call sites are distinguishable in Vercel logs", async () => {
+    let calls = 0;
+    const fn = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("Control plane request failed");
+      return "ok";
+    };
+    // Don't use the file-scoped warnSpy — this test specifically asserts on
+    // the warn payload, so we need our own spy that doesn't get cleared
+    // between retries.
+    warnSpy.mockClear();
+    await withNeonRetry(fn, { baseDelayMs: 0, label: "test:custom-label" });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const message = warnSpy.mock.calls[0]?.[0];
+    expect(typeof message).toBe("string");
+    expect(message).toContain("withNeonRetry[test:custom-label]");
+    expect(message).toContain("attempt 1/3");
+    expect(message).toContain("Control plane request failed");
+  });
+
+  it("falls back to label='anonymous' when no label is supplied", async () => {
+    let calls = 0;
+    const fn = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("Control plane request failed");
+      return "ok";
+    };
+    warnSpy.mockClear();
+    await withNeonRetry(fn, { baseDelayMs: 0 });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain("withNeonRetry[anonymous]");
   });
 });

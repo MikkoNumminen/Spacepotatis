@@ -29,6 +29,11 @@ export function isTransientNeonError(err: unknown): boolean {
 export interface NeonRetryOptions {
   readonly attempts?: number;
   readonly baseDelayMs?: number;
+  // Included in the retry warn-log so multiple call sites are
+  // distinguishable in Vercel logs ("withNeonRetry[/api/save tx]" vs
+  // "withNeonRetry[leaderboard:fetchTopPilots]"). Without it, the only
+  // signal would be that *something* flaked.
+  readonly label?: string;
 }
 
 // Run `fn`, retrying on transient Neon errors with exponential backoff +
@@ -37,8 +42,11 @@ export async function withNeonRetry<T>(
   fn: () => Promise<T>,
   opts: NeonRetryOptions = {}
 ): Promise<T> {
-  const attempts = opts.attempts ?? 3;
+  // Math.max(1, ...) guards against a footgun where `attempts: 0` would
+  // skip the loop entirely and throw `undefined`.
+  const attempts = Math.max(1, opts.attempts ?? 3);
   const baseDelayMs = opts.baseDelayMs ?? 100;
+  const label = opts.label ?? "anonymous";
 
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -47,6 +55,14 @@ export async function withNeonRetry<T>(
     } catch (err) {
       lastErr = err;
       if (!isTransientNeonError(err) || i === attempts - 1) throw err;
+      // Visibility: log on every retry so we know in production whether
+      // the wrapper is actively masking flakes. If this line never appears,
+      // the retry costs us nothing AND nothing was at risk; if it appears
+      // often, it's a signal Neon's flake rate is climbing.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `withNeonRetry[${label}] transient flake on attempt ${i + 1}/${attempts}: ${message}`
+      );
       const jitter = Math.random() * baseDelayMs;
       const delay = baseDelayMs * Math.pow(2, i) + jitter;
       await new Promise((resolve) => setTimeout(resolve, delay));

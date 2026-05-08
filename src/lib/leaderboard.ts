@@ -62,16 +62,18 @@ async function fetchLeaderboardEntries(
   // Wrap in withNeonRetry so a single "Control plane request failed" flake
   // doesn't render one mission panel as broken while siblings render fine.
   // See neonRetry.ts header for the symptom this masks.
-  const rows = await withNeonRetry(() =>
-    getDb()
-      .selectFrom("spacepotatis.leaderboard as lb")
-      .innerJoin("spacepotatis.players as p", "p.id", "lb.player_id")
-      .select(["p.handle as player_handle", "lb.score", "lb.time_seconds", "lb.created_at"])
-      .where("lb.mission_id", "=", missionId)
-      .orderBy("lb.score", "desc")
-      .orderBy("lb.created_at", "desc")
-      .limit(limit)
-      .execute()
+  const rows = await withNeonRetry(
+    () =>
+      getDb()
+        .selectFrom("spacepotatis.leaderboard as lb")
+        .innerJoin("spacepotatis.players as p", "p.id", "lb.player_id")
+        .select(["p.handle as player_handle", "lb.score", "lb.time_seconds", "lb.created_at"])
+        .where("lb.mission_id", "=", missionId)
+        .orderBy("lb.score", "desc")
+        .orderBy("lb.created_at", "desc")
+        .limit(limit)
+        .execute(),
+    { label: `leaderboard:fetchEntries:${missionId}` }
   );
 
   // Never expose email or Google profile name to other users. Players that
@@ -120,49 +122,51 @@ export async function getCachedLeaderboard(
 // Sort: clears DESC (real progress signal), then best_score DESC (skill
 // peak), then playtime ASC (faster runs win ties — punishes idling).
 async function fetchTopPilots(limit: number): Promise<PilotEntry[]> {
-  const rows = await withNeonRetry(() =>
-    getDb()
-      .selectFrom("spacepotatis.players as p")
-      .leftJoin(
-        (eb) =>
-          eb
-            .selectFrom("spacepotatis.save_games")
-            .select([
-              "player_id",
-              sql<number>`COALESCE(array_length(completed_missions, 1), 0)`.as("clears"),
-              "played_time_seconds as playtime"
-            ])
-            .where("slot", "=", 1)
-            .as("s"),
-        (join) => join.onRef("s.player_id", "=", "p.id")
-      )
-      .leftJoin(
-        (eb) =>
-          eb
-            .selectFrom("spacepotatis.leaderboard")
-            .select(["player_id", sql<number>`MAX(score)`.as("best_score")])
-            .groupBy("player_id")
-            .as("lb"),
-        (join) => join.onRef("lb.player_id", "=", "p.id")
-      )
-      .select([
-        "p.handle",
-        sql<number>`COALESCE(s.clears, 0)`.as("clears"),
-        sql<number>`COALESCE(s.playtime, 0)`.as("playtime"),
-        sql<number>`COALESCE(lb.best_score, 0)`.as("best_score")
-      ])
-      .where("p.handle", "is not", null)
-      .where((eb) =>
-        eb.or([
-          eb(sql`COALESCE(s.clears, 0)`, ">", 0),
-          eb(sql`COALESCE(lb.best_score, 0)`, ">", 0)
+  const rows = await withNeonRetry(
+    () =>
+      getDb()
+        .selectFrom("spacepotatis.players as p")
+        .leftJoin(
+          (eb) =>
+            eb
+              .selectFrom("spacepotatis.save_games")
+              .select([
+                "player_id",
+                sql<number>`COALESCE(array_length(completed_missions, 1), 0)`.as("clears"),
+                "played_time_seconds as playtime"
+              ])
+              .where("slot", "=", 1)
+              .as("s"),
+          (join) => join.onRef("s.player_id", "=", "p.id")
+        )
+        .leftJoin(
+          (eb) =>
+            eb
+              .selectFrom("spacepotatis.leaderboard")
+              .select(["player_id", sql<number>`MAX(score)`.as("best_score")])
+              .groupBy("player_id")
+              .as("lb"),
+          (join) => join.onRef("lb.player_id", "=", "p.id")
+        )
+        .select([
+          "p.handle",
+          sql<number>`COALESCE(s.clears, 0)`.as("clears"),
+          sql<number>`COALESCE(s.playtime, 0)`.as("playtime"),
+          sql<number>`COALESCE(lb.best_score, 0)`.as("best_score")
         ])
-      )
-      .orderBy(sql`COALESCE(s.clears, 0)`, "desc")
-      .orderBy(sql`COALESCE(lb.best_score, 0)`, "desc")
-      .orderBy(sql`COALESCE(s.playtime, 0)`, "asc")
-      .limit(limit)
-      .execute()
+        .where("p.handle", "is not", null)
+        .where((eb) =>
+          eb.or([
+            eb(sql`COALESCE(s.clears, 0)`, ">", 0),
+            eb(sql`COALESCE(lb.best_score, 0)`, ">", 0)
+          ])
+        )
+        .orderBy(sql`COALESCE(s.clears, 0)`, "desc")
+        .orderBy(sql`COALESCE(lb.best_score, 0)`, "desc")
+        .orderBy(sql`COALESCE(s.playtime, 0)`, "asc")
+        .limit(limit)
+        .execute(),
+    { label: "leaderboard:fetchTopPilots" }
   );
 
   return rows.map(mapRowToPilot);
