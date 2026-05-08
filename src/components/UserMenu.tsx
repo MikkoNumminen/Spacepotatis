@@ -60,7 +60,9 @@ export default function UserMenu({
     return (
       <button
         type="button"
-        onClick={() => void signIn("google")}
+        onClick={() =>
+          void signIn("google", { callbackUrl: "/play" }, { prompt: "select_account" })
+        }
         className="touch-manipulation select-none rounded border border-hud-green/60 px-3 py-1.5 text-xs hover:bg-hud-green/10 active:bg-hud-green/20"
       >
         Sign in with Google

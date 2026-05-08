@@ -10,23 +10,18 @@ import { clearGuestSnapshot } from "@/game/state/guestCache";
 import { resetState } from "@/game/state/GameState";
 import { BUTTON_NAV } from "./ui/buttonClasses";
 
-// Simple auth control used on the landing page. Shows the handle (never the
-// Google profile name) plus sign-out and switch-account affordances when
-// authenticated, or a Google sign-in button otherwise. The richer UserMenu
-// dropdown lives in the galaxy view where future profile actions (avatar,
-// GDPR, etc.) will hang off the same trigger; sign-out and switch-account
-// stay here on the landing page so the player can't trigger a destructive
-// account change mid-mission.
+// Simple auth control used on the landing page. Two states only:
+//   - authenticated   → handle button that signs out
+//   - unauthenticated → "Sign in with Google" button
 //
-// (Earlier iterations had a `compact` prop for HUD-bar use. It was never
-// actually mounted with compact=true; a future tight-layout caller should
-// add a dedicated, well-tested variant rather than re-introducing the
-// untested code path.)
+// To switch accounts, the user signs out and signs in again — the sign-in
+// flow always passes `prompt=select_account` so Google's account chooser
+// appears every time, letting the user pick a different identity without
+// any dedicated "switch account" affordance.
 export default function SignInButton() {
   const { status, handle, firstVisit } = useOptimisticAuth();
 
-  // Shared scrub-this-device cleanup. Both sign-out and switch-account end
-  // the current account's session on this browser; the next mount must be
+  // Scrub-this-device cleanup before sign-out. The next mount must be
   // unable to render any sliver of the prior account's state. This:
   //
   //   - Wipes auth + handle caches (landing-page optimistic UI).
@@ -54,27 +49,12 @@ export default function SignInButton() {
     void signOut();
   }
 
-  // "Switch account" — sign out without redirect, then re-trigger the
-  // OAuth flow with prompt=select_account so Google shows its account
-  // picker even if the user's browser is already signed into a Google
-  // session. Lands back at /play; useCloudSaveSync sees the new email and
-  // runs loadSave for the destination account. setCurrentPlayerEmail's
-  // own cleanup is the matching server-side guard — hydrationCompleted
-  // resets to false so the new account's loadSave verifies before any
-  // saveNow can POST.
-  //
-  // .finally(...) so the signIn fires regardless of signOut outcome. The
-  // user clicked "switch", not "sign out" — leaving them stuck signed-out
-  // because of a transient signOut failure (CSRF blip, network hiccup) is
-  // a worse UX than re-running OAuth and letting Google reconcile session
-  // state. signOut errors are surfaced via the original Promise's
-  // rejection, which `void` swallows — same behavior we already accept
-  // for the regular sign-out flow.
-  function handleSwitchAccount() {
-    scrubLocalAccountState();
-    void signOut({ redirect: false }).finally(() => {
-      void signIn("google", { callbackUrl: "/play" }, { prompt: "select_account" });
-    });
+  // Always force Google's account chooser via `prompt=select_account`.
+  // Without this, a user already signed into a Google session gets
+  // silently re-signed-in with the same identity — making it impossible
+  // to switch accounts via this button alone.
+  function handleSignIn() {
+    void signIn("google", { callbackUrl: "/play" }, { prompt: "select_account" });
   }
 
   // Only show the loading placeholder on a true first visit. Returning
@@ -89,29 +69,15 @@ export default function SignInButton() {
     // text-sm, block w-full text-center) so it lines up with PLAY /
     // CONTINUE / Leaderboard. Hover stays red so the destructive sign-out
     // affordance reads distinctly from the rest.
-    //
-    // The switch-account button below is a smaller secondary affordance —
-    // discoverable but visually subordinate so it doesn't compete with
-    // PLAY for attention.
     return (
-      <div className="flex w-full flex-col gap-2">
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="flex h-12 w-full touch-manipulation select-none items-center justify-center rounded border border-hud-amber/40 px-8 text-sm text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red active:border-hud-red/80 active:text-hud-red"
-          title="Sign out"
-        >
-          {label} · sign out
-        </button>
-        <button
-          type="button"
-          onClick={handleSwitchAccount}
-          className="flex h-9 w-full touch-manipulation select-none items-center justify-center rounded border border-space-border px-8 text-xs text-hud-green/70 hover:border-hud-green/40 hover:text-hud-green active:border-hud-green/60"
-          title="Switch to a different Google account"
-        >
-          Switch account
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="flex h-12 w-full touch-manipulation select-none items-center justify-center rounded border border-hud-amber/40 px-8 text-sm text-hud-green/90 hover:border-hud-red/60 hover:text-hud-red active:border-hud-red/80 active:text-hud-red"
+        title="Sign out"
+      >
+        {label} · sign out
+      </button>
     );
   }
 
@@ -120,7 +86,7 @@ export default function SignInButton() {
   return (
     <button
       type="button"
-      onClick={() => void signIn("google")}
+      onClick={handleSignIn}
       className={BUTTON_NAV}
     >
       Sign in with Google
