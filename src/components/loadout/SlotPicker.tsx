@@ -31,11 +31,14 @@ export function SlotPicker({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slot-picker-title"
         className="w-full max-w-md rounded border border-space-border bg-space-panel p-4 sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="mb-3 flex items-baseline justify-between gap-3">
-          <h3 className="font-display tracking-widest text-hud-green">
+          <h3 id="slot-picker-title" className="font-display tracking-widest text-hud-green">
             EQUIP · {slotLabel(slotIndex)}
           </h3>
           <button

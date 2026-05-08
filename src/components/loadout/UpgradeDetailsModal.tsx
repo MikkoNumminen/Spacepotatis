@@ -60,6 +60,10 @@ export function UpgradeDetailsModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upgrade-details-title"
+        aria-describedby="upgrade-details-desc"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full max-w-md rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-6 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
@@ -74,7 +78,7 @@ export function UpgradeDetailsModal({
         </button>
 
         <header className="mb-4 mt-8 text-center">
-          <span className="font-display text-base tracking-widest text-hud-amber">
+          <span id="upgrade-details-title" className="font-display text-base tracking-widest text-hud-amber">
             {upgrade.name}
           </span>
         </header>
@@ -92,7 +96,7 @@ export function UpgradeDetailsModal({
           {detail}
         </div>
 
-        <div className="space-y-3 text-xs leading-relaxed text-hud-green/80">
+        <div id="upgrade-details-desc" className="space-y-3 text-xs leading-relaxed text-hud-green/80">
           {upgrade.body.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}

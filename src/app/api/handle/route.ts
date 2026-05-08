@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "kysely";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
 import { HandlePayloadSchema } from "@/lib/schemas/handle";
 
@@ -27,15 +28,25 @@ export async function GET(): Promise<Response> {
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // Hoist for retry closures so TS narrowings don't get lost.
+  const sessionEmail = session.user.email;
+  const sessionName = session.user.name ?? null;
 
   try {
     const db = getDb();
-    const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
-    const row = await db
-      .selectFrom("spacepotatis.players")
-      .select("handle")
-      .where("id", "=", playerId)
-      .executeTakeFirst();
+    const playerId = await withNeonRetry(
+      () => upsertPlayerId(sessionEmail, sessionName),
+      { label: "GET /api/handle:upsertPlayerId" }
+    );
+    const row = await withNeonRetry(
+      () =>
+        db
+          .selectFrom("spacepotatis.players")
+          .select("handle")
+          .where("id", "=", playerId)
+          .executeTakeFirst(),
+      { label: "GET /api/handle:selectHandle" }
+    );
     return NextResponse.json({ handle: row?.handle ?? null });
   } catch (err) {
     console.error("GET /api/handle failed:", err);
@@ -48,6 +59,8 @@ export async function POST(request: Request): Promise<Response> {
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const sessionEmail = session.user.email;
+  const sessionName = session.user.name ?? null;
 
   let raw: unknown;
   try {
@@ -67,23 +80,32 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const db = getDb();
-    const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
+    const playerId = await withNeonRetry(
+      () => upsertPlayerId(sessionEmail, sessionName),
+      { label: "POST /api/handle:upsertPlayerId" }
+    );
 
     // Case-insensitive collision check before update — gives a clean error
     // message instead of leaking the unique-index violation. Race with a
     // simultaneous insert is fine: the unique index still fires and we
     // surface that as a duplicate.
-    const conflict = await db
-      .selectFrom("spacepotatis.players")
-      .select("id")
-      .where(sql`LOWER(handle)`, "=", handle.toLowerCase())
-      .where("id", "!=", playerId)
-      .executeTakeFirst();
+    const conflict = await withNeonRetry(
+      () =>
+        db
+          .selectFrom("spacepotatis.players")
+          .select("id")
+          .where(sql`LOWER(handle)`, "=", handle.toLowerCase())
+          .where("id", "!=", playerId)
+          .executeTakeFirst(),
+      { label: "POST /api/handle:conflictCheck" }
+    );
     if (conflict) {
       return NextResponse.json({ error: "handle_taken" }, { status: 409 });
     }
 
     try {
+      // The UPDATE itself isn't retried — a unique-violation (23505) must
+      // bubble cleanly to the isUniqueViolation branch below.
       await db
         .updateTable("spacepotatis.players")
         .set({ handle })

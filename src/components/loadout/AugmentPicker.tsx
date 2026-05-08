@@ -43,11 +43,14 @@ export function AugmentPicker({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="augment-picker-title"
         className="w-full max-w-md rounded border border-space-border bg-space-panel p-4 sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="mb-3 flex items-baseline justify-between gap-3">
-          <h3 className="font-display tracking-widest text-hud-green">
+          <h3 id="augment-picker-title" className="font-display tracking-widest text-hud-green">
             INSTALL · {weapon.name}
           </h3>
           <button

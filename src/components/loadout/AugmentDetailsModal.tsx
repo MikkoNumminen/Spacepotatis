@@ -69,6 +69,10 @@ export function AugmentDetailsModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="augment-details-title"
+        aria-describedby="augment-details-effect augment-details-impact augment-details-desc"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full max-w-md rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-6 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
@@ -84,20 +88,26 @@ export function AugmentDetailsModal({
 
         <header className="mb-3 mt-8 flex items-baseline justify-center gap-2">
           <AugmentDot tint={augment.tint} />
-          <span className="font-display text-base tracking-widest text-hud-amber">
+          <span id="augment-details-title" className="font-display text-base tracking-widest text-hud-amber">
             {augment.name}
           </span>
         </header>
 
-        <div className="mb-4 text-center font-mono text-[11px] text-hud-amber">
+        <div id="augment-details-effect" className="mb-4 text-center font-mono text-[11px] text-hud-amber">
           {effectSummary}
         </div>
 
-        {impact && (
-          <ImpactDiagram impact={impact} contextLabel={contextLabel(context)} />
-        )}
+        {/* Always-present wrapper id so aria-describedby resolves cleanly
+            whether or not the augment is currently installed (no impact).
+            Empty wrapper is benign — screen reader announces nothing for
+            this section and falls through to the description below. */}
+        <div id="augment-details-impact">
+          {impact && (
+            <ImpactDiagram impact={impact} contextLabel={contextLabel(context)} />
+          )}
+        </div>
 
-        <p className="text-xs leading-relaxed text-hud-green/80">{augment.description}</p>
+        <p id="augment-details-desc" className="text-xs leading-relaxed text-hud-green/80">{augment.description}</p>
       </div>
     </div>
   );
