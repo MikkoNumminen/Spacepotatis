@@ -56,6 +56,7 @@ export function StatDetailsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="stat-details-title"
+        aria-describedby="stat-details-desc"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full max-w-md rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-6 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
@@ -80,7 +81,7 @@ export function StatDetailsModal({
           {detail}
         </div>
 
-        <div className="space-y-3 text-xs leading-relaxed text-hud-green/80">
+        <div id="stat-details-desc" className="space-y-3 text-xs leading-relaxed text-hud-green/80">
           {stat.body.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}

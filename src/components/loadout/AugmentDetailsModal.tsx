@@ -72,6 +72,7 @@ export function AugmentDetailsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="augment-details-title"
+        aria-describedby="augment-details-desc"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full max-w-md rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-6 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
@@ -100,7 +101,7 @@ export function AugmentDetailsModal({
           <ImpactDiagram impact={impact} contextLabel={contextLabel(context)} />
         )}
 
-        <p className="text-xs leading-relaxed text-hud-green/80">{augment.description}</p>
+        <p id="augment-details-desc" className="text-xs leading-relaxed text-hud-green/80">{augment.description}</p>
       </div>
     </div>
   );

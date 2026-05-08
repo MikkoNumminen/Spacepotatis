@@ -17,12 +17,17 @@ const dbStub: {
   updateImpl: () => Promise<unknown>;
   updateSpy: (v: Record<string, unknown>) => void;
   selectInvocations: number;
+  // Lets a test simulate a transient Neon error on the next executeTakeFirst
+  // — used to pin that the conflict-check SELECT goes through withNeonRetry.
+  // Throws once, then clears itself so the retry attempt sees normal data.
+  selectThrowOnce: Error | null;
 } = {
   selectHandleRow: undefined,
   conflictRow: undefined,
   updateImpl: async () => undefined,
   updateSpy: () => undefined,
-  selectInvocations: 0
+  selectInvocations: 0,
+  selectThrowOnce: null
 };
 
 function selectChain(initial: () => Promise<unknown>) {
@@ -58,11 +63,20 @@ vi.mock("@/lib/db", () => ({
       // The route bodies dictate the order. We expose .selectHandleRow for
       // GET and .conflictRow for POST; tests configure whichever they need.
       dbStub.selectInvocations += 1;
-      return selectChain(async () =>
-        dbStub.selectInvocations === 1 && dbStub.selectHandleRow !== undefined
+      return selectChain(async () => {
+        // Throw-once gate for retry tests. Cleared on first consumption so
+        // the retry attempt sees normal data. Lives in the closure so each
+        // executeTakeFirst call (inc. retries via fresh selectFrom proxies)
+        // consults the same dbStub flag.
+        if (dbStub.selectThrowOnce) {
+          const err = dbStub.selectThrowOnce;
+          dbStub.selectThrowOnce = null;
+          throw err;
+        }
+        return dbStub.selectInvocations === 1 && dbStub.selectHandleRow !== undefined
           ? dbStub.selectHandleRow
-          : dbStub.conflictRow
-      );
+          : dbStub.conflictRow;
+      });
     },
     updateTable: () => updateChain()
   })
@@ -77,6 +91,7 @@ beforeEach(() => {
   dbStub.updateImpl = async () => undefined;
   dbStub.updateSpy = vi.fn();
   dbStub.selectInvocations = 0;
+  dbStub.selectThrowOnce = null;
 });
 
 afterEach(() => {
@@ -302,5 +317,28 @@ describe("/api/handle Neon retry", () => {
     expect(res.status).toBe(500);
     // Single attempt — non-transient errors must NOT be retried.
     expect(upsertCalls).toBe(1);
+  });
+
+  it("POST retries the case-insensitive conflict-check SELECT on a transient flake", async () => {
+    // Pins the THIRD retry surface in the route (after upsertPlayerId tested
+    // above and the UPDATE explicitly NOT-retried). Without this, a future
+    // refactor that drops the SELECT wrapper alone would still pass the
+    // upsertPlayerId test, hiding the regression.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.selectThrowOnce = new Error("Control plane request failed");
+    const updateSpy = vi.fn();
+    dbStub.updateSpy = updateSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/handle", { method: "POST", body: JSON.stringify({ handle: "spud" }) })
+    );
+    warnSpy.mockRestore();
+    expect(res.status).toBe(200);
+    // Two SELECT attempts: first threw, second succeeded with no conflict.
+    expect(dbStub.selectInvocations).toBe(2);
+    // UPDATE still runs exactly once on the eventual happy path — proves
+    // the SELECT retry doesn't double-fire downstream effects.
+    expect(updateSpy).toHaveBeenCalledTimes(1);
   });
 });

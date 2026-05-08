@@ -1,15 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { ROUTES } from "@/lib/routes";
-
 // Root segment error boundary. Lower-risk than /play and /shop because the
 // landing page is mostly static + a few small client islands (LandingShell,
 // MuteToggle, SignInButton, PlayButton), but a throw in any of those would
-// otherwise fall through to Next.js's generic root error UI. Mirrors the
-// /leaderboard, /play, /shop boundaries — branded recovery affordance with
-// reset() + a Back-to-home link (which collapses to a same-page reset
-// because home IS this segment).
+// otherwise fall through to Next.js's generic root error UI.
+//
+// Two recovery affordances, intentionally distinct:
+//   - "Try again" → reset() — re-mounts the segment with React state intact
+//     elsewhere. Cheap, fast, fixes most transient render failures.
+//   - "Reload page" → window.location.reload() — hard reload that re-runs
+//     hydration from scratch. Escapes sticky React state where reset() loops
+//     back into the same throw (e.g. a corrupt localStorage entry that the
+//     client islands keep re-reading).
+// A "Back to home" link would collapse to the same as reset() here because
+// home IS this segment, so we offer a hard-reload escape hatch instead.
 export default function RootError({
   reset
 }: {
@@ -26,7 +30,7 @@ export default function RootError({
           ground control offline
         </div>
         <p className="mt-5 max-w-sm font-mono text-sm text-hud-amber/80">
-          Something went sideways. Try again or refresh.
+          Something went sideways. Try again — or hard-reload if it sticks.
         </p>
         <div className="mt-5 flex flex-wrap gap-3 font-mono text-sm">
           <button
@@ -36,12 +40,13 @@ export default function RootError({
           >
             Try again
           </button>
-          <Link
-            href={ROUTES.page.home}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
             className="rounded border border-space-border px-3 py-1 text-space-border transition hover:text-hud-green"
           >
-            Back to home
-          </Link>
+            Reload page
+          </button>
         </div>
       </div>
     </main>

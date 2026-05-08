@@ -79,6 +79,7 @@ export default function StoryModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="story-modal-title"
+        aria-describedby="story-modal-body"
         className={`relative w-full max-w-xl rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-8 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
@@ -95,7 +96,7 @@ export default function StoryModal({
         <div id="story-modal-title" className="text-center font-display text-lg tracking-widest text-hud-amber">
           {entry.title}
         </div>
-        <div className="mt-6 space-y-4 text-sm leading-relaxed text-hud-green/90">
+        <div id="story-modal-body" className="mt-6 space-y-4 text-sm leading-relaxed text-hud-green/90">
           {entry.body.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}
