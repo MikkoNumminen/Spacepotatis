@@ -600,6 +600,35 @@ describe("POST /api/save audit log", () => {
     errSpy.mockRestore();
     expect(res.status).toBe(204);
   });
+
+  it("audit insert retries on a transient Neon flake and the audit row eventually lands", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let auditCalls = 0;
+    dbStub.auditInsertImpl = async () => {
+      auditCalls += 1;
+      if (auditCalls === 1) throw new Error("Control plane request failed");
+      return undefined;
+    };
+    const auditSpy = (dbStub.auditInsertSpy = vi.fn());
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 30,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    warnSpy.mockRestore();
+    expect(res.status).toBe(204);
+    // Two .values() calls — one per attempt. The successful retry is what
+    // lands the forensic row; the first attempt's row was never committed.
+    expect(auditSpy).toHaveBeenCalledTimes(2);
+    expect(auditCalls).toBe(2);
+  });
 });
 
 // Same Neon control-plane flake the /leaderboard fan-out can hit also

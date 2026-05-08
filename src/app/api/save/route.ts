@@ -130,19 +130,31 @@ async function writeSaveAudit(
     storedPayload = { truncated: true, reason: "unserializable" };
   }
   try {
-    await db
-      .insertInto("spacepotatis.save_audit")
-      .values({
-        player_id: row.playerId,
-        slot: 1,
-        request_payload: storedPayload,
-        response_status: row.responseStatus,
-        response_error: row.responseError,
-        prev_snapshot: row.prevSnapshot,
-        request_ip: row.requestIp,
-        user_agent: row.userAgent
-      })
-      .execute();
+    // Retry the audit INSERT on transient Neon flakes so a one-off control-
+    // plane blip doesn't drop a forensic row. Each attempt generates a new
+    // server-side UUID, so a hypothetical "first commit silently succeeded
+    // then driver raised" case lands a duplicate audit row — acceptable for
+    // a forensic table; better than missing the row entirely.
+    //
+    // The outer try/catch still catches the FINAL failure after retries
+    // exhaust, preserving the failure-mode contract above.
+    await withNeonRetry(
+      () =>
+        db
+          .insertInto("spacepotatis.save_audit")
+          .values({
+            player_id: row.playerId,
+            slot: 1,
+            request_payload: storedPayload,
+            response_status: row.responseStatus,
+            response_error: row.responseError,
+            prev_snapshot: row.prevSnapshot,
+            request_ip: row.requestIp,
+            user_agent: row.userAgent
+          })
+          .execute(),
+      { label: "writeSaveAudit" }
+    );
   } catch (err) {
     // Never let an audit-table problem (missing migration, transient Neon
     // outage, schema drift) block a save. Log and move on.
@@ -271,16 +283,25 @@ export async function POST(request: Request): Promise<Response> {
         prevSnapshot: Record<string, unknown> | null;
       };
 
-  // Wrap the whole transaction in withNeonRetry. Safety reasoning:
+  // SECURITY-RELATED: transaction-level retry is correctness-preserving — DO NOT remove without re-validating each bullet below
+  //
+  // Wrap the whole transaction in withNeonRetry. Safety reasoning (every
+  // bullet here is load-bearing — a future "simplification" that removes
+  // the wrapper without checking these would re-introduce the user-visible
+  // 500 we're masking):
+  //
   //   - Kysely's `transaction().execute()` auto-ROLLBACKs on any thrown
   //     error inside the callback, so a transient flake leaves the DB in
-  //     its pre-BEGIN state before retry.
+  //     its pre-BEGIN state before retry. Lock acquired by FOR UPDATE on
+  //     prev_row is released as part of rollback.
   //   - The save upsert uses ON CONFLICT (player_id, slot) DO UPDATE, so
   //     even if a hypothetical first COMMIT silently committed and the
   //     driver still raised, the retry's re-upsert writes the same data.
   //   - Validators are pure functions of (prev_row, body); prev_row is
   //     re-SELECTed under FOR UPDATE on each attempt, so the second
-  //     attempt sees fresh state and can't pass on a stale baseline.
+  //     attempt sees fresh state and can't pass on a stale baseline. The
+  //     2026-05-02 wipe-pattern guard (validateNoRegression, INV-SAVE-1)
+  //     fires equally on each attempt.
   //   - Only known-transient errors retry. {kind: "reject"} is RETURNED,
   //     not thrown — validator rejections never trigger retry.
   let outcome: TxOutcome;
