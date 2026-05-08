@@ -20,7 +20,13 @@ vi.mock("next/cache", () => ({
 // db is mocked per-test; module-scoped fakeKysely lets each test stage rows
 // and read back the recorded query chain.
 type CapturedCall = { method: string; args: unknown[] };
-const fakeRows: { rows: unknown[] } = { rows: [] };
+// `throwOnExecute` lets a test simulate a transient Neon error on the next
+// execute() — used to pin that the leaderboard fetchers retry on flakes.
+// Pass an Error to throw once and then succeed.
+const fakeRows: { rows: unknown[]; throwOnExecute?: Error | null } = {
+  rows: []
+};
+let executeCallCount = 0;
 const captured: CapturedCall[] = [];
 // Records every callback the production code passes into Kysely (leftJoin
 // subqueries, where(eb=>...) predicates, etc). The chain proxy invokes them
@@ -70,7 +76,16 @@ function chain(): Record<string, unknown> {
     {},
     {
       get(_, prop: string) {
-        if (prop === "execute") return async () => fakeRows.rows;
+        if (prop === "execute")
+          return async () => {
+            executeCallCount += 1;
+            if (fakeRows.throwOnExecute) {
+              const err = fakeRows.throwOnExecute;
+              fakeRows.throwOnExecute = null;
+              throw err;
+            }
+            return fakeRows.rows;
+          };
         return (...args: unknown[]) => {
           captured.push({ method: prop, args });
           // Invoke any function args so production callbacks (leftJoin
@@ -114,6 +129,8 @@ beforeEach(() => {
   cacheCall.mockClear();
   captured.length = 0;
   fakeRows.rows = [];
+  fakeRows.throwOnExecute = null;
+  executeCallCount = 0;
 });
 
 describe("getCachedLeaderboard cache wiring", () => {
@@ -378,5 +395,54 @@ describe("build-phase short-circuit", () => {
     const { getCachedTopPilots } = await import("./leaderboard");
     expect(await getCachedTopPilots(5)).toEqual([]);
     expect(captured).toHaveLength(0);
+  });
+});
+
+// Real symptom from the post-deploy /leaderboard page: with N+1 RSC children
+// fanning out to Neon in parallel, a subset of panels would render
+// "Leaderboard unavailable (Control plane request failed)" while their
+// siblings rendered fine. The withNeonRetry wrapper around each fetcher
+// masks that flake. Pin both fetchers go through it.
+describe("transient Neon error retry", () => {
+  it("getCachedLeaderboard retries on a 'Control plane request failed' flake and returns the eventual rows", async () => {
+    fakeRows.throwOnExecute = new Error("Control plane request failed");
+    fakeRows.rows = [
+      {
+        player_handle: "spud",
+        score: 1000,
+        time_seconds: 60,
+        created_at: new Date("2025-01-02T00:00:00.000Z")
+      }
+    ];
+    const { getCachedLeaderboard } = await import("./leaderboard");
+    const entries = await getCachedLeaderboard("tutorial" as never, 10);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.playerName).toBe("spud");
+    // First execute() threw, second succeeded.
+    expect(executeCallCount).toBe(2);
+  });
+
+  it("getCachedTopPilots retries on a transient flake and returns rows", async () => {
+    fakeRows.throwOnExecute = new Error("Connection terminated unexpectedly");
+    fakeRows.rows = [
+      { handle: "spudlord", clears: 5, playtime: 1234, best_score: 9999 }
+    ];
+    const { getCachedTopPilots } = await import("./leaderboard");
+    const pilots = await getCachedTopPilots(10);
+    expect(pilots).toEqual([
+      { handle: "spudlord", clears: 5, playtimeSeconds: 1234, bestScore: 9999 }
+    ]);
+    expect(executeCallCount).toBe(2);
+  });
+
+  it("getCachedLeaderboard surfaces non-transient errors immediately (no retry)", async () => {
+    fakeRows.throwOnExecute = new Error("permission denied for table leaderboard");
+    const { getCachedLeaderboard } = await import("./leaderboard");
+    await expect(
+      getCachedLeaderboard("tutorial" as never, 10)
+    ).rejects.toThrow("permission denied");
+    // Single attempt — non-transient errors must NOT be retried, otherwise
+    // we'd amplify load on real bugs.
+    expect(executeCallCount).toBe(1);
   });
 });
