@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
+import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
 import { MissionIdSchema, ScorePayloadSchema } from "@/lib/schemas/save";
 import { maxLegitScore } from "@/lib/saveValidation";
@@ -40,6 +41,8 @@ export async function POST(request: Request): Promise<Response> {
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const sessionEmail = session.user.email;
+  const sessionName = session.user.name ?? null;
 
   let raw: unknown;
   try {
@@ -65,18 +68,25 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const db = getDb();
-    const playerId = await upsertPlayerId(session.user.email, session.user.name ?? null);
+    const playerId = await withNeonRetry(
+      () => upsertPlayerId(sessionEmail, sessionName),
+      { label: "POST /api/leaderboard:upsertPlayerId" }
+    );
 
     // Mission-completion guard: only accept a score for a mission the
     // player has actually completed. The save POST runs before
     // submitScore (handleMissionComplete awaits saveNow first), so by
     // the time this lands the new mission is in completed_missions.
-    const saveRow = await db
-      .selectFrom("spacepotatis.save_games")
-      .select("completed_missions")
-      .where("player_id", "=", playerId)
-      .where("slot", "=", 1)
-      .executeTakeFirst();
+    const saveRow = await withNeonRetry(
+      () =>
+        db
+          .selectFrom("spacepotatis.save_games")
+          .select("completed_missions")
+          .where("player_id", "=", playerId)
+          .where("slot", "=", 1)
+          .executeTakeFirst(),
+      { label: "POST /api/leaderboard:selectCompletedMissions" }
+    );
 
     const completed = Array.isArray(saveRow?.completed_missions)
       ? (saveRow.completed_missions as readonly string[])
@@ -84,7 +94,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!completed.includes(missionId)) {
       console.warn(
         "[/api/leaderboard] score for uncompleted mission",
-        session.user.email,
+        sessionEmail,
         missionId
       );
       return NextResponse.json(
@@ -93,15 +103,25 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    await db
-      .insertInto("spacepotatis.leaderboard")
-      .values({
-        player_id: playerId,
-        mission_id: missionId,
-        score,
-        time_seconds: timeSeconds
-      })
-      .execute();
+    // Score INSERT is idempotent in spirit — each call appends a new row
+    // with a fresh server-generated UUID. A retry following a hypothetical
+    // "first commit silently succeeded" case would land a duplicate row;
+    // for a leaderboard table that's harmless (the leader board sorts by
+    // score DESC + created_at DESC, and the player's best/most-recent run
+    // already wins). Better than failing the user-facing submit.
+    await withNeonRetry(
+      () =>
+        db
+          .insertInto("spacepotatis.leaderboard")
+          .values({
+            player_id: playerId,
+            mission_id: missionId,
+            score,
+            time_seconds: timeSeconds
+          })
+          .execute(),
+      { label: "POST /api/leaderboard:insertScore" }
+    );
 
     // Flush the read cache so the new score is visible on the next GET.
     revalidateTag(LEADERBOARD_CACHE_TAG);

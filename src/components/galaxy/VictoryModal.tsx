@@ -94,6 +94,8 @@ export default function VictoryModal({
   return (
     <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/70 p-3 backdrop-blur-sm sm:p-6">
       <div
+        role="dialog"
+        aria-modal="true"
         className={`w-[min(28rem,100%)] rounded border ${panelBorder} bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(94,255,167,0.15)] transition-all duration-200 ease-out sm:p-8 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}

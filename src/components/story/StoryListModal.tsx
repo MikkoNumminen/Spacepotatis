@@ -29,7 +29,11 @@ export default function StoryListModal({
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-sm sm:p-6">
-      <div className="relative max-h-[90vh] w-[min(34rem,100%)] overflow-y-auto rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] sm:p-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative max-h-[90vh] w-[min(34rem,100%)] overflow-y-auto rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] sm:p-6"
+      >
         <button
           type="button"
           onClick={onClose}

@@ -31,6 +31,8 @@ export function SlotPicker({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
         className="w-full max-w-md rounded border border-space-border bg-space-panel p-4 sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
