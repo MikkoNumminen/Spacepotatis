@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // Capture the unstable_cache call so we can assert on its tag/TTL/key without
 // pulling in the real next/cache module (which expects to run inside a Next
@@ -296,5 +296,59 @@ describe("fetchTopPilots (via getCachedTopPilots, db mocked)", () => {
       playtimeSeconds: 600,
       bestScore: 5000
     });
+  });
+});
+
+// Build-phase short-circuit. Without this, recent Vercel builds were timing
+// out at 60s on /leaderboard's static prerender because Neon's serverless
+// WebSocket driver dangles connections during build. A future refactor that
+// drops the early-return without realizing why it was there would silently
+// re-introduce the build hang. Pin the contract here.
+describe("build-phase short-circuit", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("isBuildPhase() reflects NEXT_PHASE === 'phase-production-build'", async () => {
+    const { isBuildPhase } = await import("./leaderboard");
+
+    vi.stubEnv("NEXT_PHASE", "phase-production-build");
+    expect(isBuildPhase()).toBe(true);
+
+    vi.stubEnv("NEXT_PHASE", "phase-production-server");
+    expect(isBuildPhase()).toBe(false);
+
+    vi.stubEnv("NEXT_PHASE", "phase-development-server");
+    expect(isBuildPhase()).toBe(false);
+
+    // Unset env returns false too — tests, scripts, etc.
+    vi.unstubAllEnvs();
+    expect(isBuildPhase()).toBe(false);
+  });
+
+  it("getCachedLeaderboard returns [] and skips Neon entirely during the build", async () => {
+    vi.stubEnv("NEXT_PHASE", "phase-production-build");
+    fakeRows.rows = [
+      { player_handle: "should-not-be-seen", score: 9999, time_seconds: 60, created_at: new Date() }
+    ];
+    const { getCachedLeaderboard } = await import("./leaderboard");
+    const entries = await getCachedLeaderboard("tutorial" as never, 10);
+
+    expect(entries).toEqual([]);
+    // The DB stub records every method invocation. A successful skip means
+    // ZERO captured calls — the fetcher early-returned before getDb().
+    expect(captured).toHaveLength(0);
+  });
+
+  it("getCachedTopPilots returns [] and skips Neon entirely during the build", async () => {
+    vi.stubEnv("NEXT_PHASE", "phase-production-build");
+    fakeRows.rows = [
+      { handle: "should-not-be-seen", clears: 5, playtime: 100, best_score: 9999 }
+    ];
+    const { getCachedTopPilots } = await import("./leaderboard");
+    const pilots = await getCachedTopPilots(10);
+
+    expect(pilots).toEqual([]);
+    expect(captured).toHaveLength(0);
   });
 });
