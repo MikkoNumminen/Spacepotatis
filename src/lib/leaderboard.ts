@@ -23,10 +23,29 @@ export interface PilotEntry {
   readonly bestScore: number;
 }
 
+// During the production build, Vercel gives each page a 60s wall budget.
+// Neon's serverless WebSocket driver occasionally dangles a connection
+// that the build worker can't unwind, killing the deploy with a generic
+// "Connection terminated unexpectedly" trace and a "took more than 60
+// seconds" timeout. The page renders fine at request time (the runtime
+// path has its own retry + warmup behavior), so the safe move is to
+// skip the Neon hit entirely during the static prerender and let the
+// ISR refresh on the first real request fill in the data. The cost is
+// up to ~60s of empty leaderboard immediately after a deploy, vs. a
+// hung build that prevents the deploy from shipping at all.
+//
+// `phase-production-build` is the env Next.js sets while statically
+// generating pages at build time. Production runtime, dev, and export
+// phases don't match.
+function isBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === "phase-production-build";
+}
+
 async function fetchLeaderboardEntries(
   missionId: MissionId,
   limit: number
 ): Promise<LeaderboardEntry[]> {
+  if (isBuildPhase()) return [];
   const db = getDb();
   const rows = await db
     .selectFrom("spacepotatis.leaderboard as lb")
@@ -73,6 +92,7 @@ export const getCachedLeaderboard = unstable_cache(
 // Sort: clears DESC (real progress signal), then best_score DESC (skill
 // peak), then playtime ASC (faster runs win ties — punishes idling).
 async function fetchTopPilots(limit: number): Promise<PilotEntry[]> {
+  if (isBuildPhase()) return [];
   const db = getDb();
   const rows = await db
     .selectFrom("spacepotatis.players as p")
