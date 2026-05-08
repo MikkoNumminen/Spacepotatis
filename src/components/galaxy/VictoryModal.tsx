@@ -96,12 +96,13 @@ export default function VictoryModal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="victory-modal-title"
         className={`w-[min(28rem,100%)] rounded border ${panelBorder} bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(94,255,167,0.15)] transition-all duration-200 ease-out sm:p-8 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
       >
         <div className="flex flex-col items-center select-none">
-          <div className={`font-display text-2xl tracking-widest sm:text-3xl ${titleColor}`}>
+          <div id="victory-modal-title" className={`font-display text-2xl tracking-widest sm:text-3xl ${titleColor}`}>
             {titleText}
           </div>
           <div className="mt-2 text-xs uppercase tracking-[0.3em] text-hud-amber/80">

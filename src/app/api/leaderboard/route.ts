@@ -103,12 +103,14 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Score INSERT is idempotent in spirit — each call appends a new row
-    // with a fresh server-generated UUID. A retry following a hypothetical
-    // "first commit silently succeeded" case would land a duplicate row;
-    // for a leaderboard table that's harmless (the leader board sorts by
-    // score DESC + created_at DESC, and the player's best/most-recent run
-    // already wins). Better than failing the user-facing submit.
+    // Score INSERT is wrapped in retry. Trade-off acknowledged: a retry
+    // following a hypothetical "first commit silently succeeded then driver
+    // raised" case lands a duplicate row, which would surface as the same
+    // (handle, score) appearing twice in the same top-N panel. Worst-case
+    // visible artifact in an extremely rare edge case — leaderboard sorts
+    // by (score DESC, created_at DESC), so the duplicate sits next to its
+    // sibling and the player's actual ranking isn't affected. Acceptable
+    // for a casual cohort game; better than failing the user-facing submit.
     await withNeonRetry(
       () =>
         db

@@ -262,3 +262,86 @@ describe("POST /api/leaderboard", () => {
     expect(revalidateTagMock).not.toHaveBeenCalled();
   });
 });
+
+// Same Neon control-plane flake the /leaderboard fan-out and /api/save can
+// hit also applies to /api/leaderboard's score POST. The route wraps
+// upsertPlayerId, the completed_missions SELECT, and the score INSERT in
+// withNeonRetry so a single flake doesn't 500 a user submitting a score
+// (which would otherwise leave the score in the client-side scoreQueue
+// awaiting retry). Pin transient + non-transient paths on each surface.
+describe("POST /api/leaderboard Neon retry", () => {
+  it("retries upsertPlayerId on a transient flake and returns 201", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let upsertCalls = 0;
+    upsertMock.mockImplementation(async () => {
+      upsertCalls += 1;
+      if (upsertCalls === 1) throw new Error("Control plane request failed");
+      return "player-uuid";
+    });
+    const insertSpy = vi.fn();
+    dbStub.insertSpy = insertSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/leaderboard", {
+        method: "POST",
+        body: JSON.stringify({ missionId: "tutorial", score: 1234 })
+      })
+    );
+    warnSpy.mockRestore();
+    expect(res.status).toBe(201);
+    expect(upsertCalls).toBe(2);
+    // Insert still runs exactly once on the eventual success.
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries the score INSERT on a transient flake and eventually lands the row", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let insertCalls = 0;
+    dbStub.insertImpl = async () => {
+      insertCalls += 1;
+      if (insertCalls === 1) throw new Error("Connection terminated unexpectedly");
+      return undefined;
+    };
+    const insertSpy = vi.fn();
+    dbStub.insertSpy = insertSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/leaderboard", {
+        method: "POST",
+        body: JSON.stringify({ missionId: "tutorial", score: 5 })
+      })
+    );
+    warnSpy.mockRestore();
+    expect(res.status).toBe(201);
+    // .values() called twice — once per attempt. The acknowledged trade-off
+    // is a duplicate row in the rare phantom-commit case (route comment
+    // explains why this is acceptable for a leaderboard).
+    expect(insertSpy).toHaveBeenCalledTimes(2);
+    expect(insertCalls).toBe(2);
+    expect(revalidateTagMock).toHaveBeenCalledWith("leaderboard");
+  });
+
+  it("does NOT retry on a non-transient permission error (returns 500 immediately)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let insertCalls = 0;
+    dbStub.insertImpl = async () => {
+      insertCalls += 1;
+      throw new Error("permission denied for table leaderboard");
+    };
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/leaderboard", {
+        method: "POST",
+        body: JSON.stringify({ missionId: "tutorial", score: 5 })
+      })
+    );
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    // Single attempt — non-transient errors must NOT be retried.
+    expect(insertCalls).toBe(1);
+    expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+});

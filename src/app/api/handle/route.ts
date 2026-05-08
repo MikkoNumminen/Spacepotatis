@@ -104,11 +104,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     try {
-      // The UPDATE itself isn't retried — a unique-violation throw needs to
-      // bubble out of withNeonRetry's allow-list-only retry to the
-      // isUniqueViolation branch below. (23505 is not in the transient
-      // pattern list, so withNeonRetry would rethrow on the first attempt
-      // anyway, but keeping this raw avoids an extra layer of indirection.)
+      // The UPDATE itself isn't retried — a unique-violation (23505) must
+      // bubble cleanly to the isUniqueViolation branch below.
       await db
         .updateTable("spacepotatis.players")
         .set({ handle })

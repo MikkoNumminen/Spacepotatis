@@ -32,6 +32,7 @@ export default function StoryListModal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="story-list-title"
         className="relative max-h-[90vh] w-[min(34rem,100%)] overflow-y-auto rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] sm:p-6"
       >
         <button
@@ -41,7 +42,7 @@ export default function StoryListModal({
         >
           ← Back
         </button>
-        <div className="text-center font-display text-base tracking-widest text-hud-amber">
+        <div id="story-list-title" className="text-center font-display text-base tracking-widest text-hud-amber">
           STORY LOG
         </div>
         <div className="mt-6 space-y-3">

@@ -236,3 +236,71 @@ describe("POST /api/handle", () => {
     expect(res.status).toBe(500);
   });
 });
+
+// Same Neon control-plane flake the /leaderboard fan-out and /api/save can
+// hit also applies to /api/handle's connection acquire. The route wraps
+// upsertPlayerId and the DB reads in withNeonRetry so a single flake doesn't
+// 500 a user trying to set their handle. Pin both the retry path and the
+// no-retry path on a non-transient error so a future refactor that drops
+// the wrappers fails a test.
+describe("/api/handle Neon retry", () => {
+  it("GET retries upsertPlayerId on a transient flake and returns the handle", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let upsertCalls = 0;
+    upsertMock.mockImplementation(async () => {
+      upsertCalls += 1;
+      if (upsertCalls === 1) throw new Error("Control plane request failed");
+      return "player-uuid";
+    });
+    dbStub.selectHandleRow = { handle: "spud" };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { GET } = await loadRoute();
+    const res = await GET();
+    warnSpy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ handle: "spud" });
+    expect(upsertCalls).toBe(2);
+  });
+
+  it("POST retries upsertPlayerId on a transient flake and returns the saved handle", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let upsertCalls = 0;
+    upsertMock.mockImplementation(async () => {
+      upsertCalls += 1;
+      if (upsertCalls === 1) throw new Error("Connection terminated unexpectedly");
+      return "player-uuid";
+    });
+    const updateSpy = vi.fn();
+    dbStub.updateSpy = updateSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/handle", { method: "POST", body: JSON.stringify({ handle: "spud" }) })
+    );
+    warnSpy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ handle: "spud" });
+    expect(upsertCalls).toBe(2);
+    // The UPDATE itself isn't wrapped in retry — must still run exactly once
+    // on the final happy path.
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("POST does NOT retry on a non-transient permission error (returns 500 immediately)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let upsertCalls = 0;
+    upsertMock.mockImplementation(async () => {
+      upsertCalls += 1;
+      throw new Error("permission denied for table players");
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/handle", { method: "POST", body: JSON.stringify({ handle: "spud" }) })
+    );
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    // Single attempt — non-transient errors must NOT be retried.
+    expect(upsertCalls).toBe(1);
+  });
+});
