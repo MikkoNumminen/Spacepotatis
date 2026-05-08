@@ -11,6 +11,15 @@ vi.mock("@/lib/players", () => ({
 }));
 
 
+// TEST-CONTRACT: dbStub is the per-test injection point for the route-level
+// retry coverage. Pattern for retry tests:
+//   - upsertMock.mockImplementation(...) — inject a transient throw on the
+//     upsertPlayerId surface (pinned by the upsertPlayerId-retry tests).
+//   - dbStub.selectThrowOnce = new Error("Control plane request failed")
+//     — inject a transient throw on the next SELECT executeTakeFirst (pinned
+//     by the conflict-check-SELECT-retry test). Cleared on consume.
+//   - dbStub.updateImpl = async () => { throw ... } — inject any throw on
+//     the UPDATE surface (used to pin the unique-violation → 409 path).
 const dbStub: {
   selectHandleRow: { handle: string | null } | undefined;
   conflictRow: { id: string } | undefined;

@@ -72,7 +72,7 @@ export function AugmentDetailsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="augment-details-title"
-        aria-describedby="augment-details-desc"
+        aria-describedby="augment-details-effect augment-details-desc"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full max-w-md rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-6 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
@@ -93,7 +93,7 @@ export function AugmentDetailsModal({
           </span>
         </header>
 
-        <div className="mb-4 text-center font-mono text-[11px] text-hud-amber">
+        <div id="augment-details-effect" className="mb-4 text-center font-mono text-[11px] text-hud-amber">
           {effectSummary}
         </div>
 

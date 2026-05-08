@@ -58,7 +58,7 @@ export function WeaponDetailsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="weapon-details-title"
-        aria-describedby="weapon-details-desc"
+        aria-describedby="weapon-details-stats weapon-details-desc"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full max-w-md rounded border border-hud-amber/60 bg-space-panel/95 p-5 shadow-[0_0_40px_rgba(255,204,51,0.15)] transition-all duration-200 ease-out sm:p-6 ${
           ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
@@ -85,7 +85,9 @@ export function WeaponDetailsModal({
           )}
         </header>
 
-        <WeaponStats weapon={weapon} level={level ?? 1} augmentIds={installed} />
+        <div id="weapon-details-stats">
+          <WeaponStats weapon={weapon} level={level ?? 1} augmentIds={installed} />
+        </div>
 
         <p id="weapon-details-desc" className="mt-4 text-xs text-hud-green/80">{weapon.description}</p>
 
