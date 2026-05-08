@@ -283,12 +283,10 @@ export async function POST(request: Request): Promise<Response> {
         prevSnapshot: Record<string, unknown> | null;
       };
 
-  // SECURITY-RELATED: transaction-level retry is correctness-preserving — DO NOT remove without re-validating each bullet below
-  //
-  // Wrap the whole transaction in withNeonRetry. Safety reasoning (every
-  // bullet here is load-bearing — a future "simplification" that removes
-  // the wrapper without checking these would re-introduce the user-visible
-  // 500 we're masking):
+  // Wrap the whole transaction in withNeonRetry. Safety reasoning — each
+  // bullet here is load-bearing. A future "simplification" that removes
+  // the wrapper without re-checking these would re-introduce the user-
+  // visible 500 we're masking, so DO NOT remove without re-validating:
   //
   //   - Kysely's `transaction().execute()` auto-ROLLBACKs on any thrown
   //     error inside the callback, so a transient flake leaves the DB in
