@@ -600,4 +600,151 @@ describe("POST /api/save audit log", () => {
     errSpy.mockRestore();
     expect(res.status).toBe(204);
   });
+
+  it("audit insert retries on a transient Neon flake and the audit row eventually lands", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let auditCalls = 0;
+    dbStub.auditInsertImpl = async () => {
+      auditCalls += 1;
+      if (auditCalls === 1) throw new Error("Control plane request failed");
+      return undefined;
+    };
+    const auditSpy = (dbStub.auditInsertSpy = vi.fn());
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 30,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    warnSpy.mockRestore();
+    expect(res.status).toBe(204);
+    // Two .values() calls — one per attempt. The successful retry is what
+    // lands the forensic row; the first attempt's row was never committed.
+    expect(auditSpy).toHaveBeenCalledTimes(2);
+    expect(auditCalls).toBe(2);
+  });
+});
+
+// Same Neon control-plane flake the /leaderboard fan-out can hit also
+// applies to /api/save's connection acquire. The route wraps upsertPlayerId
+// and the transaction body in withNeonRetry so a single flake doesn't 500
+// the user's save POST. Pin both:
+//   - Transient flake → route eventually returns 204 (retry succeeded).
+//   - Non-transient error → route 500s on first attempt (no retry).
+describe("POST /api/save Neon retry", () => {
+  it("retries on a transient 'Control plane request failed' flake from upsertPlayerId and returns 204", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let upsertCalls = 0;
+    upsertMock.mockImplementation(async () => {
+      upsertCalls += 1;
+      if (upsertCalls === 1) throw new Error("Control plane request failed");
+      return "player-uuid";
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 30,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    warnSpy.mockRestore();
+    expect(res.status).toBe(204);
+    expect(upsertCalls).toBe(2);
+  });
+
+  it("retries on a transient flake during the transaction body and returns 204 — proves the upsert is idempotent under retry", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let saveInsertCalls = 0;
+    dbStub.saveInsertImpl = async () => {
+      saveInsertCalls += 1;
+      if (saveInsertCalls === 1) throw new Error("Connection terminated unexpectedly");
+      return undefined;
+    };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 30,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    warnSpy.mockRestore();
+    expect(res.status).toBe(204);
+    // Two upsert attempts: first threw and rolled back, second committed.
+    // Pins the safety reasoning in the route header — the upsert is
+    // idempotent under retry because of ON CONFLICT (player_id, slot).
+    expect(saveInsertCalls).toBe(2);
+  });
+
+  it("does NOT retry on a non-transient DB error (returns 500 immediately)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let saveInsertCalls = 0;
+    dbStub.saveInsertImpl = async () => {
+      saveInsertCalls += 1;
+      throw new Error("permission denied for table save_games");
+    };
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 30,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(saveInsertCalls).toBe(1);
+  });
+});
+
+// Same retry behavior on the read path. Less impactful (a flaked GET just
+// asks the user to refresh) but symmetric — the same flake symptom can hit
+// either route, so both should cover it.
+describe("GET /api/save Neon retry", () => {
+  it("retries upsertPlayerId on a transient flake and returns the row", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    let upsertCalls = 0;
+    upsertMock.mockImplementation(async () => {
+      upsertCalls += 1;
+      if (upsertCalls === 1) throw new Error("Control plane request failed");
+      return "player-uuid";
+    });
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 0,
+      current_planet: null,
+      ship_config: {},
+      completed_missions: [],
+      unlocked_planets: [],
+      played_time_seconds: 0,
+      seen_story_entries: [],
+      current_solar_system_id: null,
+      updated_at: new Date("2025-06-01T00:00:00.000Z")
+    };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { GET } = await loadRoute();
+    const res = await GET();
+    warnSpy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(upsertCalls).toBe(2);
+  });
 });
