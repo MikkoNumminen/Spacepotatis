@@ -9,7 +9,7 @@ Invoke on `/ai-codegen-smell-audit`, `/smell-audit`, "audit this for AI-codegen 
 
 **Not** invoked during initial code generation — that's chasing your own tail. Run AFTER the code is written, before merge.
 
-Scope is configurable per invocation: a single file, a directory, a PR diff, or the whole `src/` tree. Default scope when invoked with no args is `git diff --name-only master..HEAD` filtered to source files (skip tests for the first pass; tests have their own check, #7). The default branch is `master` in this repo — on a fork that uses `main`, the invoker should pass an explicit scope.
+Scope is configurable per invocation: a single file, a directory, a PR diff, or the whole `src/` tree. Default scope when invoked with no args is `git diff --name-only master..HEAD` filtered to source files, **excluding tests** (`*.test.ts`, `*.spec.ts`, anything under `__tests__/`). Check #7 (mirror-tests) only fires on test files, so it is dormant under the default scope — to run it, opt in with `/ai-codegen-smell-audit --include-tests` (re-runs across the diff with tests folded in) or pass an explicit path like `/ai-codegen-smell-audit src/game/phaser/systems/weaponMath.test.ts`. The default branch is `master` in this repo — on a fork that uses `main`, the invoker should pass an explicit scope.
 
 # What this skill does NOT do
 
@@ -130,7 +130,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
   ```
   …or any catch that logs (`console.warn`, structured logger), rethrows, or has a comment naming the safe-to-ignore condition.
 - **Severity default:** **major**. Empty catches hide real bugs.
-- **Skip:** catches that log, rethrow, or comment the safe-to-ignore condition. The Legitimate example above is the canonical shape — adopt it or get flagged.
+- **Skip:** catches that log, rethrow, or comment the safe-to-ignore condition. The Legitimate example above is the canonical shape; deviations get flagged.
 
 ## 7. mirror-tests
 
@@ -146,6 +146,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
 - **Legitimate:** the same test anchored to a hard expected value: `expect(result).toBe(5)`. Better with two cases: `expect(result).toBe(5); expect(dealDamage({ dmg: 10, armored: false })).toBe(10);`. **Half-mirror tests** (one formula assertion sitting beside one hard-value assertion) are partially-defended — report only the formula line, not the whole test.
 - **Severity default:** minor (major in code that has had production bugs in this area).
 - **Skip:** property-based tests (`fast-check`, `jsverify`) where the property IS the formula; tests of pure math functions where the expected value comes from the same math (verify the test author intended the round-trip).
+- **Scope:** test-only — does not fire under the default invocation, which excludes test files. Opt in via `--include-tests` or an explicit test-file path (see "When to use").
 
 ## 8. phantom-todos
 
@@ -184,8 +185,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
   ```
 - **Severity default:** major.
 - **Skip:** functions whose names encode different domains (`formatMissionTime` vs `formatPlaytime` — same shape, different units); deliberate specializations of a shared shape (one calls the other, or both delegate to a private core); functions where the differing literal IS the contract (`clampToScreen` vs `clampToWorld` differing only in bounds — surface separately as a constants-extraction nit, not major).
-
-The 1+2+3 heuristic is approximate. A token-level AST tool (`ts-morph`, `jscodeshift`, `simian`, `jscpd`) would catch more and produce numeric similarity scores; this skill is designed to run from a Claude session reading the spec, so the heuristic is calibrated for eyeball + grep. Two invocations applying the rule strictly will converge; an invocation that picks its own metric will not.
+- **Tooling note:** the 1+2+3 heuristic is approximate. A token-level AST tool (`ts-morph`, `jscodeshift`, `simian`, `jscpd`) would catch more and produce numeric similarity scores; this skill is designed to run from a Claude session reading the spec, so the heuristic is calibrated for eyeball + grep. Two invocations applying the rule strictly will converge; an invocation that picks its own metric will not.
 
 ## 10. over-typed-primitives
 
@@ -206,12 +206,12 @@ The 1+2+3 heuristic is approximate. A token-level AST tool (`ts-morph`, `jscodes
 
 # Output format
 
-Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-runs APPEND to the same file under a `## Run {N} ({HH:MM} local)` divider, where `{N}` is `(count of existing "## Run " headers in the file) + 1` (first run is "Run 1" and gets the divider too — so a same-day diff against Run 1 is mechanical). Each run section repeats the full structure below; nothing from a prior run is rewritten or deleted. Structure:
+Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-runs APPEND to the same file under a `## Run {N} ({HH:MM} UTC)` divider, where `{N}` is `(count of existing "## Run " headers in the file) + 1` (first run is "Run 1" and gets the divider too — so a same-day diff against Run 1 is mechanical). UTC is fixed regardless of the operator's timezone so cross-timezone reviewers reading the report agree on ordering. Each run section repeats the full structure below; nothing from a prior run is rewritten or deleted. Structure:
 
 ```markdown
 # AI-codegen smell audit — {YYYY-MM-DD}
 
-## Run 1 (HH:MM)
+## Run 1 (HH:MM UTC)
 
 **Scope:** {files / directory / PR diff string}
 **Checks run:** 10
@@ -227,19 +227,15 @@ Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-r
 
 ### Grouped by severity
 
-#### Major
-- [swallowed-errors] src/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe.
-- ...
+**Major** — [swallowed-errors] src/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe. *(repeat per finding)*
 
-#### Minor
-- ...
+**Minor** — *(per finding)*
 
-#### Nit
-- ...
+**Nit** — *(per finding)*
 
 ### Suppressed by sidecar
 
-This run consulted `docs/audits/.dismissals.md` and skipped {K} findings whose `file:line:check` key is dismissed there. See that file to inspect or revoke a dismissal. Do NOT add dismissals to this report — they live in the sidecar.
+This run consulted `docs/audits/_dismissals.md` and skipped {K} findings whose `file:line:check` key is dismissed there. See that file to inspect or revoke a dismissal. Do NOT add dismissals to this report — they live in the sidecar.
 ```
 
 The final report ends with `**Summary: clean**` (0 findings), `**Summary: N nits**` (only nits), or `**Summary: FAIL ({maj}m {min}m {nit}n)**` (any major/minor). The PR reviewer decides whether `FAIL` blocks merge; the tool doesn't enforce.
@@ -254,28 +250,35 @@ These rules apply at scan time — a finding that matches a skip rule does not a
 - **Explicit legacy markers** — files or sections marked `// LEGACY:` are excluded from style-drift checks.
 - **Documented why-comments** — comments containing `because|so that|prevents|workaround|SECURITY|INVARIANT|AI-NOTE|HACK` are not paraphrase-comments.
 - **Project conventions in CLAUDE.md** — if the repo declares a convention, that convention is the baseline; intra-file consistency is measured against project style.
-- **Sidecar dismissals** — past dismissals listed in `docs/audits/.dismissals.md` are honored on every run. The sidecar is the single source of truth for what's known-false; it is NOT a section of any per-day report. The next run reads the sidecar before scanning and drops any finding whose `file:line:check` key appears there. To dismiss a new finding, append a row to the sidecar (template at `.claude/skills/ai-codegen-smell-audit/false-positive-log.template.md`). To revive a dismissal, delete its row. The sidecar is committed to the repo — dismissals are a team contract.
+- **Sidecar dismissals** — past dismissals listed in `docs/audits/_dismissals.md` are honored on every run. The sidecar is the single source of truth for what's known-false; it is NOT a section of any per-day report. The next run reads the sidecar before scanning and drops any finding whose `file:line:check` key appears there. To dismiss a new finding, append a row to the sidecar (template at `.claude/skills/ai-codegen-smell-audit/false-positive-log.template.md`). To revive a dismissal, delete its row. The sidecar is committed to the repo — dismissals are a team contract.
 
 # Calibration against this repo (validation pass — 2026-05-17)
 
 The 10 checks were dry-run against `d:/koodaamista/Spacepotatis/src/` before publishing this skill.
 
+Four verdict labels:
+- **Real smells found** — un-suppressed findings in this repo.
+- **Pattern hits, skip rule passes** — the check matches candidates; every match is correctly suppressed by the skip rule. The check is working, but the codebase has no actual smell of this kind.
+- **No matches** — nothing in the codebase trips the initial pattern. The check is grounded by design; this codebase doesn't exercise it.
+- **Noise-prone** — the pattern matches frequently and the legit/smell distinction is hard; risk of false positives without aggressive skip-rule use.
+
 | Check | Verdict | Notes |
 |-------|---------|-------|
-| 1. defensive-checks-for-impossible-cases | **Fires on real things** | `src/game/audio/userActivation.ts:29` — `if (!cb) continue` after `queue.shift()`. The "How to verify" sub-bullet correctly classifies this as LEGITIMATE (narrowing-eligible source: `.shift()`). |
-| 2. stylistic-drift-within-file | **No hits** | Codebase is Prettier-formatted and ESLint-enforced. Would fire on a fork in worse shape. |
-| 3. paraphrase-comments | **No hits** | Comments explain *why* consistently (CLAUDE.md §5 enforces this). Check grounded; fires elsewhere. |
-| 4. single-use-helpers | **No hits** | Exports are domain-anchored or multi-call. Check grounded; fires in greenfield repos. |
+| 1. defensive-checks-for-impossible-cases | **Pattern hits, skip rule passes** | `src/game/audio/userActivation.ts:29` — `if (!cb) continue` after `queue.shift()`. The "How to verify" sub-bullet correctly classifies this as LEGITIMATE (narrowing-eligible source: `.shift()`). No un-suppressed finding. |
+| 2. stylistic-drift-within-file | **No matches** | Codebase is Prettier-formatted and ESLint-enforced. Would fire on a fork in worse shape. |
+| 3. paraphrase-comments | **No matches** | Comments explain *why* consistently (CLAUDE.md §5 enforces this). Check grounded; fires elsewhere. |
+| 4. single-use-helpers | **No matches** | Exports are domain-anchored or multi-call. Check grounded; fires in greenfield repos. |
 | 5. generic-names-in-domain-context | **Noise-prone** | Domain vocab is rich; `item` / `data` survive only at justified spots (queue accessor, image buffer). High false-positive risk without aggressive skip rules. |
-| 6. swallowed-errors | **Fires on real things** | `src/game/state/seenStoriesLocal.ts:18` is the legitimate version (catch returns `[]` with documented why). The check distinguishes legitimate vs phantom via the comment requirement. |
-| 7. mirror-tests | **Fires on real things** | `src/game/phaser/systems/weaponMath.test.ts:30` and `src/game/state/ShipConfig.test.ts:70` restate impl formulas. Both are half-mirror — anchored values sit alongside; per the updated skip rule, report only the formula assertion lines, not the whole tests. |
-| 8. phantom-todos | **Fires on real things** | `src/game/audio/story.ts:51` is a phantom TODO (no ticket, no owner, no condition). |
-| 9. duplicated-helpers | **No hits** | Codebase favors single source per math/string operation. Check grounded; fires on copy-paste-heavy code. |
-| 10. over-typed-primitives | **No hits** | `as const satisfies` usage in `src/lib/schemas/*` is the legitimate version (pins literals AND verifies WeaponId membership). |
+| 6. swallowed-errors | **Pattern hits, skip rule passes** | `src/game/state/seenStoriesLocal.ts:18` matches the catch pattern but is the legitimate version (returns `[]` with documented why). Skip rule (documented-why comment) correctly suppresses it. No un-suppressed finding. |
+| 7. mirror-tests | **Real smells found (opt-in only)** | Dormant under default scope (tests excluded). With `--include-tests`, `src/game/phaser/systems/weaponMath.test.ts:30` and `src/game/state/ShipConfig.test.ts:70` would be reported — both restate impl formulas. Half-mirror — anchored values sit alongside; per the updated skip rule, report only the formula assertion lines, not the whole tests. |
+| 8. phantom-todos | **Real smells found** | `src/game/audio/story.ts:51` is a phantom TODO (no ticket, no owner, no condition). |
+| 9. duplicated-helpers | **No matches** | Codebase favors single source per math/string operation. Check grounded; fires on copy-paste-heavy code. |
+| 10. over-typed-primitives | **No matches** | `as const satisfies` usage in `src/lib/schemas/*` is the legitimate version (pins literals AND verifies WeaponId membership). |
 
-**Most grounded** on this repo: swallowed-errors, phantom-todos, defensive-checks.
-**Noise-prone** on this repo: generic-names-in-domain-context. Mirror-tests borders on noise (formula assertions beside hard-value assertions).
-**Grounded but no hits here**: stylistic-drift, paraphrase-comments, single-use-helpers, duplicated-helpers, over-typed-primitives. The codebase is well-disciplined; these remain useful for less-curated code.
+**Real smells found** on this repo: mirror-tests (opt-in, half-mirror formula assertions), phantom-todos (`story.ts:51`).
+**Pattern hits, skip rule passes** on this repo: defensive-checks-for-impossible-cases, swallowed-errors — the checks match candidates but the skip rules correctly classify every match as legitimate. These prove the skip rules work; they are not findings.
+**Noise-prone** on this repo: generic-names-in-domain-context.
+**No matches** on this repo: stylistic-drift, paraphrase-comments, single-use-helpers, duplicated-helpers, over-typed-primitives. The codebase is well-disciplined; these remain useful for less-curated code.
 
 # Failure modes of the skill itself
 
@@ -291,7 +294,7 @@ Be honest with the user when these apply:
 
 - Every finding has a `file:line` citation. No vague findings.
 - Every check has a smell example AND a legitimate example. If a check can't pass that bar, it should be deleted, not weakened.
-- The sidecar at `docs/audits/.dismissals.md` is honored on every run. Per-day reports are append-only artifacts; they never carry dismissal state.
+- The sidecar at `docs/audits/_dismissals.md` is honored on every run. Per-day reports are append-only artifacts; they never carry dismissal state.
 - No execution of project code. Static inspection only.
 - No network calls.
 

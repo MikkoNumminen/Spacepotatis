@@ -1,6 +1,6 @@
 # False-positive log template
 
-Append rows to `docs/audits/.dismissals.md` (single sidecar file, committed). The next run of `/ai-codegen-smell-audit` reads this sidecar and skips findings whose `file:line:check` key appears in the table. The per-day report files (`docs/audits/ai-smell-YYYY-MM-DD.md`) do NOT carry dismissal state — only the sidecar does.
+Append rows to `docs/audits/_dismissals.md` (single sidecar file, committed). The next run of `/ai-codegen-smell-audit` reads this sidecar and skips findings whose `file:line:check` key appears in the table. The per-day report files (`docs/audits/ai-smell-YYYY-MM-DD.md`) do NOT carry dismissal state — only the sidecar does.
 
 Dismissals are sticky across runs — only delete a row when the underlying code has changed enough that the dismissal no longer applies (e.g. a refactor moved the line; a new author added a similar pattern at a different location and YOU want to re-evaluate). The sidecar is committed to the repo: dismissals are a team contract.
 
