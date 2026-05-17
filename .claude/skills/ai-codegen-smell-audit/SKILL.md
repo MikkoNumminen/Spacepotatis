@@ -92,7 +92,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
 - **Legitimate:** helpers whose name documents intent (`assertNever`, `unreachable`, `panic`, `invariant`, `defaultTo`, `pluralize`); helpers extracted for test isolation (the test calls it directly); helpers long enough that inlining would obscure the caller; helpers used in JSX/templates where inline expressions are awkward.
 - **Severity default:** nit.
 - **Skip:** intent-named helpers (see above); helpers under `src/lib/utils/` or `src/test-helpers/` (utility namespaces are *meant* to grow); helpers exported from a public API surface (call-count from inside the repo is not the right metric).
-- **Scope note:** call-count is measured across the **whole codebase**, not just the scoped diff. A helper exported in the diff but called once from a file outside the diff is still single-use. Grep the full repo for callers before flagging.
+- **Scope:** call-count spans the **whole codebase**, not just the scoped diff. A helper exported in the diff but called once from a file outside the diff is still single-use. Grep the full repo for callers before flagging.
 
 ## 5. generic-names-in-domain-context
 
@@ -232,15 +232,16 @@ Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-r
 
 ### Grouped by severity
 
+One bullet per finding. Omit a severity section entirely if it has zero findings.
+
 **Major findings:**
 - [swallowed-errors] src/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe.
-- *(one bullet per finding; omit the section entirely if there are zero)*
 
 **Minor findings:**
-- *(one bullet per finding; omit if zero)*
+- ...
 
 **Nit findings:**
-- *(one bullet per finding; omit if zero)*
+- ...
 
 ### Suppressed by sidecar
 
