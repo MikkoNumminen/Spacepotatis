@@ -35,7 +35,8 @@ afterEach(() => {
 });
 
 describe("UI_CUE path-id alignment", () => {
-  const expectedIds: readonly UiCueId[] = [
+  // Cues that follow the /audio/ui/<kebab-id>-voice.mp3 convention.
+  const uiPatternIds: readonly UiCueId[] = [
     "upgradeMark",
     "augmentPickerOpen",
     "installAugment",
@@ -46,23 +47,25 @@ describe("UI_CUE path-id alignment", () => {
     "unequipWeapon"
   ];
 
-  it("has exactly the 8 expected ids", () => {
-    expect(Object.keys(UI_CUE)).toHaveLength(8);
-    expect(Object.keys(UI_CUE).sort()).toEqual([...expectedIds].sort());
+  // Cleared-state cues live under /audio/sfx/ alongside ui_shop_* voice
+  // files for historical grouping reasons. The two patterns coexist.
+  const sfxPatternIds: readonly UiCueId[] = ["systemCleared", "everythingCleared"];
+
+  it("has exactly the 10 expected ids", () => {
+    expect(Object.keys(UI_CUE)).toHaveLength(10);
+    expect(Object.keys(UI_CUE).sort()).toEqual([...uiPatternIds, ...sfxPatternIds].sort());
   });
 
-  it("each path is /audio/ui/<kebab(key)>-voice.mp3", () => {
-    for (const id of expectedIds) {
+  it("ui-pattern cues live at /audio/ui/<kebab(key)>-voice.mp3", () => {
+    for (const id of uiPatternIds) {
       expect(UI_CUE[id]).toBe(`/audio/ui/${camelToKebab(id)}-voice.mp3`);
     }
   });
 
-  it("every path starts with /audio/ui/ and ends with -voice.mp3", () => {
-    for (const id of expectedIds) {
-      const path = UI_CUE[id];
-      expect(path.startsWith("/audio/ui/")).toBe(true);
-      expect(path.endsWith("-voice.mp3")).toBe(true);
-    }
+  it("sfx-pattern cues live at /audio/sfx/ui_<snake(key)>.mp3", () => {
+    // systemCleared -> ui_system_cleared.mp3
+    expect(UI_CUE.systemCleared).toBe("/audio/sfx/ui_system_cleared.mp3");
+    expect(UI_CUE.everythingCleared).toBe("/audio/sfx/ui_everything_cleared.mp3");
   });
 });
 
