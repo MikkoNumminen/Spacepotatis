@@ -9,7 +9,7 @@ Invoke on `/ai-codegen-smell-audit`, `/smell-audit`, "audit this for AI-codegen 
 
 **Not** invoked during initial code generation — that's chasing your own tail. Run AFTER the code is written, before merge.
 
-Scope is configurable per invocation: a single file, a directory, a PR diff, or the whole `src/` tree. Default scope when invoked with no args is `git diff --name-only master..HEAD` filtered to source files, **excluding tests** (`*.test.ts`, `*.spec.ts`, anything under `__tests__/`).
+Scope is configurable per invocation: a single file, a directory, a PR diff, or the whole `src/` tree. Default scope when invoked with no args is `git diff --name-only master..HEAD` filtered to source files (`*.ts`, `*.tsx`, `*.js`, `*.mjs`), **excluding tests** (`*.test.ts`, `*.spec.ts`, anything under `__tests__/`). `.md` files are not in the default scope but ARE valid explicit-path targets — most checks (code-targeted) become N/A on prose, but phantom-todos (#8) fires on docs and is the practical reason to scan markdown.
 
 Check #7 (mirror-tests) only fires on test files, so it is dormant under the default scope. To run it, opt in with `/ai-codegen-smell-audit --include-tests` (applies the same scope but includes test files) or pass an explicit path like `/ai-codegen-smell-audit src/game/phaser/systems/weaponMath.test.ts`.
 
