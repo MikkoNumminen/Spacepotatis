@@ -9,7 +9,11 @@ Invoke on `/ai-codegen-smell-audit`, `/smell-audit`, "audit this for AI-codegen 
 
 **Not** invoked during initial code generation — that's chasing your own tail. Run AFTER the code is written, before merge.
 
-Scope is configurable per invocation: a single file, a directory, a PR diff, or the whole `src/` tree. Default scope when invoked with no args is `git diff --name-only master..HEAD` filtered to source files, **excluding tests** (`*.test.ts`, `*.spec.ts`, anything under `__tests__/`). Check #7 (mirror-tests) only fires on test files, so it is dormant under the default scope — to run it, opt in with `/ai-codegen-smell-audit --include-tests` (re-runs across the diff with tests folded in) or pass an explicit path like `/ai-codegen-smell-audit src/game/phaser/systems/weaponMath.test.ts`. The default branch is `master` in this repo — on a fork that uses `main`, the invoker should pass an explicit scope.
+Scope is configurable per invocation: a single file, a directory, a PR diff, or the whole `src/` tree. Default scope when invoked with no args is `git diff --name-only master..HEAD` filtered to source files, **excluding tests** (`*.test.ts`, `*.spec.ts`, anything under `__tests__/`).
+
+Check #7 (mirror-tests) only fires on test files, so it is dormant under the default scope. To run it, opt in with `/ai-codegen-smell-audit --include-tests` (applies the same scope but includes test files) or pass an explicit path like `/ai-codegen-smell-audit src/game/phaser/systems/weaponMath.test.ts`.
+
+The default branch is `master` in this repo — on a fork that uses `main`, the invoker should pass an explicit scope.
 
 # What this skill does NOT do
 
@@ -88,6 +92,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
 - **Legitimate:** helpers whose name documents intent (`assertNever`, `unreachable`, `panic`, `invariant`, `defaultTo`, `pluralize`); helpers extracted for test isolation (the test calls it directly); helpers long enough that inlining would obscure the caller; helpers used in JSX/templates where inline expressions are awkward.
 - **Severity default:** nit.
 - **Skip:** intent-named helpers (see above); helpers under `src/lib/utils/` or `src/test-helpers/` (utility namespaces are *meant* to grow); helpers exported from a public API surface (call-count from inside the repo is not the right metric).
+- **Scope note:** call-count is measured across the **whole codebase**, not just the scoped diff. A helper exported in the diff but called once from a file outside the diff is still single-use. Grep the full repo for callers before flagging.
 
 ## 5. generic-names-in-domain-context
 
@@ -227,11 +232,15 @@ Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-r
 
 ### Grouped by severity
 
-**Major** — [swallowed-errors] src/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe. *(repeat per finding)*
+**Major findings:**
+- [swallowed-errors] src/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe.
+- *(one bullet per finding; omit the section entirely if there are zero)*
 
-**Minor** — *(per finding)*
+**Minor findings:**
+- *(one bullet per finding; omit if zero)*
 
-**Nit** — *(per finding)*
+**Nit findings:**
+- *(one bullet per finding; omit if zero)*
 
 ### Suppressed by sidecar
 
