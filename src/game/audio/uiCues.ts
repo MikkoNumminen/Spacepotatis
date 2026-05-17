@@ -32,7 +32,14 @@ export const UI_CUE = {
   sellAugment: "/audio/ui/sell-augment-voice.mp3",
   slotPickerOpen: "/audio/ui/slot-picker-open-voice.mp3",
   equipWeapon: "/audio/ui/equip-weapon-voice.mp3",
-  unequipWeapon: "/audio/ui/unequip-weapon-voice.mp3"
+  unequipWeapon: "/audio/ui/unequip-weapon-voice.mp3",
+  // Cleared-state cues — fire on victory in handleMissionComplete when a
+  // mission completion flips the player's progress to "all missions in
+  // current system done" or "all missions in every unlocked system done".
+  // Files are under /audio/sfx/ rather than /audio/ui/ for historical
+  // grouping (ui_shop_* are also under sfx/).
+  systemCleared: "/audio/sfx/ui_system_cleared.mp3",
+  everythingCleared: "/audio/sfx/ui_everything_cleared.mp3"
 } as const;
 
 export type UiCueId = keyof typeof UI_CUE;

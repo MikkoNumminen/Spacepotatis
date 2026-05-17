@@ -27,6 +27,7 @@ import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { getStoryEntry } from "@/game/data/story";
 import { drainScoreQueue, flushSaveQueue, saveNow } from "@/game/state/sync";
 import { enqueueScore, QUEUED_MESSAGE } from "@/game/state/scoreQueue";
+import { maybePlayClearedCue } from "@/game/audio/clearedStateCue";
 import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
@@ -212,6 +213,20 @@ export default function GameCanvas() {
       const seq = ++missionSeqRef.current;
       setLastSummary(summary);
 
+      // Cleared-state Grandma cues. Fires at most one of two voice clips
+      // when this victory flips the player's progress to "current system
+      // cleared" or "every unlocked system cleared". No-op on losses.
+      // Persistence for the once-per-device "everything cleared" semantics
+      // lives in localStorage inside the helper; nothing on StateSnapshot.
+      if (summary.victory) {
+        maybePlayClearedCue({
+          justCompletedMissionId: summary.missionId,
+          completedMissions,
+          currentSolarSystemId,
+          unlockedSolarSystems
+        });
+      }
+
       // Every victory is enqueued FIRST, before any network I/O. The queue
       // is the source of truth for "this score must reach the leaderboard
       // eventually" — if the player closes the tab right now, the next
@@ -298,7 +313,7 @@ export default function GameCanvas() {
       menuMusic.unduck();
       requestAnimationFrame(() => void fadeOverlay(0));
     },
-    [fadeOverlay, authStatus]
+    [fadeOverlay, authStatus, completedMissions, currentSolarSystemId, unlockedSolarSystems]
   );
 
   // Drive both the save queue AND the score queue on three triggers so a
