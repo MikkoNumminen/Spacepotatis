@@ -80,28 +80,27 @@ jobs:
           # Build the issue body in a temp file so the readiness-report content
           # is never shell-interpolated (SEC-023 — prevents command injection if
           # DB output ever contains shell metacharacters like $(cmd) or backticks).
-          cat > /tmp/issue-body.txt <<'BODY_EOF'
-The `spacepotatis.save_audit` table has accumulated enough rows / distinct players / elapsed days to inform the next-session structural fix — the append-only `save_snapshots` architecture sketched in `TODO.md` "Phase Save-Architecture".
-
-### Readiness report
-
-```
-BODY_EOF
-          cat /tmp/readiness.txt >> /tmp/issue-body.txt
-          cat >> /tmp/issue-body.txt <<'BODY_EOF'
-```
-
-### Next steps
-
-1. Read `TODO.md` "Phase Save-Architecture" for the planned shape.
-2. Use the audit data to decide payload size / retention / index strategy for `save_snapshots`.
-3. Open the implementation PR.
-4. Close this issue when the PR is opened.
-
----
-
-This issue was opened automatically by `.github/workflows/audit-readiness-check.yml`. The job re-runs daily at 07:00 UTC and only opens a new issue when none is already open with the `save-architecture-ready` label, so it won't spam.
-BODY_EOF
+          #
+          # Uses printf inside a grouped redirection rather than a heredoc.
+          # Heredoc body content starting at column 0 terminates the YAML
+          # `run: |` pipe-scalar (caught after PR #191) — GitHub's parser then
+          # registers the workflow with the file path as its name and refuses
+          # to recognize the `workflow_dispatch` trigger. printf keeps every
+          # line indented to the script's column.
+          {
+            printf '%s\n\n' 'The `spacepotatis.save_audit` table has accumulated enough rows / distinct players / elapsed days to inform the next-session structural fix — the append-only `save_snapshots` architecture sketched in `TODO.md` "Phase Save-Architecture".'
+            printf '### Readiness report\n\n'
+            printf '```\n'
+            cat /tmp/readiness.txt
+            printf '```\n\n'
+            printf '### Next steps\n\n'
+            printf '%s\n' '1. Read `TODO.md` "Phase Save-Architecture" for the planned shape.'
+            printf '%s\n' '2. Use the audit data to decide payload size / retention / index strategy for `save_snapshots`.'
+            printf '%s\n' '3. Open the implementation PR.'
+            printf '%s\n\n' '4. Close this issue when the PR is opened.'
+            printf -- '---\n\n'
+            printf '%s\n' 'This issue was opened automatically by `.github/workflows/audit-readiness-check.yml`. The job re-runs daily at 07:00 UTC and only opens a new issue when none is already open with the `save-architecture-ready` label, so it won'"'"'t spam.'
+          } > /tmp/issue-body.txt
           gh issue create \
             --title "save_audit ready — start Phase Save-Architecture" \
             --label save-architecture-ready \

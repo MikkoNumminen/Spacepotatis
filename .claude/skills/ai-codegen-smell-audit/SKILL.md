@@ -91,7 +91,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
   ```
 - **Legitimate:** helpers whose name documents intent (`assertNever`, `unreachable`, `panic`, `invariant`, `defaultTo`, `pluralize`); helpers extracted for test isolation (the test calls it directly); helpers long enough that inlining would obscure the caller; helpers used in JSX/templates where inline expressions are awkward.
 - **Severity default:** nit.
-- **Skip:** intent-named helpers (see above); helpers under `src/lib/utils/` or `src/test-helpers/` (utility namespaces are *meant* to grow); helpers exported from a public API surface (call-count from inside the repo is not the right metric).
+- **Skip:** intent-named helpers (see above); helpers in utility-namespace directories (any folder named `utils/`, `helpers/`, `test-helpers/`, or sitting under `__tests__/` — utility namespaces are *meant* to grow); helpers exported from a public API surface (call-count from inside the repo is not the right metric).
 - **Scope:** call-count spans the **whole codebase**, not just the scoped diff. A helper exported in the diff but called once from a file outside the diff is still single-use. Grep the full repo for callers before flagging.
 
 ## 5. generic-names-in-domain-context
@@ -108,7 +108,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
   ```
 - **Legitimate:** generic names in generic code (utility libraries, type-level helpers, `forEach`/`map` one-liners where `item` is genuinely just "the thing"); pixel-buffer code using `data` (the standard name for `ImageData.data`); queue/stack operations using `item`.
 - **Severity default:** nit.
-- **Skip:** files under `src/lib/utils/`, `src/lib/schemas/`, type-only modules under `src/types/`; one-line lambda bodies where renaming costs clarity rather than adding it.
+- **Skip:** files under utility-namespace directories (any folder named `utils/` or `helpers/`), `src/lib/schemas/`, type-only modules under `src/types/`; one-line lambda bodies where renaming costs clarity rather than adding it.
 
 ## 6. swallowed-errors
 
@@ -226,8 +226,8 @@ Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-r
 
 | Check | Severity | File:line | Snippet | Suggested action |
 |-------|----------|-----------|---------|------------------|
-| swallowed-errors | major | src/foo.ts:42 | `catch {}` | Add log line or comment naming the safe-to-ignore condition |
-| paraphrase-comments | nit | src/bar.ts:88 | `// increment` above `i++` | Delete the comment |
+| swallowed-errors | major | path/foo.ts:42 | `catch {}` | Add log line or comment naming the safe-to-ignore condition |
+| paraphrase-comments | nit | path/bar.ts:88 | `// increment` above `i++` | Delete the comment |
 | ... | ... | ... | ... | ... |
 
 ### Grouped by severity
@@ -235,7 +235,7 @@ Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-r
 One bullet per finding. Omit a severity section entirely if it has zero findings.
 
 **Major findings:**
-- [swallowed-errors] src/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe.
+- [swallowed-errors] path/foo.ts:42 — `catch {}` with no logging or rethrow. Suggest: add log or document why safe.
 
 **Minor findings:**
 - ...
@@ -256,7 +256,7 @@ These rules apply at scan time — a finding that matches a skip rule does not a
 
 - **Trust boundaries** — user input, network responses, FS reads, third-party API responses, browser APIs that can throw on hostile DOM state — defensive checks here are required.
 - **Intent-naming helpers** — `assertNever`, `unreachable`, `panic`, `invariant`, `defaultTo`, `pluralize`, `assert*` — these document a contract; "single-use" doesn't apply.
-- **Generic code on purpose** — utility libraries, type-level helpers, `src/lib/utils/*` — `data`/`result`/`value` here is the correct vocabulary.
+- **Generic code on purpose** — utility libraries, type-level helpers, any folder named `utils/` or `helpers/` — `data`/`result`/`value` here is the correct vocabulary.
 - **Explicit legacy markers** — files or sections marked `// LEGACY:` are excluded from style-drift checks.
 - **Documented why-comments** — comments containing `because|so that|prevents|workaround|SECURITY|INVARIANT|AI-NOTE|HACK` are not paraphrase-comments.
 - **Project conventions in CLAUDE.md** — if the repo declares a convention, that convention is the baseline; intra-file consistency is measured against project style.
