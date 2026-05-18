@@ -33,9 +33,14 @@ That's the whole input scheme. One fire key, hand free for snacks.
 
 ## Built with AI — agentic dev workflow
 
-This codebase ships with **ten custom Claude Code skills** in `.claude/skills/` (plus a `new-weapon` redirect file for backward compatibility) — short instruction files that teach Claude how to do specific Spacepotatis tasks (add an enemy, tune a weapon, ship a database migration, audit the save pipeline) without re-figuring out the project on every invocation. Skills are recipes. They list the exact files to edit, the field names to use, and the invariants to keep, so Claude goes straight to the work instead of grepping around at $X/token.
+This codebase ships with **thirteen custom Claude Code skills** in `.claude/skills/` (plus a `new-weapon` redirect file for backward compatibility) — short instruction files that teach Claude how to do specific Spacepotatis tasks (add an enemy, tune a weapon, ship a database migration, audit the save pipeline) without re-figuring out the project on every invocation. Skills are recipes. They list the exact files to edit, the field names to use, and the invariants to keep, so Claude goes straight to the work instead of grepping around at $X/token.
 
-The catalog covers: `/new-mission`, `/new-enemy`, `/equipment` (whole CRUD on weapons + augments + ship upgrades), `/new-perk`, `/new-solar-system`, `/new-story`, `/balance-review`, `/content-audit`, `/save-roundtrip-audit`, `/new-migration`. Each one is a self-contained markdown file you can read alone.
+The catalog covers two flavors:
+
+- **Content scaffolders + invariant checks** — `/new-mission`, `/new-enemy`, `/equipment` (whole CRUD on weapons + augments + ship upgrades), `/new-perk`, `/new-solar-system`, `/new-story`, `/balance-review`, `/content-audit`, `/save-roundtrip-audit`, `/new-migration`.
+- **Audit orchestrators** — `/audit` (multi-phase modular-architecture refactor), `/security-audit` (multi-phase security audit + remediation), and `/ai-codegen-smell-audit` (read-only check for 10 AI-codegen failure modes — defensive null checks, paraphrase comments, single-use helpers, phantom TODOs, etc.).
+
+Each skill is a self-contained markdown file you can read alone.
 
 > **Estimated saving: ~2.76M tokens/year** across ~300 invocations — calculated by comparing a skill-guided run against a from-scratch grep-and-derive pass on the same task.
 
