@@ -1,6 +1,6 @@
 # Claude Code skills — savings methodology
 
-This is the long-form companion to the **Built with AI** section of the README. The headline number there is *~2.76M tokens/year*. This document shows the math.
+This is the long-form companion to the **Built with AI** section of the README. The headline number there is *~3.13M tokens/year*. This document shows the math.
 
 ## What's a skill
 
@@ -12,19 +12,22 @@ The point is reproducibility. Without skills, every "add a new enemy" run starts
 
 Rough estimates assuming a year of normal content authoring. "Tokens" here means the units Claude charges by — fewer tokens means cheaper and faster sessions.
 
-| Skill                     | Saved per use | Estimated uses per year | Total tokens saved |
-| ------------------------- | ------------: | ----------------------: | -----------------: |
-| `/balance-review`         |       ~13.5K³ |                      50 |              ~675K |
-| `/content-audit`          |       ~15.0K³ |                      50 |              ~750K |
-| `/save-roundtrip-audit`   |       ~12.0K⁵ |                      20 |              ~240K |
-| `/new-mission`            |         ~8.0K |                      30 |              ~240K |
-| `/new-enemy`              |         ~5.5K |                      25 |              ~138K |
-| `/new-perk`               |         ~9.0K |                      10 |               ~90K |
-| `/equipment`              |  ~4.3K (avg)¹ |                      56 |              ~240K |
-| `/new-solar-system`       |       ~13.0K⁴ |                       5 |               ~65K |
-| `/new-story`              |  ~5.4K (avg)² |                      40 |              ~216K |
-| `/new-migration`          |         ~7.0K⁶ |                      15 |              ~105K |
-| **Total**                 |               |             **301 uses** | **~2.76M tokens** |
+| Skill                       | Saved per use  | Estimated uses per year | Total tokens saved |
+| --------------------------- | -------------: | ----------------------: | -----------------: |
+| `/balance-review`           |        ~13.5K³ |                      50 |              ~675K |
+| `/content-audit`            |        ~15.0K³ |                      50 |              ~750K |
+| `/save-roundtrip-audit`     |        ~12.0K⁵ |                      20 |              ~240K |
+| `/new-mission`              |          ~8.0K |                      30 |              ~240K |
+| `/new-enemy`                |          ~5.5K |                      25 |              ~138K |
+| `/new-perk`                 |          ~9.0K |                      10 |               ~90K |
+| `/equipment`                |   ~4.3K (avg)¹ |                      56 |              ~240K |
+| `/new-solar-system`         |        ~13.0K⁴ |                       5 |               ~65K |
+| `/new-story`                |   ~5.4K (avg)² |                      40 |              ~216K |
+| `/new-migration`            |          ~7.0K⁶ |                      15 |              ~105K |
+| `/ai-codegen-smell-audit`   |        ~10.0K⁷ |                      30 |              ~300K |
+| `/security-audit`           |   ~5.0K (avg)⁸ |                      10 |               ~50K |
+| `/audit`                    |   ~5.0K (avg)⁸ |                       5 |               ~25K |
+| **Total**                   |                |             **346 uses** | **~3.13M tokens** |
 
 ¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year.
 
@@ -38,9 +41,13 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 
 ⁶ `/new-migration` enforces the §7a HARD RULE end-to-end: dated SQL file with both `migrate:up` and `migrate:down` blocks, `Database` interface in `src/lib/db.ts`, prod application via `scripts/migrate.mjs`, verification via `scripts/check-schema.mjs`, and the PR-body checkbox the reviewer's merge button is gated on. Skipping any step ships a save POST that 500s on every authenticated player.
 
+⁷ `/ai-codegen-smell-audit` was added 2026-05-17. Ten concrete checks (defensive null checks on non-nullable types, paraphrase comments, single-use helpers, generic names in domain code, swallowed errors, mirror tests, phantom TODOs, duplicated helpers, over-typed primitives, intra-file style drift) plus a calibration scheme and a sidecar dismissal protocol. Without the skill, an agent doing PR review hits 3-4 of the ten checks ad-hoc and misses the rest — the structured walkthrough plus the dismissal log are the value. ~10K saved per use estimates the cost of an agent rediscovering the check list + running the full sweep + writing the report. Frequency of 30/year reflects per-PR adoption on substantive changes.
+
+⁸ `/audit` and `/security-audit` are multi-phase orchestrators (5 phases each) for the modular-architecture refactor and the security audit/remediation respectively. Each "use" is one phase invocation. The orchestrator skill itself is small (~1-2K tokens loaded), but it captures the agent-dispatch contract, the artifact paths under `docs/audit/` and `docs/security/`, the gate transitions, and the user-approval checkpoints. Without the skill, an agent figuring out "which sub-agent runs which phase" from scratch burns ~5-6K tokens per invocation. Frequency reflects projected use: `/security-audit` 2 cycles/year × 5 phases = 10 invocations; `/audit` 1 cycle/year × 5 phases = 5 invocations. Both are rare but expensive when they fire.
+
 ## How to read these numbers
 
-The numbers are **educated guesses** — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens each, ~120K total) pays itself back in the first week of authoring. The three heaviest hitters are `/balance-review`, `/content-audit`, and `/save-roundtrip-audit` because they fire on every change to their respective surfaces.
+The numbers are **educated guesses** — actual frequency could swing 3× either way. Even on the low end, the one-time cost of writing the skills (~12K tokens each, ~156K total across 13 functional skills + 1 redirect stub) pays itself back in the first week of authoring. The three heaviest hitters are `/balance-review`, `/content-audit`, and `/ai-codegen-smell-audit` because they fire on every change to their respective surfaces (content JSON for the first two, every substantive PR for the third).
 
 The savings figures grow with the codebase, not just with usage. Each new field, file, or invariant that lands without a corresponding skill update is a future failure mode the skill prevents — *but only if the skill is kept current*. The April 2026 audit found two utility skills had drifted to ~5/10 accuracy because the codebase had grown shapes (augments, loot pools, story integrity) the skills never knew about; once patched, the savings table jumped from ~2.15M to ~2.40M tokens/year. Plan on a quarterly re-audit per skill, plus an immediate update when any catalog file gains a new field.
 
