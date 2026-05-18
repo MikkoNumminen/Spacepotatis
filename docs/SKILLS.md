@@ -1,6 +1,6 @@
 # Claude Code skills — savings methodology
 
-This is the long-form companion to the **Built with AI** section of the README. The headline number there is *~3.11M tokens/year*. This document shows the math.
+This is the long-form companion to the **Built with AI** section of the README. The headline number there is *~3.13M tokens/year*. This document shows the math.
 
 ## What's a skill
 
@@ -27,7 +27,7 @@ Rough estimates assuming a year of normal content authoring. "Tokens" here means
 | `/ai-codegen-smell-audit`   |        ~10.0K⁷ |                      30 |              ~300K |
 | `/security-audit`           |   ~5.0K (avg)⁸ |                      10 |               ~50K |
 | `/audit`                    |   ~5.0K (avg)⁸ |                       5 |               ~25K |
-| **Total**                   |                |             **346 uses** | **~3.11M tokens** |
+| **Total**                   |                |             **346 uses** | **~3.13M tokens** |
 
 ¹ `/equipment` covers six different operations (add/change/remove × weapon/augment/equipment) with very different per-use savings — from ~0 tokens for a simple stat tweak (the skill barely beats a quick read of `weapons.json`) to ~13K tokens for removing a weapon (where the cleanup table prevents the agent from missing a hard-coded reference and shipping broken state). The 4.3K is the weighted average across an estimated mix of ~10 add-weapons, ~5 add-augments, ~30 stat tweaks, ~8 visual tweaks, and ~3 removals per year.
 
