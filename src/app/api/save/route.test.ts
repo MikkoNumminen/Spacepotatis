@@ -19,6 +19,10 @@ vi.mock("@/lib/players", () => ({
 //                                    the structural fix to the 2026-05-02 wipe
 const dbStub: {
   selectRow: Record<string, unknown> | undefined;
+  // v2: GET reads the latest snapshot first and only falls back to save_games
+  // when undefined. The save_games selectRow stub doubles as the prev-row
+  // baseline for the POST transaction (unchanged from v1).
+  selectSnapshotRow: Record<string, unknown> | undefined;
   saveInsertSpy: (values: Record<string, unknown>) => void;
   saveInsertImpl: () => Promise<unknown>;
   auditInsertSpy: (values: Record<string, unknown>) => void;
@@ -27,6 +31,7 @@ const dbStub: {
   snapshotInsertImpl: () => Promise<unknown>;
 } = {
   selectRow: undefined,
+  selectSnapshotRow: undefined,
   saveInsertSpy: () => undefined,
   saveInsertImpl: async () => undefined,
   auditInsertSpy: () => undefined,
@@ -35,20 +40,27 @@ const dbStub: {
   snapshotInsertImpl: async () => undefined
 };
 
-function selectChain() {
+function selectChain(table: string) {
   return {
-    selectAll: () => selectChain(),
+    selectAll: () => selectChain(table),
     // POST now reads the prior save row via .select([...]) before writing,
     // to bound the credits delta. Reuses the same dbStub.selectRow so a
     // test can stub the "previous credits" by setting it.
-    select: () => selectChain(),
-    where: () => selectChain(),
+    select: () => selectChain(table),
+    where: () => selectChain(table),
     // SEC-013 — the prev-row SELECT inside the transaction calls
     // `.forUpdate()`. The mock just chains through; serialization isn't
     // simulated here (the dedicated saveRace.test.ts asserts the structural
     // contract). Returning the same shape keeps existing route tests green.
-    forUpdate: () => selectChain(),
-    executeTakeFirst: async () => dbStub.selectRow
+    forUpdate: () => selectChain(table),
+    // v2 GET cutover added .orderBy(...).limit(1) for the save_snapshots
+    // tail-read. Both chain through to the same executeTakeFirst.
+    orderBy: () => selectChain(table),
+    limit: () => selectChain(table),
+    executeTakeFirst: async () =>
+      table === "spacepotatis.save_snapshots"
+        ? dbStub.selectSnapshotRow
+        : dbStub.selectRow
   };
 }
 
@@ -78,7 +90,7 @@ function insertChain(table: string) {
 // the existing test stubs just work inside the transaction.
 function makeDbHandle() {
   return {
-    selectFrom: () => selectChain(),
+    selectFrom: (table: string) => selectChain(table),
     insertInto: (table: string) => insertChain(table),
     transaction: () => ({
       execute: async <T>(cb: (trx: ReturnType<typeof makeDbHandle>) => Promise<T>): Promise<T> =>
@@ -96,6 +108,7 @@ beforeEach(() => {
   upsertMock.mockReset();
   upsertMock.mockResolvedValue("player-uuid");
   dbStub.selectRow = undefined;
+  dbStub.selectSnapshotRow = undefined;
   dbStub.saveInsertSpy = vi.fn();
   dbStub.saveInsertImpl = async () => undefined;
   dbStub.auditInsertSpy = vi.fn();
@@ -757,12 +770,19 @@ describe("POST /api/save save_snapshots dual-write", () => {
     expect(snapshotSpy).not.toHaveBeenCalled();
   });
 
-  it("snapshot insert failure does NOT block the save (still returns 204)", async () => {
-    // Mirrors the audit-table failure-mode contract — the structural-fix
-    // table is a forensic shadow, never the critical path.
+  it("snapshot insert failure BLOCKS the save (v2 atomic dual-write returns 500)", async () => {
+    // v2 contract flip: the snapshot INSERT moved INSIDE the transaction so it
+    // commits atomically with save_games. A permanent snapshot failure now
+    // rolls back the entire tx — the save_games upsert is undone and the user
+    // sees 500. The saveQueue's retry-on-transient logic handles the recovery
+    // path. The trade-off: we accept marginally higher 500 rates for the
+    // wipe-proof guarantee that save_games never contains state without a
+    // matching snapshot row.
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
     dbStub.snapshotInsertImpl = async () => {
-      throw new Error("save_snapshots table missing");
+      // Use a non-transient error so withNeonRetry doesn't retry — the test
+      // pins the contract that a permanent failure surfaces as 500.
+      throw new Error("permission denied for table save_snapshots");
     };
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { POST } = await loadRoute();
@@ -777,7 +797,92 @@ describe("POST /api/save save_snapshots dual-write", () => {
     });
     const res = await POST(req);
     errSpy.mockRestore();
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(500);
+  });
+});
+
+// v2 read-cutover: GET resolves the authoritative save from save_snapshots
+// (latest row per player+slot) and falls back to save_games only for players
+// who haven't saved since v1 deployed. Pin both paths:
+describe("GET /api/save save_snapshots read cutover", () => {
+  it("reads the latest snapshot when one exists (v2 primary read path)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    const createdAt = new Date("2026-05-18T12:00:00.000Z");
+    dbStub.selectSnapshotRow = {
+      payload: {
+        slot: 1,
+        credits: 200,
+        currentPlanet: "tutorial",
+        shipConfig: { slots: [{ id: "rapid-fire" }] },
+        completedMissions: ["tutorial", "combat-1"],
+        unlockedPlanets: ["tutorial", "combat-1"],
+        playedTimeSeconds: 200,
+        seenStoryEntries: ["great-potato-awakening"],
+        currentSolarSystemId: "tubernovae"
+      },
+      created_at: createdAt
+    };
+    // Set a save_games row with a DISTINCT credits value — if the route were
+    // accidentally still reading from save_games, this test would fail with
+    // credits === 999, not 200.
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 999,
+      current_planet: "tutorial",
+      ship_config: {},
+      completed_missions: ["tutorial"],
+      unlocked_planets: ["tutorial"],
+      played_time_seconds: 60,
+      seen_story_entries: [],
+      current_solar_system_id: null,
+      updated_at: new Date("2025-06-01T00:00:00.000Z")
+    };
+    const { GET } = await loadRoute();
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.credits).toBe(200);
+    expect(body.completedMissions).toEqual(["tutorial", "combat-1"]);
+    expect(body.currentSolarSystemId).toBe("tubernovae");
+    // updatedAt is derived from save_snapshots.created_at on the v2 read path.
+    expect(body.updatedAt).toBe(createdAt.toISOString());
+  });
+
+  it("falls back to save_games when no snapshot exists (transitional path for pre-v2 players)", async () => {
+    // A player who saved on the old single-row architecture and hasn't saved
+    // since v2 deployed. Once they save once, the next GET takes the snapshot
+    // fast path.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    dbStub.selectSnapshotRow = undefined;
+    const updatedAt = new Date("2025-06-01T00:00:00.000Z");
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 42,
+      current_planet: "tutorial",
+      ship_config: { foo: "bar" },
+      completed_missions: ["tutorial"],
+      unlocked_planets: ["tutorial", "combat-1"],
+      played_time_seconds: 60,
+      seen_story_entries: [],
+      current_solar_system_id: null,
+      updated_at: updatedAt
+    };
+    const { GET } = await loadRoute();
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.credits).toBe(42);
+    expect(body.updatedAt).toBe(updatedAt.toISOString());
+  });
+
+  it("returns null when neither table has a row (brand-new player)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    dbStub.selectSnapshotRow = undefined;
+    dbStub.selectRow = undefined;
+    const { GET } = await loadRoute();
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBeNull();
   });
 });
 

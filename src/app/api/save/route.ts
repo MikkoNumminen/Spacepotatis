@@ -33,13 +33,49 @@ export async function GET(): Promise<Response> {
   try {
     const db = getDb();
     // Both calls retry on Neon control-plane flakes — see neonRetry.ts.
-    // upsertPlayerId is idempotent (ON CONFLICT (email)); the SELECT is a
-    // pure read. Safe to retry without side-effect concerns.
+    // upsertPlayerId is idempotent (ON CONFLICT (email)); reads are pure.
+    // Safe to retry without side-effect concerns.
     const playerId = await withNeonRetry(
       () => upsertPlayerId(sessionEmail, sessionName),
       { label: "GET /api/save:upsertPlayerId" }
     );
 
+    // v2 read-cutover: authoritative state comes from save_snapshots, the
+    // latest row per (player_id, slot) ordered by created_at DESC. The v1
+    // dual-write made every successful save POST write here atomically with
+    // save_games, so any player who has saved post-v1 has at least one
+    // snapshot row. The composite index (player_id, slot, created_at DESC)
+    // makes the LIMIT 1 a constant-time scan.
+    const snapshotRow = await withNeonRetry(
+      () =>
+        db
+          .selectFrom("spacepotatis.save_snapshots")
+          .select(["payload", "created_at"])
+          .where("player_id", "=", playerId)
+          .where("slot", "=", 1)
+          .orderBy("created_at", "desc")
+          .limit(1)
+          .executeTakeFirst(),
+      { label: "GET /api/save:selectSnapshot" }
+    );
+
+    if (snapshotRow) {
+      // Neon's Edge driver sometimes returns TIMESTAMPTZ as a string instead
+      // of a Date — coerce defensively so we never crash on `.toISOString()`.
+      const updatedAt =
+        snapshotRow.created_at instanceof Date
+          ? snapshotRow.created_at.toISOString()
+          : String(snapshotRow.created_at);
+      // Spread the persisted payload into the response so the wire shape
+      // stays stable. The save round-trip (toSnapshot → hydrate) consumes
+      // the same fields regardless of which table provided them.
+      return NextResponse.json({ ...snapshotRow.payload, updatedAt });
+    }
+
+    // Transitional fallback: pre-v1 saves only exist in save_games. The
+    // first POST after v2 deploy will write a snapshot row; subsequent GETs
+    // take the fast path above. This branch is removable once the operator
+    // confirms every active player has saved at least once post-v2.
     const row = await withNeonRetry(
       () =>
         db
@@ -48,13 +84,11 @@ export async function GET(): Promise<Response> {
           .where("player_id", "=", playerId)
           .where("slot", "=", 1)
           .executeTakeFirst(),
-      { label: "GET /api/save:selectRow" }
+      { label: "GET /api/save:selectFallback" }
     );
 
     if (!row) return NextResponse.json(null);
 
-    // Neon's Edge driver sometimes returns TIMESTAMPTZ as a string instead of
-    // a Date — coerce defensively so we never crash on `.toISOString()`.
     const updatedAt =
       row.updated_at instanceof Date
         ? row.updated_at.toISOString()
@@ -159,42 +193,6 @@ async function writeSaveAudit(
     // Never let an audit-table problem (missing migration, transient Neon
     // outage, schema drift) block a save. Log and move on.
     console.error("[/api/save] save_audit insert failed (save itself proceeds):", err);
-  }
-}
-
-// Append-only history INSERT — companion to the destructive save_games
-// UPSERT. v1 dual-write: save_games stays authoritative for reads; this row
-// is a forensic shadow that lets us reconstruct prior state when (not if)
-// the next wipe pattern slips past validateNoRegression.
-//
-// Failure-mode contract: snapshot write failure NEVER costs the user a save.
-// Same shape as writeSaveAudit — try/catch the retry, log on exhaust, never
-// throw. The save_games row already landed; missing one history entry is a
-// forensic-only cost.
-async function writeSaveSnapshot(
-  db: Kysely<Database>,
-  row: {
-    playerId: string;
-    payload: Record<string, unknown>;
-    source: string;
-  }
-): Promise<void> {
-  try {
-    await withNeonRetry(
-      () =>
-        db
-          .insertInto("spacepotatis.save_snapshots")
-          .values({
-            player_id: row.playerId,
-            slot: 1,
-            payload: row.payload,
-            source: row.source
-          })
-          .execute(),
-      { label: "writeSaveSnapshot" }
-    );
-  } catch (err) {
-    console.error("[/api/save] save_snapshots insert failed (save itself proceeds):", err);
   }
 }
 
@@ -303,11 +301,6 @@ export async function POST(request: Request): Promise<Response> {
     | {
         kind: "ok";
         prevSnapshot: Record<string, unknown> | null;
-        // Same JSON shape as the GET /api/save response so the v2 read path
-        // can `SELECT payload` and return it directly. Built INSIDE the
-        // transaction from the values that were just inserted, RETURNED so the
-        // post-commit save_snapshots write is best-effort outside the lock.
-        newSnapshot: Record<string, unknown>;
       }
     | {
         kind: "reject";
@@ -590,10 +583,9 @@ export async function POST(request: Request): Promise<Response> {
         .execute();
 
       // Build the new-state JSON payload while the field values are in scope.
-      // Same shape as the GET /api/save response (less `updatedAt`, which is
-      // re-derived from save_snapshots.created_at on the read side in v2).
-      // Returned to the caller so the post-commit save_snapshots INSERT can
-      // happen outside the transaction without re-SELECTing the row.
+      // Same shape as the GET /api/save response, less `updatedAt` (re-derived
+      // from save_snapshots.created_at on the read side now that v2 cutover
+      // makes save_snapshots the authoritative read source).
       const newSnapshot: Record<string, unknown> = {
         slot: 1,
         credits,
@@ -606,7 +598,27 @@ export async function POST(request: Request): Promise<Response> {
         currentSolarSystemId
       };
 
-      return { kind: "ok", prevSnapshot, newSnapshot };
+      // INVARIANT: save_snapshots INSERT commits atomically with save_games (v2 read-cutover)
+      // v2 promotion: the snapshot INSERT moved INSIDE the transaction so it
+      // commits atomically with save_games. The v1 best-effort path would let
+      // GET read a stale snapshot if the INSERT silently failed (snapshot
+      // missing the latest state, save_games ahead). Now both write together
+      // or neither does — the tx auto-rollbacks on any throw, and
+      // withNeonRetry around the whole tx replays both writes on transient
+      // flakes (BIGSERIAL PK + ON CONFLICT-less INSERT means a duplicate row
+      // from "first commit silently succeeded then driver raised" is harmless
+      // — one extra forensic row, never a corrupted current state).
+      await trx
+        .insertInto("spacepotatis.save_snapshots")
+        .values({
+          player_id: playerId,
+          slot: 1,
+          payload: newSnapshot,
+          source: "post_api_save"
+        })
+        .execute();
+
+      return { kind: "ok", prevSnapshot };
       }),
       { label: "POST /api/save:transaction" }
     );
@@ -666,16 +678,6 @@ export async function POST(request: Request): Promise<Response> {
     prevSnapshot: outcome.prevSnapshot,
     requestIp,
     userAgent
-  });
-  // Append-only history mirror of the just-committed save. v1 dual-write: the
-  // GET path stays on save_games so a snapshot-write failure here costs no
-  // user-visible state, only a forensic history row. NOT written on reject —
-  // a rejected save did not commit, so a history entry would misrepresent the
-  // current authoritative state.
-  await writeSaveSnapshot(db, {
-    playerId,
-    payload: outcome.newSnapshot,
-    source: "post_api_save"
   });
   return new NextResponse(null, { status: 204 });
 }
