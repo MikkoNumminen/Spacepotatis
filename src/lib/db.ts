@@ -1,4 +1,4 @@
-import { Kysely, PostgresDialect, type Generated } from "kysely";
+import { Kysely, PostgresDialect, type Generated, type PostgresPool } from "kysely";
 import { Pool } from "@neondatabase/serverless";
 
 /**
@@ -90,14 +90,20 @@ export function getDb(): Kysely<Database> {
     throw new Error("DATABASE_URL is not set");
   }
 
+  // Neon's `Pool.Client.connect()` resolves to `void`, but Kysely 0.29 tightened
+  // its `PostgresClient` shape to require `connect(): Promise<PostgresClient>`.
+  // The mismatch is type-only — Kysely never reads the return value, it just
+  // awaits the promise — so we cast through `unknown` to satisfy the structural
+  // contract. Drop the cast when @neondatabase/serverless aligns its Client
+  // signature with kysely's PostgresClient.
+  const pool = new Pool({
+    connectionString,
+    max: 5,
+    idleTimeoutMillis: 10_000
+  }) as unknown as PostgresPool;
+
   _db = new Kysely<Database>({
-    dialect: new PostgresDialect({
-      pool: new Pool({
-        connectionString,
-        max: 5,
-        idleTimeoutMillis: 10_000
-      })
-    })
+    dialect: new PostgresDialect({ pool })
   });
 
   return _db;
