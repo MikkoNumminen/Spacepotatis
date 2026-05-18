@@ -126,7 +126,10 @@ export async function POST(request: Request): Promise<Response> {
     );
 
     // Flush the read cache so the new score is visible on the next GET.
-    revalidateTag(LEADERBOARD_CACHE_TAG);
+    // Next 16 made the second arg required; "max" = full revalidation (the
+    // pre-16 default). `updateTag` is the read-your-own-writes alternative but
+    // is Server-Action-only, so we stay with `revalidateTag` here.
+    revalidateTag(LEADERBOARD_CACHE_TAG, "max");
 
     return new NextResponse(null, { status: 201 });
   } catch (err) {
