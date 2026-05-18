@@ -42,7 +42,7 @@ The catalog covers two flavors:
 
 Each skill is a self-contained markdown file you can read alone.
 
-> **Estimated saving: ~2.76M tokens/year** across ~300 invocations — calculated by comparing a skill-guided run against a from-scratch grep-and-derive pass on the same task.
+> **Estimated saving: ~3.11M tokens/year** across ~350 invocations — calculated by comparing a skill-guided run against a from-scratch grep-and-derive pass on the same task.
 
 Methodology and per-skill breakdown in [docs/SKILLS.md](docs/SKILLS.md). The numbers are educated guesses; the architecture is the point.
 
