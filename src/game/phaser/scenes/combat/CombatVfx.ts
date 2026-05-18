@@ -69,9 +69,12 @@ export class CombatVfx {
   ): { x: number; y: number } | null {
     let best: { x: number; y: number } | null = null;
     let bestDistSq = Infinity;
-    enemies.children.iterate((child) => {
+    // Phaser 4 replaced the custom Group iterator with native Set<GameObject>;
+    // .forEach is the direct equivalent — the original callback never returned
+    // false to early-stop, so semantics are identical.
+    enemies.children.forEach((child) => {
       const e = child as Phaser.Physics.Arcade.Sprite;
-      if (!e.active) return true;
+      if (!e.active) return;
       const dx = e.x - x;
       const dy = e.y - y;
       const d = dx * dx + dy * dy;
@@ -79,7 +82,6 @@ export class CombatVfx {
         bestDistSq = d;
         best = { x: e.x, y: e.y };
       }
-      return true;
     });
     return best;
   }

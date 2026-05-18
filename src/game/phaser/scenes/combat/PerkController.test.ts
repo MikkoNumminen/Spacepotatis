@@ -31,10 +31,13 @@ function makeBulletPool(children: BulletChild[]): {
   pool: BulletPool;
   iterate: ReturnType<typeof vi.fn>;
 } {
-  const iterate = vi.fn((cb: (child: BulletChild) => boolean) => {
+  // Phaser 4 replaced the custom Group iterator with native Set<GameObject>;
+  // the test harness mirrors the new shape — `children.forEach` is what the
+  // detonateEmp code path now calls.
+  const iterate = vi.fn((cb: (child: BulletChild) => void) => {
     for (const c of children) cb(c);
   });
-  const pool = { children: { iterate } } as unknown as BulletPool;
+  const pool = { children: { forEach: iterate } } as unknown as BulletPool;
   return { pool, iterate };
 }
 
