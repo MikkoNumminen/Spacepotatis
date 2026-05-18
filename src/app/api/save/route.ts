@@ -162,6 +162,42 @@ async function writeSaveAudit(
   }
 }
 
+// Append-only history INSERT — companion to the destructive save_games
+// UPSERT. v1 dual-write: save_games stays authoritative for reads; this row
+// is a forensic shadow that lets us reconstruct prior state when (not if)
+// the next wipe pattern slips past validateNoRegression.
+//
+// Failure-mode contract: snapshot write failure NEVER costs the user a save.
+// Same shape as writeSaveAudit — try/catch the retry, log on exhaust, never
+// throw. The save_games row already landed; missing one history entry is a
+// forensic-only cost.
+async function writeSaveSnapshot(
+  db: Kysely<Database>,
+  row: {
+    playerId: string;
+    payload: Record<string, unknown>;
+    source: string;
+  }
+): Promise<void> {
+  try {
+    await withNeonRetry(
+      () =>
+        db
+          .insertInto("spacepotatis.save_snapshots")
+          .values({
+            player_id: row.playerId,
+            slot: 1,
+            payload: row.payload,
+            source: row.source
+          })
+          .execute(),
+      { label: "writeSaveSnapshot" }
+    );
+  } catch (err) {
+    console.error("[/api/save] save_snapshots insert failed (save itself proceeds):", err);
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const session = await auth();
   if (!session?.user?.email) {
@@ -267,6 +303,11 @@ export async function POST(request: Request): Promise<Response> {
     | {
         kind: "ok";
         prevSnapshot: Record<string, unknown> | null;
+        // Same JSON shape as the GET /api/save response so the v2 read path
+        // can `SELECT payload` and return it directly. Built INSIDE the
+        // transaction from the values that were just inserted, RETURNED so the
+        // post-commit save_snapshots write is best-effort outside the lock.
+        newSnapshot: Record<string, unknown>;
       }
     | {
         kind: "reject";
@@ -548,7 +589,24 @@ export async function POST(request: Request): Promise<Response> {
         )
         .execute();
 
-      return { kind: "ok", prevSnapshot };
+      // Build the new-state JSON payload while the field values are in scope.
+      // Same shape as the GET /api/save response (less `updatedAt`, which is
+      // re-derived from save_snapshots.created_at on the read side in v2).
+      // Returned to the caller so the post-commit save_snapshots INSERT can
+      // happen outside the transaction without re-SELECTing the row.
+      const newSnapshot: Record<string, unknown> = {
+        slot: 1,
+        credits,
+        currentPlanet: body.currentPlanet ?? null,
+        shipConfig,
+        completedMissions,
+        unlockedPlanets,
+        playedTimeSeconds,
+        seenStoryEntries,
+        currentSolarSystemId
+      };
+
+      return { kind: "ok", prevSnapshot, newSnapshot };
       }),
       { label: "POST /api/save:transaction" }
     );
@@ -608,6 +666,16 @@ export async function POST(request: Request): Promise<Response> {
     prevSnapshot: outcome.prevSnapshot,
     requestIp,
     userAgent
+  });
+  // Append-only history mirror of the just-committed save. v1 dual-write: the
+  // GET path stays on save_games so a snapshot-write failure here costs no
+  // user-visible state, only a forensic history row. NOT written on reject —
+  // a rejected save did not commit, so a history entry would misrepresent the
+  // current authoritative state.
+  await writeSaveSnapshot(db, {
+    playerId,
+    payload: outcome.newSnapshot,
+    source: "post_api_save"
   });
   return new NextResponse(null, { status: 204 });
 }

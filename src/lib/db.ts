@@ -23,6 +23,7 @@ export interface Database {
   "spacepotatis.save_games": SaveGamesTable;
   "spacepotatis.leaderboard": LeaderboardTable;
   "spacepotatis.save_audit": SaveAuditTable;
+  "spacepotatis.save_snapshots": SaveSnapshotsTable;
 }
 
 export interface PlayersTable {
@@ -60,6 +61,22 @@ export interface LeaderboardTable {
   mission_id: string;
   score: number;
   time_seconds: number | null;
+  created_at: Generated<Date>;
+}
+
+// Append-only save history. Every SUCCESSFUL POST /api/save writes one row
+// here in addition to the destructive UPSERT into save_games. The structural
+// counterpart to validateNoRegression (PR #94): even if a future bug wipes
+// save_games, the prior snapshot stays queryable here, so restore becomes
+// `ORDER BY created_at DESC OFFSET 1 LIMIT 1`. v1 scope is dual-write; the
+// GET read path stays on save_games until v2. See migration 20260518150000.
+export interface SaveSnapshotsTable {
+  id: Generated<string>;
+  player_id: string;
+  slot: Generated<number>;
+  payload: Record<string, unknown>;
+  // Free-form marker for which code path wrote the row. Today: 'post_api_save'.
+  source: string;
   created_at: Generated<Date>;
 }
 

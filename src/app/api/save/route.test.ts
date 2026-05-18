@@ -12,21 +12,27 @@ vi.mock("@/lib/players", () => ({
 
 // Per-test stubs for the shape getDb() returns. We need both
 // `selectFrom("spacepotatis.save_games")` (the prev-row lookup) and
-// `insertInto(table)` for two tables: `spacepotatis.save_games` (the
-// upsert) and `spacepotatis.save_audit` (the forensic log written by
-// every authenticated POST attempt).
+// `insertInto(table)` for THREE tables:
+//   - `spacepotatis.save_games`    — the authoritative upsert (current state)
+//   - `spacepotatis.save_audit`    — forensic log (every attempt)
+//   - `spacepotatis.save_snapshots`— append-only history (success only),
+//                                    the structural fix to the 2026-05-02 wipe
 const dbStub: {
   selectRow: Record<string, unknown> | undefined;
   saveInsertSpy: (values: Record<string, unknown>) => void;
   saveInsertImpl: () => Promise<unknown>;
   auditInsertSpy: (values: Record<string, unknown>) => void;
   auditInsertImpl: () => Promise<unknown>;
+  snapshotInsertSpy: (values: Record<string, unknown>) => void;
+  snapshotInsertImpl: () => Promise<unknown>;
 } = {
   selectRow: undefined,
   saveInsertSpy: () => undefined,
   saveInsertImpl: async () => undefined,
   auditInsertSpy: () => undefined,
-  auditInsertImpl: async () => undefined
+  auditInsertImpl: async () => undefined,
+  snapshotInsertSpy: () => undefined,
+  snapshotInsertImpl: async () => undefined
 };
 
 function selectChain() {
@@ -48,14 +54,21 @@ function selectChain() {
 
 function insertChain(table: string) {
   const isAudit = table === "spacepotatis.save_audit";
+  const isSnapshot = table === "spacepotatis.save_snapshots";
   return {
     values: (v: Record<string, unknown>) => {
       if (isAudit) dbStub.auditInsertSpy(v);
+      else if (isSnapshot) dbStub.snapshotInsertSpy(v);
       else dbStub.saveInsertSpy(v);
       return insertChain(table);
     },
     onConflict: () => insertChain(table),
-    execute: () => (isAudit ? dbStub.auditInsertImpl() : dbStub.saveInsertImpl())
+    execute: () =>
+      isAudit
+        ? dbStub.auditInsertImpl()
+        : isSnapshot
+          ? dbStub.snapshotInsertImpl()
+          : dbStub.saveInsertImpl()
   };
 }
 
@@ -87,6 +100,8 @@ beforeEach(() => {
   dbStub.saveInsertImpl = async () => undefined;
   dbStub.auditInsertSpy = vi.fn();
   dbStub.auditInsertImpl = async () => undefined;
+  dbStub.snapshotInsertSpy = vi.fn();
+  dbStub.snapshotInsertImpl = async () => undefined;
 });
 
 afterEach(() => {
@@ -628,6 +643,141 @@ describe("POST /api/save audit log", () => {
     // lands the forensic row; the first attempt's row was never committed.
     expect(auditSpy).toHaveBeenCalledTimes(2);
     expect(auditCalls).toBe(2);
+  });
+});
+
+// Append-only history mirror of every SUCCESSFUL save. The structural
+// counterpart to validateNoRegression — even if a future bug wipes
+// save_games, the prior snapshot stays queryable here. v1 dual-write: the
+// GET path still reads from save_games, so a snapshot-write failure costs
+// no user-visible state, only a forensic history row.
+//
+// Pin the contract:
+//   - Successful POST writes a snapshot with the new state shape.
+//   - Rejected POST (422) does NOT write a snapshot (no row committed).
+//   - 500 server error does NOT write a snapshot (no row committed).
+//   - Snapshot insert failure NEVER blocks the save (still returns 204).
+describe("POST /api/save save_snapshots dual-write", () => {
+  it("writes a snapshot on a successful save with the new state shape", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 100,
+      current_planet: "tutorial",
+      ship_config: { slots: [] },
+      completed_missions: ["tutorial"],
+      unlocked_planets: ["tutorial", "combat-1"],
+      played_time_seconds: 120,
+      seen_story_entries: ["great-potato-awakening"],
+      current_solar_system_id: "tubernovae",
+      updated_at: new Date(Date.now() - 30_000)
+    };
+    const snapshotSpy = vi.fn();
+    dbStub.snapshotInsertSpy = snapshotSpy;
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 105,
+        playedTimeSeconds: 150,
+        completedMissions: ["tutorial"],
+        unlockedPlanets: ["tutorial", "combat-1"],
+        shipConfig: { slots: [{ id: "rapid-fire" }] },
+        seenStoryEntries: ["great-potato-awakening", "tubernovae-arrival"]
+      })
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    expect(snapshotSpy).toHaveBeenCalledTimes(1);
+    const row = snapshotSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(row.player_id).toBe("player-uuid");
+    expect(row.slot).toBe(1);
+    expect(row.source).toBe("post_api_save");
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.credits).toBe(105);
+    expect(payload.playedTimeSeconds).toBe(150);
+    expect(payload.completedMissions).toEqual(["tutorial"]);
+    expect(payload.shipConfig).toEqual({ slots: [{ id: "rapid-fire" }] });
+    expect(payload.seenStoryEntries).toEqual([
+      "great-potato-awakening",
+      "tubernovae-arrival"
+    ]);
+  });
+
+  it("does NOT write a snapshot when the save is rejected (422 save_regression)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.selectRow = {
+      slot: 1,
+      credits: 5000,
+      current_planet: null,
+      ship_config: {},
+      completed_missions: ["tutorial", "combat-1"],
+      unlocked_planets: ["tutorial", "combat-1"],
+      played_time_seconds: 1800,
+      seen_story_entries: [],
+      updated_at: new Date(Date.now() - 5000)
+    };
+    const snapshotSpy = vi.fn();
+    dbStub.snapshotInsertSpy = snapshotSpy;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 0,
+        completedMissions: [],
+        unlockedPlanets: ["tutorial", "combat-1"]
+      })
+    });
+    const res = await POST(req);
+    warnSpy.mockRestore();
+    expect(res.status).toBe(422);
+    // Critical: the rejected save did not commit, so a snapshot would
+    // misrepresent the authoritative state.
+    expect(snapshotSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT write a snapshot when the save_games upsert fails (500)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.saveInsertImpl = async () => {
+      throw new Error("write failed");
+    };
+    const snapshotSpy = vi.fn();
+    dbStub.snapshotInsertSpy = snapshotSpy;
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(snapshotSpy).not.toHaveBeenCalled();
+  });
+
+  it("snapshot insert failure does NOT block the save (still returns 204)", async () => {
+    // Mirrors the audit-table failure-mode contract — the structural-fix
+    // table is a forensic shadow, never the critical path.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.snapshotInsertImpl = async () => {
+      throw new Error("save_snapshots table missing");
+    };
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 30,
+        completedMissions: [],
+        unlockedPlanets: []
+      })
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(204);
   });
 });
 
