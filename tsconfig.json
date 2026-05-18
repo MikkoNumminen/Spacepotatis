@@ -20,13 +20,12 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@/game/*": ["src/game/*"],
-      "@/components/*": ["src/components/*"],
-      "@/lib/*": ["src/lib/*"],
-      "@/types/*": ["src/types/*"]
+      "@/*": ["./src/*"],
+      "@/game/*": ["./src/game/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/types/*": ["./src/types/*"]
     }
   },
   "include": [
