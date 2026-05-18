@@ -230,12 +230,15 @@ export class CombatScene extends Phaser.Scene {
     if (slowFactor > 0 && slowDurationMs > 0) {
       primary.applySlow(slowFactor, slowDurationMs, now);
     }
-    this.enemies.children.iterate((child) => {
+    // Phaser 4 replaced the custom Group iterator with native Set<GameObject>;
+    // .forEach is the direct equivalent (the prior callbacks never returned
+    // false to early-stop, so semantics are identical).
+    this.enemies.children.forEach((child) => {
       const e = child as Enemy;
-      if (!e.active || e === primary) return true;
+      if (!e.active || e === primary) return;
       const dx = e.x - cx;
       const dy = e.y - cy;
-      if (dx * dx + dy * dy > radiusSq) return true;
+      if (dx * dx + dy * dy > radiusSq) return;
       if (explosionDamage > 0) {
         // Same overkill-cap pattern as CollisionSystem's direct-hit
         // path: snapshot HP, take damage, attribute Math.min(dmg, hpBefore)
@@ -252,7 +255,6 @@ export class CombatScene extends Phaser.Scene {
       if (slowFactor > 0 && slowDurationMs > 0) {
         e.applySlow(slowFactor, slowDurationMs, now);
       }
-      return true;
     });
     // Visual: small particle burst at the impact center so AoE is legible.
     this.vfx.emitExplosionParticles(cx, cy, 12);

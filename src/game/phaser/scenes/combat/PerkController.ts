@@ -53,10 +53,11 @@ export class PerkController {
 
   private detonateEmp(): void {
     // Clear every active enemy bullet on screen.
-    this.enemyBullets().children.iterate((child) => {
+    // Phaser 4 replaced the custom Group iterator with native Set<GameObject>;
+    // .forEach is the direct equivalent.
+    this.enemyBullets().children.forEach((child) => {
       const b = child as Phaser.Physics.Arcade.Sprite;
       if (b.active) b.disableBody(true, true);
-      return true;
     });
     // Visual flash centred on the player.
     const player = this.player();
