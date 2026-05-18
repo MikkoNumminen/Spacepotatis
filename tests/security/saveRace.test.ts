@@ -75,7 +75,11 @@ function makeSelectChain(opts: { insideTx: boolean }) {
 }
 
 function makeInsertChain(table: string, opts: { insideTx: boolean }) {
-  const isAudit = table === "spacepotatis.save_audit";
+  // Both save_audit and save_snapshots are forensic side-tables — only the
+  // save_games upsert is what `upsertsObserved` measures for the race-rejection
+  // contract.
+  const isSideTable =
+    table === "spacepotatis.save_audit" || table === "spacepotatis.save_snapshots";
   let captured: Record<string, unknown> | undefined;
   const chain = {
     values: (v: Record<string, unknown>) => {
@@ -89,7 +93,7 @@ function makeInsertChain(table: string, opts: { insideTx: boolean }) {
       return chain;
     },
     execute: async () => {
-      if (!isAudit && captured) {
+      if (!isSideTable && captured) {
         dbStub.upsertsObserved += 1;
         // Mirror the values the route writes onto our shared currentRow,
         // shaped like the SELECT result.
