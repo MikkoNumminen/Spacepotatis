@@ -33,20 +33,34 @@ That's the whole input scheme. One fire key, hand free for snacks.
 
 ## Built with AI — agentic dev workflow
 
-This codebase ships with **thirteen custom Claude Code skills** in `.claude/skills/` (plus a `new-weapon` redirect file for backward compatibility) — short instruction files that teach Claude how to do specific Spacepotatis tasks (add an enemy, tune a weapon, ship a database migration, audit the save pipeline) without re-figuring out the project on every invocation. Skills are recipes. They list the exact files to edit, the field names to use, and the invariants to keep, so Claude goes straight to the work instead of grepping around at $X/token.
+This codebase ships with **thirteen custom Claude Code skills** in `.claude/skills/` (plus a `new-weapon` redirect for backward compatibility). A **skill** is a short markdown file that teaches Claude how to do one specific Spacepotatis task — add an enemy, tune a weapon, ship a database migration, audit the save pipeline. It lists the exact files to edit, the field names to use, and the invariants to keep. Without a skill, every "add a new enemy" run starts with grepping the codebase to re-derive the same five files. With a skill, Claude goes straight to the work.
 
-The catalog covers two flavors:
+Each skill is invoked with `/<name>` (or Claude auto-picks based on the task description) and is a self-contained markdown file you can read alone in [`.claude/skills/<name>/SKILL.md`](.claude/skills/).
 
-- **Content scaffolders + invariant checks** — `/new-mission`, `/new-enemy`, `/equipment` (whole CRUD on weapons + augments + ship upgrades), `/new-perk`, `/new-solar-system`, `/new-story`, `/balance-review`, `/content-audit`, `/save-roundtrip-audit`, `/new-migration`.
-- **Audit orchestrators** — `/audit` (multi-phase modular-architecture refactor), `/security-audit` (multi-phase security audit + remediation), and `/ai-codegen-smell-audit` (read-only check for 10 AI-codegen failure modes — defensive null checks, paraphrase comments, single-use helpers, phantom TODOs, etc.).
+### The catalog
 
-Each skill is a self-contained markdown file you can read alone.
+| Skill | What it does | Saved per use | Uses/yr | Total/yr |
+|---|---|---:|---:|---:|
+| [`/content-audit`](.claude/skills/content-audit/SKILL.md) | Pre-commit invariants — orphan refs, missing sprite generators, mission DAG, story integrity, loot-pool sanity | ~15.0K | 50 | ~750K |
+| [`/balance-review`](.claude/skills/balance-review/SKILL.md) | Diff content JSON and report DPS, TTK, energy-per-DPS, loot-pool deltas vs HEAD | ~13.5K | 50 | ~675K |
+| [`/ai-codegen-smell-audit`](.claude/skills/ai-codegen-smell-audit/SKILL.md) | PR-time check for 10 AI-codegen failure modes (defensive null checks on non-nullable types, paraphrase comments, phantom TODOs, swallowed errors, duplicated helpers…) | ~10.0K | 30 | ~300K |
+| [`/equipment`](.claude/skills/equipment/SKILL.md) | Add / modify / remove weapons, augments, reactor, shield, or armor — full CRUD across stats, sprites, prices, and the loadout UI | ~4.3K avg | 56 | ~240K |
+| [`/save-roundtrip-audit`](.claude/skills/save-roundtrip-audit/SKILL.md) | Walk every `StateSnapshot` field through the 8 save-pipeline layers; flag any layer that silently drops the field | ~12.0K | 20 | ~240K |
+| [`/new-mission`](.claude/skills/new-mission/SKILL.md) | Scaffold a combat mission — `missions.json`, `waves.json`, galaxy planet binding, smoke test | ~8.0K | 30 | ~240K |
+| [`/new-story`](.claude/skills/new-story/SKILL.md) | CRUD on story content — cinematic popups, voiceovers, music beds, body + log text, auto-trigger wiring | ~5.4K avg | 40 | ~216K |
+| [`/new-enemy`](.claude/skills/new-enemy/SKILL.md) | Scaffold a new enemy — `enemies.json`, `BootScene` sprite generator, optional wave, integrity check | ~5.5K | 25 | ~138K |
+| [`/new-migration`](.claude/skills/new-migration/SKILL.md) | Postgres schema migration end-to-end — dated SQL, `Database` interface, prod-apply, schema check, PR-checkbox gate that prevents a 500-on-save regression | ~7.0K | 15 | ~105K |
+| [`/new-perk`](.claude/skills/new-perk/SKILL.md) | Scaffold a mission-only perk — `perks.ts` entry, BootScene icon, HUD chip, optional active-handler in `PerkController` | ~9.0K | 10 | ~90K |
+| [`/new-solar-system`](.claude/skills/new-solar-system/SKILL.md) | Add a galaxy solar system — `solarSystems.json` entry, required on-system-enter cinematic (voice + music) and dedicated galaxy music bed | ~13.0K | 5 | ~65K |
+| [`/security-audit`](.claude/skills/security-audit/SKILL.md) | Orchestrate the 5-phase security audit + remediation (attack-surface map → prioritized plan → fixes with regression tests → AI-first security docs → verification) | ~5.0K | 10 | ~50K |
+| [`/audit`](.claude/skills/audit/SKILL.md) | Orchestrate the 5-phase modular-architecture audit + refactor (inventory → boundaries → mechanical extraction → docs → verification) | ~5.0K | 5 | ~25K |
+| **Total (13 functional skills)** | | | **346** | **~3.13M** |
 
-> **Estimated saving: ~3.13M tokens/year** across ~350 invocations — calculated by comparing a skill-guided run against a from-scratch grep-and-derive pass on the same task.
+Plus a 14th file: [`/new-weapon`](.claude/skills/new-weapon/SKILL.md) — a 230-token stub that redirects to `/equipment` so fresh users typing the old name get a useful redirect instead of "skill not found." Net token save ≈ 0; kept as a convention.
 
-Methodology and per-skill breakdown in [docs/SKILLS.md](docs/SKILLS.md). The numbers are educated guesses; the architecture is the point.
+**How to read the numbers.** *Saved per use* is the cost of an agent doing the same task without the skill (grep + read + retry on missed conventions) minus the cost of invoking the skill. *Uses/yr* is an educated estimate from the project's content cadence and PR pace, not telemetry. The total figure is **comparing skill-guided runs against from-scratch grep-and-derive passes on the same task** — full methodology and per-skill rationale in [docs/SKILLS.md](docs/SKILLS.md). The most recent full-catalog audit is at [docs/audits/skills-2026-05-19.md](docs/audits/skills-2026-05-19.md).
 
-The interesting AI wrinkle isn't "Claude wrote some code." It's the **operating model**: the skills are version-controlled, audited quarterly (drift between a skill and the code it references is a real category of bug — caught two real ones in the last audit), and treated as production artifacts. The repo is a small case study in keeping AI-assisted development reproducible.
+The interesting AI wrinkle isn't "Claude wrote some code." It's the **operating model**: skills are version-controlled, audited regularly, and treated as production artifacts. Drift between a skill and the code it references is a real category of bug — the April 2026 per-skill audit caught two utility skills that had drifted to ~5/10 accuracy because the codebase had grown shapes the skills never knew about. Once patched, the savings table jumped ~250K tokens/year. The repo is a small case study in keeping AI-assisted development reproducible.
 
 ## All the audio is mine — and so are the tools that made it
 
