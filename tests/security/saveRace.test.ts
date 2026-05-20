@@ -110,7 +110,8 @@ function makeInsertChain(table: string, opts: { insideTx: boolean }) {
           updated_at: captured.updated_at ?? new Date()
         };
       }
-      return undefined;
+      // Route now asserts numInsertedOrUpdatedRows > 0n on both inserts.
+      return [{ numInsertedOrUpdatedRows: 1n }];
     }
   };
   void opts;

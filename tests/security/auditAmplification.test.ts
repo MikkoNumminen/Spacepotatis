@@ -89,7 +89,8 @@ const dbStub: {
 } = {
   selectRow: undefined,
   saveInsertSpy: () => undefined,
-  saveInsertImpl: async () => undefined,
+  // Route asserts numInsertedOrUpdatedRows > 0n on save_games + save_snapshots.
+  saveInsertImpl: async () => [{ numInsertedOrUpdatedRows: 1n }],
   auditInsertSpy: () => undefined,
   auditInsertImpl: async () => undefined
 };
@@ -138,7 +139,7 @@ beforeEach(() => {
   upsertMock.mockResolvedValue("player-uuid");
   dbStub.selectRow = undefined;
   dbStub.saveInsertSpy = vi.fn();
-  dbStub.saveInsertImpl = async () => undefined;
+  dbStub.saveInsertImpl = async () => [{ numInsertedOrUpdatedRows: 1n }];
   dbStub.auditInsertSpy = vi.fn();
   dbStub.auditInsertImpl = async () => undefined;
 });

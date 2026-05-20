@@ -293,6 +293,51 @@ describe("flushPendingSave", () => {
     expect(pending?.snapshot).toEqual(SNAP);
   });
 
+  it("DROPS the slot on 500 server_error_permanent — programmer bug, replay can't succeed (audit 2026-05-20)", async () => {
+    // Audit 2026-05-20 high: the route now classifies thrown errors as
+    // transient vs permanent. A Zod / SyntaxError / TypeError / RangeError /
+    // ReferenceError surfaces as `server_error_permanent` so the queue stops
+    // spinning forever on the same broken POST. Plain `server_error` stays
+    // transient (next test).
+    markSavePending(SNAP, EMAIL_A, NOW);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 500,
+      errorCode: "server_error_permanent"
+    }));
+    const result = await flushPendingSave({ submit, playerEmail: EMAIL_A }, NOW);
+    expect(result).toMatchObject({ kind: "failed", status: 500 });
+    expect(readPendingSaveForTest()).toBeNull();
+  });
+
+  it("RETAINS the slot on 500 server_error — transient (Neon blip), keep retrying", async () => {
+    markSavePending(SNAP, EMAIL_A, NOW);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 500,
+      errorCode: "server_error"
+    }));
+    const result = await flushPendingSave({ submit, playerEmail: EMAIL_A }, NOW);
+    expect(result).toEqual({ kind: "queued", status: 500 });
+    const pending = readPendingSaveForTest();
+    expect(pending).not.toBeNull();
+    expect(pending?.attempts).toBe(1);
+  });
+
+  it("DROPS the slot on 413 payload_too_large — body shape can't shrink on retry (audit 2026-05-20)", async () => {
+    markSavePending(SNAP, EMAIL_A, NOW);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const submit: SavePostFn = vi.fn<SavePostFn>(async () => ({
+      ok: false,
+      status: 413,
+      errorCode: "payload_too_large"
+    }));
+    const result = await flushPendingSave({ submit, playerEmail: EMAIL_A }, NOW);
+    expect(result).toMatchObject({ kind: "failed", status: 413 });
+    expect(readPendingSaveForTest()).toBeNull();
+  });
+
   it("RETAINS the slot on 422 save_regression — server snapshot more advanced, retry with fresher state", async () => {
     // The regression guard from PR #94 fires when the server's stored
     // snapshot is more advanced than the client's. Treating it as PERMANENT
@@ -342,15 +387,30 @@ describe("flushPendingSave", () => {
     expect(readPendingSaveForTest()).toBeNull();
   });
 
-  it("survives a malformed JSON blob — reads as empty, doesn't throw", async () => {
+  it("survives a malformed JSON blob — drops it on read (self-heal), doesn't throw, doesn't loop", async () => {
+    // Audit 2026-05-20 medium: the prior implementation returned null on
+    // JSON.parse failure but LEFT the poisoned blob in localStorage. Every
+    // subsequent readPendingRaw() repeated the silent parse failure forever.
+    // Now we removeItem() so the next read sees a clean slot.
     (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
       "spacepotatis:pendingSave:v2",
       "not json"
     );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const submit = ok();
     const result = await flushPendingSave({ submit, playerEmail: EMAIL_A }, NOW);
     expect(submit).not.toHaveBeenCalled();
     expect(result).toEqual({ kind: "noop" });
+    // The corrupted blob is gone — second read returns null without warning.
+    expect(
+      (globalThis as unknown as { localStorage: FakeStorage }).localStorage.getItem(
+        "spacepotatis:pendingSave:v2"
+      )
+    ).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("JSON parse failed"),
+      expect.anything()
+    );
   });
 
   it("survives a schema-mismatched blob — drops it with a warning", async () => {
