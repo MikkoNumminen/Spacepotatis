@@ -9,6 +9,13 @@ import { HandlePayloadSchema } from "@/lib/schemas/handle";
 // Edge runtime — same reasoning as /api/save: Neon serverless + JWT auth().
 export const runtime = "edge";
 
+// SEC-022 — POST /api/handle accepts a tiny `{ handle: string }` body
+// (HandlePayloadSchema caps the string at 16 chars). Reject any
+// Content-Length above 4 KB early so a malicious caller can't waste
+// edge-function CPU on JSON.parse of a multi-megabyte body. 4 KB is two
+// orders of magnitude above any legitimate payload.
+const MAX_REQUEST_BYTES = 4 * 1024;
+
 // Postgres unique_violation. The Neon serverless driver surfaces pg-style
 // errors with `code` and `constraint` (constraint name) properties; check
 // both because the constraint name pin lets us only swallow OUR uniqueness
@@ -61,6 +68,14 @@ export async function POST(request: Request): Promise<Response> {
   }
   const sessionEmail = session.user.email;
   const sessionName = session.user.name ?? null;
+
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const declaredBytes = Number(contentLength);
+    if (Number.isFinite(declaredBytes) && declaredBytes > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+    }
+  }
 
   let raw: unknown;
   try {

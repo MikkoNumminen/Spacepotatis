@@ -16,7 +16,17 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.generateTextures();
+    // Each draw* helper allocates a Graphics, calls generateTexture, then
+    // destroys it — so a throw inside one helper leaks at most ONE
+    // in-flight Graphics (already-completed iterations are clean). We log
+    // and still hand off to Combat so the game doesn't get stuck on Boot;
+    // any missing texture surfaces as a Phaser warning downstream rather
+    // than a hung scene with no UI.
+    try {
+      this.generateTextures();
+    } catch (err) {
+      console.error("BootScene.generateTextures threw:", err);
+    }
     this.scene.start(SCENE_KEYS.Combat, this.bootData);
   }
 
