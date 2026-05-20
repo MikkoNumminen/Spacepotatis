@@ -54,15 +54,29 @@ function selectChain() {
   return {
     select: () => selectChain(),
     where: () => selectChain(),
+    // SEC-013 mirror — the prev-row SELECT inside the leaderboard transaction
+    // chains `.forUpdate()`. Mock just chains through.
+    forUpdate: () => selectChain(),
     executeTakeFirst: () => dbStub.selectImpl()
   };
 }
 
-vi.mock("@/lib/db", () => ({
-  getDb: () => ({
+// Mirror the production-side fix: completed_missions read + score INSERT
+// wrap in a Kysely transaction. The mock's trx is shaped like the top-level
+// db so the existing chain stubs work inside the transaction.
+function makeDbHandle() {
+  return {
     insertInto: () => insertChain(),
-    selectFrom: () => selectChain()
-  })
+    selectFrom: () => selectChain(),
+    transaction: () => ({
+      execute: async <T>(cb: (trx: ReturnType<typeof makeDbHandle>) => Promise<T>): Promise<T> =>
+        cb(makeDbHandle())
+    })
+  };
+}
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => makeDbHandle()
 }));
 
 beforeEach(() => {

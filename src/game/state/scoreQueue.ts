@@ -122,16 +122,27 @@ function readQueue(): QueuedScore[] {
   let raw: string | null;
   try {
     raw = window.localStorage.getItem(STORAGE_KEY);
-  } catch {
+  } catch (err) {
     // Private mode / quota / disabled storage — pretend queue is empty.
     // Better to drop than to throw and break gameplay flow.
+    console.warn("[scoreQueue] localStorage.getItem failed:", err);
     return [];
   }
   if (!raw) return [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    // Corrupted blob — JSON.parse can't recover. Remove the poisoned key so
+    // the next read doesn't hit the same failure. Without this, a single
+    // bad write traps the queue forever and every drain sees an empty list.
+    console.warn("[scoreQueue] dropped queue: JSON.parse failed", err);
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch (removeErr) {
+      // ignore — if remove fails, next read warns again. Not fatal.
+      console.warn("[scoreQueue] failed to remove poisoned blob:", removeErr);
+    }
     return [];
   }
   if (!Array.isArray(parsed) || !parsed.every(isQueuedScore)) {
@@ -159,10 +170,11 @@ function writeQueue(items: readonly QueuedScore[]): void {
     } else {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     }
-  } catch {
+  } catch (err) {
     // Quota / private mode — can't persist. The current run's score is
     // still in the in-memory queue for this session, but won't survive
     // a reload. Acceptable graceful degradation.
+    console.warn("[scoreQueue] writeQueue failed:", err);
   }
 }
 
@@ -170,8 +182,9 @@ export function clearScoreQueue(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
+  } catch (err) {
+    // Quota / private mode — same as writeQueue's degradation path.
+    console.warn("[scoreQueue] clearScoreQueue failed:", err);
   }
 }
 
@@ -346,10 +359,17 @@ function isPermanent(status: number, errorCode: string | null): boolean {
   // 400 (schema rejection) is always permanent — payload shape can't
   // become valid by retrying.
   if (status === 400) return true;
+  // 413 (payload too large) is permanent — same body will keep being too big.
+  if (status === 413) return true;
   // 422 has a few sub-cases:
   //  - mission_not_completed → transient: a follow-up saveNow may
   //    catch it up. Keep retrying.
   //  - other 422 codes (validation_failed, etc.) → permanent.
   if (status === 422) return errorCode !== "mission_not_completed";
+  // 500 has two sub-cases:
+  //  - server_error_permanent → known bug (Zod / JS runtime error). Drop.
+  //  - server_error → transient Neon flake or other recoverable failure.
+  //    Keep retrying.
+  if (status === 500) return errorCode === "server_error_permanent";
   return false;
 }
