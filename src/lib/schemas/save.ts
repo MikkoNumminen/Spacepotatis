@@ -220,7 +220,11 @@ export const ReactorConfigSchema = z.object({
 export const ShipConfigSchema = z.object({
   slots: WeaponSlotsSchema,
   inventory: WeaponInventorySchema,
-  augmentInventory: z.array(AugmentIdSchema),
+  // SEC-022 — bounded at 50 elements, same convention as
+  // WeaponInventorySchema. Five augment ids exist in AUGMENT_IDS today;
+  // 50 leaves headroom for catalog growth while preventing an unbounded
+  // payload from passing schema validation (INV-SCHEMA-1).
+  augmentInventory: z.array(AugmentIdSchema).max(50),
   shieldLevel: z.number().int().nonnegative(),
   armorLevel: z.number().int().nonnegative(),
   reactor: ReactorConfigSchema
@@ -343,7 +347,12 @@ export const LegacyShipSchema = z.object({
       }
     })
     .optional(),
-  augmentInventory: z.array(z.string()).optional(),
+  // SEC-022 — cap at 50 entries, same convention as the strict
+  // ShipConfigSchema.augmentInventory. Legacy snapshots may carry unknown
+  // augment ids (migrateShip filters them), but the array length still
+  // needs a ceiling so an attacker-supplied legacy-shape payload can't
+  // bypass the strict-branch cap by tripping the legacy branch.
+  augmentInventory: z.array(z.string()).max(50).optional(),
   shieldLevel: z.number().optional(),
   armorLevel: z.number().optional(),
   reactor: z
@@ -391,6 +400,16 @@ export const LegacyOrShipConfigSchema = ShipConfigSchema.or(LegacyShipSchema);
  * @stable
  */
 export const SavePayloadSchema = z.object({
+  // INVARIANT: every field on SavePayloadSchema is `.optional()` on purpose.
+  //   /api/save coalesces missing values to the empty/zero baseline
+  //   (`?? 0` / `?? []`), and `validateNoRegression` compares that
+  //   baseline against the trusted prev row. A partial POST that strips
+  //   `completedMissions`, `unlockedPlanets`, or `playedTimeSeconds` will
+  //   therefore fail the monotonic-shrink check and 422 with
+  //   `save_regression` — the guard already treats undefined as "regress
+  //   to empty". Don't tighten these to required without re-validating
+  //   the test suite; the optional-coalesce-to-zero pattern is the
+  //   contract every monotonic-field check assumes.
   credits: z.number().int().nonnegative().optional(),
   currentPlanet: MissionIdSchema.nullable().optional(),
   shipConfig: LegacyOrShipConfigSchema.optional(),
@@ -398,12 +417,24 @@ export const SavePayloadSchema = z.object({
   // both names so toSnapshot() can be sent verbatim. The route only writes
   // `shipConfig`, so we coalesce when reading.
   ship: LegacyOrShipConfigSchema.optional(),
-  completedMissions: z.array(MissionIdSchema).optional(),
-  unlockedPlanets: z.array(MissionIdSchema).optional(),
+  // Monotonic field — coalesces to [] when missing; validateNoRegression
+  // then catches a partial POST that would shrink the stored list.
+  // SEC-022 — .max(100) ceiling exceeds MISSION_IDS by 10×; generous but
+  // prevents a pathological payload from passing schema validation
+  // (INV-SCHEMA-1). The enum membership check is the inner bound; the
+  // length cap is the outer bound.
+  completedMissions: z.array(MissionIdSchema).max(100).optional(),
+  // Monotonic field — same coalesce-to-empty contract as completedMissions.
+  unlockedPlanets: z.array(MissionIdSchema).max(100).optional(),
+  // Monotonic field — coalesces to 0 when missing; validateNoRegression
+  // rejects any next.playedTimeSeconds < prev.playedTimeSeconds, so a
+  // partial POST omitting this field on top of a real save will 422.
   playedTimeSeconds: z.number().int().nonnegative().optional(),
   saveSlot: z.number().int().positive().optional(),
   currentSolarSystemId: SolarSystemIdSchema.optional(),
-  unlockedSolarSystems: z.array(SolarSystemIdSchema).optional(),
+  // SEC-022 — same .max(100) ceiling; current SOLAR_SYSTEM_IDS has 2
+  // entries, the cap is purely a pathological-payload guard.
+  unlockedSolarSystems: z.array(SolarSystemIdSchema).max(100).optional(),
   // Free-form string list — story IDs are validated against the actual
   // catalog inside hydrate() (isKnownStoryId), so the schema only checks
   // the array shape. Unknown ids fall out client-side and never reach
