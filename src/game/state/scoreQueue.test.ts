@@ -191,14 +191,18 @@ describe("drainScoreQueue", () => {
     expect(result).toEqual({ attempted: 0, succeeded: 0, remaining: 0 });
   });
 
-  it("survives a malformed queue blob — reads as empty, doesn't throw", async () => {
-    (globalThis as unknown as { localStorage: FakeStorage }).localStorage.setItem(
-      "spacepotatis:scoreQueue:v1",
-      "not json"
-    );
+  it("survives a malformed queue blob — reads as empty, doesn't throw, and self-heals the poisoned key", async () => {
+    const ls = (globalThis as unknown as { localStorage: FakeStorage }).localStorage;
+    ls.setItem("spacepotatis:scoreQueue:v1", "not json");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => ({ ok: true }));
     const result = await drainScoreQueue(submit, NOW);
+    warnSpy.mockRestore();
     expect(result).toEqual({ attempted: 0, succeeded: 0, remaining: 0 });
+    // Audit fix: a corrupted blob now self-heals on next read so it doesn't
+    // trap the queue forever. Pre-fix this assertion would have failed —
+    // JSON.parse swallowed silently and the bad blob lingered.
+    expect(ls.getItem("spacepotatis:scoreQueue:v1")).toBeNull();
   });
 
   it("survives a schema-mismatched queue blob — drops the whole queue with a warning", async () => {
@@ -215,6 +219,51 @@ describe("drainScoreQueue", () => {
       expect.stringContaining("dropped queue: schema mismatch"),
       expect.anything()
     );
+  });
+
+  it("treats 500 server_error_permanent as permanent (drops the entry instead of spinning forever)", async () => {
+    // Audit fix: pre-fix every 500 was treated as transient, so a permanent
+    // server-side bug (Zod validation throw, JS runtime error) would keep
+    // re-POSTing for up to MAX_AGE_MS. The route now tags those as
+    // server_error_permanent; this test pins the queue's matching behavior.
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => ({
+      ok: false,
+      status: 500,
+      errorCode: "server_error_permanent"
+    }));
+    const result = await drainScoreQueue(submit, NOW);
+    expect(result.attempted).toBe(1);
+    expect(result.succeeded).toBe(0);
+    expect(result.remaining).toBe(0); // dropped, not retained
+  });
+
+  it("treats 500 server_error (without _permanent suffix) as transient (keeps retrying)", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => ({
+      ok: false,
+      status: 500,
+      errorCode: "server_error"
+    }));
+    const result = await drainScoreQueue(submit, NOW);
+    expect(result.attempted).toBe(1);
+    expect(result.succeeded).toBe(0);
+    expect(result.remaining).toBe(1); // retained for next drain
+  });
+
+  it("treats 413 payload_too_large as permanent (same body keeps being too big)", async () => {
+    enqueueScore({ missionId: "tutorial", score: 100, timeSeconds: 30 }, NOW);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const submit: ScorePostFn = vi.fn<ScorePostFn>(async () => ({
+      ok: false,
+      status: 413,
+      errorCode: "payload_too_large"
+    }));
+    const result = await drainScoreQueue(submit, NOW);
+    expect(result.attempted).toBe(1);
+    expect(result.remaining).toBe(0);
   });
 
   it("multi-entry mixed-outcome drain — success drops, transient retries, permanent drops", async () => {
