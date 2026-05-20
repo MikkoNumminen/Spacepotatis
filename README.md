@@ -53,7 +53,7 @@ Each skill is invoked with `/<name>` (or Claude auto-picks based on the task des
 | [`/new-perk`](.claude/skills/new-perk/SKILL.md) | Scaffold a mission-only perk — `perks.ts` entry, BootScene icon, HUD chip, optional active-handler in `PerkController` | ~9.0K | 10 | ~90K |
 | [`/new-solar-system`](.claude/skills/new-solar-system/SKILL.md) | Add a galaxy solar system — `solarSystems.json` entry, required on-system-enter cinematic (voice + music) and dedicated galaxy music bed | ~13.0K | 5 | ~65K |
 | [`/security-audit`](.claude/skills/security-audit/SKILL.md) | Orchestrate the 5-phase security audit + remediation (attack-surface map → prioritized plan → fixes with regression tests → AI-first security docs → verification) | ~5.0K | 10 | ~50K |
-| [`/audit`](.claude/skills/audit/SKILL.md) | Orchestrate the 5-phase modular-architecture audit + refactor (inventory → boundaries → mechanical extraction → docs → verification) | ~5.0K | 5 | ~25K |
+| [`/modular-architecture-audit`](.claude/skills/modular-architecture-audit/SKILL.md) | Orchestrate the 5-phase modular-architecture audit + refactor (inventory → boundaries → mechanical extraction → docs → verification) | ~5.0K | 5 | ~25K |
 | **Total (13 functional skills)** | | | **346** | **~3.13M** |
 
 Plus a 14th file: [`/new-weapon`](.claude/skills/new-weapon/SKILL.md) — a 230-token stub that redirects to `/equipment` so fresh users typing the old name get a useful redirect instead of "skill not found." Net token save ≈ 0; kept as a convention.

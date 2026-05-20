@@ -1,5 +1,5 @@
 ---
-name: audit
+name: modular-architecture-audit
 description: Orchestrates the multi-phase modular-architecture audit + refactor. Phase 0 sets up agents; Phase 1 inventories every file; Phase 2 proposes module boundaries; Phase 3 mechanically extracts modules one at a time (parallelizable across worktrees); Phase 4 writes AI-first documentation; Phase 5 verifies. Each phase produces a written artifact under docs/audit/ and STOPS at a gate for user approval. Never auto-advances.
 ---
 
