@@ -14,7 +14,7 @@ This skill is **the orchestrator**. It does NOT do the agents' work itself — i
 
 # Adjacent skills
 
-- `/audit` — modular-architecture refactor. Orthogonal axis. A finding from this skill that says "auth is checked in 47 different places" might trigger a follow-up `/audit` pass to consolidate.
+- `/modular-architecture-audit` — modular-architecture refactor. Orthogonal axis. A finding from this skill that says "auth is checked in 47 different places" might trigger a follow-up `/modular-architecture-audit` pass to consolidate.
 - `/save-roundtrip-audit` — save-pipeline integrity. Run BEFORE Phase 3 fixes that touch `src/game/state/persistence.ts`, `src/lib/schemas/save.ts`, `src/app/api/save/route.ts`, `src/lib/db.ts`, or `db/migrations/`.
 - `/content-audit` — game-data invariants. Orthogonal.
 - `/new-migration` — required workflow when a security fix needs a schema change. CLAUDE.md §7a gates the merge on the migration being applied to prod.
@@ -75,6 +75,6 @@ When the user invokes `/security-audit` and `docs/security/_progress.md` already
 - **Don't auto-advance.** Even if a phase looks complete and tests pass, never start the next phase without explicit user OK.
 - **Don't merge phases.** Phase 1's "no proposals, just inventory" rule is load-bearing — proposals from a still-incomplete map tend to lock in the wrong shape.
 - **Don't dispatch a generalist agent.** Use the named agent for each phase. The whole reason these agents exist is single-responsibility scoping.
-- **Don't let the fixer expand scope.** A Phase 3 fix that "while I'm here" refactors unrelated code is rejected. Refactors go through `/audit`. Non-security bugs go to `docs/security/04-other-findings.md`.
+- **Don't let the fixer expand scope.** A Phase 3 fix that "while I'm here" refactors unrelated code is rejected. Refactors go through `/modular-architecture-audit`. Non-security bugs go to `docs/security/04-other-findings.md`.
 - **Don't commit on the agent's behalf without explicit user OK.** Default is staged-clean and hand back unless the orchestrator's prompt explicitly authorized auto-commit.
 - **Don't downgrade the cheat guards** in `src/lib/saveValidation.ts` to "fix" a security finding. Those guards ARE security; if a finding says "they're too strict", surface to the user and ask.

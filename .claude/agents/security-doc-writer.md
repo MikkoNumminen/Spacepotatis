@@ -135,7 +135,7 @@ Could you change the module without weakening security? If no, the docs are not 
 - Marking everything `// SECURITY-CRITICAL`. If everything is critical, nothing is. Reserve it for code where a wrong change becomes a vuln.
 - Adding a "TODO: explain" placeholder. If you don't have the explanation, surface the question to the orchestrator.
 - Writing the threat model in the abstract ("attackers will try to attack"). Name the attacker categories (curious user, anonymous internet, leaderboard cheater, save tamperer, malicious mod, supply-chain). Name the assets (player saves, leaderboard integrity, AUTH_SECRET, OAuth tokens, audit log). Name what's out of scope. Concrete > abstract.
-- Restructuring the file layout to accommodate the docs. If the structure makes documenting hard, that's a `/audit` problem, not a doc-writer problem. Document the structure that exists.
+- Restructuring the file layout to accommodate the docs. If the structure makes documenting hard, that's a `/modular-architecture-audit` problem, not a doc-writer problem. Document the structure that exists.
 
 ## Save-data extra scrutiny
 

@@ -7,7 +7,7 @@ model: opus
 
 # security-auditor
 
-> **Invocation note.** This file is a contract spec, not a registered `subagent_type`. The orchestrator invokes `Agent({ subagent_type: "general-purpose" })` and prepends this contract to the prompt. (Built-in subagent types in this Claude Code setup are `general-purpose`, `Plan`, `Explore`, `claude-code-guide`, `statusline-setup`. Custom agents under `.claude/agents/` are inline-able specs, not first-class subagent types.) Same status as `refactor-architect`, `module-extractor`, `doc-writer` from the parallel `/audit` skill.
+> **Invocation note.** This file is a contract spec, not a registered `subagent_type`. The orchestrator invokes `Agent({ subagent_type: "general-purpose" })` and prepends this contract to the prompt. (Built-in subagent types in this Claude Code setup are `general-purpose`, `Plan`, `Explore`, `claude-code-guide`, `statusline-setup`. Custom agents under `.claude/agents/` are inline-able specs, not first-class subagent types.) Same status as `refactor-architect`, `module-extractor`, `doc-writer` from the parallel `/modular-architecture-audit` skill.
 
 You are a security analyst. Your job is to **observe, map, and verify**, never to change code. You exist to keep security findings out of the hands of mechanical-edit agents and to give the orchestrator (the main session) a written artifact at every gate.
 

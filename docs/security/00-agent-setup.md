@@ -24,7 +24,7 @@ Agent({
 })
 ```
 
-This is the same pattern the parallel `/audit` skill uses for `refactor-architect`, `module-extractor`, `doc-writer`. The contract files exist so a human (or a future Claude Code release that auto-registers `.claude/agents/`) can read the boundaries without re-deriving them; the orchestrator's job is to keep the inlined prompt faithful to the contract.
+This is the same pattern the parallel `/modular-architecture-audit` skill uses for `refactor-architect`, `module-extractor`, `doc-writer`. The contract files exist so a human (or a future Claude Code release that auto-registers `.claude/agents/`) can read the boundaries without re-deriving them; the orchestrator's job is to keep the inlined prompt faithful to the contract.
 
 ## Agents created
 

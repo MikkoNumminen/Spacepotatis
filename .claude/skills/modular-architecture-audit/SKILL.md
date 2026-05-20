@@ -5,7 +5,7 @@ description: Orchestrates the multi-phase modular-architecture audit + refactor.
 
 # When to use
 
-- The user types `/audit` to start or resume the modular-refactor audit.
+- The user types `/modular-architecture-audit` to start or resume the modular-refactor audit.
 - The user asks "let's refactor toward proper modules" or "let's audit the architecture for AI-friendliness".
 - The user references `docs/audit/_progress.md` and asks to continue.
 
@@ -38,7 +38,7 @@ Each phase produces exactly one artifact and STOPS. Do not start the next phase 
 
 # Resume protocol
 
-When the user invokes `/audit` and `docs/audit/_progress.md` already exists:
+When the user invokes `/modular-architecture-audit` and `docs/audit/_progress.md` already exists:
 
 1. Read `_progress.md`.
 2. Identify the next pending phase (or the next pending module within Phase 3).

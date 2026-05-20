@@ -54,7 +54,7 @@ The orchestration **pattern** of the existing `audit` skill was the model:
 - Read-only agents for analysis phases; edit-capable agents for remediation; doc agents for documentation.
 - Anti-patterns codified in the skill so dispatched agents inherit the boundaries.
 
-The new skill cites `/audit`, `/save-roundtrip-audit`, `/content-audit`, and `/new-migration` as adjacent in its "Adjacent skills" section so future invocations route to the right tool.
+The new skill cites `/modular-architecture-audit`, `/save-roundtrip-audit`, `/content-audit`, and `/new-migration` as adjacent in its "Adjacent skills" section so future invocations route to the right tool.
 
 ## What was archived
 
@@ -62,7 +62,7 @@ The new skill cites `/audit`, `/save-roundtrip-audit`, `/content-audit`, and `/n
 
 ## What was NOT changed
 
-- **`.claude/skills/audit/SKILL.md`** — untouched. Modular-architecture audit is a separate, ongoing concern.
+- **`.claude/skills/modular-architecture-audit/SKILL.md`** — untouched. Modular-architecture audit is a separate, ongoing concern.
 - **`.claude/skills/content-audit/SKILL.md`** — untouched.
 - **`.claude/skills/save-roundtrip-audit/SKILL.md`** — untouched. Will be invoked BY the security audit during Phase 3 when save-layer fixes are scheduled, but its definition is unchanged.
 - **`.claude/skills/new-migration/SKILL.md`** — untouched. Will be invoked BY the security audit during Phase 3 when schema changes are needed.

@@ -107,7 +107,7 @@ If you see something that's broken but isn't security-relevant (a stale comment,
 ## Anti-patterns to refuse
 
 - "Fix SEC-007 and SEC-008 together since they're in the same file" — no. Two invocations, two commits, two regression tests. The atomicity is the point.
-- "While I'm here, refactor this function for clarity" — no. Refactors go through `/audit`. Log it under `docs/security/04-other-findings.md`.
+- "While I'm here, refactor this function for clarity" — no. Refactors go through `/modular-architecture-audit`. Log it under `docs/security/04-other-findings.md`.
 - "The plan says X but Y is cleaner" — if you genuinely think the plan is wrong, STOP and hand back. Don't silently substitute.
 - "Skip the regression test, it's just a header" — no. For non-unit-testable findings, add an integration test or a documented manual repro. The audit's verification phase relies on every fixed finding having an artifact.
 

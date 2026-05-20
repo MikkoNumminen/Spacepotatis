@@ -115,7 +115,7 @@ agent doesn't disable it without thinking.
   post-validation casts (e.g. `as Record<string, unknown>` after a
   `typeof === "object"` typeguard) and require touching code that is not
   in scope for this doc-only pass. The narrower rule covers the documented
-  bypass scenarios; broader enforcement is a follow-up `/audit` task.
+  bypass scenarios; broader enforcement is a follow-up `/modular-architecture-audit` task.
 - **Ban `Kysely<any>`.** Currently has zero matches across `src/`
   (verified by Phase 1). A lint rule could prevent re-introduction, but
   the rule shape is non-trivial under typescript-eslint's parser
