@@ -97,11 +97,14 @@ class StoryLogAudio {
   }
 
   // INTERNAL — entry point used by stop() to fade out and then release the
-  // captured `music` ref. Mirrors fade() but routes the cancel handle into a
-  // local closure so the stop() chain can cancel without competing with a
-  // subsequent play().
+  // captured `music` ref. Mirrors fade() but passes a no-op setHandle so the
+  // stop()'s fade-out chain is NOT cancellable by a subsequent play()'s
+  // in-life fade. If we routed the handle into this.fadeRaf, the next
+  // play() → fade() would cancelAnimationFrame() the stop chain mid-flight
+  // and pause()/src="" would never run, leaking the released element. The
+  // captured `music` closure pins the right element; the tween runs to
+  // completion independently.
   private fadeOutThenRelease(music: HTMLAudioElement): void {
-    if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
     tween(
       music,
       music.volume,
@@ -111,9 +114,7 @@ class StoryLogAudio {
         music.pause();
         music.src = "";
       },
-      (id) => {
-        this.fadeRaf = id;
-      }
+      () => {}
     );
   }
 }

@@ -141,6 +141,12 @@ class StoryAudio {
     this.voice = null;
     if (music) {
       this.cancelMusicFade();
+      // No-op setHandle: stop's fade-out must NOT share musicFadeRaf with a
+      // subsequent play()'s in-life fade — otherwise the next fadeMusic()
+      // would cancelMusicFade() and kill this chain mid-flight, leaving
+      // pause()/src="" un-run on a leaked element. The captured-ref
+      // closure already pins the right element; the tween runs to
+      // completion independently of any in-life fade.
       tweenVolume(
         music,
         music.volume,
@@ -150,13 +156,12 @@ class StoryAudio {
           music.pause();
           music.src = "";
         },
-        (id) => {
-          this.musicFadeRaf = id;
-        }
+        () => {}
       );
     }
     if (voice) {
       this.cancelVoiceFade();
+      // No-op setHandle: see comment above the music tween.
       tweenVolume(
         voice,
         voice.volume,
@@ -166,9 +171,7 @@ class StoryAudio {
           voice.pause();
           voice.src = "";
         },
-        (id) => {
-          this.voiceFadeRaf = id;
-        }
+        () => {}
       );
     }
   }
