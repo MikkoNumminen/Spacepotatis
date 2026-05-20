@@ -35,6 +35,7 @@ export interface MenuBriefingItem {
 // INTERNAL — exposed only via the `menuBriefingAudio` singleton at file end.
 class MenuBriefingAudio {
   private voice: HTMLAudioElement | null = null;
+  private endedListener: (() => void) | null = null;
   private queue: readonly MenuBriefingItem[] = [];
   private queueIdx = 0;
   private gapTimerId: number | null = null;
@@ -97,8 +98,11 @@ class MenuBriefingAudio {
     this.queueIdx = 0;
     this.startFailed = false;
     const voice = this.voice;
+    const endedListener = this.endedListener;
     this.voice = null;
+    this.endedListener = null;
     if (!voice) return;
+    if (endedListener) voice.removeEventListener("ended", endedListener);
     voice.pause();
     voice.src = "";
   }
@@ -138,17 +142,21 @@ class MenuBriefingAudio {
     voice.loop = false;
     voice.volume = audioBus.isMuted("voice") ? 0 : TARGET_VOLUME;
     voice.preload = "auto";
-    voice.addEventListener("ended", () => {
+    const endedListener = (): void => {
       // Release the element promptly so it stops counting against iOS
       // Safari's ~6-element audio budget. Without src="" the element can
       // linger as a "live" slot until GC.
       voice.src = "";
       if (this.voice !== voice) return;
+      voice.removeEventListener("ended", endedListener);
       this.voice = null;
+      this.endedListener = null;
       this.queueIdx += 1;
       this.scheduleNext();
-    });
+    };
+    voice.addEventListener("ended", endedListener);
     this.voice = voice;
+    this.endedListener = endedListener;
     voice
       .play()
       .then(() => {

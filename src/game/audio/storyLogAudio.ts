@@ -66,10 +66,7 @@ class StoryLogAudio {
       this.fadeRaf = null;
     }
     if (!music) return;
-    tween(music, music.volume, 0, FADE_MS, () => {
-      music.pause();
-      music.src = "";
-    });
+    this.fadeOutThenRelease(music);
   }
 
   /**
@@ -94,26 +91,60 @@ class StoryLogAudio {
   private fade(toVol: number): void {
     if (!this.music) return;
     if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
-    this.fadeRaf = tween(this.music, this.music.volume, toVol, FADE_MS);
+    tween(this.music, this.music.volume, toVol, FADE_MS, undefined, (id) => {
+      this.fadeRaf = id;
+    });
+  }
+
+  // INTERNAL — entry point used by stop() to fade out and then release the
+  // captured `music` ref. Mirrors fade() but routes the cancel handle into a
+  // local closure so the stop() chain can cancel without competing with a
+  // subsequent play().
+  private fadeOutThenRelease(music: HTMLAudioElement): void {
+    if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
+    tween(
+      music,
+      music.volume,
+      0,
+      FADE_MS,
+      () => {
+        music.pause();
+        music.src = "";
+      },
+      (id) => {
+        this.fadeRaf = id;
+      }
+    );
   }
 }
 
 // INTERNAL
+//
+// Tween an audio element's volume over `durationMs` using rAF. The recursive
+// frames each call `setHandle` so the engine's `fadeRaf` field tracks the
+// CURRENT scheduled frame — `cancelAnimationFrame(this.fadeRaf)` actually
+// stops the chain instead of only stopping the first frame and letting the
+// recursive ticks keep running on a released element.
 function tween(
   el: HTMLAudioElement,
   fromVol: number,
   toVol: number,
   durationMs: number,
-  onDone?: () => void
-): number {
+  onDone: (() => void) | undefined,
+  setHandle: (id: number | null) => void
+): void {
   const start = performance.now();
   const tick = (now: number): void => {
     const t = Math.min(1, (now - start) / Math.max(1, durationMs));
     el.volume = Math.max(0, Math.min(1, fromVol + (toVol - fromVol) * t));
-    if (t < 1) requestAnimationFrame(tick);
-    else if (onDone) onDone();
+    if (t < 1) {
+      setHandle(requestAnimationFrame(tick));
+    } else {
+      setHandle(null);
+      if (onDone) onDone();
+    }
   };
-  return requestAnimationFrame(tick);
+  setHandle(requestAnimationFrame(tick));
 }
 
 /**
