@@ -140,14 +140,27 @@ function readPendingRaw(): PendingSave | null {
   let raw: string | null;
   try {
     raw = window.localStorage.getItem(STORAGE_KEY);
-  } catch {
+  } catch (err) {
+    // Quota / private mode — degrade gracefully; in-memory state is still
+    // authoritative for THIS session. Surface a single-line warning so a
+    // persistent storage outage doesn't go fully silent.
+    console.warn("[saveQueue] localStorage read failed (degraded mode):", err);
     return null;
   }
   if (!raw) return null;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    // Corrupted blob — JSON.parse can never recover from this, and leaving
+    // it in storage means every subsequent readPendingRaw() repeats the
+    // same parse failure silently. Self-heal by removing the poisoned blob.
+    console.warn("[saveQueue] dropped pending: JSON parse failed", err);
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore — quota / private mode; nothing we can do
+    }
     return null;
   }
   if (!isPendingSave(parsed)) {
@@ -321,6 +334,14 @@ async function doFlush(args: FlushArgs, nowMs: number): Promise<FlushResult> {
 function isPermanent(status: number, errorCode: string | null): boolean {
   // 400 (schema rejection) — payload shape can't become valid by retrying.
   if (status === 400) return true;
+  // 413 (payload too large) — body shape can't shrink on retry.
+  if (status === 413) return true;
+  // 500 server_error_permanent — the route classified the thrown error as a
+  // programmer bug or schema mismatch (Zod / SyntaxError / TypeError /
+  // RangeError / ReferenceError). Replaying the same snapshot would hit the
+  // same bug; drop instead of spinning. Plain `server_error` stays transient
+  // (network blip, Neon control-plane hiccup) — preserve that behavior.
+  if (status === 500 && errorCode === "server_error_permanent") return true;
   // 422 has sub-cases. Mirrors scoreQueue.ts mission_not_completed pattern.
   //  - playtime_delta_invalid / credits_delta_invalid → TRANSIENT. The
   //    server's comparison baseline is its last-saved row; if intervening

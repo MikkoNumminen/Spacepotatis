@@ -110,11 +110,17 @@ beforeEach(() => {
   dbStub.selectRow = undefined;
   dbStub.selectSnapshotRow = undefined;
   dbStub.saveInsertSpy = vi.fn();
-  dbStub.saveInsertImpl = async () => undefined;
+  // Kysely's insert .execute() returns InsertResult[]; the route now asserts
+  // numInsertedOrUpdatedRows > 0n on both the save_games upsert and the
+  // save_snapshots insert to defend against the silent-no-op wipe-class bug.
+  // The default success path returns 1n affected row; individual tests can
+  // override with [{ numInsertedOrUpdatedRows: 0n }] to exercise the 0-row
+  // throw path.
+  dbStub.saveInsertImpl = async () => [{ numInsertedOrUpdatedRows: 1n }];
   dbStub.auditInsertSpy = vi.fn();
   dbStub.auditInsertImpl = async () => undefined;
   dbStub.snapshotInsertSpy = vi.fn();
-  dbStub.snapshotInsertImpl = async () => undefined;
+  dbStub.snapshotInsertImpl = async () => [{ numInsertedOrUpdatedRows: 1n }];
 });
 
 afterEach(() => {
@@ -924,7 +930,7 @@ describe("POST /api/save Neon retry", () => {
     dbStub.saveInsertImpl = async () => {
       saveInsertCalls += 1;
       if (saveInsertCalls === 1) throw new Error("Connection terminated unexpectedly");
-      return undefined;
+      return [{ numInsertedOrUpdatedRows: 1n }];
     };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { POST } = await loadRoute();
@@ -1001,5 +1007,149 @@ describe("GET /api/save Neon retry", () => {
     warnSpy.mockRestore();
     expect(res.status).toBe(200);
     expect(upsertCalls).toBe(2);
+  });
+});
+
+// Audit findings 2026-05-20 (high+medium): the outer catch must distinguish
+// transient vs permanent so saveQueue.ts doesn't spin forever on a programmer
+// bug, the upsert + snapshot inserts must assert they actually wrote a row,
+// and request.json() must be guarded by a 64 KB content-length cap.
+describe("POST /api/save error-path hardening (audit 2026-05-20)", () => {
+  it("rejects a body whose Content-Length exceeds 64 KB with 413 (no audit, no DB hit)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    const auditSpy = vi.fn();
+    dbStub.auditInsertSpy = auditSpy;
+    const saveInsertSpy = vi.fn();
+    dbStub.saveInsertSpy = saveInsertSpy;
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "content-length": String(64 * 1024 + 1) }
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "payload_too_large" });
+    // Pre-parse rejection — never touches the DB or the audit table.
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(saveInsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("accepts a body at the 64 KB boundary", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "content-length": String(64 * 1024) }
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+  });
+
+  it("returns server_error_permanent on a TypeError thrown inside the transaction (saveQueue drops, no spin)", async () => {
+    // A programmer bug — e.g. accessing a property on undefined — surfaces as
+    // a TypeError. The route must classify this as permanent so saveQueue.ts
+    // drops the pending blob instead of replaying the same broken POST.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.saveInsertImpl = async () => {
+      throw new TypeError("cannot read property foo of undefined");
+    };
+    const auditSpy = vi.fn();
+    dbStub.auditInsertSpy = auditSpy;
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error_permanent" });
+    // The forensic audit row still lands so we can find the bug in prod.
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect((auditSpy.mock.calls[0]?.[0] as Record<string, unknown>).response_error).toBe(
+      "server_error_permanent"
+    );
+  });
+
+  it("returns plain server_error on a generic transient throw (saveQueue keeps retrying)", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.saveInsertImpl = async () => {
+      // Plain Error — not Zod / SyntaxError / TypeError / RangeError /
+      // ReferenceError. Could be a Neon control-plane blip; saveQueue.ts
+      // must keep retrying.
+      throw new Error("connection refused");
+    };
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error" });
+  });
+
+  it("returns server_error_permanent when the save_games upsert affects 0 rows", async () => {
+    // The silent-no-op wipe-class shape: the upsert returns 200 from Postgres
+    // but reports 0 affected rows. The route must throw inside the tx so the
+    // upsert is rolled back AND the outer catch returns a permanent code.
+    // RangeError matches the permanent-error classifier.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.saveInsertImpl = async () => [{ numInsertedOrUpdatedRows: 0n }];
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error_permanent" });
+  });
+
+  it("returns server_error_permanent when the save_snapshots insert affects 0 rows", async () => {
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.snapshotInsertImpl = async () => [{ numInsertedOrUpdatedRows: 0n }];
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const res = await POST(req);
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error_permanent" });
+  });
+
+  it("does NOT widen shipPayload at the DB boundary — Zod-typed value flows through", async () => {
+    // Regression for the dropped `(shipPayload as Record<string, unknown>)`
+    // cast. The legacy-or-strict union schema accepts a `{ slots: [...] }`
+    // shape, which must reach the DB row verbatim — neither flattened to
+    // `{}` (the pre-fix degenerate branch) nor coerced.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    const saveInsertSpy = vi.fn();
+    dbStub.saveInsertSpy = saveInsertSpy;
+    const { POST } = await loadRoute();
+    const req = new Request("http://x/api/save", {
+      method: "POST",
+      body: JSON.stringify({
+        credits: 0,
+        playedTimeSeconds: 0,
+        completedMissions: [],
+        unlockedPlanets: [],
+        shipConfig: { slots: [{ id: "rapid-fire" }] }
+      })
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    const written = saveInsertSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(written.ship_config).toEqual({ slots: [{ id: "rapid-fire" }] });
   });
 });

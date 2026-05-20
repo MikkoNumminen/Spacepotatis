@@ -46,7 +46,9 @@ function makeInsertChain(table: string) {
       return chain;
     },
     onConflict: () => chain,
-    execute: async () => undefined
+    // Route now asserts numInsertedOrUpdatedRows > 0n on both save_games and
+    // save_snapshots inserts.
+    execute: async () => [{ numInsertedOrUpdatedRows: 1n }]
   };
   return chain;
 }

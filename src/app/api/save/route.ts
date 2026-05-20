@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql, type Kysely } from "kysely";
+import { ZodError } from "zod";
 import { auth } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
@@ -14,6 +15,34 @@ import {
   validatePlaytimeDelta
 } from "@/lib/saveValidation";
 import type { MissionId } from "@/types/game";
+
+// INVARIANT: 64 KB cap on the raw POST body — bound an unbounded JSON parse
+// before Zod ever sees it (Edge runtime memory is per-invocation and a
+// 10 MB body would still parse before failing schema validation). The
+// audit-payload cap (AUDIT_PAYLOAD_BYTE_CAP) is the matching ceiling for
+// what's stored in spacepotatis.save_audit; keeping the two equal means a
+// legitimate save body never silently grows beyond what the audit row can
+// preserve verbatim.
+const MAX_REQUEST_BYTES = 64 * 1024;
+
+// Permanent-error classifier. Anything thrown that matches one of these
+// shapes points at a programmer bug or schema mismatch — replaying the
+// request can never succeed. The route returns `server_error_permanent`
+// for these so saveQueue.ts drops the pending blob instead of spinning.
+// Transient errors (network blip, Neon control-plane hiccup, unknown)
+// still return `server_error` so the queue retries.
+function isPermanentError(err: unknown): boolean {
+  if (err instanceof ZodError) return true;
+  if (err instanceof Error) {
+    return (
+      err.name === "SyntaxError" ||
+      err.name === "TypeError" ||
+      err.name === "RangeError" ||
+      err.name === "ReferenceError"
+    );
+  }
+  return false;
+}
 
 // Edge runtime — db.ts uses Neon's serverless WebSocket Pool (Edge-compatible)
 // and NextAuth v5 `auth()` is JWT-cookie based here, so no Node primitives
@@ -206,6 +235,18 @@ export async function POST(request: Request): Promise<Response> {
   // The auth guard above proves both are populated.
   const sessionEmail = session.user.email;
   const sessionName = session.user.name ?? null;
+
+  // Reject oversize bodies BEFORE request.json() allocates them in Edge memory.
+  // Content-Length is best-effort — chunked uploads omit it, in which case we
+  // fall through to Zod, whose `.max()` array bounds (SEC-011) catch the same
+  // amplification class once the body is parsed.
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader !== null) {
+    const contentLength = Number.parseInt(contentLengthHeader, 10);
+    if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+    }
+  }
 
   let raw: unknown;
   try {
@@ -543,23 +584,24 @@ export async function POST(request: Request): Promise<Response> {
 
       // Snapshot serialization sends the ship under `ship`; the legacy /api
       // contract calls it `shipConfig`. Accept both, prefer the explicit one.
-      const shipPayload = body.shipConfig ?? body.ship;
-      const shipConfig =
-        shipPayload && typeof shipPayload === "object"
-          ? (shipPayload as Record<string, unknown>)
-          : {};
+      // The Zod-typed value flows straight through to Kysely — no widening
+      // `as Record<string, unknown>` cast at the DB boundary (CLAUDE.md §9:
+      // "no `as` casts at the network edge"). The `ship_config` column in
+      // Database (src/lib/db.ts) is typed Record<string, unknown>; Kysely
+      // accepts the Zod-narrowed object via structural compatibility.
+      const shipPayload = body.shipConfig ?? body.ship ?? {};
 
       const seenStoryEntries = Array.isArray(body.seenStoryEntries) ? body.seenStoryEntries : [];
       const currentSolarSystemId = body.currentSolarSystemId ?? null;
 
-      await trx
+      const upsertResult = await trx
         .insertInto("spacepotatis.save_games")
         .values({
           player_id: playerId,
           slot: 1,
           credits,
           current_planet: body.currentPlanet ?? null,
-          ship_config: shipConfig,
+          ship_config: shipPayload,
           completed_missions: completedMissions,
           unlocked_planets: unlockedPlanets,
           played_time_seconds: playedTimeSeconds,
@@ -582,6 +624,19 @@ export async function POST(request: Request): Promise<Response> {
         )
         .execute();
 
+      // Defend against the wipe-class shape where the upsert silently no-ops.
+      // Kysely returns InsertResult[] with bigint numInsertedOrUpdatedRows;
+      // PostgreSQL reports the affected row count for both INSERT and the
+      // DO UPDATE branch. Throwing inside the transaction triggers the auto-
+      // ROLLBACK and surfaces as a permanent server error (programmer bug or
+      // schema drift, not a transient flake).
+      const upsertRows = upsertResult[0]?.numInsertedOrUpdatedRows;
+      if (upsertRows === undefined || upsertRows <= 0n) {
+        throw new RangeError(
+          `save_games upsert affected 0 rows (player_id=${playerId}, slot=1)`
+        );
+      }
+
       // Build the new-state JSON payload while the field values are in scope.
       // Same shape as the GET /api/save response, less `updatedAt` (re-derived
       // from save_snapshots.created_at on the read side now that v2 cutover
@@ -590,7 +645,7 @@ export async function POST(request: Request): Promise<Response> {
         slot: 1,
         credits,
         currentPlanet: body.currentPlanet ?? null,
-        shipConfig,
+        shipConfig: shipPayload,
         completedMissions,
         unlockedPlanets,
         playedTimeSeconds,
@@ -608,7 +663,7 @@ export async function POST(request: Request): Promise<Response> {
       // flakes (BIGSERIAL PK + ON CONFLICT-less INSERT means a duplicate row
       // from "first commit silently succeeded then driver raised" is harmless
       // — one extra forensic row, never a corrupted current state).
-      await trx
+      const snapshotResult = await trx
         .insertInto("spacepotatis.save_snapshots")
         .values({
           player_id: playerId,
@@ -618,12 +673,30 @@ export async function POST(request: Request): Promise<Response> {
         })
         .execute();
 
+      // The snapshot insert has no ON CONFLICT clause — it MUST land exactly
+      // one row or the atomic dual-write contract (v2) is broken. A 0-row
+      // result here would mean save_games committed without a matching
+      // history row, which is the wipe-class shape we're guarding against.
+      const snapshotRows = snapshotResult[0]?.numInsertedOrUpdatedRows;
+      if (snapshotRows === undefined || snapshotRows <= 0n) {
+        throw new RangeError(
+          `save_snapshots insert affected 0 rows (player_id=${playerId}, slot=1)`
+        );
+      }
+
       return { kind: "ok", prevSnapshot };
       }),
       { label: "POST /api/save:transaction" }
     );
   } catch (err) {
     console.error("POST /api/save failed:", err);
+    // Distinguish transient (DB unreachable, Neon retry exhausted, unknown)
+    // from permanent (Zod / programmer bug / schema mismatch). saveQueue.ts
+    // treats `server_error` as transient (keeps retrying) and
+    // `server_error_permanent` as a drop signal — without this split, a
+    // bug that throws on every request would spin the queue forever.
+    const permanent = isPermanentError(err);
+    const responseError = permanent ? "server_error_permanent" : "server_error";
     // Best-effort audit on the transaction-level failure path. We don't have
     // a prevSnapshot here (the SELECT itself or the upsert may have thrown);
     // record the attempt with prev_snapshot = null so the row still lands.
@@ -631,12 +704,12 @@ export async function POST(request: Request): Promise<Response> {
       playerId,
       requestPayload,
       responseStatus: 500,
-      responseError: "server_error",
+      responseError,
       prevSnapshot: null,
       requestIp,
       userAgent
     });
-    return NextResponse.json({ error: "server_error" }, { status: 500 });
+    return NextResponse.json({ error: responseError }, { status: 500 });
   }
 
   // Audit write happens AFTER the transaction commits/rolls back. Failure
