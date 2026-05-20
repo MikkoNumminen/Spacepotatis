@@ -225,6 +225,10 @@ export function useStoryTriggers({
     if (ready.length === 0) return;
 
     let weStartedAudio = false;
+    // Sentinel for the orphan-interval window: between setTimeout firing
+    // and intervalIds.push, the effect's cleanup may have already run.
+    // Without `cancelled`, the interval would survive cleanup forever.
+    let cancelled = false;
     const fire = (entry: (typeof ready)[number]) => {
       storyAudio.play({
         musicSrc: entry.musicTrack,
@@ -247,6 +251,7 @@ export function useStoryTriggers({
         trigger?.kind !== "on-all-cleared-idle"
       ) continue;
       const initialId = window.setTimeout(() => {
+        if (cancelled) return;
         fire(entry);
         const repeatId = window.setInterval(() => fire(entry), trigger.intervalMs);
         intervalIds.push(repeatId);
@@ -255,6 +260,7 @@ export function useStoryTriggers({
     }
 
     return () => {
+      cancelled = true;
       for (const id of timeoutIds) clearTimeout(id);
       for (const id of intervalIds) clearInterval(id);
       if (weStartedAudio) storyAudio.stop();

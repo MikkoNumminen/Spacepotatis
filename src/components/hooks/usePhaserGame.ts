@@ -32,10 +32,19 @@ export function usePhaserGame({
     void (async () => {
       const { createPhaserGame } = await import("@/game/phaser/config");
       if (disposed || !parentRef.current) return;
-      game = await createPhaserGame(parentRef.current, {
+      const created = await createPhaserGame(parentRef.current, {
         missionId,
         onComplete: (summary) => onComplete(summary)
       });
+      // If the effect cleanup ran while createPhaserGame was awaiting,
+      // the outer-scope cleanup already ran with game === null. The
+      // newly-created Phaser.Game would leak its WebGL context + tickers
+      // forever. Destroy it here and exit before assigning the ref.
+      if (disposed) {
+        created.destroy(true);
+        return;
+      }
+      game = created;
     })();
 
     return () => {

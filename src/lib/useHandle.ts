@@ -34,6 +34,12 @@ export interface UseHandleResult {
 let cached: HandleResponse | null = null;
 let inflight: Promise<HandleResponse> | null = null;
 
+// Same per-fetch timeout rationale as sync.ts — a stuck handle GET used
+// to hang the hook forever; the cancelled flag still gates state updates
+// on unmount, but the AbortSignal.timeout ensures the fetch itself
+// resolves rather than dangling.
+const FETCH_TIMEOUT_MS = 15_000;
+
 // Reset on sign-out so a fresh sign-in (potentially a different account)
 // doesn't render the previous account's handle for a moment. Called from
 // the sign-out flow alongside clearAuthCache.
@@ -47,7 +53,10 @@ async function fetchHandle(): Promise<HandleResponse> {
   if (inflight) return inflight;
   inflight = (async () => {
     try {
-      const res = await fetch(ROUTES.api.handle, { cache: "no-store" });
+      const res = await fetch(ROUTES.api.handle, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      });
       if (!res.ok) {
         const fallback: HandleResponse = { handle: null };
         cached = fallback;

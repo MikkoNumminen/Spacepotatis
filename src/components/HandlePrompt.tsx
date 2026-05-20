@@ -51,7 +51,11 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
       const res = await fetch(ROUTES.api.handle, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ handle: result.handle })
+        body: JSON.stringify({ handle: result.handle }),
+        // 15 s caps an unresponsive route so the submitting spinner can't
+        // hang the modal indefinitely. AbortError is caught below and
+        // surfaces as the generic "Network error. Try again." message.
+        signal: AbortSignal.timeout(15_000)
       });
       if (res.status === 409) {
         setError("That handle is already taken — pick another.");

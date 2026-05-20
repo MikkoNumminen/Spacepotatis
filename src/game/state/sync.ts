@@ -70,6 +70,13 @@ export type { FlushResult };
 //  - "load-failed"   — 5xx, network error, or schema parse failure AND no
 //    pending save to fall back to. GameState is still at INITIAL_STATE; the
 //    UI MUST surface this rather than render the galaxy as if fresh.
+// Per-fetch timeout. Generous enough for Edge cold-start + Neon WebSocket
+// round-trip, tight enough that saveQueue / loadSave can't spin forever on
+// a stuck request (the audit's "no AbortSignal.timeout" finding). AbortError
+// is mapped to the same shape as a network failure so existing retry/error
+// handling kicks in.
+const FETCH_TIMEOUT_MS = 15_000;
+
 export type LoadResultKind =
   | "server-loaded"
   | "anon"
@@ -174,7 +181,10 @@ async function doLoadSave(): Promise<LoadResult> {
     let lastFetchErr: unknown = null;
     for (let attempt = 1; attempt <= SAVE_FETCH_MAX_ATTEMPTS; attempt++) {
       try {
-        res = await fetch(ROUTES.api.save, { cache: "no-store" });
+        res = await fetch(ROUTES.api.save, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+        });
         // Retry only on 5xx. Don't gate on res.ok generally — a 401
         // (anonymous) is the fast path and must not be retried.
         if (res.status >= 500 && attempt < SAVE_FETCH_MAX_ATTEMPTS) {
@@ -416,7 +426,8 @@ const queueAwareSaveSubmit: SavePostFn = async (snapshot) => {
     const res = await fetch(ROUTES.api.save, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(snapshot)
+      body: JSON.stringify(snapshot),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
     });
     if (res.ok) return { ok: true };
     const detail = await res.text().catch(() => "");
@@ -522,7 +533,8 @@ const queueAwareSubmit: ScorePostFn = async (input) => {
     const res = await fetch(ROUTES.api.leaderboard, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(input)
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
     });
     if (res.ok) return { ok: true };
     const detail = await res.text().catch(() => "");
