@@ -101,6 +101,7 @@ export class Sun {
     this.flareMaterial.dispose();
     this.haloTexture.dispose();
     this.flareTexture.dispose();
+    this.light.dispose();
   }
 }
 

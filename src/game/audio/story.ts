@@ -141,17 +141,38 @@ class StoryAudio {
     this.voice = null;
     if (music) {
       this.cancelMusicFade();
-      tweenVolume(music, music.volume, 0, MUSIC_FADE_OUT_MS, () => {
-        music.pause();
-        music.src = "";
-      });
+      // No-op setHandle: stop's fade-out must NOT share musicFadeRaf with a
+      // subsequent play()'s in-life fade — otherwise the next fadeMusic()
+      // would cancelMusicFade() and kill this chain mid-flight, leaving
+      // pause()/src="" un-run on a leaked element. The captured-ref
+      // closure already pins the right element; the tween runs to
+      // completion independently of any in-life fade.
+      tweenVolume(
+        music,
+        music.volume,
+        0,
+        MUSIC_FADE_OUT_MS,
+        () => {
+          music.pause();
+          music.src = "";
+        },
+        () => {}
+      );
     }
     if (voice) {
       this.cancelVoiceFade();
-      tweenVolume(voice, voice.volume, 0, VOICE_FADE_OUT_MS, () => {
-        voice.pause();
-        voice.src = "";
-      });
+      // No-op setHandle: see comment above the music tween.
+      tweenVolume(
+        voice,
+        voice.volume,
+        0,
+        VOICE_FADE_OUT_MS,
+        () => {
+          voice.pause();
+          voice.src = "";
+        },
+        () => {}
+      );
     }
   }
 
@@ -204,16 +225,20 @@ class StoryAudio {
 
   // INTERNAL — every method below is private to the engine.
 
-  private fadeMusic(toVol: number, durationMs: number): void {
+  private fadeMusic(toVol: number, durationMs: number, onDone?: () => void): void {
     if (!this.music) return;
     this.cancelMusicFade();
-    this.musicFadeRaf = tweenVolume(this.music, this.music.volume, toVol, durationMs);
+    tweenVolume(this.music, this.music.volume, toVol, durationMs, onDone, (id) => {
+      this.musicFadeRaf = id;
+    });
   }
 
-  private fadeVoice(toVol: number, durationMs: number): void {
+  private fadeVoice(toVol: number, durationMs: number, onDone?: () => void): void {
     if (!this.voice) return;
     this.cancelVoiceFade();
-    this.voiceFadeRaf = tweenVolume(this.voice, this.voice.volume, toVol, durationMs);
+    tweenVolume(this.voice, this.voice.volume, toVol, durationMs, onDone, (id) => {
+      this.voiceFadeRaf = id;
+    });
   }
 
   private cancelMusicFade(): void {
@@ -232,16 +257,21 @@ class StoryAudio {
 }
 
 // INTERNAL
-// Tween an audio element's volume over `durationMs` using rAF. Returns the
-// rAF handle so callers can cancel a stale fade. Calls `onDone` once volume
-// reaches the target (used by stop() to pause AFTER the fade resolves).
+// Tween an audio element's volume over `durationMs` using rAF. `setHandle`
+// is called on every scheduled frame so the engine's musicFadeRaf /
+// voiceFadeRaf field tracks the CURRENT scheduled frame —
+// cancelAnimationFrame(this.musicFadeRaf) actually stops the chain instead
+// of only stopping the first frame and letting recursive ticks keep running
+// on a released element. Calls `onDone` once volume reaches the target
+// (used by stop() to pause AFTER the fade resolves).
 function tweenVolume(
   el: HTMLAudioElement,
   fromVol: number,
   toVol: number,
   durationMs: number,
-  onDone?: () => void
-): number {
+  onDone: (() => void) | undefined,
+  setHandle: (id: number | null) => void
+): void {
   const start = performance.now();
   const fromClamped = clamp01(fromVol);
   const toClamped = clamp01(toVol);
@@ -249,12 +279,13 @@ function tweenVolume(
     const t = Math.min(1, (now - start) / Math.max(1, durationMs));
     el.volume = clamp01(fromClamped + (toClamped - fromClamped) * t);
     if (t < 1) {
-      requestAnimationFrame(tick);
-    } else if (onDone) {
-      onDone();
+      setHandle(requestAnimationFrame(tick));
+    } else {
+      setHandle(null);
+      if (onDone) onDone();
     }
   };
-  return requestAnimationFrame(tick);
+  setHandle(requestAnimationFrame(tick));
 }
 
 // INTERNAL

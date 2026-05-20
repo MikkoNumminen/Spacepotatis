@@ -99,6 +99,13 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
       starfield.dispose();
       sun.dispose();
       for (const body of planets) body.dispose();
+      scene.remove(ambient);
+      scene.remove(rimLight);
+      ambient.dispose();
+      // DirectionalLight owns a shadow camera; dispose its shadow map
+      // defensively. Will only matter when shadows are enabled.
+      rimLight.shadow?.map?.dispose();
+      rimLight.dispose();
       renderer.dispose();
     }
   };

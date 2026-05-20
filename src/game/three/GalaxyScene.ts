@@ -46,6 +46,7 @@ export class GalaxyScene {
   private readonly onPointerDown = (e: PointerEvent) => this.handlePointerDown(e);
   private readonly onPointerMove = (e: PointerEvent) => this.handlePointerMove(e);
   private readonly onPointerUp = (e: PointerEvent) => this.handlePointerUp(e);
+  private readonly onPointerCancel = (e: PointerEvent) => this.handlePointerCancel(e);
   private readonly onPointerClick = (e: MouseEvent) => this.handlePointerClick(e);
   private readonly onResize = () => this.resize();
 
@@ -76,6 +77,7 @@ export class GalaxyScene {
     canvas.addEventListener("pointerdown", this.onPointerDown);
     canvas.addEventListener("pointermove", this.onPointerMove);
     canvas.addEventListener("pointerup", this.onPointerUp);
+    canvas.addEventListener("pointercancel", this.onPointerCancel);
     canvas.addEventListener("click", this.onPointerClick);
     window.addEventListener("resize", this.onResize);
 
@@ -110,6 +112,7 @@ export class GalaxyScene {
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("click", this.onPointerClick);
     window.removeEventListener("resize", this.onResize);
     this.cameraCtl.dispose();
@@ -187,6 +190,16 @@ export class GalaxyScene {
       this.updateHover();
       if (this.hovered) this.opts.onPlanetSelect?.(this.hovered.getDefinition());
     }
+  }
+
+  private handlePointerCancel(e: PointerEvent): void {
+    // OS-level capture loss (scroll-into-gesture, drag-out-of-window, browser
+    // chrome intercept). Without this the tap tracker would keep `tapPointerId`
+    // set to the dead pointer; a subsequent pointerup from a different pointer
+    // would see id mismatch and the stale state would never clear until the
+    // next pointerdown.
+    if (this.tapPointerId === null || e.pointerId !== this.tapPointerId) return;
+    this.tapPointerId = null;
   }
 
   private handlePointerClick(_e: MouseEvent): void {

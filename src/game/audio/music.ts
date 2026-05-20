@@ -259,6 +259,8 @@ class MusicEngine {
   stop(): void {
     this.cancelSilence();
     this.cancelFadeOutTimer();
+    this.cancelWatchdog();
+    this.detachVisibilityListener();
     this.src = null;
     const el = this.el;
     if (!el) return;
@@ -476,6 +478,24 @@ class MusicEngine {
       window.clearTimeout(this.fadeOutTimer);
       this.fadeOutTimer = null;
     }
+  }
+
+  private cancelWatchdog(): void {
+    if (this.watchdogInterval !== null) {
+      window.clearInterval(this.watchdogInterval);
+      this.watchdogInterval = null;
+    }
+    if (this.retryTimer !== null) {
+      window.clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private detachVisibilityListener(): void {
+    if (!this.visibilityAttached) return;
+    if (typeof document === "undefined") return;
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    this.visibilityAttached = false;
   }
 }
 
