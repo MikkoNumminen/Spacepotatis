@@ -87,7 +87,12 @@ export function useCloudSaveSync(): CloudSaveSyncState {
     return () => {
       cancelled = true;
     };
-  }, [authStatus]);
+    // sessionEmail is in the dep array (alongside authStatus) so a session
+    // refresh that swaps email while authStatus stays "authenticated"
+    // re-runs the load against the new account. Without it the
+    // getCurrentPlayerEmail() read inside loadSave could race ahead of
+    // the first effect's setCurrentPlayerEmail and read stale state.
+  }, [authStatus, sessionEmail]);
 
   return state;
 }
