@@ -25,7 +25,7 @@ export default function LandingBackground() {
     let disposed = false;
     let scene: { dispose(): void } | null = null;
 
-    import("@/game/three/LandingScene")
+    import("@/game/three")
       .then(({ LandingScene }) => {
         if (disposed) return;
         const instance = new LandingScene(canvas);

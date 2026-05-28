@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MissionDefinition, MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data";
-import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three/GalaxyScene";
+import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three";
 
 const STATUS_CLEARED: MissionStatus = { label: "✓ Cleared", color: "#5effa7" };
 const STATUS_AVAILABLE: MissionStatus = { label: "Available", color: "#ffcc33" };
@@ -87,7 +87,7 @@ export function useGalaxyScene({
 
     void (async () => {
       try {
-        const { GalaxyScene } = await import("@/game/three/GalaxyScene");
+        const { GalaxyScene } = await import("@/game/three");
         if (disposed) return;
         const scene = new GalaxyScene(canvas, {
           onPlanetHover: onHover,

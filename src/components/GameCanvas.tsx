@@ -175,7 +175,7 @@ export default function GameCanvas() {
   const fadeOverlay = useCallback(async (toOpacity: number) => {
     const el = overlayRef.current;
     if (!el) return;
-    const { fade } = await import("@/game/three/TransitionManager");
+    const { fade } = await import("@/game/three");
     await fade(el, toOpacity, 0.35).promise;
   }, []);
 
