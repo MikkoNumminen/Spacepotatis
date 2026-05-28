@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CombatSummary } from "@/game/phaser/config";
+import type { CombatSummary } from "@/game/phaser";
 import { itemSfx } from "@/game/audio";
 import { getWeapon } from "@/game/data";
 import { describeMissionReward } from "@/game/state";

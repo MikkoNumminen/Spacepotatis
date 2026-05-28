@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import type { CombatSummary } from "@/game/phaser/config";
+import type { CombatSummary } from "@/game/phaser";
 import type { MissionDefinition, MissionId } from "@/types";
 import { combatMusic, menuMusic, shopMusic, maybePlayClearedCue } from "@/game/audio";
 import HudFrame from "@/components/galaxy/HudFrame";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type RefObject } from "react";
-import type { CombatSummary } from "@/game/phaser/config";
+import type { CombatSummary } from "@/game/phaser";
 import type { MissionId } from "@/types";
 
 // Combat lifecycle: mount Phaser into the parent div when enabled.
@@ -42,7 +42,7 @@ export function usePhaserGame({
 
     void (async () => {
       try {
-        const { createPhaserGame } = await import("@/game/phaser/config");
+        const { createPhaserGame } = await import("@/game/phaser");
         if (disposed || !parentRef.current) return;
         const created = await createPhaserGame(parentRef.current, {
           missionId,
