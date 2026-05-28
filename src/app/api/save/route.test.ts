@@ -393,6 +393,15 @@ describe("POST /api/save", () => {
     // Regression test for the bug where Continue always restarted the
     // player at Sol Spudensis: the column existed in GameState and the
     // schema accepted the field, but the upsert silently dropped it.
+    //
+    // SEC-027 (post-fix): the unlock guard derives the unlocked-systems set
+    // server-side from `capInputMissions` (prevRow.completed_missions plus
+    // grounded submitted missions). With no prev row, the submitted chain
+    // ["tutorial" → "combat-1" → "boss-1"] grounds in deriveCapInputMissions
+    // (tutorial has requires: [], combat-1 requires tutorial, boss-1
+    // requires combat-1) and SYSTEM_UNLOCK_GATES["boss-1"] = "tubernovae"
+    // so the system is server-derived as unlocked. The body's
+    // unlockedSolarSystems field is IGNORED by the guard.
     authMock.mockResolvedValue({ user: { email: "p@example.com", name: "Pat" } });
     const saveInsertSpy = vi.fn();
     dbStub.saveInsertSpy = saveInsertSpy;
@@ -402,11 +411,9 @@ describe("POST /api/save", () => {
       body: JSON.stringify({
         credits: 0,
         playedTimeSeconds: 0,
-        completedMissions: [],
-        unlockedPlanets: [],
-        currentSolarSystemId: "tubernovae",
-        // SEC-027: currentSolarSystemId must be in unlockedSolarSystems.
-        unlockedSolarSystems: ["tubernovae"]
+        completedMissions: ["tutorial", "combat-1", "boss-1"],
+        unlockedPlanets: ["tutorial", "combat-1", "boss-1"],
+        currentSolarSystemId: "tubernovae"
       })
     });
     const res = await POST(req);
@@ -465,7 +472,10 @@ describe("POST /api/save audit log", () => {
         credits: 105,
         playedTimeSeconds: 150,
         completedMissions: ["tutorial"],
-        unlockedPlanets: ["tutorial", "combat-1"]
+        unlockedPlanets: ["tutorial", "combat-1"],
+        // Mirror prev's seenStoryEntries — the regression guard rejects a
+        // POST that omits this when prev had entries (cross-device wipe).
+        seenStoryEntries: ["great-potato-awakening"]
       }),
       headers: {
         "x-forwarded-for": "203.0.113.7",

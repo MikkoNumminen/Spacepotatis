@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { StoryEntry } from "@/game/data/story";
-import { storyAudio } from "@/game/audio/story";
-import { menuMusic } from "@/game/audio/music";
+import type { StoryEntry } from "@/game/data";
+import { storyAudio, menuMusic } from "@/game/audio";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 
 // Cinematic story popup. Two presentation modes:

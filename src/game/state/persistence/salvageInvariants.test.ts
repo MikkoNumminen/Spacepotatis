@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { REMOVED_WEAPON_BASE_COSTS } from "./salvageRemovedWeapons";
-import { WEAPON_IDS } from "@/game/data/weapons";
+import { WEAPON_IDS } from "@/game/data";
 
 // Cross-check that the salvage map and the human-readable backlog stay in
 // sync. The /equipment skill's REMOVE protocol requires both:

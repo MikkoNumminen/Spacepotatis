@@ -102,7 +102,13 @@ const BASE_PAYLOAD = {
   unlockedSolarSystems: ["tutorial"] as string[]
 };
 
-describe("SEC-027 — POST /api/save rejects currentSolarSystemId not in unlockedSolarSystems", () => {
+describe("SEC-027 — POST /api/save rejects currentSolarSystemId not in server-derived unlocked systems", () => {
+  // Post-fix: unlock state is derived from `prevRow.completed_missions +
+  // SYSTEM_UNLOCK_GATES` server-side (mirrors hydrate()'s re-derive). The
+  // body's `unlockedSolarSystems` is ignored by the guard. These tests use
+  // `prevRow = undefined` (no prior save), so the only server-derived
+  // unlocked system is "tutorial" (the always-unlocked starting system).
+
   it("locked system → 422 save_rejected (response body collapsed per SEC-020)", async () => {
     const { POST } = await loadRoute();
 
@@ -112,7 +118,7 @@ describe("SEC-027 — POST /api/save rejects currentSolarSystemId not in unlocke
         body: JSON.stringify({
           ...BASE_PAYLOAD,
           currentSolarSystemId: "tubernovae",
-          unlockedSolarSystems: ["tutorial"] // tubernovae not unlocked
+          unlockedSolarSystems: ["tutorial"] // forged body field is ignored
         })
       })
     );
@@ -143,7 +149,7 @@ describe("SEC-027 — POST /api/save rejects currentSolarSystemId not in unlocke
     expect(rejectionRow?.response_error).toBe("solar_system_not_unlocked");
   });
 
-  it("currentSolarSystemId matches unlockedSolarSystems → 204 success", async () => {
+  it("currentSolarSystemId matches server-derived unlock set → 204 success", async () => {
     const { POST } = await loadRoute();
 
     const res = await POST(
@@ -181,7 +187,12 @@ describe("SEC-027 — POST /api/save rejects currentSolarSystemId not in unlocke
     expect(res.status).toBe(204);
   });
 
-  it("currentSolarSystemId set but unlockedSolarSystems is empty → 422 (defense-in-depth)", async () => {
+  it("body.unlockedSolarSystems is IGNORED — tutorial is always server-derived as unlocked", async () => {
+    // Post-fix: an empty body.unlockedSolarSystems must NOT lock the player
+    // out of the tutorial system. The server derives the unlock set from
+    // prev.completed_missions (here: no prev row) and SYSTEM_UNLOCK_GATES;
+    // "tutorial" is the always-unlocked starting system. The body field is
+    // accepted on the wire for backwards compatibility but ignored by the guard.
     const { POST } = await loadRoute();
 
     const res = await POST(
@@ -190,13 +201,11 @@ describe("SEC-027 — POST /api/save rejects currentSolarSystemId not in unlocke
         body: JSON.stringify({
           ...BASE_PAYLOAD,
           currentSolarSystemId: "tutorial",
-          unlockedSolarSystems: [] // even tutorial not listed
+          unlockedSolarSystems: [] // body says nothing is unlocked — ignored
         })
       })
     );
 
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("save_rejected");
+    expect(res.status).toBe(204);
   });
 });

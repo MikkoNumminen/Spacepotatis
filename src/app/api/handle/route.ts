@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
-import { HandlePayloadSchema } from "@/lib/schemas/handle";
+import { HandlePayloadSchema } from "@/lib/schemas";
 
 // Edge runtime — same reasoning as /api/save: Neon serverless + JWT auth().
 export const runtime = "edge";
@@ -69,9 +69,9 @@ export async function POST(request: Request): Promise<Response> {
   const sessionEmail = session.user.email;
   const sessionName = session.user.name ?? null;
 
-  const contentLength = request.headers.get("content-length");
-  if (contentLength !== null) {
-    const declaredBytes = Number(contentLength);
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader !== null) {
+    const declaredBytes = Number.parseInt(contentLengthHeader, 10);
     if (Number.isFinite(declaredBytes) && declaredBytes > MAX_REQUEST_BYTES) {
       return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
     }

@@ -44,6 +44,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private slowFactor = 1;
   private getPlayer: () => { x: number; y: number } | null = () => null;
   private enemyPool?: BulletPool;
+  // Tracks the most-recent clearTint delayedCall so a recycled pool occupant
+  // doesn't inherit the previous occupant's pending tint clear.
+  private flashTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, "enemy-aphid");
@@ -68,6 +71,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.getPlayer = opts.getPlayer;
     this.enemyPool = opts.enemyBullets;
 
+    this.flashTimer?.remove();
+    this.flashTimer = null;
     this.enableBody(true, x, y, true, true);
     this.setTexture(definition.spriteKey);
     this.setActive(true);
@@ -93,10 +98,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount: number): boolean {
     this.hp -= amount;
     this.setTint(0xffffff);
-    this.scene.time.delayedCall(40, () => this.clearTint());
+    this.flashTimer?.remove();
+    this.flashTimer = this.scene.time.delayedCall(40, () => {
+      this.flashTimer = null;
+      this.clearTint();
+    });
     if (this.hp <= 0) {
       // Death handling lives on CombatScene via the collision callback's
       // `killed` flag (see wireCollisions onEnemyHit) — no event needed.
+      this.flashTimer?.remove();
+      this.flashTimer = null;
       this.disableBody(true, true);
       return true;
     }
@@ -158,6 +169,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.applyMotionTilt(delta);
 
     if (this.y > this.scene.physics.world.bounds.bottom + 40) {
+      this.flashTimer?.remove();
+      this.flashTimer = null;
       this.disableBody(true, true);
     }
 

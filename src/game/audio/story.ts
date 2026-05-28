@@ -45,6 +45,7 @@ class StoryAudio {
   private voiceTimerId: number | null = null;
   private musicFadeRaf: number | null = null;
   private voiceFadeRaf: number | null = null;
+  private muteCleanupTimeout: number | null = null;
   private active = false;
 
   constructor() {
@@ -133,6 +134,10 @@ class StoryAudio {
       clearTimeout(this.voiceTimerId);
       this.voiceTimerId = null;
     }
+    if (this.muteCleanupTimeout !== null) {
+      window.clearTimeout(this.muteCleanupTimeout);
+      this.muteCleanupTimeout = null;
+    }
     // Capture current refs so the post-fade callback releases the right
     // elements even if a new play() snapshots fresh ones in the meantime.
     const music = this.music;
@@ -194,7 +199,11 @@ class StoryAudio {
       // Pause after the fade so paused-state is reached only after silence.
       // Re-check via the bus inside the timeout — if mute got toggled back
       // off during the fade window, skip the pause so playback continues.
-      window.setTimeout(() => {
+      if (this.muteCleanupTimeout !== null) {
+        window.clearTimeout(this.muteCleanupTimeout);
+      }
+      this.muteCleanupTimeout = window.setTimeout(() => {
+        this.muteCleanupTimeout = null;
         if (!audioBus.isMuted("music")) return;
         this.music?.pause();
         this.voice?.pause();

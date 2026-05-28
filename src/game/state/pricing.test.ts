@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WeaponDefinition } from "@/types";
 import type { WeaponInstance } from "./ShipConfig";
 import { getAugmentSellPrice, getSellPrice } from "./pricing";
-import { getAllWeapons, getWeapon } from "@/game/data/weapons";
+import { getAllWeapons, getWeapon } from "@/game/data";
 
 // Pricing is a pure function — no state, no side effects. These tests pin
 // the sell-back model: 100% refund of base cost + every upgrade step paid

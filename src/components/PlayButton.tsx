@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import HandlePrompt from "./HandlePrompt";
 import { BUTTON_PRIMARY } from "./ui/buttonClasses";
-import { menuBriefingAudio } from "@/game/audio/menuBriefingAudio";
+import { menuBriefingAudio } from "@/game/audio";
 import { ROUTES } from "@/lib/routes";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 

@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { sfx } from "@/game/audio/sfx";
+import { sfx } from "@/game/audio";
 import type { BulletPool } from "../../entities/Bullet";
 import type { Player } from "../../entities/Player";
 import { PERKS, type PerkId } from "../../../data/perks";

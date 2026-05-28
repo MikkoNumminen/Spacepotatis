@@ -435,7 +435,7 @@ const queueAwareSaveSubmit: SavePostFn = async (snapshot) => {
     return { ok: false, status: res.status, errorCode: parseErrorCode(detail) };
   } catch (err) {
     console.warn("saveNow: network error", describeError(err));
-    return { ok: false, status: 0, errorCode: null };
+    return { ok: false, status: 0, errorCode: fetchErrorCode(err) };
   }
 };
 
@@ -542,7 +542,7 @@ const queueAwareSubmit: ScorePostFn = async (input) => {
     return { ok: false, status: res.status, errorCode: parseErrorCode(detail) };
   } catch (err) {
     console.warn("submitScore: network error", describeError(err));
-    return { ok: false, status: 0, errorCode: null };
+    return { ok: false, status: 0, errorCode: fetchErrorCode(err) };
   }
 };
 
@@ -594,4 +594,15 @@ function parseErrorCode(body: string): string | null {
 function describeError(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+// AbortError is thrown by both AbortSignal.timeout() firing and by an
+// explicit caller abort; treat both as the "timeout" diagnostic so the
+// queue/log path can distinguish "we gave up waiting" from "the network
+// is down". Real network errors keep their null errorCode — queues still
+// treat both as transient, but operators get a sharper signal in logs.
+function fetchErrorCode(err: unknown): string | null {
+  if (err instanceof DOMException && err.name === "AbortError") return "timeout";
+  if (err instanceof Error && err.name === "AbortError") return "timeout";
+  return null;
 }

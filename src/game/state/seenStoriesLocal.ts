@@ -1,4 +1,4 @@
-import { isKnownStoryId, type StoryId } from "@/game/data/story";
+import { isKnownStoryId, type StoryId } from "@/game/data";
 
 // Browser-local backup of the seen-story list. Read at module init so
 // INITIAL_STATE has the right value before any cloud-save logic runs —

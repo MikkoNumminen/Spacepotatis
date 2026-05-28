@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { storyAudio } from "@/game/audio/story";
-import type { StatDefinition } from "@/game/data/stats";
+import { storyAudio } from "@/game/audio";
+import type { StatDefinition } from "@/game/data";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 
 // Per-stat voiceover convention: /audio/stats/<statId>-voice.mp3.

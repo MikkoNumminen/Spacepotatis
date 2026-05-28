@@ -4,7 +4,7 @@ import {
   readSeenStoriesLocal,
   writeSeenStoriesLocal
 } from "./seenStoriesLocal";
-import { STORY_IDS } from "@/game/data/story";
+import { STORY_IDS } from "@/game/data";
 
 // Pick a real story id so isKnownStoryId() inside readSeenStoriesLocal does
 // not silently filter out our fixture. The first registered entry is good

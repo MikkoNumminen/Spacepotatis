@@ -5,10 +5,11 @@ import { auth } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
-import { SavePayloadSchema } from "@/lib/schemas/save";
+import { MISSION_IDS, SavePayloadSchema } from "@/lib/schemas";
 import {
   computeCreditCapsForPlayer,
   deriveCapInputMissions,
+  deriveUnlockedSolarSystems,
   validateCreditsDelta,
   validateMissionGraph,
   validateNoRegression,
@@ -437,13 +438,35 @@ export async function POST(request: Request): Promise<Response> {
         };
       }
 
+      // Runtime-filter prev completed_missions against the current MISSION_IDS
+      // catalog. A legacy row containing a removed/renamed mission id would
+      // otherwise slip past Zod (which only validates the BODY) into
+      // validateNoRegression's setDifference and false-positive-reject a
+      // legitimate save. The removed id is no longer trackable, so it
+      // shouldn't gate persistence — and deriveCapInputMissions / the cap
+      // computation walk a known-mission set, so anything not in MISSION_IDS
+      // would be silently ignored downstream anyway.
+      const knownMissionIds = MISSION_IDS as readonly string[];
+      const knownPrevMissions: readonly MissionId[] =
+        prevRow && Array.isArray(prevRow.completed_missions)
+          ? prevRow.completed_missions.filter(
+              (m): m is MissionId =>
+                typeof m === "string" && knownMissionIds.includes(m)
+            )
+          : [];
+      const knownPrevUnlocks: readonly MissionId[] =
+        prevRow && Array.isArray(prevRow.unlocked_planets)
+          ? prevRow.unlocked_planets.filter(
+              (m): m is MissionId =>
+                typeof m === "string" && knownMissionIds.includes(m)
+            )
+          : [];
+
       const prev = prevRow
         ? {
             credits: prevRow.credits,
             playedTimeSeconds: prevRow.played_time_seconds,
-            completedMissionsCount: Array.isArray(prevRow.completed_missions)
-              ? (prevRow.completed_missions as MissionId[]).length
-              : 0
+            completedMissionsCount: knownPrevMissions.length
           }
         : null;
 
@@ -451,23 +474,30 @@ export async function POST(request: Request): Promise<Response> {
       // client POSTs INITIAL_STATE on top of an existing save (credits=0,
       // completedMissions=[], playtime=0). The cheat-delta guards below only
       // catch INFLATION, not regression — this is the matching defense.
+      const prevSeenStoryEntries: readonly string[] =
+        prevRow && Array.isArray(prevRow.seen_story_entries)
+          ? prevRow.seen_story_entries.filter(
+              (s): s is string => typeof s === "string"
+            )
+          : [];
       const prevForRegression = prevRow
         ? {
             playedTimeSeconds: prevRow.played_time_seconds,
-            completedMissions: Array.isArray(prevRow.completed_missions)
-              ? (prevRow.completed_missions as readonly MissionId[])
-              : [],
-            unlockedPlanets: Array.isArray(prevRow.unlocked_planets)
-              ? (prevRow.unlocked_planets as readonly MissionId[])
-              : []
+            completedMissions: knownPrevMissions,
+            unlockedPlanets: knownPrevUnlocks,
+            seenStoryEntries: prevSeenStoryEntries
           }
         : null;
+      const nextSeenStoryEntries = Array.isArray(body.seenStoryEntries)
+        ? body.seenStoryEntries
+        : [];
       const regressionResult = validateNoRegression({
         prev: prevForRegression,
         next: {
           playedTimeSeconds,
           completedMissions,
-          unlockedPlanets
+          unlockedPlanets,
+          seenStoryEntries: nextSeenStoryEntries
         }
       });
       if (!regressionResult.ok) {
@@ -522,13 +552,8 @@ export async function POST(request: Request): Promise<Response> {
       // A brand-new player (prevRow=null) gets tutorial-only caps; a
       // tubernovae unlocker gets tutorial+tubernovae caps; future systems
       // light up only on the save AFTER their gating mission lands.
-      const prevCompletedForCap: readonly MissionId[] = prevRow
-        ? Array.isArray(prevRow.completed_missions)
-          ? (prevRow.completed_missions as readonly MissionId[])
-          : []
-        : [];
       const capInputMissions = deriveCapInputMissions(
-        prevCompletedForCap,
+        knownPrevMissions,
         completedMissions
       );
       const caps = computeCreditCapsForPlayer(capInputMissions);
@@ -557,16 +582,25 @@ export async function POST(request: Request): Promise<Response> {
         };
       }
 
+      // SECURITY-CRITICAL: SEC-027 unlock check trusts server-derived state, NOT body.unlockedSolarSystems (mirrors SEC-017's deriveCapInputMissions pattern)
       // SEC-027 — reject a save that parks the player in a solar system they
       // haven't unlocked. Impact is UI-cosmetic only (galaxy opens at the wrong
       // system), but the schema validates shape-not-state; this closes the gap.
       // The field is optional — absent means "no preference" and is always fine.
+      //
+      // The unlocked-systems set is DERIVED server-side from
+      // `capInputMissions` — the SEC-017 trust set built from
+      // `prevRow.completed_missions` plus any submitted missions whose
+      // prereqs are grounded in prev (same set the credits cap uses). The
+      // body's `unlockedSolarSystems` field is IGNORED here; an attacker
+      // can forge that list, so it must not participate in the guard. The
+      // field stays on SavePayloadSchema for backwards wire compatibility
+      // (older clients serialize the snapshot field-for-field) but the
+      // guard reads `capInputMissions`.
       const incomingSystemId = body.currentSolarSystemId;
       if (incomingSystemId !== undefined) {
-        const unlockedSystems = Array.isArray(body.unlockedSolarSystems)
-          ? body.unlockedSolarSystems
-          : [];
-        if (!unlockedSystems.includes(incomingSystemId)) {
+        const serverDerivedUnlocked = deriveUnlockedSolarSystems(capInputMissions);
+        if (!serverDerivedUnlocked.has(incomingSystemId)) {
           console.warn(
             "[/api/save] solar_system_not_unlocked",
             playerId,
@@ -576,7 +610,7 @@ export async function POST(request: Request): Promise<Response> {
             kind: "reject",
             status: 422,
             error: "solar_system_not_unlocked",
-            message: `currentSolarSystemId "${incomingSystemId}" is not in unlockedSolarSystems`,
+            message: `currentSolarSystemId "${incomingSystemId}" is not in server-derived unlocked systems`,
             prevSnapshot
           };
         }
