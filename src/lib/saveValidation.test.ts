@@ -134,7 +134,7 @@ describe("validateCreditsDelta", () => {
       validateCreditsDelta({
         prev: { credits: 100, playedTimeSeconds: 60, completedMissionsCount: 1 },
         next: {
-          credits: 100 + CREDITS_DELTA_SLACK,
+          credits: 100 + CREDITS_DELTA_SLACK(),
           playedTimeSeconds: 60,
           completedMissionsCount: 1
         }
@@ -144,7 +144,7 @@ describe("validateCreditsDelta", () => {
 
   it("scales the budget linearly with delta_time", () => {
     // 600 seconds = 60_000 credits at the per-second cap.
-    const allowed = 600 * MAX_CREDITS_PER_SECOND;
+    const allowed = 600 * MAX_CREDITS_PER_SECOND();
     expect(
       validateCreditsDelta({
         prev: { credits: 0, playedTimeSeconds: 0, completedMissionsCount: 0 },
@@ -155,7 +155,7 @@ describe("validateCreditsDelta", () => {
 
   it("scales the budget by completion count", () => {
     // 3 first clears = 3 * MAX_CREDITS_PER_FIRST_CLEAR + slack, no playtime.
-    const allowed = 3 * MAX_CREDITS_PER_FIRST_CLEAR + CREDITS_DELTA_SLACK;
+    const allowed = 3 * MAX_CREDITS_PER_FIRST_CLEAR() + CREDITS_DELTA_SLACK();
     expect(
       validateCreditsDelta({
         prev: { credits: 0, playedTimeSeconds: 0, completedMissionsCount: 0 },
@@ -282,8 +282,8 @@ describe("getReachableSolarSystems", () => {
 describe("computeCreditCapsForSystems / computeCreditCapsForPlayer", () => {
   it("tutorial-only caps are strictly LESS THAN OR EQUAL TO global caps", () => {
     const tutorialCaps = computeCreditCapsForSystems(new Set(["tutorial"]));
-    expect(tutorialCaps.maxPerSecond).toBeLessThanOrEqual(GLOBAL_CREDIT_CAPS.maxPerSecond);
-    expect(tutorialCaps.maxPerFirstClear).toBeLessThanOrEqual(GLOBAL_CREDIT_CAPS.maxPerFirstClear);
+    expect(tutorialCaps.maxPerSecond).toBeLessThanOrEqual(GLOBAL_CREDIT_CAPS().maxPerSecond);
+    expect(tutorialCaps.maxPerFirstClear).toBeLessThanOrEqual(GLOBAL_CREDIT_CAPS().maxPerFirstClear);
   });
 
   it("unlocking tubernovae cannot LOWER the player's caps (monotonic)", () => {
@@ -353,28 +353,34 @@ describe("module-load diagnostics", () => {
   // production (process is shimmed there and NODE_ENV === "production"),
   // otherwise every cold start of /api/save and /api/leaderboard logs.
   // It SHOULD still fire in development as a regression aid.
+  //
+  // After the lazy-init refactor the log fires on the FIRST CALL to
+  // GLOBAL_CREDIT_CAPS() rather than at module import time. The dev-only
+  // guard is still in effect — production never logs.
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     vi.resetModules();
   });
 
-  it("does NOT log on cold start when NODE_ENV is production", async () => {
+  it("does NOT log when NODE_ENV is production, even after GLOBAL_CREDIT_CAPS() is called", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubEnv("NODE_ENV", "production");
     vi.resetModules();
-    await import("./saveValidation");
+    const mod = await import("./saveValidation");
+    mod.GLOBAL_CREDIT_CAPS(); // trigger lazy init
     const fired = logSpy.mock.calls.some(
       (args) => typeof args[0] === "string" && args[0].includes("[saveValidation]")
     );
     expect(fired).toBe(false);
   });
 
-  it("DOES log on cold start when NODE_ENV is development", async () => {
+  it("DOES log on first GLOBAL_CREDIT_CAPS() call when NODE_ENV is development", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubEnv("NODE_ENV", "development");
     vi.resetModules();
-    await import("./saveValidation");
+    const mod = await import("./saveValidation");
+    mod.GLOBAL_CREDIT_CAPS(); // trigger lazy init
     const fired = logSpy.mock.calls.some(
       (args) => typeof args[0] === "string" && args[0].includes("[saveValidation]")
     );
@@ -397,7 +403,7 @@ describe("MAX_SINGLE_EQUIPMENT_REFUND covers a worst-case sell event", () => {
     const result = validateCreditsDelta({
       prev: { credits: 0, playedTimeSeconds: 100, completedMissionsCount: 1 },
       next: {
-        credits: MAX_SINGLE_EQUIPMENT_REFUND,
+        credits: MAX_SINGLE_EQUIPMENT_REFUND(),
         playedTimeSeconds: 100,
         completedMissionsCount: 1
       },
@@ -411,7 +417,7 @@ describe("MAX_SINGLE_EQUIPMENT_REFUND covers a worst-case sell event", () => {
     // playtime delta is still a cheat signal.
     const caps = computeCreditCapsForPlayer([]);
     // No mission delta either — bare slack is the only allowance.
-    const tooMuch = CREDITS_DELTA_SLACK + 1;
+    const tooMuch = CREDITS_DELTA_SLACK() + 1;
     const result = validateCreditsDelta({
       prev: { credits: 0, playedTimeSeconds: 100, completedMissionsCount: 1 },
       next: {
@@ -427,7 +433,7 @@ describe("MAX_SINGLE_EQUIPMENT_REFUND covers a worst-case sell event", () => {
   it("MAX_SINGLE_EQUIPMENT_REFUND is positive and big enough to matter", () => {
     // Smoke test on the catalog-derived constant — if a future balance
     // pass nukes weapon costs we want to know.
-    expect(MAX_SINGLE_EQUIPMENT_REFUND).toBeGreaterThan(1000);
+    expect(MAX_SINGLE_EQUIPMENT_REFUND()).toBeGreaterThan(1000);
   });
 });
 
@@ -441,7 +447,7 @@ describe("validateCreditsDelta floor-clamp on negative deltaTime (post-reset re-
     const result = validateCreditsDelta({
       prev: { credits: 100, playedTimeSeconds: 1000, completedMissionsCount: 0 },
       next: {
-        credits: 100 + CREDITS_DELTA_SLACK,
+        credits: 100 + CREDITS_DELTA_SLACK(),
         playedTimeSeconds: 0,
         completedMissionsCount: 1
       }
@@ -473,7 +479,7 @@ describe("validateCreditsDelta floor-clamp on negative deltaTime (post-reset re-
     const result = validateCreditsDelta({
       prev: { credits: 0, playedTimeSeconds: 60, completedMissionsCount: 5 },
       next: {
-        credits: CREDITS_DELTA_SLACK,
+        credits: CREDITS_DELTA_SLACK(),
         playedTimeSeconds: 60,
         completedMissionsCount: 1
       }

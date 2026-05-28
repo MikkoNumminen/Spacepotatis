@@ -6,7 +6,7 @@ import SplashGate from "@/components/SplashGate";
 import SaveLoadErrorOverlay from "@/components/SaveLoadErrorOverlay";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { clearLoadSaveCache } from "@/game/state/syncCache";
-import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
 
 // Client wrapper for /shop. Holds the boot splash up until auth is verified
 // AND the cloud save has loaded — without it, a hard refresh on the shop

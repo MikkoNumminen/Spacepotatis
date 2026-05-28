@@ -6,11 +6,11 @@ import {
   readAuthCache,
   writeAuthCache,
   type AuthSnapshot
-} from "./authCache";
+} from "@/lib/authCache";
 import { loadSave } from "@/game/state/sync";
 import { getSaveCache } from "@/game/state/syncCache";
-import { useHandle, type HandleStatus } from "./useHandle";
-import { useReliableSession } from "./useReliableSession";
+import { useHandle, type HandleStatus } from "@/lib/useHandle";
+import { useReliableSession } from "@/lib/useReliableSession";
 
 export type OptimisticAuthStatus = "loading" | "authenticated" | "unauthenticated";
 

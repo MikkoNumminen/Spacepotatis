@@ -27,7 +27,7 @@ import { drainScoreQueue, flushSaveQueue, saveNow } from "@/game/state/sync";
 import { enqueueScore, QUEUED_MESSAGE } from "@/game/state/scoreQueue";
 import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
-import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
 
 type Mode = "galaxy" | "combat";
 
