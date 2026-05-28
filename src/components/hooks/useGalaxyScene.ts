@@ -87,7 +87,11 @@ export function useGalaxyScene({
 
     void (async () => {
       try {
-        const { GalaxyScene } = await import("@/game/three");
+        // Deep path (not the @/game/three barrel) so the galaxy-route chunk
+        // only loads GalaxyScene's reachable graph, not every three.js
+        // module in the directory. Next.js does not tree-shake dynamic
+        // imports of barrels.
+        const { GalaxyScene } = await import("@/game/three/GalaxyScene");
         if (disposed) return;
         const scene = new GalaxyScene(canvas, {
           onPlanetHover: onHover,

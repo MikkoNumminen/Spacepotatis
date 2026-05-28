@@ -175,7 +175,10 @@ export default function GameCanvas() {
   const fadeOverlay = useCallback(async (toOpacity: number) => {
     const el = overlayRef.current;
     if (!el) return;
-    const { fade } = await import("@/game/three");
+    // Deep path (not the @/game/three barrel) so this on-demand fade helper
+    // doesn't pull every three.js scene/sun/planet/orbit module into the
+    // chunk. Next.js does not tree-shake dynamic imports of barrels.
+    const { fade } = await import("@/game/three/TransitionManager");
     await fade(el, toOpacity, 0.35).promise;
   }, []);
 
