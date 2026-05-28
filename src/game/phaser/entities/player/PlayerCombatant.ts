@@ -7,7 +7,7 @@ import {
   type ShipConfig
 } from "@/game/state/ShipConfig";
 import { emit } from "../../events";
-import { sfx } from "@/game/audio/sfx";
+import { sfx } from "@/game/audio";
 
 export const SHIELD_REGEN_PER_SEC = 6;
 export const SHIELD_REGEN_DELAY_MS = 2000;

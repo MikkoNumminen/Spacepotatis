@@ -11,8 +11,7 @@ import {
   selectReadyAllClearedIdleEntries,
   selectReadyClearedIdleEntries
 } from "@/game/data/storyTriggers";
-import { storyAudio } from "@/game/audio/story";
-import { storyLogAudio } from "@/game/audio/storyLogAudio";
+import { storyAudio, storyLogAudio } from "@/game/audio";
 import { markStorySeen } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
 

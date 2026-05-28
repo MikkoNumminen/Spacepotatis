@@ -1,6 +1,6 @@
 import type { WeaponInstance } from "@/game/state/ShipConfig";
 import { WeaponSystem } from "../../systems/WeaponSystem";
-import { sfx } from "@/game/audio/sfx";
+import { sfx } from "@/game/audio";
 import type { SlotMods } from "./SlotModResolver";
 import type { PlayerCombatant } from "./PlayerCombatant";
 import { slotXOffset } from "./slotLayout";
