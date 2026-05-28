@@ -74,10 +74,22 @@ export function useOptimisticAuth(): OptimisticAuthResult {
       return;
     }
     let cancelled = false;
-    void loadSave().then((result) => {
-      if (cancelled) return;
-      setHasSave(result.kind === "server-loaded" || result.kind === "pending-only");
-    });
+    loadSave()
+      .then((result) => {
+        if (cancelled) return;
+        setHasSave(result.kind === "server-loaded" || result.kind === "pending-only");
+      })
+      .catch((err: unknown) => {
+        // loadSave() shouldn't throw under normal operation (every async step
+        // inside resolves to a structured LoadResult), but if it does, the
+        // splash hint must NOT lie about a stale prior value. null is the
+        // "don't know yet" sentinel — isAuthVerified treats it as
+        // unresolved, so the optimistic UI falls back to its cached snapshot
+        // rather than rendering an outdated "Continue" prompt.
+        if (cancelled) return;
+        console.error("useOptimisticAuth: loadSave rejected", err);
+        setHasSave(null);
+      });
     return () => {
       cancelled = true;
     };

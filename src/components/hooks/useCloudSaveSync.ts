@@ -80,10 +80,22 @@ export function useCloudSaveSync(): CloudSaveSyncState {
     }
     setState({ status: "loading" });
     let cancelled = false;
-    void loadSave().then((result) => {
-      if (cancelled) return;
-      setState(loadResultToState(result));
-    });
+    loadSave()
+      .then((result) => {
+        if (cancelled) return;
+        setState(loadResultToState(result));
+      })
+      .catch((err: unknown) => {
+        // loadSave() guards every async step internally and resolves to a
+        // structured LoadResult — but a thrown exception (e.g. a cache
+        // setter regression after the await) would otherwise silently leave
+        // the hook stuck on "loading" and SplashGate would hold the boot
+        // screen forever. Route any rejection through the existing
+        // load-failed channel so SaveLoadErrorOverlay surfaces instead.
+        if (cancelled) return;
+        console.error("useCloudSaveSync: loadSave rejected", err);
+        setState({ status: "load-failed" });
+      });
     return () => {
       cancelled = true;
     };
