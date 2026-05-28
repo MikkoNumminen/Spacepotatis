@@ -18,7 +18,6 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 | [`SplashGate.tsx`](./SplashGate.tsx) | `/play` page | Wraps the splash + GameCanvas; gates render on cloud-save load. |
 | [`LandingShell.tsx`](./LandingShell.tsx) | `/` page | The landing page. PlayButton + SignInButton + leaderboard chip. |
 | [`MenuBriefing.tsx`](./MenuBriefing.tsx) | `/` page | Menu-briefing voice-queue UI on the landing page. |
-| [`WeaponStats.tsx`](./WeaponStats.tsx) | shop + loadout | DPS / energy / blast / slow stat block. Augment-folded effective DPS via `foldAugmentEffects`. |
 | [`Leaderboard.tsx`](./Leaderboard.tsx) | `/leaderboard` page | Async server component; ISR-cached read. |
 | [`PlayButton.tsx`](./PlayButton.tsx), [`SignInButton.tsx`](./SignInButton.tsx), [`UserMenu.tsx`](./UserMenu.tsx) | landing page | Auth + entry-point buttons. |
 | [`HandlePrompt.tsx`](./HandlePrompt.tsx) | leaderboard / settings flows | Public handle setup modal. |
@@ -36,7 +35,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 ## Internal
 
 - Subfolder components are NOT meant to be imported across the boundary. `loadout/X.tsx` importing `loadout/Y.tsx` is fine; `loadout/X.tsx` importing `galaxy/Z.tsx` is a smell.
-- The cross-folder reach `loadout/WeaponDetailsModal.tsx` → `components/WeaponStats.tsx` is the audit-flagged exception (see Common pitfalls + `04-found-bugs.md`). Either move WeaponStats into loadout/ or pass it as a prop.
+- The previous cross-folder reach `loadout/WeaponDetailsModal.tsx` → `components/WeaponStats.tsx` was resolved during Phase 3 Tier 5 — `WeaponStats.tsx` now lives at `loadout/WeaponStats.tsx` next to its sole consumer.
 - Test fixtures and per-component test setups (`*.test.tsx`).
 
 ## Dependencies
@@ -67,7 +66,6 @@ NEVER reaches the database directly. NEVER reaches schemas directly. All server-
 ## Common pitfalls
 
 - **The four god-files** — `GameCanvas` 452, `ShopUI` 408, `QuestPanel` 387, `WeaponCard` 210. Splits are scheduled as follow-up PRs after Phase 4b. **Don't split inside an unrelated PR** — each is a focused refactor in itself.
-- **`loadout/WeaponDetailsModal.tsx` reaching up to `components/WeaponStats.tsx`** — audit-flagged cross-folder reach. Will be resolved during the WeaponStats relocation in a future PR.
 - **Forgetting `next/dynamic({ ssr: false })` on a Phaser/Three import** — kills SSG. Symptoms: `next build` errors out with `ReferenceError: window is not defined`.
 - **Calling state mutators from inside a render function.** Move to event handlers or effects.
 - **Importing `@/game/phaser` or `@/game/three` directly into a top-level component.** Always go through the dynamic-import boundary.
