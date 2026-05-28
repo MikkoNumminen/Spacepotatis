@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
-import { HandlePayloadSchema } from "@/lib/schemas/handle";
+import { HandlePayloadSchema } from "@/lib/schemas";
 
 // Edge runtime — same reasoning as /api/save: Neon serverless + JWT auth().
 export const runtime = "edge";

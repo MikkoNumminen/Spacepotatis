@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
-import { SavePayloadSchema } from "@/lib/schemas/save";
+import { SavePayloadSchema } from "@/lib/schemas";
 import {
   computeCreditCapsForPlayer,
   deriveCapInputMissions,
