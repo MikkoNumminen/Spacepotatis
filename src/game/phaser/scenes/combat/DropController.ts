@@ -1,8 +1,7 @@
 import * as Phaser from "phaser";
 import type { MissionId } from "@/types/game";
 import * as GameState from "@/game/state/GameState";
-import { sfx } from "@/game/audio/sfx";
-import { itemSfx } from "@/game/audio/itemSfx";
+import { sfx, itemSfx } from "@/game/audio";
 import {
   PowerUpPool,
   isPerkKind,

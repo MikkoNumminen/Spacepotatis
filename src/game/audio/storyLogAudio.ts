@@ -23,6 +23,11 @@ const FADE_MS = 800;
 class StoryLogAudio {
   private music: HTMLAudioElement | null = null;
   private fadeRaf: number | null = null;
+  // True while stop()'s fade-out is in flight. While set, play() reuses the
+  // existing element and re-fades it back up instead of constructing a second
+  // Audio that would briefly overlap with the fading one.
+  private fadingOut = false;
+  private fadeOutRaf: number | null = null;
 
   constructor() {
     audioBus.register("music", this);
@@ -30,12 +35,22 @@ class StoryLogAudio {
 
   /**
    * Start the looping bed at a fade-in. Idempotent — calling while already
-   * playing is a no-op (the bed never restarts when the user transitions
-   * between the Story-log list view and a replay popup).
+   * playing is a no-op. If a stop()'s fade-out is in flight, the fade is
+   * cancelled and the existing element is re-faded up to target volume so a
+   * rapid close → open transition never spawns a second Audio element.
    *
    * @stable
    */
   play(): void {
+    if (this.music && this.fadingOut) {
+      this.cancelFadeOut();
+      this.fadingOut = false;
+      if (!audioBus.isMuted("music")) {
+        void this.music.play().catch(() => {});
+        this.fade(TARGET_VOLUME);
+      }
+      return;
+    }
     if (this.music) return;
     const music = new Audio(STORY_LOG_MUSIC_PATH);
     music.loop = true;
@@ -56,16 +71,22 @@ class StoryLogAudio {
    * Fade out and release the bed. Called when the player closes the Story
    * menu. Idempotent — safe to call when nothing is playing.
    *
+   * `this.music` is intentionally NOT cleared here — it stays pointing at the
+   * fading element until the fade-out's onDone fires. That makes the play()
+   * fast-path see `fadingOut` and reuse the same element instead of spawning
+   * a second one mid-fade.
+   *
    * @stable
    */
   stop(): void {
     const music = this.music;
-    this.music = null;
     if (this.fadeRaf !== null) {
       cancelAnimationFrame(this.fadeRaf);
       this.fadeRaf = null;
     }
     if (!music) return;
+    if (this.fadingOut) return;
+    this.fadingOut = true;
     this.fadeOutThenRelease(music);
   }
 
@@ -111,11 +132,26 @@ class StoryLogAudio {
       0,
       FADE_MS,
       () => {
+        this.fadeOutRaf = null;
+        // play() may have cancelled the fadeOut and reused the element. Only
+        // release if we're still in the fadingOut state for the same ref.
+        if (!this.fadingOut || this.music !== music) return;
         music.pause();
         music.src = "";
+        this.music = null;
+        this.fadingOut = false;
       },
-      () => {}
+      (id) => {
+        this.fadeOutRaf = id;
+      }
     );
+  }
+
+  private cancelFadeOut(): void {
+    if (this.fadeOutRaf !== null) {
+      cancelAnimationFrame(this.fadeOutRaf);
+      this.fadeOutRaf = null;
+    }
   }
 }
 

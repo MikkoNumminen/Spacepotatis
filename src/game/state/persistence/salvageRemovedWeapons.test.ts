@@ -3,7 +3,7 @@ import { salvageRemovedWeapons } from "./salvageRemovedWeapons";
 import { newWeaponInstance, weaponUpgradeCost } from "../ShipConfig";
 import type { WeaponInstance } from "../ShipConfig";
 import type { AugmentId, WeaponId } from "@/types/game";
-import { AUGMENTS } from "@/game/data/augments";
+import { AUGMENTS } from "@/game/data";
 
 // Removed ids no longer satisfy WeaponId. Cast through unknown to build
 // fixtures that mimic the shape of saves still living in Postgres.

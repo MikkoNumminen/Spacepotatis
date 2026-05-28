@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import type { WeaponInstance } from "@/game/state/ShipConfig";
-import { getWeapon } from "@/game/data/weapons";
+import { getWeapon } from "@/game/data";
 import { slotXOffset } from "./slotLayout";
 
 // Pods are visual-only sprites that mark the player's additional

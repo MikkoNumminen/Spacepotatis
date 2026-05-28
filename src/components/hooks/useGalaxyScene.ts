@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MissionDefinition, MissionId, SolarSystemId } from "@/types/game";
-import { getAllMissions } from "@/game/data/missions";
+import { getAllMissions } from "@/game/data";
 import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three/GalaxyScene";
 
 const STATUS_CLEARED: MissionStatus = { label: "✓ Cleared", color: "#5effa7" };
@@ -35,6 +35,11 @@ function buildStatusMap(
 // Returns `ready` so SplashGate can wait for the first rendered frame
 // before fading the boot screen out — rendering the HUD over a black
 // canvas looks worse than holding the splash an extra ~50ms.
+//
+// Returns `error` so the consumer can surface a "couldn't start galaxy
+// view" overlay when the dynamic import, WebGL context, or GalaxyScene
+// constructor throws. Without this, `ready` would never flip and
+// SplashGate would hold the boot screen forever with no diagnostic.
 export function useGalaxyScene({
   enabled,
   canvasRef,
@@ -51,8 +56,9 @@ export function useGalaxyScene({
   unlockedPlanets: readonly MissionId[];
   onHover: (mission: MissionDefinition | null) => void;
   onSelect: (mission: MissionDefinition | null) => void;
-}): { ready: boolean } {
+}): { ready: boolean; error: string | null } {
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const sceneRef = useRef<GalaxyScene | null>(null);
 
   // Recompute the status map whenever progress changes. Both effects below
@@ -67,6 +73,7 @@ export function useGalaxyScene({
 
   useEffect(() => {
     setReady(false);
+    setError(null);
     if (!enabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -79,23 +86,28 @@ export function useGalaxyScene({
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const { GalaxyScene } = await import("@/game/three/GalaxyScene");
-      if (disposed) return;
-      const scene = new GalaxyScene(canvas, {
-        onPlanetHover: onHover,
-        onPlanetSelect: onSelect,
-        activeSystemId: currentSolarSystemId,
-        initialStatuses: statusMapRef.current
-      });
-      sceneRef.current = scene;
-      scene.start();
-      requestAnimationFrame(() => {
-        if (!disposed) setReady(true);
-      });
-      cleanup = () => {
-        sceneRef.current = null;
-        scene.dispose();
-      };
+      try {
+        const { GalaxyScene } = await import("@/game/three/GalaxyScene");
+        if (disposed) return;
+        const scene = new GalaxyScene(canvas, {
+          onPlanetHover: onHover,
+          onPlanetSelect: onSelect,
+          activeSystemId: currentSolarSystemId,
+          initialStatuses: statusMapRef.current
+        });
+        sceneRef.current = scene;
+        scene.start();
+        requestAnimationFrame(() => {
+          if (!disposed) setReady(true);
+        });
+        cleanup = () => {
+          sceneRef.current = null;
+          scene.dispose();
+        };
+      } catch (err) {
+        console.error("useGalaxyScene: failed to start galaxy view", err);
+        if (!disposed) setError("Failed to start galaxy view. Refresh the page.");
+      }
     })();
 
     return () => {
@@ -110,5 +122,5 @@ export function useGalaxyScene({
     sceneRef.current?.applyStatuses(statusMap);
   }, [statusMap]);
 
-  return { ready };
+  return { ready, error };
 }

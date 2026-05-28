@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { leaderboardAudio } from "@/game/audio/leaderboardAudio";
+import { leaderboardAudio } from "@/game/audio";
 
 const LEAD_IN_MS = 5000;
 

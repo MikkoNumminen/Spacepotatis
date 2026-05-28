@@ -34,7 +34,7 @@ import type {
   WeaponSlots
 } from "@/game/state/ShipConfig";
 import { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
-import { WEAPON_IDS } from "@/game/data/weapons";
+import { WEAPON_IDS } from "@/game/data";
 
 /**
  * Re-export of the canonical `WEAPON_IDS` runtime list.

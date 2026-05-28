@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import type { CombatSummary } from "@/game/phaser/config";
 import type { MissionId } from "@/types/game";
 
@@ -10,6 +10,11 @@ import type { MissionId } from "@/types/game";
 // stale closure that skips saveNow()/submitScore(). Re-instantiating
 // Phaser on auth changes would be wasteful (and would tear down the
 // active game), so the ref pattern is the correct fix here.
+//
+// Returns `error` so the consumer can surface a "couldn't start combat"
+// overlay when the dynamic import or Phaser init throws. Without this the
+// async IIFE would swallow the rejection and the player would see a blank
+// canvas with no signal that anything went wrong.
 export function usePhaserGame({
   enabled,
   parentRef,
@@ -20,31 +25,42 @@ export function usePhaserGame({
   parentRef: RefObject<HTMLDivElement | null>;
   missionId: MissionId | null;
   onComplete: (summary: CombatSummary) => void | Promise<void>;
-}): void {
+}): { error: string | null } {
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setError(null);
+      return;
+    }
     const parent = parentRef.current;
     if (!parent || !missionId) return;
 
     let disposed = false;
     let game: import("phaser").Game | null = null;
+    setError(null);
 
     void (async () => {
-      const { createPhaserGame } = await import("@/game/phaser/config");
-      if (disposed || !parentRef.current) return;
-      const created = await createPhaserGame(parentRef.current, {
-        missionId,
-        onComplete: (summary) => onComplete(summary)
-      });
-      // If the effect cleanup ran while createPhaserGame was awaiting,
-      // the outer-scope cleanup already ran with game === null. The
-      // newly-created Phaser.Game would leak its WebGL context + tickers
-      // forever. Destroy it here and exit before assigning the ref.
-      if (disposed) {
-        created.destroy(true);
-        return;
+      try {
+        const { createPhaserGame } = await import("@/game/phaser/config");
+        if (disposed || !parentRef.current) return;
+        const created = await createPhaserGame(parentRef.current, {
+          missionId,
+          onComplete: (summary) => onComplete(summary)
+        });
+        // If the effect cleanup ran while createPhaserGame was awaiting,
+        // the outer-scope cleanup already ran with game === null. The
+        // newly-created Phaser.Game would leak its WebGL context + tickers
+        // forever. Destroy it here and exit before assigning the ref.
+        if (disposed) {
+          created.destroy(true);
+          return;
+        }
+        game = created;
+      } catch (err) {
+        console.error("usePhaserGame: failed to start combat", err);
+        if (!disposed) setError("Failed to start combat. Refresh the page.");
       }
-      game = created;
     })();
 
     return () => {
@@ -52,4 +68,6 @@ export function usePhaserGame({
       game?.destroy(true);
     };
   }, [enabled, parentRef, missionId, onComplete]);
+
+  return { error };
 }

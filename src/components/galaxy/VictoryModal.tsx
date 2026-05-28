@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { CombatSummary } from "@/game/phaser/config";
-import { itemSfx } from "@/game/audio/itemSfx";
-import { getWeapon } from "@/game/data/weapons";
+import { itemSfx } from "@/game/audio";
+import { getWeapon } from "@/game/data";
 import { describeMissionReward } from "@/game/state/rewards";
 import type { WeaponId } from "@/types/game";
 

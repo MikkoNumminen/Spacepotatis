@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { STORY_ENTRIES, type StoryId } from "@/game/data/story";
+import { STORY_ENTRIES, type StoryId } from "@/game/data";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 
 // Lists every narrative beat the player has unlocked so they can replay

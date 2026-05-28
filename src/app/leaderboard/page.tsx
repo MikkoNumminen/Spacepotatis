@@ -1,4 +1,4 @@
-import { getCombatMissions } from "@/game/data/missions";
+import { getCombatMissions } from "@/game/data";
 import Leaderboard from "@/components/Leaderboard";
 import LeaderboardBriefing from "@/components/LeaderboardBriefing";
 import TopPilots from "@/components/TopPilots";

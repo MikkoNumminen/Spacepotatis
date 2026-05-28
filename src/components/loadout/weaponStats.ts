@@ -8,7 +8,7 @@
 // Game-fire logic still goes through `foldAugmentEffects` directly at
 // fire time (PlayerFireController) — these helpers are UI-only.
 
-import { foldAugmentEffects } from "@/game/data/augments";
+import { foldAugmentEffects } from "@/game/data";
 import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { playUiCue } from "@/game/audio/uiCues";
+import { playUiCue } from "@/game/audio";
 import type { WeaponInstance } from "@/game/state/ShipConfig";
 import { slotLabel } from "./SlotGrid";
 import { WeaponDot } from "./dots";
