@@ -14,7 +14,7 @@ import {
   MAX_AUGMENTS_PER_WEAPON,
   getAugment
 } from "@/game/data/augments";
-import { playUiCue } from "@/game/audio/uiCues";
+import { playUiCue } from "@/game/audio";
 import { getStat } from "@/game/data/stats";
 import type { AugmentDefinition } from "@/game/data/augments";
 import type { StatId } from "@/game/data/stats";

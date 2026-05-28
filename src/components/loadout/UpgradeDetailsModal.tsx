@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { storyAudio } from "@/game/audio/story";
+import { storyAudio } from "@/game/audio";
 import type { UpgradeDefinition } from "@/game/data/upgrades";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 

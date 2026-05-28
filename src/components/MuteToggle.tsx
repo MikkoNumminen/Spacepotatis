@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { audioBus } from "@/game/audio/AudioBus";
+import { audioBus } from "@/game/audio";
 
 // Mute is SESSION-ONLY by design. Every page load starts with audio on;
 // clicking the toggle silences for the current session only. We do NOT
