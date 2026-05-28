@@ -1,4 +1,4 @@
-import type { AugmentId, WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition } from "@/types";
 import { getAugment } from "../data/augments";
 import { weaponUpgradeCost, type WeaponInstance } from "./ShipConfig";
 

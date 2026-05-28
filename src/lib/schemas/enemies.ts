@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 
-import type { EnemyBehavior, EnemyDefinition, EnemyId } from "@/types/game";
+import type { EnemyBehavior, EnemyDefinition, EnemyId } from "@/types";
 
 // INVARIANT: ENEMY_IDS uses `as const satisfies readonly EnemyId[]` so the
 //   literal union in src/types/game.ts and this runtime list are locked

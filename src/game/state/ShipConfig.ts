@@ -1,4 +1,4 @@
-import type { AugmentId, WeaponId } from "@/types/game";
+import type { AugmentId, WeaponId } from "@/types";
 
 // One physical weapon the player owns. Each instance has its OWN level
 // and augment list — owning two Pulse Cannons means each one is upgraded

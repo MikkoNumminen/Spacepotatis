@@ -1,6 +1,6 @@
 "use client";
 
-import type { SolarSystemDefinition, SolarSystemId } from "@/types/game";
+import type { SolarSystemDefinition, SolarSystemId } from "@/types";
 import { getAllSolarSystems } from "@/game/data/solarSystems";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 

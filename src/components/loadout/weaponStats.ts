@@ -10,7 +10,7 @@
 
 import { foldAugmentEffects } from "@/game/data/augments";
 import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
-import type { AugmentId, WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition } from "@/types";
 
 const DEFAULT_TURN_RATE = 3.5;
 

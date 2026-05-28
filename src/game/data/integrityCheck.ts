@@ -73,7 +73,7 @@ import type {
   SolarSystemDefinition,
   WeaponDefinition,
   WeaponId
-} from "@/types/game";
+} from "@/types";
 
 /**
  * Snapshot of every catalog the integrity check walks. The defaults

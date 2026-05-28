@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";

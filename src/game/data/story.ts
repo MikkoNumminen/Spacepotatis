@@ -2,7 +2,7 @@
 //   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
 //   See ./README.md for the rationale.
 
-import type { MissionId, SolarSystemId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types";
 
 // Story log — narrative beats. Two presentation modes:
 //

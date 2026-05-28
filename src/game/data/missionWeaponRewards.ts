@@ -17,7 +17,7 @@
 // hasn't beaten the tutorial sees an empty buy list. They can't afford
 // anything anyway, and the rule stays consistent.
 import { getAllWeapons } from "./weapons";
-import type { MissionId, WeaponId } from "@/types/game";
+import type { MissionId, WeaponId } from "@/types";
 
 /**
  * Mission → weapon unlock map. Total in both directions: every combat

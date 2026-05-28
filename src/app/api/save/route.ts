@@ -14,7 +14,7 @@ import {
   validateNoRegression,
   validatePlaytimeDelta
 } from "@/lib/saveValidation";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 
 // INVARIANT: 64 KB cap on the raw POST body — bound an unbounded JSON parse
 // before Zod ever sees it (Edge runtime memory is per-invocation and a

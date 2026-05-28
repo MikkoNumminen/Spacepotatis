@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { ObstacleDefinition, ObstacleId } from "@/types/game";
+import type { ObstacleDefinition, ObstacleId } from "@/types";
 import { getObstacle } from "../../data/obstacles";
 import { OBSTACLE_DEPTH } from "../config";
 

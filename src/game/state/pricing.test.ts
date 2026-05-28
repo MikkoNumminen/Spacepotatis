@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WeaponDefinition } from "@/types/game";
+import type { WeaponDefinition } from "@/types";
 import type { WeaponInstance } from "./ShipConfig";
 import { getAugmentSellPrice, getSellPrice } from "./pricing";
 import { getAllWeapons, getWeapon } from "@/game/data/weapons";

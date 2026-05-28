@@ -10,7 +10,7 @@ import type {
   AugmentId,
   SolarSystemId,
   WeaponId
-} from "@/types/game";
+} from "@/types";
 import { getAugment } from "@/game/data/augments";
 import { getLootPool, type UpgradeField } from "@/game/data/lootPools";
 import { getWeapon } from "@/game/data/weapons";

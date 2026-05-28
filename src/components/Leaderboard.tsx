@@ -1,4 +1,4 @@
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 import { getCachedLeaderboard, isBuildPhase } from "@/lib/leaderboard";
 
 // Server Component. Reads via the `unstable_cache`-wrapped helper so a fresh

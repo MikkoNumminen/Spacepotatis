@@ -1,7 +1,7 @@
 import type {
   MissionDefinition,
   SolarSystemId
-} from "@/types/game";
+} from "@/types";
 
 export interface QuestBuckets {
   readonly suggested: MissionDefinition | null;

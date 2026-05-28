@@ -3,7 +3,7 @@ import { PHASE_EXPORT, PHASE_PRODUCTION_BUILD } from "next/constants";
 import { sql } from "kysely";
 import { getDb } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 import { mapRowToPilot } from "./leaderboardMapper";
 
 // Tag used to invalidate every cached leaderboard slice when a new score

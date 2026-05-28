@@ -1,4 +1,4 @@
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 import type { BulletEffect, BulletPool } from "../entities/Bullet";
 import { getWeapon } from "../../data/weapons";
 import { canFire, spreadVectors } from "./weaponMath";

@@ -1,6 +1,6 @@
 import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
 import { foldAugmentEffects } from "@/game/data/augments";
-import type { AugmentId, WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition } from "@/types";
 
 // Two-column "spec sheet". Designed to make the per-bullet vs total picture
 // obvious so players see WHY one weapon outclasses another. Optional `level`

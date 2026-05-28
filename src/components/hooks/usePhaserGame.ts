@@ -2,7 +2,7 @@
 
 import { useEffect, type RefObject } from "react";
 import type { CombatSummary } from "@/game/phaser/config";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 
 // Combat lifecycle: mount Phaser into the parent div when enabled.
 // Callers should route their onComplete through a ref so a mid-combat

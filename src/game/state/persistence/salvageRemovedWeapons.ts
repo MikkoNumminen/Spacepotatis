@@ -16,7 +16,7 @@ import type { WeaponInstance } from "../ShipConfig";
 import { weaponUpgradeCost } from "../ShipConfig";
 import { WEAPON_IDS } from "@/game/data/weapons";
 import { AUGMENTS } from "@/game/data/augments";
-import type { AugmentId } from "@/types/game";
+import type { AugmentId } from "@/types";
 import type { LegacyShipSnapshot } from "./types";
 import type { LegacyWeaponInstanceLike } from "./helpers";
 

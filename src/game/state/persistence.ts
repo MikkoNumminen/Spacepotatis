@@ -3,7 +3,7 @@ import { isKnownStoryId, type StoryId } from "@/game/data/story";
 import type {
   MissionId,
   SolarSystemId
-} from "@/types/game";
+} from "@/types";
 import {
   type ShipConfig,
   type WeaponInstance
@@ -26,7 +26,7 @@ import { migrateNamedSlots } from "./persistence/migrateNamedSlots";
 import { migratePrimaryWeapon } from "./persistence/migratePrimaryWeapon";
 import { seedStarterIfEmpty } from "./persistence/safetyNet";
 import { calculateLegacyRefund } from "./persistence/salvageRemovedWeapons";
-import type { AugmentId } from "@/types/game";
+import type { AugmentId } from "@/types";
 
 export interface StateSnapshot {
   credits: number;

@@ -1,4 +1,4 @@
-import type { AugmentId, WeaponId } from "@/types/game";
+import type { AugmentId, WeaponId } from "@/types";
 import {
   MAX_LEVEL,
   MAX_WEAPON_SLOTS,

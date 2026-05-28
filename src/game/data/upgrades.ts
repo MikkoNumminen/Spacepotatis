@@ -16,7 +16,7 @@
 // on it without pulling the data registry. Re-exported here for
 // callers that already import from `data/upgrades`.
 
-import type { UpgradeId } from "@/types/game";
+import type { UpgradeId } from "@/types";
 
 export type { UpgradeId };
 

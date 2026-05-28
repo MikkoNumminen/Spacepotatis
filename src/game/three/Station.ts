@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { MissionDefinition, MissionId } from "@/types/game";
+import type { MissionDefinition, MissionId } from "@/types";
 import type { CelestialBody } from "./CelestialBody";
 import { createLabelTexture } from "./labelTexture";
 

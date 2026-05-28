@@ -29,7 +29,7 @@ import {
 import { getWeapon } from "@/game/data/weapons";
 import { getAllAugments } from "@/game/data/augments";
 import { getBuyableWeaponIds } from "@/game/data/missionWeaponRewards";
-import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
+import type { AugmentId, WeaponDefinition, WeaponId } from "@/types";
 import type { AugmentDefinition } from "@/game/data/augments";
 import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";

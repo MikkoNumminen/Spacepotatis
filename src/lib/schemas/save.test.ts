@@ -15,7 +15,7 @@ import {
   WeaponInventorySchema,
   WeaponSlotsSchema
 } from "./save";
-import type { AugmentId, MissionId, SolarSystemId, WeaponId } from "@/types/game";
+import type { AugmentId, MissionId, SolarSystemId, WeaponId } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Structural sanity — these readonly tuples back z.enum(); if the literal

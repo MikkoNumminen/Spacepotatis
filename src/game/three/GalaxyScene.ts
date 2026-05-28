@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { getAllMissions } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
-import type { MissionDefinition, MissionId, SolarSystemId } from "@/types/game";
+import type { MissionDefinition, MissionId, SolarSystemId } from "@/types";
 import type { CelestialBody } from "./CelestialBody";
 import { CameraController } from "./CameraController";
 import { createSceneRig, type SceneRig } from "./SceneRig";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAllLootPools, getLootPool } from "./lootPools";
-import type { SolarSystemId } from "@/types/game";
+import type { SolarSystemId } from "@/types";
 
 describe("getLootPool", () => {
   it("returns the tutorial pool with expected fields", () => {

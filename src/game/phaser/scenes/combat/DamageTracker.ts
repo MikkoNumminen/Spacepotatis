@@ -1,4 +1,4 @@
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 
 // Per-mission accumulator for damage dealt by each friendly weapon.
 // Lives next to CombatHud / CombatVfx / DropController / PerkController

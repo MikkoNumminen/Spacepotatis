@@ -20,7 +20,7 @@
 // the data registry. Re-exported here for callers that already import
 // from `data/stats`.
 
-import type { StatId } from "@/types/game";
+import type { StatId } from "@/types";
 
 export type { StatId };
 

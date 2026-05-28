@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import type { MissionDefinition, MissionId, SolarSystemId } from "@/types/game";
+import type { MissionDefinition, MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data/missions";
 import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three/GalaxyScene";
 

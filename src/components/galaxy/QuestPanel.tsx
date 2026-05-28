@@ -5,7 +5,7 @@ import type {
   MissionDefinition,
   MissionId,
   SolarSystemId
-} from "@/types/game";
+} from "@/types";
 import { getAllMissions, getMission } from "@/game/data/missions";
 import { getSolarSystem } from "@/game/data/solarSystems";
 import { useGameState } from "@/game/state/useGameState";

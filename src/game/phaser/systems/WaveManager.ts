@@ -4,7 +4,7 @@ import type {
   ObstacleSpawn,
   WaveDefinition,
   WaveSpawn
-} from "@/types/game";
+} from "@/types";
 import type { BulletPool } from "../entities/Bullet";
 import type { EnemyPool } from "../entities/Enemy";
 import type { ObstaclePool } from "../entities/Obstacle";

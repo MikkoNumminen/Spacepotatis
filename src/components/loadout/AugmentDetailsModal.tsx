@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { storyAudio } from "@/game/audio/story";
 import type { AugmentDefinition } from "@/game/data/augments";
 import type { WeaponInstance } from "@/game/state/ShipConfig";
-import type { WeaponDefinition } from "@/types/game";
+import type { WeaponDefinition } from "@/types";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 import { Bar } from "./Bar";
 import { AugmentDot } from "./dots";

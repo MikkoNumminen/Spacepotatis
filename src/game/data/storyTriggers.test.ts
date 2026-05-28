@@ -7,7 +7,7 @@ import {
   selectReadyClearedIdleEntries
 } from "./storyTriggers";
 import type { StoryId } from "./story";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 import { getAllMissions } from "./missions";
 
 // These tests exercise the pure trigger-selection helpers used by the

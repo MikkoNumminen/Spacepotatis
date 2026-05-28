@@ -18,7 +18,7 @@ import {
 } from "@/game/state/ShipConfig";
 import { MAX_AUGMENTS_PER_WEAPON } from "@/game/data/augments";
 import { SYSTEM_UNLOCK_GATES } from "@/game/state/stateCore";
-import type { MissionId, SolarSystemId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Per-player, progression-aware cheat-guard caps

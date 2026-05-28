@@ -1,6 +1,6 @@
 "use client";
 
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 
 // Persistent retry queue for leaderboard score posts. The leaderboard MUST
 // stay accurate — a score that wins a mission has to land on the board

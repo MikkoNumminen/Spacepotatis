@@ -1,5 +1,5 @@
 import type * as THREE from "three";
-import type { MissionDefinition, MissionId } from "@/types/game";
+import type { MissionDefinition, MissionId } from "@/types";
 
 // Common shape for any orbiting body the galaxy scene tracks. Implemented by
 // Planet (sphere with procedural surface) and Station (mechanical mesh group).

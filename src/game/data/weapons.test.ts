@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAllWeapons, getWeapon, weaponDps, weaponRps } from "./weapons";
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 
 describe("getWeapon", () => {
   it("returns the matching definition for a known id", () => {

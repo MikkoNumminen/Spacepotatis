@@ -1,4 +1,4 @@
-import type { MissionId, WeaponId } from "@/types/game";
+import type { MissionId, WeaponId } from "@/types";
 import type { MissionReward } from "@/game/state/rewards";
 import { getSummary, setBootData } from "./registry";
 

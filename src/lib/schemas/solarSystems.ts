@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 
-import type { SolarSystemDefinition } from "@/types/game";
+import type { SolarSystemDefinition } from "@/types";
 import { SolarSystemIdSchema } from "./save";
 
 /**

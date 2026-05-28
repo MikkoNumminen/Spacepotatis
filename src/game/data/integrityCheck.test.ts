@@ -20,7 +20,7 @@ import type {
   SolarSystemDefinition,
   WeaponDefinition,
   WeaponId
-} from "@/types/game";
+} from "@/types";
 
 // Minimal-but-internally-consistent fixture. Each test starts from this and
 // mutates the slice it cares about, so a single regression in the check

@@ -16,7 +16,7 @@ import type {
   ObstacleDefinition,
   SolarSystemDefinition,
   WeaponDefinition
-} from "@/types/game";
+} from "@/types";
 
 const KNOWN_FORMATIONS = new Set(["line", "vee", "scatter", "column"]);
 const KNOWN_OBSTACLE_FORMATIONS = new Set(["line", "scatter", "column"]);

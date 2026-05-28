@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 import { steerVelocity } from "../systems/weaponMath";
 
 export const BULLET_TEXTURE_FRIENDLY = "bullet-friendly";

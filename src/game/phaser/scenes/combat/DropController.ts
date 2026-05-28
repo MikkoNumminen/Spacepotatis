@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 import * as GameState from "@/game/state/GameState";
 import { sfx } from "@/game/audio/sfx";
 import { itemSfx } from "@/game/audio/itemSfx";
