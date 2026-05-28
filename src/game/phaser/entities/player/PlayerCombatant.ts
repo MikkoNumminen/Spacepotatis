@@ -26,6 +26,9 @@ export class PlayerCombatant {
   armor: number;
   energy: number;
   private lastDamageAt = 0;
+  // Tracks the most-recent clearTint delayedCall so back-to-back hits don't
+  // schedule overlapping clears that fire after the sprite has died.
+  private flashTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(ship: ShipConfig) {
     this.maxShield = getMaxShield(ship);
@@ -60,9 +63,15 @@ export class PlayerCombatant {
     sfx.hit();
     scene.cameras.main.shake(120, 0.006);
     sprite.setTint(0xff4d6d);
-    scene.time.delayedCall(80, () => sprite.clearTint());
+    this.flashTimer?.remove();
+    this.flashTimer = scene.time.delayedCall(80, () => {
+      this.flashTimer = null;
+      sprite.clearTint();
+    });
 
     if (this.armor <= 0) {
+      this.flashTimer?.remove();
+      this.flashTimer = null;
       emit(scene, { type: "playerDied" });
     }
   }

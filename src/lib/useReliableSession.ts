@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { readAuthCache } from "./authCache";
 
@@ -40,6 +40,18 @@ export function useReliableSession(): ReturnType<typeof useSession> {
   // very first session check after a refresh; later updates flow through
   // the normal NextAuth path.
   const [cachedAuth] = useState(() => readAuthCache()?.status === "authenticated");
+
+  // Track the previous status so a sign-out (authenticated → unauthenticated)
+  // can reset the module-level retry flag — otherwise a sign-out + sign-in on
+  // the same tab can't retry on a transient `/api/auth/session` blip during
+  // the second sign-in.
+  const prevStatusRef = useRef<typeof status | null>(null);
+  useEffect(() => {
+    if (prevStatusRef.current === "authenticated" && status === "unauthenticated") {
+      retriedThisSession = false;
+    }
+    prevStatusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (retriedThisSession) return;
