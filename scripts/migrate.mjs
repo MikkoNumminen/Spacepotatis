@@ -69,8 +69,15 @@ async function main() {
       console.log("ok");
       appliedCount++;
     } catch (err) {
-      await client.query("ROLLBACK");
       console.log("FAILED");
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error(
+          "[migrate] ROLLBACK failed (original error follows):",
+          rollbackErr
+        );
+      }
       throw err;
     } finally {
       client.release();

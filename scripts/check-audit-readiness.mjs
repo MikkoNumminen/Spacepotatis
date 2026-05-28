@@ -146,19 +146,21 @@ async function main() {
   }
 
   const pool = new Pool({ connectionString: dbUrl });
+  let exitCode = 0;
   try {
     const { rows } = await pool.query(QUERY);
     const row = rows[0] ?? {};
     const evaluation = evaluateReadiness(row);
     console.log(formatReport(row, evaluation));
-    process.exit(evaluation.ready ? 0 : 1);
+    exitCode = evaluation.ready ? 0 : 1;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`save_audit query failed: ${message}`);
-    process.exit(2);
+    exitCode = 2;
   } finally {
     await pool.end();
   }
+  process.exit(exitCode);
 }
 
 // Only run main() when this file is invoked directly (e.g. via
