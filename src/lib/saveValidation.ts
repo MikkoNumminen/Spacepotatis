@@ -199,6 +199,26 @@ export function computeCreditCapsForPlayer(
   return computeCreditCapsForSystems(getReachableSolarSystems(completedMissions));
 }
 
+// SECURITY-CRITICAL: SEC-027 — server-derived unlocked-systems set, NOT trusted from request body (mirrors hydrate() and SEC-017's deriveCapInputMissions)
+// Same derivation as `hydrate()` in `src/game/state/persistence.ts`:
+// `unlockedSolarSystems = {"tutorial"} ∪ completedMission.solarSystemId
+//   ∪ SYSTEM_UNLOCK_GATES[completedMission]`. The starting system is always
+// unlocked; every other system requires either a completed mission inside it,
+// or a completed gate mission whose target is that system.
+//
+// Used by `POST /api/save`'s SEC-027 check to validate `currentSolarSystemId`
+// against the server's view of unlocked systems. The body's
+// `unlockedSolarSystems` field is IGNORED by the guard — accepting it on the
+// wire is purely backwards compatibility (an attacker can forge it; the
+// derivation here is the trust source). Mirrors the SEC-017 pattern where
+// `deriveCapInputMissions` shields the credits cap from forged completion
+// claims.
+export function deriveUnlockedSolarSystems(
+  completedMissions: readonly MissionId[]
+): ReadonlySet<SolarSystemId> {
+  return getReachableSolarSystems(completedMissions);
+}
+
 // DO NOT INLINE: deriveCapInputMissions intentionally separates trusted-prev from user-submitted (SEC-017, INV-SAVE-4)
 // SEC-017 — Credit-cap input must be SERVER-DERIVED, not the user-submitted
 // `completedMissions` list. `validateMissionGraph` enforces internal
@@ -452,7 +472,7 @@ export function validatePlaytimeDelta(input: PlaytimeDeltaInput): ValidationResu
 // 2026-05-02 21:51:54 — months of progression destroyed by a single POST that
 // the server happily accepted because the down-delta passed the cheat checks.
 //
-// This guard rejects three monotonic-field regressions. Each field NEVER
+// This guard rejects four monotonic-field regressions. Each field NEVER
 // decreases under normal play, so a strictly-shrinking POST is a wipe signal:
 //
 //   1. completedMissions shrunk — no "un-complete" mutator exists.
@@ -460,6 +480,11 @@ export function validatePlaytimeDelta(input: PlaytimeDeltaInput): ValidationResu
 //   3. playedTimeSeconds dropped — only addPlayedTime ever moves it, and
 //      it's strictly additive (an equal value means "same save instant",
 //      a smaller value means a regression).
+//   4. seenStoryEntries shrunk — markStorySeen in stateCore.ts only appends
+//      (it early-returns on duplicates). A partial POST that omits the field
+//      coalesces to [] server-side and would wipe cross-device story history;
+//      the local `seenStoriesLocal.ts` backup masks this on the same device
+//      only, so cross-device players lose state silently without this guard.
 //
 // We deliberately do NOT guard credits — the market drains credits and a
 // legitimate full-spend looks like a regression-to-zero. The three monotonic
@@ -475,11 +500,16 @@ export interface RegressionGuardInput {
     readonly playedTimeSeconds: number;
     readonly completedMissions: readonly MissionId[];
     readonly unlockedPlanets: readonly MissionId[];
+    // Optional — older callers / tests that pre-date the seen-story guard
+    // omit this field. An undefined value is equivalent to an empty list:
+    // there are no prior entries that COULD be regressed.
+    readonly seenStoryEntries?: readonly string[];
   } | null;
   readonly next: {
     readonly playedTimeSeconds: number;
     readonly completedMissions: readonly MissionId[];
     readonly unlockedPlanets: readonly MissionId[];
+    readonly seenStoryEntries?: readonly string[];
   };
 }
 
@@ -518,6 +548,19 @@ export function validateNoRegression(input: RegressionGuardInput): ValidationRes
     };
   }
 
+  // seenStoryEntries shrank. markStorySeen is append-only; a partial POST that
+  // drops the field would coalesce to [] server-side and wipe cross-device
+  // history. Same set-difference pattern as the mission checks above.
+  const prevSeen = prev.seenStoryEntries ?? [];
+  const nextSeen = next.seenStoryEntries ?? [];
+  const missingSeen = setDifferenceStrings(prevSeen, nextSeen);
+  if (missingSeen.length > 0) {
+    return {
+      ok: false,
+      error: `seenStoryEntries regressed — missing previously-seen: ${missingSeen.join(", ")}`
+    };
+  }
+
   return { ok: true };
 }
 
@@ -527,6 +570,18 @@ function setDifference(
 ): MissionId[] {
   const nextSet = new Set(next);
   const missing: MissionId[] = [];
+  for (const id of prev) {
+    if (!nextSet.has(id)) missing.push(id);
+  }
+  return missing;
+}
+
+function setDifferenceStrings(
+  prev: readonly string[],
+  next: readonly string[]
+): string[] {
+  const nextSet = new Set(next);
+  const missing: string[] = [];
   for (const id of prev) {
     if (!nextSet.has(id)) missing.push(id);
   }

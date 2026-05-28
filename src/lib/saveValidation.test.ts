@@ -704,4 +704,91 @@ describe("validateNoRegression", () => {
       }).ok
     ).toBe(true);
   });
+
+  // seenStoryEntries is a fourth monotonic field — markStorySeen is append-only
+  // (stateCore.ts:131-135), and a partial POST that omits the field coalesces
+  // to [] server-side. Without this guard, cross-device players lose story
+  // history silently (the local seenStoriesLocal.ts backup only masks the
+  // same-device case).
+  describe("seenStoryEntries regression guard", () => {
+    const prevWithStories = {
+      ...realPrev,
+      seenStoryEntries: ["great-potato-awakening", "tubernovae-arrival"] as const
+    };
+
+    it("rejects a partial POST that omits seenStoryEntries when prev had entries", () => {
+      const result = validateNoRegression({
+        prev: prevWithStories,
+        next: {
+          playedTimeSeconds: prevWithStories.playedTimeSeconds,
+          completedMissions: [...prevWithStories.completedMissions],
+          unlockedPlanets: [...prevWithStories.unlockedPlanets]
+          // seenStoryEntries omitted — coalesces to [] in the route handler;
+          // pass [] explicitly here to model that coalescing.
+        }
+      });
+      // The explicit omission still rejects when prev had entries — guard
+      // uses prev.seenStoryEntries ?? [] vs next.seenStoryEntries ?? [].
+      // Modeled here as next.seenStoryEntries undefined.
+      expect(result.ok).toBe(false);
+    });
+
+    it("rejects a partial mention regression (one story entry dropped)", () => {
+      const result = validateNoRegression({
+        prev: prevWithStories,
+        next: {
+          playedTimeSeconds: prevWithStories.playedTimeSeconds,
+          completedMissions: [...prevWithStories.completedMissions],
+          unlockedPlanets: [...prevWithStories.unlockedPlanets],
+          seenStoryEntries: ["great-potato-awakening"] // tubernovae-arrival dropped
+        }
+      });
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.error).toMatch(/seenStoryEntries regressed/);
+      expect(result.ok === false && result.error).toMatch(/tubernovae-arrival/);
+    });
+
+    it("accepts forward progress (story entry added)", () => {
+      expect(
+        validateNoRegression({
+          prev: prevWithStories,
+          next: {
+            playedTimeSeconds: prevWithStories.playedTimeSeconds,
+            completedMissions: [...prevWithStories.completedMissions],
+            unlockedPlanets: [...prevWithStories.unlockedPlanets],
+            seenStoryEntries: [...prevWithStories.seenStoryEntries, "ember-arrival"]
+          }
+        }).ok
+      ).toBe(true);
+    });
+
+    it("accepts the same set in a different order", () => {
+      expect(
+        validateNoRegression({
+          prev: prevWithStories,
+          next: {
+            playedTimeSeconds: prevWithStories.playedTimeSeconds,
+            completedMissions: [...prevWithStories.completedMissions],
+            unlockedPlanets: [...prevWithStories.unlockedPlanets],
+            seenStoryEntries: ["tubernovae-arrival", "great-potato-awakening"]
+          }
+        }).ok
+      ).toBe(true);
+    });
+
+    it("accepts when prev has no entries (omitted field on both sides)", () => {
+      // Pre-seen-story-feature saves have no seenStoryEntries on prev. A POST
+      // without the field is fine — there are no entries to regress from.
+      expect(
+        validateNoRegression({
+          prev: realPrev, // no seenStoryEntries
+          next: {
+            playedTimeSeconds: realPrev.playedTimeSeconds,
+            completedMissions: [...realPrev.completedMissions],
+            unlockedPlanets: [...realPrev.unlockedPlanets]
+          }
+        }).ok
+      ).toBe(true);
+    });
+  });
 });
