@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MissionDefinition, MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data";
-import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three/GalaxyScene";
+import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three";
 
 const STATUS_CLEARED: MissionStatus = { label: "✓ Cleared", color: "#5effa7" };
 const STATUS_AVAILABLE: MissionStatus = { label: "Available", color: "#ffcc33" };
@@ -87,6 +87,10 @@ export function useGalaxyScene({
 
     void (async () => {
       try {
+        // Deep path (not the @/game/three barrel) so the galaxy-route chunk
+        // only loads GalaxyScene's reachable graph, not every three.js
+        // module in the directory. Next.js does not tree-shake dynamic
+        // imports of barrels.
         const { GalaxyScene } = await import("@/game/three/GalaxyScene");
         if (disposed) return;
         const scene = new GalaxyScene(canvas, {

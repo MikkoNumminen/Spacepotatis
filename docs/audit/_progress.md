@@ -72,3 +72,18 @@ Plan: dispatch all three Tier 1 extractors in parallel worktrees now. User revie
 ---
 
 (Phase 3 extractor entries land below this line.)
+
+## Phase 3 — module: three
+
+- Commit: 1c53182
+- PR: #251 (refactor/three-module-barrel → master)
+- Files moved: 0 (barrel-only approach per orchestrator decision Q1)
+- Barrel created: `src/game/three/index.ts` (12 source files re-exported via `export *`)
+- Importers updated: 4
+  - `src/components/hooks/useGalaxyScene.ts` — static type import + dynamic GalaxyScene import
+  - `src/components/GameCanvas.tsx` — dynamic TransitionManager import
+  - `src/components/LandingBackground.tsx` — dynamic LandingScene import
+- Deviations from spec:
+  - Spec listed `Orbit.ts` as a file — does not exist in the actual directory; skipped (no deviation, just stale spec).
+  - Dynamic imports (`await import(...)`) updated to point at the barrel `@/game/three`; they remain dynamic (not converted to static) to preserve Next.js code-splitting.
+- Tests / typecheck / build: green at 02:00

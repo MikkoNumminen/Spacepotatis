@@ -25,6 +25,10 @@ export default function LandingBackground() {
     let disposed = false;
     let scene: { dispose(): void } | null = null;
 
+    // Deep path (not the @/game/three barrel) so the dynamic-import chunk
+    // for the landing page only pulls LandingScene's reachable graph, not
+    // every three.js scene/sun/planet/orbit/transition module. Next.js
+    // does not tree-shake dynamic imports of barrels.
     import("@/game/three/LandingScene")
       .then(({ LandingScene }) => {
         if (disposed) return;
