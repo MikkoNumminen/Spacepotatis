@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { menuMusic } from "@/game/audio/music";
 import { useGameState } from "@/game/state/useGameState";
-import { getSolarSystem } from "@/game/data/solarSystems";
+import { getSolarSystem } from "@/game/data";
 
 // Mounted once at the root layout. Listens for the first user gesture and
 // lazy-inits + arms + plays the menu/galaxy bed inside that gesture's task

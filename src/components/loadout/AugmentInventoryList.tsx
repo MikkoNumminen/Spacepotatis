@@ -1,7 +1,7 @@
 "use client";
 
 import { playUiCue } from "@/game/audio/uiCues";
-import { getAugment } from "@/game/data/augments";
+import { getAugment } from "@/game/data";
 import { sellAugment } from "@/game/state/GameState";
 import { getAugmentSellPrice } from "@/game/state/pricing";
 import type { AugmentId } from "@/types/game";

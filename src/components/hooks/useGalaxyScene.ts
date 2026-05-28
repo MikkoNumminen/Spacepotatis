@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MissionDefinition, MissionId, SolarSystemId } from "@/types/game";
-import { getAllMissions } from "@/game/data/missions";
+import { getAllMissions } from "@/game/data";
 import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three/GalaxyScene";
 
 const STATUS_CLEARED: MissionStatus = { label: "✓ Cleared", color: "#5effa7" };

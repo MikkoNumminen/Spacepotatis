@@ -11,9 +11,7 @@ import type {
   SolarSystemId,
   WeaponId
 } from "@/types/game";
-import { getAugment } from "@/game/data/augments";
-import { getLootPool, type UpgradeField } from "@/game/data/lootPools";
-import { getWeapon } from "@/game/data/weapons";
+import { getAugment, getLootPool, type UpgradeField, getWeapon } from "@/game/data";
 import { addCredits } from "./stateCore";
 import { MAX_LEVEL, ownsAnyOfType, type ShipConfig } from "./ShipConfig";
 import {

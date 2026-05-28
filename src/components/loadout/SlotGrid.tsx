@@ -1,4 +1,4 @@
-import { getWeapon } from "@/game/data/weapons";
+import { getWeapon } from "@/game/data";
 import type { WeaponSlots } from "@/game/state/ShipConfig";
 import { WeaponDot } from "./dots";
 

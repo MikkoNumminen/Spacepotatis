@@ -12,12 +12,12 @@ import {
 } from "@/game/state/ShipConfig";
 import {
   MAX_AUGMENTS_PER_WEAPON,
-  getAugment
-} from "@/game/data/augments";
+  getAugment,
+  getStat
+} from "@/game/data";
 import { playUiCue } from "@/game/audio/uiCues";
-import { getStat } from "@/game/data/stats";
-import type { AugmentDefinition } from "@/game/data/augments";
-import type { StatId } from "@/game/data/stats";
+import type { AugmentDefinition } from "@/game/data";
+import type { StatId } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
 import { AugmentDot, WeaponDot } from "./dots";
 import { AugmentDetailsModal } from "./AugmentDetailsModal";

@@ -11,7 +11,7 @@ import {
   markStorySeen
 } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
-import { STORY_ENTRIES } from "@/game/data/story";
+import { STORY_ENTRIES } from "@/game/data";
 import { itemSfx } from "@/game/audio/itemSfx";
 import { menuMusic, shopMusic } from "@/game/audio/music";
 import { storyAudio } from "@/game/audio/story";
@@ -26,18 +26,16 @@ import {
   reactorRechargeCost,
   shieldUpgradeCost
 } from "@/game/state/ShipConfig";
-import { getWeapon } from "@/game/data/weapons";
-import { getAllAugments } from "@/game/data/augments";
-import { getBuyableWeaponIds } from "@/game/data/missionWeaponRewards";
+import { getWeapon, getAllAugments, getBuyableWeaponIds } from "@/game/data";
 import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
-import type { AugmentDefinition } from "@/game/data/augments";
+import type { AugmentDefinition } from "@/game/data";
 import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";
 import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";
 import { AugmentDetailsModal } from "@/components/loadout/AugmentDetailsModal";
 import { UpgradeDetailsModal } from "@/components/loadout/UpgradeDetailsModal";
 import { AugmentDot, WeaponDot } from "@/components/loadout/dots";
-import { getUpgrade, type UpgradeId } from "@/game/data/upgrades";
+import { getUpgrade, type UpgradeId } from "@/game/data";
 
 // Total copies of a weapon id the player owns across slots + inventory.
 // Used to decorate buy rows so the player can see "owned · N" before purchase.

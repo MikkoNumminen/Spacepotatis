@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bucketMissions } from "./questBuckets";
-import { getAllMissions } from "@/game/data/missions";
+import { getAllMissions } from "@/game/data";
 import type { MissionDefinition } from "@/types/game";
 
 const ALL = getAllMissions();

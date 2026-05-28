@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import { getAllMissions } from "@/game/data/missions";
-import { getSolarSystem } from "@/game/data/solarSystems";
+import { getAllMissions, getSolarSystem } from "@/game/data";
 import type { CelestialBody } from "./CelestialBody";
 import { createSceneRig, type SceneRig } from "./SceneRig";
 

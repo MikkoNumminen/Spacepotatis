@@ -1,7 +1,7 @@
 "use client";
 
 import type { MissionId, SolarSystemId } from "@/types/game";
-import { getAllMissions } from "@/game/data/missions";
+import { getAllMissions } from "@/game/data";
 import { playUiCue } from "./uiCues";
 
 // Cleared-state Grandma cues. Two one-shot voice clips that fire when a

@@ -1,7 +1,7 @@
 "use client";
 
 import type { SolarSystemDefinition, SolarSystemId } from "@/types/game";
-import { getAllSolarSystems } from "@/game/data/solarSystems";
+import { getAllSolarSystems } from "@/game/data";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 
 export default function WarpPicker({

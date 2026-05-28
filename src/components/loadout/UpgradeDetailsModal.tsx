@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { storyAudio } from "@/game/audio/story";
-import type { UpgradeDefinition } from "@/game/data/upgrades";
+import type { UpgradeDefinition } from "@/game/data";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 
 // Per-upgrade voiceover convention: /audio/upgrades/<upgradeId>-voice.mp3.

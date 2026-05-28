@@ -1,6 +1,6 @@
 "use client";
 
-import type { PerkId } from "@/game/data/perks";
+import type { PerkId } from "@/game/data";
 import { audioBus } from "./AudioBus";
 
 // PUBLIC API — this engine is part of the `audio` module's contract.

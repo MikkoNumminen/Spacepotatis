@@ -21,7 +21,7 @@ import {
 import {
   NEUTRAL_AUGMENT_EFFECTS,
   foldAugmentEffects
-} from "@/game/data/augments";
+} from "@/game/data";
 
 describe("DEFAULT_SHIP", () => {
   it("starts with one slot containing the free starter weapon", () => {

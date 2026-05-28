@@ -1,5 +1,4 @@
-import { getAllSolarSystems } from "@/game/data/solarSystems";
-import { isKnownStoryId, type StoryId } from "@/game/data/story";
+import { getAllSolarSystems, isKnownStoryId, type StoryId } from "@/game/data";
 import type {
   MissionId,
   SolarSystemId

@@ -12,7 +12,7 @@ import { on } from "../events";
 import { setSummary } from "../registry";
 import { sfx } from "@/game/audio/sfx";
 import { combatMusic } from "@/game/audio/music";
-import { getMission } from "@/game/data/missions";
+import { getMission } from "@/game/data";
 import { applyMissionReward, rollMissionReward } from "@/game/state/rewards";
 import { PowerUpPool } from "../entities/PowerUp";
 import { WaveManager } from "../systems/WaveManager";
