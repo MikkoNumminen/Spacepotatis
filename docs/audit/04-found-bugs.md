@@ -51,6 +51,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low
 - Description: a child folder reaches up to its parent for a sibling component. Not a cycle, but a coupling that suggests `WeaponStats.tsx` should either move into `loadout/` (if it's used there primarily) or stay where it is and the modal should accept `WeaponStats` as a prop.
 - Suggested fix: defer to Phase 2 boundaries — likely both files end up in the same module.
+- **Resolved 2026-05-29 in Phase 3 Tier 5**: file moved from `src/components/WeaponStats.tsx` to `src/components/loadout/WeaponStatsView.tsx` (renamed from `WeaponStats.tsx` to dodge a case-collision with the existing `loadout/weaponStats.ts` helper on Windows/macOS-default case-insensitive filesystems). The cross-folder reach is gone — WeaponDetailsModal now imports its sibling via `./WeaponStatsView`.
 
 ## 2026-05-04 — `three/planetTexture.ts#styleFor` switch is non-exhaustive over `MissionId`
 - Path: [`src/game/three/planetTexture.ts:35-147`](src/game/three/planetTexture.ts#L35-L147)
