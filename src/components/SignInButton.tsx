@@ -2,7 +2,7 @@
 
 import { signIn, signOut } from "next-auth/react";
 import { clearAuthCache } from "@/lib/authCache";
-import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
 import { clearHandleCache } from "@/lib/useHandle";
 import { clearLoadSaveCache } from "@/game/state/syncCache";
 import { clearSaveQueue } from "@/game/state/saveQueue";

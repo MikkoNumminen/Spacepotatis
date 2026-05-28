@@ -87,6 +87,19 @@ const PER_CLEAR_SAFETY_FACTOR = 1.5;
 // weapon, and the leaderboard is local-cohort, not competitive.
 const BASE_CREDITS_DELTA_SLACK = 100;
 
+export interface CreditCaps {
+  readonly maxPerSecond: number;
+  readonly maxPerFirstClear: number;
+}
+
+// Lazy-initialized caches — avoids walking the catalog at module import time
+// (which would create an infra → content module-load edge). Values are
+// identical to what the old eager `export const` produced; they're just
+// computed on first call rather than when the module is first imported.
+let _maxSingleEquipmentRefund: number | null = null;
+let _creditsDeltaSlack: number | null = null;
+let _globalCreditCaps: CreditCaps | null = null;
+
 function computeMaxSingleEquipmentRefund(): number {
   // Worst-case sell from a single weapon: max base cost + the full
   // Mk-1→MAX_LEVEL upgrade ladder + the two most expensive augments
@@ -106,12 +119,18 @@ function computeMaxSingleEquipmentRefund(): number {
   return weaponBaseMax + upgradeLadder + topAugmentSum;
 }
 
-export const MAX_SINGLE_EQUIPMENT_REFUND = computeMaxSingleEquipmentRefund();
-export const CREDITS_DELTA_SLACK = BASE_CREDITS_DELTA_SLACK + MAX_SINGLE_EQUIPMENT_REFUND;
+export function MAX_SINGLE_EQUIPMENT_REFUND(): number {
+  if (_maxSingleEquipmentRefund === null) {
+    _maxSingleEquipmentRefund = computeMaxSingleEquipmentRefund();
+  }
+  return _maxSingleEquipmentRefund;
+}
 
-export interface CreditCaps {
-  readonly maxPerSecond: number;
-  readonly maxPerFirstClear: number;
+export function CREDITS_DELTA_SLACK(): number {
+  if (_creditsDeltaSlack === null) {
+    _creditsDeltaSlack = BASE_CREDITS_DELTA_SLACK + MAX_SINGLE_EQUIPMENT_REFUND();
+  }
+  return _creditsDeltaSlack;
 }
 
 // A system is reachable if:
@@ -269,36 +288,45 @@ export function deriveCapInputMissions(
   return Array.from(trusted);
 }
 
-// Surface the tutorial-only baseline caps once on cold start so a
-// regression after a balance change shows up during local dev without
-// needing extra instrumentation. Tutorial-only is the floor — every
-// other player gets at least these caps. Dev-only: the gate must NOT
-// fire on Vercel Edge production cold starts (process is shimmed there
-// and NODE_ENV === "production"), which would log on every cold start
-// of /api/save and /api/leaderboard.
-if (typeof process !== "undefined" && process.env?.NODE_ENV === "development") {
-  const tutorialCaps = computeCreditCapsForSystems(new Set(["tutorial"]));
-  // eslint-disable-next-line no-console
-  console.log("[saveValidation] tutorial-only caps (floor)", {
-    maxPerSecond: tutorialCaps.maxPerSecond,
-    maxPerFirstClear: tutorialCaps.maxPerFirstClear,
-    CREDITS_DELTA_SLACK
-  });
-}
-
 // Aggregate ceiling across ALL systems — exposed for legacy callers that
 // don't know about per-player progression yet. Equals what the most
 // progressed player would see; used by /api/save when reading the prior
 // save row's completedMissions falls back to "no prior row".
-export const GLOBAL_CREDIT_CAPS: CreditCaps = computeCreditCapsForSystems(
-  new Set(getAllLootPools().map((p) => p.systemId))
-);
+// Lazily computed on first call; see lazy-init note near CREDITS_DELTA_SLACK.
+export function GLOBAL_CREDIT_CAPS(): CreditCaps {
+  if (_globalCreditCaps === null) {
+    _globalCreditCaps = computeCreditCapsForSystems(
+      new Set(getAllLootPools().map((p) => p.systemId))
+    );
+    // Surface the tutorial-only baseline caps once on cold start so a
+    // regression after a balance change shows up during local dev without
+    // needing extra instrumentation. Tutorial-only is the floor — every
+    // other player gets at least these caps. Dev-only: the gate must NOT
+    // fire on Vercel Edge production cold starts (process is shimmed there
+    // and NODE_ENV === "production"), which would log on every cold start
+    // of /api/save and /api/leaderboard.
+    if (typeof process !== "undefined" && process.env?.NODE_ENV === "development") {
+      const tutorialCaps = computeCreditCapsForSystems(new Set(["tutorial"]));
+      // eslint-disable-next-line no-console
+      console.log("[saveValidation] tutorial-only caps (floor)", {
+        maxPerSecond: tutorialCaps.maxPerSecond,
+        maxPerFirstClear: tutorialCaps.maxPerFirstClear,
+        CREDITS_DELTA_SLACK: CREDITS_DELTA_SLACK()
+      });
+    }
+  }
+  return _globalCreditCaps;
+}
 
 // Deprecated single-value accessors kept for backwards compatibility with
 // older tests and call sites. Prefer per-player caps via
 // computeCreditCapsForPlayer for any new code.
-export const MAX_CREDITS_PER_SECOND = GLOBAL_CREDIT_CAPS.maxPerSecond;
-export const MAX_CREDITS_PER_FIRST_CLEAR = GLOBAL_CREDIT_CAPS.maxPerFirstClear;
+export function MAX_CREDITS_PER_SECOND(): number {
+  return GLOBAL_CREDIT_CAPS().maxPerSecond;
+}
+export function MAX_CREDITS_PER_FIRST_CLEAR(): number {
+  return GLOBAL_CREDIT_CAPS().maxPerFirstClear;
+}
 
 // Wall-clock slack on the playtime guard. 60s covers client/server clock
 // skew, the time between snapshot serialization and the POST landing,
@@ -380,7 +408,7 @@ export interface CreditsDeltaInput {
 // have earned since the previous save. Spending (negative delta) is always
 // allowed — the market drains credits and we don't want to police that.
 export function validateCreditsDelta(input: CreditsDeltaInput): ValidationResult {
-  const { prev, next, caps = GLOBAL_CREDIT_CAPS } = input;
+  const { prev, next, caps = GLOBAL_CREDIT_CAPS() } = input;
   const prevCredits = prev?.credits ?? 0;
   const prevTime = prev?.playedTimeSeconds ?? 0;
   const prevCompleted = prev?.completedMissionsCount ?? 0;
@@ -394,7 +422,7 @@ export function validateCreditsDelta(input: CreditsDeltaInput): ValidationResult
   const maxDelta =
     deltaTime * caps.maxPerSecond +
     deltaCompleted * caps.maxPerFirstClear +
-    CREDITS_DELTA_SLACK;
+    CREDITS_DELTA_SLACK();
 
   if (deltaCredits > maxDelta) {
     return {
