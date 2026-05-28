@@ -12,9 +12,7 @@ import {
 } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
 import { STORY_ENTRIES } from "@/game/data";
-import { itemSfx } from "@/game/audio/itemSfx";
-import { menuMusic, shopMusic } from "@/game/audio/music";
-import { storyAudio } from "@/game/audio/story";
+import { itemSfx, menuMusic, shopMusic, storyAudio } from "@/game/audio";
 import {
   MAX_LEVEL,
   armorUpgradeCost,

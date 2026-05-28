@@ -12,8 +12,7 @@ import {
   selectReadyAllClearedIdleEntries,
   selectReadyClearedIdleEntries
 } from "@/game/data";
-import { storyAudio } from "@/game/audio/story";
-import { storyLogAudio } from "@/game/audio/storyLogAudio";
+import { storyAudio, storyLogAudio } from "@/game/audio";
 import { markStorySeen } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
 
@@ -150,13 +149,23 @@ export function useStoryTriggers({
   // Story-log music context: while browsing the Story log OR replaying
   // any entry from it, the dedicated bed plays continuously. Opening a
   // replay does NOT restart the music.
+  //
+  // The `cancelled` sentinel is set on cleanup. storyLogAudio.play() schedules
+  // `HTMLAudioElement.play()` (returns a Promise that resolves async); the
+  // engine itself handles a rejection by catching and ignoring, but the flag
+  // is the canonical React-effect pattern and guards future maintainers
+  // against re-introducing an unawaited-promise race.
   const inStoryLogContext = storyListOpen || (activeStory?.fromLog ?? false);
   useEffect(() => {
+    let cancelled = false;
     if (inStoryLogContext) {
-      storyLogAudio.play();
+      if (!cancelled) storyLogAudio.play();
     } else {
-      storyLogAudio.stop();
+      if (!cancelled) storyLogAudio.stop();
     }
+    return () => {
+      cancelled = true;
+    };
   }, [inStoryLogContext]);
 
   // on-mission-select overlay briefings. SELECT_DELAY_MS lets the player

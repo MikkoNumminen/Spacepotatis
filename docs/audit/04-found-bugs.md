@@ -12,6 +12,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low
 - Description: file has 0 importers across the codebase, AND it's missing the `SaveAuditTable` type that was added by [`db/migrations/20260503000000_add_save_audit.sql`](db/migrations/20260503000000_add_save_audit.sql). The live `Database` interface that everything actually uses is in [`src/lib/db.ts`](src/lib/db.ts).
 - Suggested fix: delete `src/types/database.ts` once it's confirmed unreferenced anywhere (greppable `import .* database`).
+- **Resolved 2026-05-28**: file no longer exists on master (deleted between audit pause and resume).
 
 ## 2026-05-04 — `BossScene.ts` is dead code
 - Path: [`src/game/phaser/scenes/BossScene.ts`](src/game/phaser/scenes/BossScene.ts)
@@ -19,6 +20,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low
 - Description: defined as a Phaser scene but not registered in the scene array at [`src/game/phaser/config.ts:64`](src/game/phaser/config.ts#L64). The boss fight is implemented inside `CombatScene` instead. The dangling file is misleading to anyone trying to follow scene routing.
 - Suggested fix: delete the file, or wire it into a "boss fight runs in its own scene" refactor.
+- **Resolved 2026-05-28**: file no longer exists on master (deleted between audit pause and resume).
 
 ## 2026-05-04 — `audit-readiness-check.yml` Node version mismatches `ci.yml`
 - Path: [`.github/workflows/audit-readiness-check.yml`](.github/workflows/audit-readiness-check.yml) vs [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
@@ -26,6 +28,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low
 - Description: `audit-readiness-check.yml` runs on Node 22; `ci.yml` runs on Node 20. Two different Node versions in CI for the same repo means a script can pass one and fail the other.
 - Suggested fix: pick one (probably 20 to match the rest), pin in both workflows.
+- **Resolved 2026-05-28 (not-a-bug)**: the workflow now carries a comment explaining the Node 22 choice — `@neondatabase/serverless` driver needs Node 22's native global WebSocket; ci.yml stays on 20 because vitest doesn't open Neon connections. Intentional divergence, documented in-file.
 
 ## 2026-05-04 — `package.json#scripts.db:migrate` calls dbmate while CLAUDE.md says use the node runner
 - Path: [`package.json`](package.json) `scripts.db:migrate`
@@ -33,6 +36,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low
 - Description: CLAUDE.md §6 + §7 instructs contributors to use `node --env-file=.env.local scripts/migrate.mjs` so dbmate isn't a hard dependency. But `npm run db:migrate` calls dbmate. Documentation drift — works for anyone with dbmate installed, surprises everyone else.
 - Suggested fix: change the script to invoke `scripts/migrate.mjs`, OR update CLAUDE.md to say dbmate is in fact required.
+- **Resolved 2026-05-28**: `db:migrate` now routes to `node --env-file=.env.local scripts/migrate.mjs`. The old dbmate path lives on as `db:migrate:dbmate` for anyone with dbmate installed.
 
 ## 2026-05-04 — `useOptimisticAuth.ts` is the only `lib → game` backedge
 - Path: [`src/lib/useOptimisticAuth.ts:10-11`](src/lib/useOptimisticAuth.ts#L10-L11)

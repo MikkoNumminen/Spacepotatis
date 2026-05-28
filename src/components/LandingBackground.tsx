@@ -29,6 +29,10 @@ export default function LandingBackground() {
       .then(({ LandingScene }) => {
         if (disposed) return;
         const instance = new LandingScene(canvas);
+        if (disposed) {
+          instance.dispose();
+          return;
+        }
         instance.start();
         scene = instance;
       })

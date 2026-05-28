@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { menuMusic } from "@/game/audio/music";
+import { menuMusic } from "@/game/audio";
 import { useGameState } from "@/game/state/useGameState";
 import { getSolarSystem } from "@/game/data";
 

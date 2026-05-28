@@ -33,6 +33,14 @@ export interface UseHandleResult {
 // synchronously on first effect tick.
 let cached: HandleResponse | null = null;
 let inflight: Promise<HandleResponse> | null = null;
+// Single retry slot: a transient fetch rejection used to leave every
+// consumer stuck at "error" forever because the inflight Promise resolved
+// rejected and the cache stayed null. We now schedule one delayed retry
+// kick (only if there's an active consumer — i.e. cache + inflight are
+// both still null) so the next render cycle gets a fresh attempt. If the
+// retry also fails, we stop — no infinite background fetch loop.
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+const RETRY_DELAY_MS = 2_000;
 
 // Same per-fetch timeout rationale as sync.ts — a stuck handle GET used
 // to hang the hook forever; the cancelled flag still gates state updates
@@ -46,6 +54,10 @@ const FETCH_TIMEOUT_MS = 15_000;
 export function clearHandleCache(): void {
   cached = null;
   inflight = null;
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
 }
 
 async function fetchHandle(): Promise<HandleResponse> {
@@ -65,6 +77,23 @@ async function fetchHandle(): Promise<HandleResponse> {
       const body = (await res.json()) as HandleResponse;
       cached = body;
       return body;
+    } catch (err) {
+      // Schedule exactly one delayed retry. If a consumer is still active
+      // when it fires (cache + inflight both null), kick another fetch to
+      // recover from a transient blip without forcing every consumer to
+      // mash refetch. If that retry also rejects, we let it lie — no
+      // infinite background loop.
+      if (retryTimer === null) {
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (cached === null && inflight === null) {
+            void fetchHandle().catch(() => {
+              // second-attempt failure stays silent
+            });
+          }
+        }, RETRY_DELAY_MS);
+      }
+      throw err;
     } finally {
       inflight = null;
     }

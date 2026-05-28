@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { menuBriefingAudio, type MenuBriefingItem } from "@/game/audio/menuBriefingAudio";
+import { menuBriefingAudio, type MenuBriefingItem } from "@/game/audio";
 import { useOptimisticAuth } from "@/lib/useOptimisticAuth";
 
 // Plays the landing-page voice queue every time the player enters the menu

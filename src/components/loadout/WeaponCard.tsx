@@ -15,7 +15,7 @@ import {
   getAugment,
   getStat
 } from "@/game/data";
-import { playUiCue } from "@/game/audio/uiCues";
+import { playUiCue } from "@/game/audio";
 import type { AugmentDefinition } from "@/game/data";
 import type { StatId } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
