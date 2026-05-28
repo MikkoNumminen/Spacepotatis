@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { equipWeapon, installAugment } from "@/game/state/GameState";
-import type { WeaponPosition } from "@/game/state/ShipConfig";
+import { equipWeapon, installAugment } from "@/game/state";
+import type { WeaponPosition } from "@/game/state";
 import type { AugmentId } from "@/types";
 
 // `picker` is the slot index whose SlotPicker is open (null = closed).

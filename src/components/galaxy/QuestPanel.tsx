@@ -7,7 +7,7 @@ import type {
   SolarSystemId
 } from "@/types";
 import { getAllMissions, getMission, getSolarSystem } from "@/game/data";
-import { useGameState } from "@/game/state/useGameState";
+import { useGameState } from "@/game/state";
 import { bucketMissions } from "./questBuckets";
 
 export default function QuestPanel({

@@ -1,8 +1,6 @@
 import type { WeaponId } from "@/types";
-import {
-  weaponDamageMultiplier,
-  type WeaponInstance
-} from "@/game/state/ShipConfig";
+import { weaponDamageMultiplier } from "@/game/state";
+import type { WeaponInstance } from "@/game/state";
 import { getWeapon } from "../../../data/weapons";
 import { foldAugmentEffects, NEUTRAL_AUGMENT_EFFECTS } from "../../../data/augments";
 

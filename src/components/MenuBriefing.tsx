@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { menuBriefingAudio, type MenuBriefingItem } from "@/game/audio";
-import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state";
 
 // Plays the landing-page voice queue every time the player enters the menu
 // (initial load, refresh, or navigation back from /play). First nudge is

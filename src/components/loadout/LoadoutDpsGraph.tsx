@@ -1,6 +1,6 @@
 "use client";
 
-import type { ShipConfig } from "@/game/state/ShipConfig";
+import type { ShipConfig } from "@/game/state";
 import { Bar } from "./Bar";
 import { getEquippedEntries } from "./selectors";
 import { dpsOf } from "./weaponStats";

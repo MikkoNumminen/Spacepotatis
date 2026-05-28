@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadSave } from "@/game/state/sync";
-import {
-  getLastLoadResultValue,
-  setCurrentPlayerEmail
-} from "@/game/state/syncCache";
+import { loadSave, getLastLoadResultValue, setCurrentPlayerEmail } from "@/game/state";
 import { useReliableSession } from "@/lib/useReliableSession";
 import {
   cachedResultToState,

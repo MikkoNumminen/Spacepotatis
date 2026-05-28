@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { playUiCue } from "@/game/audio";
-import type { WeaponInstance } from "@/game/state/ShipConfig";
+import type { WeaponInstance } from "@/game/state";
 import { slotLabel } from "./SlotGrid";
 import { WeaponDot } from "./dots";
 import type { InventoryEntry } from "./selectors";

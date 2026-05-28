@@ -9,7 +9,7 @@
 // fire time (PlayerFireController) — these helpers are UI-only.
 
 import { foldAugmentEffects } from "@/game/data";
-import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
+import { weaponDamageMultiplier } from "@/game/state";
 import type { AugmentId, WeaponDefinition } from "@/types";
 
 const DEFAULT_TURN_RATE = 3.5;

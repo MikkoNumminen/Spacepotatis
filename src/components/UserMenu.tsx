@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state";
 
 // Top-right account control in the galaxy view (and any other in-game
 // surface that wants the richer user dropdown). The simple sign-in/out

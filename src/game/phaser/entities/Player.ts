@@ -3,7 +3,7 @@ import type { WeaponId } from "@/types";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { createKeyboardControls, type Controls } from "../systems/Controls";
 import type { BulletPool } from "./Bullet";
-import { type ShipConfig, type WeaponInstance } from "@/game/state/ShipConfig";
+import type { ShipConfig, WeaponInstance } from "@/game/state";
 import {
   resolveSlotMods,
   slotModsForGrantedWeapon,

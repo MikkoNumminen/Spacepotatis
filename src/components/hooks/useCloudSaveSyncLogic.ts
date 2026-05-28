@@ -9,7 +9,7 @@
 // The hook now returns a 3-state status + reason, and these helpers encode
 // the mapping from auth state + loadSave result + cache to that status.
 
-import type { LoadResult, LoadFailureReason } from "@/game/state/sync";
+import type { LoadResult, LoadFailureReason } from "@/game/state";
 
 export type CloudSaveStatus = "loading" | "loaded" | "load-failed";
 

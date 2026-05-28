@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { bindGuestPersistenceOnce } from "@/game/state/guestCache";
+import { bindGuestPersistenceOnce } from "@/game/state";
 
 // Idempotent client-only mount that subscribes the guest-progress writer
 // once per page lifetime AND restores any persisted anonymous snapshot on

@@ -1,5 +1,5 @@
 import type { MissionId, WeaponId } from "@/types";
-import type { MissionReward } from "@/game/state/rewards";
+import type { MissionReward } from "@/game/state";
 import { getSummary, setBootData } from "./registry";
 
 export const VIRTUAL_WIDTH = 960;

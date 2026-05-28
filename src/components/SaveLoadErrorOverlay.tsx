@@ -15,7 +15,7 @@
 
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
-import type { LoadFailureReason } from "@/game/state/sync";
+import type { LoadFailureReason } from "@/game/state";
 
 export interface SaveLoadErrorOverlayProps {
   readonly reason?: LoadFailureReason;

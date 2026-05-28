@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { WeaponInstance } from "@/game/state/ShipConfig";
+import type { WeaponInstance } from "@/game/state";
 import { getWeapon } from "@/game/data";
 import { slotXOffset } from "./slotLayout";
 

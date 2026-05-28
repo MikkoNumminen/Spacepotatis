@@ -1,4 +1,4 @@
-import type { ShipConfig, WeaponPosition } from "@/game/state/ShipConfig";
+import type { ShipConfig, WeaponPosition } from "@/game/state";
 import { SectionHeading } from "./SectionHeading";
 import { WeaponCard } from "./WeaponCard";
 import type { WeaponEntry } from "./selectors";

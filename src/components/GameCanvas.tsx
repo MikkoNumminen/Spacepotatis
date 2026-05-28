@@ -16,18 +16,23 @@ import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
 import SaveLoadErrorOverlay from "@/components/SaveLoadErrorOverlay";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
-import { clearLoadSaveCache } from "@/game/state/syncCache";
+import {
+  clearLoadSaveCache,
+  useGameState,
+  setSolarSystem,
+  drainScoreQueue,
+  flushSaveQueue,
+  saveNow,
+  enqueueScore,
+  QUEUED_MESSAGE,
+  useOptimisticAuth
+} from "@/game/state";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useStoryTriggers } from "@/components/hooks/useStoryTriggers";
-import { useGameState } from "@/game/state/useGameState";
-import { setSolarSystem } from "@/game/state/GameState";
 import { getAllMissions, getMission, getAllSolarSystems, getStoryEntry } from "@/game/data";
-import { drainScoreQueue, flushSaveQueue, saveNow } from "@/game/state/sync";
-import { enqueueScore, QUEUED_MESSAGE } from "@/game/state/scoreQueue";
 import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 import { ROUTES } from "@/lib/routes";
-import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
 
 type Mode = "galaxy" | "combat";
 

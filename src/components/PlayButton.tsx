@@ -6,7 +6,7 @@ import HandlePrompt from "./HandlePrompt";
 import { BUTTON_PRIMARY } from "./ui/buttonClasses";
 import { menuBriefingAudio } from "@/game/audio";
 import { ROUTES } from "@/lib/routes";
-import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state";
 
 // Auth-aware Play button on the landing page. The page itself is force-static,
 // so this is a small client island that hydrates with the optimistic auth

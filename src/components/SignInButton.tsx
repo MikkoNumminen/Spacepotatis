@@ -2,12 +2,8 @@
 
 import { signIn, signOut } from "next-auth/react";
 import { clearAuthCache } from "@/lib/authCache";
-import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
+import { useOptimisticAuth, clearLoadSaveCache, clearSaveQueue, clearGuestSnapshot, resetState } from "@/game/state";
 import { clearHandleCache } from "@/lib/useHandle";
-import { clearLoadSaveCache } from "@/game/state/syncCache";
-import { clearSaveQueue } from "@/game/state/saveQueue";
-import { clearGuestSnapshot } from "@/game/state/guestCache";
-import { resetState } from "@/game/state/GameState";
 import { BUTTON_NAV } from "./ui/buttonClasses";
 
 // Simple auth control used on the landing page. Two states only:

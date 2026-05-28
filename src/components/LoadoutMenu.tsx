@@ -1,12 +1,12 @@
 "use client";
 
-import { buyWeaponSlot } from "@/game/state/GameState";
 import {
+  buyWeaponSlot,
   MAX_WEAPON_SLOTS,
   getInstanceAt,
-  slotPurchaseCost
-} from "@/game/state/ShipConfig";
-import { useGameState } from "@/game/state/useGameState";
+  slotPurchaseCost,
+  useGameState
+} from "@/game/state";
 import { LoadoutDpsGraph } from "@/components/loadout/LoadoutDpsGraph";
 import { SlotGrid } from "@/components/loadout/SlotGrid";
 import { SlotPicker } from "@/components/loadout/SlotPicker";

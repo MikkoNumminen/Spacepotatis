@@ -1,4 +1,4 @@
-import { weaponDamageMultiplier } from "@/game/state/ShipConfig";
+import { weaponDamageMultiplier } from "@/game/state";
 import { foldAugmentEffects } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types";
 

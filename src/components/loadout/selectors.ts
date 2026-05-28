@@ -1,4 +1,4 @@
-import type { ShipConfig, WeaponInstance, WeaponPosition } from "@/game/state/ShipConfig";
+import type { ShipConfig, WeaponInstance, WeaponPosition } from "@/game/state";
 import type { WeaponDefinition } from "@/types";
 import { getWeapon } from "@/game/data";
 import { slotLabel } from "./SlotGrid";
