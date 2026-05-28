@@ -35,7 +35,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 ## Internal
 
 - Subfolder components are NOT meant to be imported across the boundary. `loadout/X.tsx` importing `loadout/Y.tsx` is fine; `loadout/X.tsx` importing `galaxy/Z.tsx` is a smell.
-- The previous cross-folder reach `loadout/WeaponDetailsModal.tsx` → `components/WeaponStats.tsx` was resolved during Phase 3 Tier 5 — `WeaponStats.tsx` now lives at `loadout/WeaponStats.tsx` next to its sole consumer.
+- The previous cross-folder reach `loadout/WeaponDetailsModal.tsx` → `components/WeaponStats.tsx` was resolved during Phase 3 Tier 5 — the component now lives at `loadout/WeaponStatsView.tsx` next to its sole consumer (renamed from `WeaponStats.tsx` to dodge a case collision with the existing `loadout/weaponStats.ts` helper on case-insensitive filesystems; the symbol export name is still `WeaponStats`).
 - Test fixtures and per-component test setups (`*.test.tsx`).
 
 ## Dependencies
