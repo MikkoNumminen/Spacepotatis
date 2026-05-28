@@ -14,7 +14,7 @@
 // useGameState/MenuMusic). Tests run on every push and gate merges, so a
 // drifted JSON edit fails CI before it reaches users.
 import missionsData from "./missions.json";
-import type { MissionDefinition, MissionId } from "@/types/game";
+import type { MissionDefinition, MissionId } from "@/types";
 import {
   buildLiveIntegrityData,
   runDataIntegrityCheck

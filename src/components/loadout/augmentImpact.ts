@@ -10,7 +10,7 @@
 
 import type { AugmentDefinition } from "@/game/data";
 import type { WeaponInstance } from "@/game/state/ShipConfig";
-import type { AugmentId, WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition } from "@/types";
 import { dpsOf, energyOf, turnRateOf } from "./weaponStats";
 
 export type ImpactStat = "dps" | "energy" | "turnRate";

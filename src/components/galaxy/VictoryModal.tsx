@@ -5,7 +5,7 @@ import type { CombatSummary } from "@/game/phaser/config";
 import { itemSfx } from "@/game/audio";
 import { getWeapon } from "@/game/data";
 import { describeMissionReward } from "@/game/state/rewards";
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 
 // Server-sync outcome surfaced under the stats. GameCanvas drives this from
 // the awaited results of saveNow() / drainScoreQueue(). The states map to:

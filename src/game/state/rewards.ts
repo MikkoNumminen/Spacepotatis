@@ -10,7 +10,7 @@ import type {
   AugmentId,
   SolarSystemId,
   WeaponId
-} from "@/types/game";
+} from "@/types";
 import { getAugment, getLootPool, type UpgradeField, getWeapon } from "@/game/data";
 import { addCredits } from "./stateCore";
 import { MAX_LEVEL, ownsAnyOfType, type ShipConfig } from "./ShipConfig";

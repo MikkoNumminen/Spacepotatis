@@ -16,7 +16,7 @@
 
 import { z } from "zod";
 
-import type { WeaponDefinition, WeaponFamily } from "@/types/game";
+import type { WeaponDefinition, WeaponFamily } from "@/types";
 import { WeaponIdSchema } from "./save";
 
 const WeaponFamilySchema = z.enum(["potato", "pirate"]);

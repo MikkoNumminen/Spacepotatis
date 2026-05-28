@@ -18,7 +18,7 @@ import type {
   ObstacleSpawn,
   WaveDefinition,
   WaveSpawn
-} from "@/types/game";
+} from "@/types";
 import { EnemyIdSchema } from "./enemies";
 import { ObstacleIdSchema } from "./obstacles";
 import { MissionIdSchema } from "./save";

@@ -11,7 +11,7 @@
 // [src/game/data/__tests__/jsonSchemaValidation.test.ts] — not at module load.
 // Keeps Zod out of this file's import graph (~98 kB per-route bundle saving).
 import solarSystemsData from "./solarSystems.json";
-import type { SolarSystemDefinition, SolarSystemId } from "@/types/game";
+import type { SolarSystemDefinition, SolarSystemId } from "@/types";
 
 // AI-NOTE: deliberate `as` cast — soundness enforced by jsonSchemaValidation.test.ts.
 // Re-adding Zod.parse at module load cost ~98 kB first-load JS (PR history).

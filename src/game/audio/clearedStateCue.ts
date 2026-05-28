@@ -1,6 +1,6 @@
 "use client";
 
-import type { MissionId, SolarSystemId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data";
 import { playUiCue } from "./uiCues";
 

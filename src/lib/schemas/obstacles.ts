@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 
-import type { ObstacleBehavior, ObstacleDefinition, ObstacleId } from "@/types/game";
+import type { ObstacleBehavior, ObstacleDefinition, ObstacleId } from "@/types";
 
 // INVARIANT: OBSTACLE_IDS uses `as const satisfies readonly ObstacleId[]`
 //   so the literal union in src/types/game.ts and this runtime list are

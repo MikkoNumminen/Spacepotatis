@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PlayerFireController } from "./PlayerFireController";
 import type { WeaponSystem } from "../../systems/WeaponSystem";
 import type { SlotMods } from "./SlotModResolver";
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 import { newWeaponInstance, type WeaponInstance } from "@/game/state/ShipConfig";
 import type { PlayerCombatant } from "./PlayerCombatant";
 

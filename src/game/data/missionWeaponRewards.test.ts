@@ -6,7 +6,7 @@ import {
 } from "./missionWeaponRewards";
 import { getAllMissions } from "./missions";
 import { getAllWeapons } from "./weapons";
-import type { MissionId, WeaponId } from "@/types/game";
+import type { MissionId, WeaponId } from "@/types";
 
 describe("MISSION_WEAPON_REWARDS", () => {
   it("covers every mission-kind mission exactly once", () => {

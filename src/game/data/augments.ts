@@ -12,7 +12,7 @@
 // installing two augments on the same weapon (different kinds) compounds
 // their effect cleanly.
 
-import type { AugmentId } from "@/types/game";
+import type { AugmentId } from "@/types";
 
 /**
  * Single augment row.

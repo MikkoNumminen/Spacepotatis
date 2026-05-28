@@ -23,7 +23,7 @@
 
 import { z } from "zod";
 
-import type { MissionDefinition, PlanetRing } from "@/types/game";
+import type { MissionDefinition, PlanetRing } from "@/types";
 import { MissionIdSchema, SolarSystemIdSchema } from "./save";
 
 const PlanetKindSchema = z.enum(["mission", "shop", "scenery"]);

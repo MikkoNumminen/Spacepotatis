@@ -3,7 +3,7 @@ import type {
   MissionDefinition,
   MissionId,
   SolarSystemId
-} from "@/types/game";
+} from "@/types";
 import { type StoryId } from "@/game/data";
 import { DEFAULT_SHIP, type ShipConfig } from "./ShipConfig";
 import {

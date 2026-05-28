@@ -1,4 +1,4 @@
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 import {
   weaponDamageMultiplier,
   type WeaponInstance

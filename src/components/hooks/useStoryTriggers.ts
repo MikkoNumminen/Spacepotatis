@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MissionId } from "@/types/game";
-import type { SolarSystemId } from "@/types/game";
+import type { MissionId } from "@/types";
+import type { SolarSystemId } from "@/types";
 import {
   STORY_ENTRIES,
   type StoryId,

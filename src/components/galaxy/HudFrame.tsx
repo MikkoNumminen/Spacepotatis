@@ -1,6 +1,6 @@
 "use client";
 
-import type { MissionDefinition } from "@/types/game";
+import type { MissionDefinition } from "@/types";
 import MuteToggle from "@/components/MuteToggle";
 import UserMenu from "@/components/UserMenu";
 import { useGameState } from "@/game/state/useGameState";

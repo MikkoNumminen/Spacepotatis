@@ -2,7 +2,7 @@
 //   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
 //   See ./README.md for the rationale.
 
-import type { MissionId, SolarSystemId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types";
 import { STORY_ENTRIES, type StoryEntry, type StoryId } from "@/game/data/story";
 import { getAllMissions } from "@/game/data/missions";
 

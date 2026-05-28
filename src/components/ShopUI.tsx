@@ -25,7 +25,7 @@ import {
   shieldUpgradeCost
 } from "@/game/state/ShipConfig";
 import { getWeapon, getAllAugments, getBuyableWeaponIds } from "@/game/data";
-import type { AugmentId, WeaponDefinition, WeaponId } from "@/types/game";
+import type { AugmentId, WeaponDefinition, WeaponId } from "@/types";
 import type { AugmentDefinition } from "@/game/data";
 import type { ShipConfig } from "@/game/state/ShipConfig";
 import { useGameState } from "@/game/state/useGameState";

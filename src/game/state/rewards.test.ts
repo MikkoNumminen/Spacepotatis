@@ -14,7 +14,7 @@ import {
   type WeaponInventory
 } from "./ShipConfig";
 import { getState, resetForTests } from "./GameState";
-import type { WeaponId } from "@/types/game";
+import type { WeaponId } from "@/types";
 
 beforeEach(() => {
   resetForTests();

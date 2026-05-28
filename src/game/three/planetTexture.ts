@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 
 const TEX_W = 384;
 const TEX_H = 192;

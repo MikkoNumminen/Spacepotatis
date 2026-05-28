@@ -21,7 +21,7 @@ import {
   weaponUpgradeCost
 } from "@/game/state/ShipConfig";
 import { SYSTEM_UNLOCK_GATES } from "@/game/state/stateCore";
-import type { MissionId, SolarSystemId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Per-player, progression-aware cheat-guard caps

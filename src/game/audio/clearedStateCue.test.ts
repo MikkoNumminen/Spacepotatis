@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MissionId, SolarSystemId } from "@/types/game";
+import type { MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data";
 import type * as UiCuesT from "./uiCues";
 import type * as ClearedStateCueT from "./clearedStateCue";

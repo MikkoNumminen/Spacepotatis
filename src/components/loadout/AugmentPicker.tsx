@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { playUiCue } from "@/game/audio";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "@/game/data";
 import type { WeaponPosition } from "@/game/state/ShipConfig";
-import type { AugmentId, WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition } from "@/types";
 import { AugmentDot } from "./dots";
 
 export function AugmentPicker({

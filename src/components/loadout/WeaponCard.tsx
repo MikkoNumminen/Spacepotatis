@@ -18,7 +18,7 @@ import {
 import { playUiCue } from "@/game/audio";
 import type { AugmentDefinition } from "@/game/data";
 import type { StatId } from "@/game/data";
-import type { AugmentId, WeaponDefinition } from "@/types/game";
+import type { AugmentId, WeaponDefinition } from "@/types";
 import { AugmentDot, WeaponDot } from "./dots";
 import { AugmentDetailsModal } from "./AugmentDetailsModal";
 import { StatDetailsModal } from "./StatDetailsModal";

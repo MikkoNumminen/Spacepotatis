@@ -15,7 +15,7 @@ import type {
   AugmentId,
   SolarSystemId,
   WeaponId
-} from "@/types/game";
+} from "@/types";
 
 /**
  * Permanent ship-stat upgrade buckets. A loot roll resolving to one of
