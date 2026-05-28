@@ -79,6 +79,17 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low
 - Description: similar shape to the `stateCore.ts` finding: an Edge-runtime API hot path imports a module that walks the loot pools at top level. Loot pools are static, so the cost is a one-shot module-load tax — but it does mean every cold start of `/api/save` pays it. Probably fine on Vercel Edge (cached after first invocation), but worth confirming.
 - Suggested fix: lazy-init the derived caps inside `validateNoRegression` rather than at module top.
+- **Resolved 2026-05-29 in PR #248**: 5 module-load-time constants (`MAX_SINGLE_EQUIPMENT_REFUND`, `CREDITS_DELTA_SLACK`, `GLOBAL_CREDIT_CAPS`, `MAX_CREDITS_PER_SECOND`, `MAX_CREDITS_PER_FIRST_CLEAR`) converted to first-call getter functions. Removes the `infra → content` module-load edge.
+
+## 2026-05-29 — `@/lib` barrel can't be the sole import path while `auth.ts` has module-load side effects
+- Path: [`src/lib/index.ts`](src/lib/index.ts), [`src/lib/auth.ts`](src/lib/auth.ts)
+- Found by: Phase 3 Tier 2 (infra extraction, PR #248)
+- Severity: medium (architectural — blocks the audit's "everyone goes through the barrel" goal for `infra`)
+- Description: PR #248 created `src/lib/index.ts` re-exporting all infra modules, but routing existing deep `@/lib/<file>` imports through the barrel broke 6 test files. The barrel's `export * from "./auth"` triggers `auth.ts` module-load, which calls `NextAuth(config)` at top level — pulling in `next-auth` → `next/server`. Test files that don't expect to load auth (e.g. `tests/security/creditCapCircular.test.ts`, `tests/security/saveLogPayload.test.ts`, `src/game/state/sync.test.ts`) fail with `Cannot find module 'next/server'`. Net result: 36 existing deep `@/lib/*` imports across 22 files stay on deep paths; the module boundary isn't enforced for `infra` the way it is for `types`, `schemas`, `audio`, `content`.
+- Suggested fix: pick one —
+  (a) Restructure `auth.ts` to be side-effect-free at module load by deferring `NextAuth(config)` into a `getAuth()` factory. Every `auth()` caller updates. Most thorough; touches the same files the importer migration would have touched anyway.
+  (b) Carve `auth.ts` out of the barrel and keep its deep path canonical. Other infra files migrate to the barrel cleanly. Smallest change.
+  (c) Accept the barrel as nominal-only. New code uses the barrel; existing code keeps deep paths. Cheapest but defeats the audit goal for `infra`.
 
 ---
 
