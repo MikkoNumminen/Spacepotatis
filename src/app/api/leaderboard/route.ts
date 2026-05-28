@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { LEADERBOARD_CACHE_TAG, getCachedLeaderboard } from "@/lib/leaderboard";
 import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
-import { MissionIdSchema, ScorePayloadSchema } from "@/lib/schemas/save";
+import { MissionIdSchema, ScorePayloadSchema } from "@/lib/schemas";
 import { maxLegitScore } from "@/lib/saveValidation";
 
 // Edge runtime — getDb() is now Neon serverless (Edge-compatible) and the

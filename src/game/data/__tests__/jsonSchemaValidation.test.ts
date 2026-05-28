@@ -24,12 +24,14 @@ import obstaclesData from "../obstacles.json";
 import solarSystemsData from "../solarSystems.json";
 import wavesData from "../waves.json";
 import weaponsData from "../weapons.json";
-import { EnemiesFileSchema } from "@/lib/schemas/enemies";
-import { MissionsFileSchema } from "@/lib/schemas/missions";
-import { ObstaclesFileSchema } from "@/lib/schemas/obstacles";
-import { SolarSystemsFileSchema } from "@/lib/schemas/solarSystems";
-import { WavesFileSchema } from "@/lib/schemas/waves";
-import { WeaponsFileSchema } from "@/lib/schemas/weapons";
+import {
+  EnemiesFileSchema,
+  MissionsFileSchema,
+  ObstaclesFileSchema,
+  SolarSystemsFileSchema,
+  WavesFileSchema,
+  WeaponsFileSchema
+} from "@/lib/schemas";
 
 describe("game-data JSON ↔ Zod schema validation (CI drift gate)", () => {
   it("enemies.json matches EnemiesFileSchema", () => {
