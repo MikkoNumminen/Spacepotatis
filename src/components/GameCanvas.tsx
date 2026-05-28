@@ -159,7 +159,7 @@ export default function GameCanvas() {
     setFocusedPlanetId(mission?.id ?? null);
   }, []);
 
-  const { ready: sceneReady } = useGalaxyScene({
+  const { ready: sceneReady, error: galaxyError } = useGalaxyScene({
     enabled: mode === "galaxy",
     canvasRef: galaxyCanvasRef,
     currentSolarSystemId,
@@ -360,12 +360,13 @@ export default function GameCanvas() {
     []
   );
 
-  usePhaserGame({
+  const { error: combatError } = usePhaserGame({
     enabled: mode === "combat",
     parentRef: combatParentRef,
     missionId: launching?.id ?? null,
     onComplete: stableComplete
   });
+  const rendererError = mode === "combat" ? combatError : galaxyError;
 
   const splashSteps = useMemo<readonly SplashStep[]>(
     () => [
@@ -471,6 +472,30 @@ export default function GameCanvas() {
         onRetry={handleRetryLoad}
         onDismiss={() => setErrorDismissed(true)}
       />
+    )}
+    {rendererError && !showLoadError && (
+      // Surfaces a dynamic-import / WebGL / Phaser init failure. Without
+      // this the player would see a blank canvas (combat) or a stuck splash
+      // (galaxy, since ready never flips) and have no way to know the
+      // renderer failed to start.
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="renderer-error-title"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-space-bg/90 p-4 backdrop-blur-sm"
+      >
+        <div className="select-none rounded border border-hud-red/40 bg-space-bg/90 p-5 shadow-[0_0_30px_rgba(255,94,94,0.25)] sm:p-6">
+          <div
+            id="renderer-error-title"
+            className="font-display text-2xl tracking-widest text-hud-red sm:text-3xl"
+          >
+            RENDERER FAILED TO START
+          </div>
+          <p className="mt-5 max-w-sm font-mono text-sm text-hud-amber/90">
+            {rendererError}
+          </p>
+        </div>
+      </div>
     )}
     </>
   );
