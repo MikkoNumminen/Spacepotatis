@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { storyAudio } from "@/game/audio";
-import { getAugment } from "@/game/data/augments";
+import { getAugment } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types/game";
 import { WeaponStats } from "@/components/WeaponStats";
 import { BUTTON_BACK } from "../ui/buttonClasses";

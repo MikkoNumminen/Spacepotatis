@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { StoryEntry } from "@/game/data/story";
+import type { StoryEntry } from "@/game/data";
 import { storyAudio, menuMusic } from "@/game/audio";
 import { BUTTON_BACK } from "../ui/buttonClasses";
 

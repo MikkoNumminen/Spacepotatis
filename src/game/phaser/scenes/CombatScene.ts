@@ -11,7 +11,7 @@ import * as GameState from "@/game/state/GameState";
 import { on } from "../events";
 import { setSummary } from "../registry";
 import { sfx, combatMusic } from "@/game/audio";
-import { getMission } from "@/game/data/missions";
+import { getMission } from "@/game/data";
 import { applyMissionReward, rollMissionReward } from "@/game/state/rewards";
 import { PowerUpPool } from "../entities/PowerUp";
 import { WaveManager } from "../systems/WaveManager";

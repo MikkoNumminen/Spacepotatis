@@ -6,17 +6,20 @@
 // Numbers here are intentionally loose; tighten only after we've watched
 // real telemetry for false positives.
 
-import { getAllAugments } from "@/game/data/augments";
-import { getEnemy } from "@/game/data/enemies";
-import { getAllLootPools } from "@/game/data/lootPools";
-import { getAllMissions, getMission } from "@/game/data/missions";
-import { getAllWeapons } from "@/game/data/weapons";
-import { getWavesForMission } from "@/game/data/waves";
+import {
+  getAllAugments,
+  getEnemy,
+  getAllLootPools,
+  getAllMissions,
+  getMission,
+  getAllWeapons,
+  getWavesForMission,
+  MAX_AUGMENTS_PER_WEAPON
+} from "@/game/data";
 import {
   MAX_LEVEL,
   weaponUpgradeCost
 } from "@/game/state/ShipConfig";
-import { MAX_AUGMENTS_PER_WEAPON } from "@/game/data/augments";
 import { SYSTEM_UNLOCK_GATES } from "@/game/state/stateCore";
 import type { MissionId, SolarSystemId } from "@/types/game";
 

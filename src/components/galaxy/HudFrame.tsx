@@ -4,7 +4,7 @@ import type { MissionDefinition } from "@/types/game";
 import MuteToggle from "@/components/MuteToggle";
 import UserMenu from "@/components/UserMenu";
 import { useGameState } from "@/game/state/useGameState";
-import { getSolarSystem } from "@/game/data/solarSystems";
+import { getSolarSystem } from "@/game/data";
 
 function StatRow({
   label,

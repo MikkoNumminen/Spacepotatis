@@ -1,6 +1,6 @@
 import type { ShipConfig, WeaponInstance, WeaponPosition } from "@/game/state/ShipConfig";
 import type { WeaponDefinition } from "@/types/game";
-import { getWeapon } from "@/game/data/weapons";
+import { getWeapon } from "@/game/data";
 import { slotLabel } from "./SlotGrid";
 
 export interface EquippedEntry {

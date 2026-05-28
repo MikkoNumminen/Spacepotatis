@@ -1,10 +1,10 @@
-import { getAllMissions } from "@/game/data/missions";
+import { getAllMissions } from "@/game/data";
 import type {
   MissionDefinition,
   MissionId,
   SolarSystemId
 } from "@/types/game";
-import { type StoryId } from "@/game/data/story";
+import { type StoryId } from "@/game/data";
 import { DEFAULT_SHIP, type ShipConfig } from "./ShipConfig";
 import {
   readSeenStoriesLocal,

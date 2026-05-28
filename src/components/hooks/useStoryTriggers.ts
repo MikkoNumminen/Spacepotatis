@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MissionId } from "@/types/game";
 import type { SolarSystemId } from "@/types/game";
-import { STORY_ENTRIES, type StoryId } from "@/game/data/story";
 import {
+  STORY_ENTRIES,
+  type StoryId,
   selectFirstTimeEntry,
   selectOnMissionSelectEntry,
   selectOnSystemEnterEntry,
   selectReadyAllClearedIdleEntries,
   selectReadyClearedIdleEntries
-} from "@/game/data/storyTriggers";
+} from "@/game/data";
 import { storyAudio, storyLogAudio } from "@/game/audio";
 import { markStorySeen } from "@/game/state/GameState";
 import { saveNow } from "@/game/state/sync";
