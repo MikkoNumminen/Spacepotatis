@@ -2,8 +2,7 @@
 
 import { playUiCue } from "@/game/audio";
 import { getAugment } from "@/game/data";
-import { sellAugment } from "@/game/state/GameState";
-import { getAugmentSellPrice } from "@/game/state/pricing";
+import { sellAugment, getAugmentSellPrice } from "@/game/state";
 import type { AugmentId } from "@/types";
 import { AugmentDot } from "./dots";
 import { SectionHeading } from "./SectionHeading";

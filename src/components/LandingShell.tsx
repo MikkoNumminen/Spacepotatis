@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import MenuBriefing from "@/components/MenuBriefing";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
-import { useOptimisticAuth } from "@/game/state/useOptimisticAuth";
+import { useOptimisticAuth } from "@/game/state";
 
 // Client wrapper for the landing page main content. Holds the boot splash
 // up until the auth status is verified. MenuBriefing is only rendered

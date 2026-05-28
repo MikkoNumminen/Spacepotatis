@@ -8,12 +8,8 @@ import {
   buyReactorRechargeUpgrade,
   buyShieldUpgrade,
   buyWeapon,
-  markStorySeen
-} from "@/game/state/GameState";
-import { saveNow } from "@/game/state/sync";
-import { STORY_ENTRIES } from "@/game/data";
-import { itemSfx, menuMusic, shopMusic, storyAudio } from "@/game/audio";
-import {
+  markStorySeen,
+  saveNow,
   MAX_LEVEL,
   armorUpgradeCost,
   getMaxArmor,
@@ -22,13 +18,15 @@ import {
   getReactorRecharge,
   reactorCapacityCost,
   reactorRechargeCost,
-  shieldUpgradeCost
-} from "@/game/state/ShipConfig";
+  shieldUpgradeCost,
+  useGameState
+} from "@/game/state";
+import type { ShipConfig } from "@/game/state";
+import { STORY_ENTRIES } from "@/game/data";
+import { itemSfx, menuMusic, shopMusic, storyAudio } from "@/game/audio";
 import { getWeapon, getAllAugments, getBuyableWeaponIds } from "@/game/data";
 import type { AugmentId, WeaponDefinition, WeaponId } from "@/types";
 import type { AugmentDefinition } from "@/game/data";
-import type { ShipConfig } from "@/game/state/ShipConfig";
-import { useGameState } from "@/game/state/useGameState";
 import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";
 import { AugmentDetailsModal } from "@/components/loadout/AugmentDetailsModal";
 import { UpgradeDetailsModal } from "@/components/loadout/UpgradeDetailsModal";

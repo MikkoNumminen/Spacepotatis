@@ -3,9 +3,9 @@ import {
   getMaxArmor,
   getMaxShield,
   getReactorCapacity,
-  getReactorRecharge,
-  type ShipConfig
-} from "@/game/state/ShipConfig";
+  getReactorRecharge
+} from "@/game/state";
+import type { ShipConfig } from "@/game/state";
 import { emit } from "../../events";
 import { sfx } from "@/game/audio";
 

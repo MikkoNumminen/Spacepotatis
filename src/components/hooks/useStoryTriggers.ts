@@ -13,8 +13,7 @@ import {
   selectReadyClearedIdleEntries
 } from "@/game/data";
 import { storyAudio, storyLogAudio } from "@/game/audio";
-import { markStorySeen } from "@/game/state/GameState";
-import { saveNow } from "@/game/state/sync";
+import { markStorySeen, saveNow } from "@/game/state";
 
 // Owns the entire galaxy-view story-trigger surface so adding a new
 // auto-trigger kind doesn't reach into GameCanvas.

@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import type { MissionId } from "@/types";
-import * as GameState from "@/game/state/GameState";
+import * as GameState from "@/game/state";
 import { sfx, itemSfx } from "@/game/audio";
 import {
   PowerUpPool,
@@ -15,7 +15,7 @@ import type { ScoreSystem } from "../../systems/ScoreSystem";
 import { randomPerkId, type PerkId } from "../../../data/perks";
 import { getMission } from "../../../data/missions";
 import { getWeapon } from "../../../data/weapons";
-import { ownsAnyOfType } from "@/game/state/ShipConfig";
+import { ownsAnyOfType } from "@/game/state";
 
 export const DROP_CHANCE = 0.18;
 // Of any drop, 25% is a mission perk (rare). Remaining 75% splits across

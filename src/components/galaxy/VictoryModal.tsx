@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { CombatSummary } from "@/game/phaser/config";
 import { itemSfx } from "@/game/audio";
 import { getWeapon } from "@/game/data";
-import { describeMissionReward } from "@/game/state/rewards";
+import { describeMissionReward } from "@/game/state";
 import type { WeaponId } from "@/types";
 
 // Server-sync outcome surfaced under the stats. GameCanvas drives this from

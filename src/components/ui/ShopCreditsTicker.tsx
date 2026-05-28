@@ -1,6 +1,6 @@
 "use client";
 
-import { useGameState } from "@/game/state/useGameState";
+import { useGameState } from "@/game/state";
 
 // Live credit balance for the sticky shop header. Reads via useGameState so
 // a buy/sell/upgrade in the panels below updates the ticker in the same

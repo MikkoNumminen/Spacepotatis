@@ -2,14 +2,11 @@ import { useState } from "react";
 import {
   buyWeaponUpgrade,
   getSellPrice,
-  sellWeapon
-} from "@/game/state/GameState";
-import {
+  sellWeapon,
   MAX_LEVEL,
-  weaponUpgradeCost,
-  type WeaponInstance,
-  type WeaponPosition
-} from "@/game/state/ShipConfig";
+  weaponUpgradeCost
+} from "@/game/state";
+import type { WeaponInstance, WeaponPosition } from "@/game/state";
 import {
   MAX_AUGMENTS_PER_WEAPON,
   getAugment,

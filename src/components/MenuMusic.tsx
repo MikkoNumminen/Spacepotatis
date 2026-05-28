@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { menuMusic } from "@/game/audio";
-import { useGameState } from "@/game/state/useGameState";
+import { useGameState } from "@/game/state";
 import { getSolarSystem } from "@/game/data";
 
 // Mounted once at the root layout. Listens for the first user gesture and

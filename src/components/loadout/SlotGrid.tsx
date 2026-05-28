@@ -1,5 +1,5 @@
 import { getWeapon } from "@/game/data";
-import type { WeaponSlots } from "@/game/state/ShipConfig";
+import type { WeaponSlots } from "@/game/state";
 import { WeaponDot } from "./dots";
 
 // Friendly label for an array index: slot 0 is "MAIN", subsequent slots

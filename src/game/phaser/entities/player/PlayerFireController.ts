@@ -1,4 +1,4 @@
-import type { WeaponInstance } from "@/game/state/ShipConfig";
+import type { WeaponInstance } from "@/game/state";
 import { WeaponSystem } from "../../systems/WeaponSystem";
 import { sfx } from "@/game/audio";
 import type { SlotMods } from "./SlotModResolver";
