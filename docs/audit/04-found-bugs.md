@@ -69,6 +69,14 @@ Severity is a rough hint, not a release-grade triage.
 - Description: 1819 lines of procedural texture generation (every weapon bullet, pod, enemy sprite, perk icon, etc.). The zone B agent notes this is a documented placeholder pending real PNG assets. Worth flagging because it skews the god-file metric for the whole codebase, and because the in-file generators are sufficiently independent that they could be split into a `boot/` subfolder of generators with a thin `BootScene.ts` orchestrator.
 - Suggested fix: defer until real art lands. If real art doesn't land soon, split the generators into per-family files (`boot/bullets.ts`, `boot/enemies.ts`, etc.) for sanity.
 
+## 2026-05-04 — Four `ui` god-files (GameCanvas, ShopUI, QuestPanel, WeaponCard)
+- Paths: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx) (452 LOC), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx) (408 LOC), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx) (387 LOC), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx) (210 LOC).
+- Found by: Phase 1 inventory ([`docs/audit/01-inventory.md:303-306`](docs/audit/01-inventory.md))
+- Severity: low (structural — no functional bug, but each carries enough responsibilities that a future change carries change-amplification risk)
+- Description: each file mixes 5+ concerns in one module. `GameCanvas` is the worst with 11 distinct responsibilities listed in the inventory; `ShopUI` mixes 3 catalog sections + 6 mutator wirings + 2 audio side-effects; `QuestPanel` is borderline at 5 sub-sections + 2 expansion effects; `WeaponCard` is a single concern but dense at 210 LOC.
+- Suggested fix: per-file extraction PRs after the `ui` module barrel lands ([`_progress.md`](_progress.md) Q4). Splits are scheduled as small focused refactors, not bundled.
+- **Partial resolution 2026-05-29 in PR refactor/gamecanvas-split**: GameCanvas split — extracted `useGameMode` (mode machine + audio bed contract), `useTransitionOverlay` (black fade + dynamic three.js import), `useVictoryFlow` (post-combat state machine + save/score queue drain triggers). GameCanvas reduced 452 → 338 LOC. The other three god-files (ShopUI, QuestPanel, WeaponCard) remain.
+
 ## 2026-05-04 — `state/stateCore.ts` runs `getAllMissions()` + `readSeenStoriesLocal()` at module load
 - Path: [`src/game/state/stateCore.ts:33`](src/game/state/stateCore.ts#L33), [`:58`](src/game/state/stateCore.ts#L58)
 - Found by: zone C
