@@ -1,149 +1,52 @@
 import * as THREE from "three";
-import type { MissionId } from "@/types";
+import type { MissionId, PlanetStyle } from "@/types";
 
 const TEX_W = 384;
 const TEX_H = 192;
 
 type Rgb = readonly [number, number, number];
 
-interface SurfaceStyle {
-  readonly noiseScale: number;
-  readonly octaves: number;
-  readonly bandStrength: number;
-  readonly featureColor: Rgb | null;
-  readonly featureThreshold: number;
-  readonly featureMix: number;
-  readonly craters: number;
-  readonly craterSizeRange: readonly [number, number];
-}
-
 export interface ProceduralPlanet {
   readonly map: THREE.CanvasTexture;
   readonly bumpMap: THREE.CanvasTexture;
 }
 
-export function generatePlanetSurface(missionId: MissionId, baseColor: number): ProceduralPlanet {
+// Surface tuning for planets that don't ship an explicit `planetStyle` in
+// missions.json. Data-driven entries override every field; this fallback
+// only kicks in for future scenery / shop additions that haven't been art-
+// directed yet. Combat missions MUST ship their own style — the integrity
+// check rejects entries that omit it (see src/game/data/integrityCheck.ts).
+const DEFAULT_PLANET_STYLE: PlanetStyle = {
+  noiseScale: 2.6,
+  octaves: 5,
+  bandStrength: 0,
+  featureColor: null,
+  featureThreshold: 0.6,
+  featureMix: 0.5,
+  craters: 12,
+  craterSizeRange: [3, 10]
+};
+
+/**
+ * Builds a procedural diffuse + bump pair for a planet sphere.
+ *
+ * The surface style is now read from `style` (sourced from
+ * `mission.planetStyle` in missions.json); the legacy hard-coded switch on
+ * `missionId` has been removed. `missionId` is still threaded in so the
+ * texture's noise seed stays stable across reloads — adding or removing a
+ * planet doesn't reshuffle the look of every other planet.
+ */
+export function generatePlanetSurface(
+  missionId: MissionId,
+  baseColor: number,
+  style: PlanetStyle = DEFAULT_PLANET_STYLE
+): ProceduralPlanet {
   const seed = hashString(missionId);
   const palette = derivePalette(baseColor);
-  const style = styleFor(missionId);
   const heights = new Float32Array(TEX_W * TEX_H);
   const map = paintDiffuse(seed, palette, style, heights);
   const bumpMap = paintBump(heights);
   return { map, bumpMap };
-}
-
-function styleFor(id: MissionId): SurfaceStyle {
-  switch (id) {
-    case "tutorial":
-      return {
-        noiseScale: 2.6,
-        octaves: 5,
-        bandStrength: 0,
-        featureColor: [210, 178, 128],
-        featureThreshold: 0.58,
-        featureMix: 0.55,
-        craters: 22,
-        craterSizeRange: [3, 11]
-      };
-    case "combat-1":
-      return {
-        noiseScale: 3.2,
-        octaves: 5,
-        bandStrength: 0,
-        featureColor: [70, 40, 30],
-        featureThreshold: 0.62,
-        featureMix: 0.6,
-        craters: 36,
-        craterSizeRange: [2, 14]
-      };
-    case "boss-1":
-      return {
-        noiseScale: 2.0,
-        octaves: 5,
-        bandStrength: 0,
-        featureColor: [255, 170, 60],
-        featureThreshold: 0.7,
-        featureMix: 0.85,
-        craters: 6,
-        craterSizeRange: [4, 9]
-      };
-    case "shop":
-      // Spurdospärdersi — cool banded ice giant.
-      return {
-        noiseScale: 2.4,
-        octaves: 4,
-        bandStrength: 0.35,
-        featureColor: [240, 250, 255],
-        featureThreshold: 0.72,
-        featureMix: 0.7,
-        craters: 0,
-        craterSizeRange: [0, 0]
-      };
-    case "market":
-      // Market station — small metallic body. Plate-like banding, no craters.
-      return {
-        noiseScale: 6.0,
-        octaves: 3,
-        bandStrength: 0.55,
-        featureColor: [200, 210, 220],
-        featureThreshold: 0.55,
-        featureMix: 0.6,
-        craters: 0,
-        craterSizeRange: [0, 0]
-      };
-    case "tubernovae-outpost":
-      // Tubernovae Outpost — heavily-banded blue-grey gas giant with a
-      // tighter, stormier band pattern than the tutorial shop.
-      return {
-        noiseScale: 2.0,
-        octaves: 4,
-        bandStrength: 0.55,
-        featureColor: [220, 230, 245],
-        featureThreshold: 0.7,
-        featureMix: 0.65,
-        craters: 0,
-        craterSizeRange: [0, 0]
-      };
-    case "pirate-beacon":
-      // Jungle moon — dense vegetation patches at high altitude, heavy
-      // crater pockmarking from past pirate raids.
-      return {
-        noiseScale: 2.8,
-        octaves: 5,
-        bandStrength: 0,
-        featureColor: [40, 120, 70],
-        featureThreshold: 0.55,
-        featureMix: 0.55,
-        craters: 26,
-        craterSizeRange: [3, 11]
-      };
-    case "ember-run":
-      // Active lava world — bright molten ridges erupting through cooled
-      // black crust, faint convective banding.
-      return {
-        noiseScale: 3.0,
-        octaves: 5,
-        bandStrength: 0.2,
-        featureColor: [255, 200, 80],
-        featureThreshold: 0.55,
-        featureMix: 0.85,
-        craters: 14,
-        craterSizeRange: [3, 12]
-      };
-    case "burnt-spud":
-      // Volcanic ruin — deep red veins of cooling magma cracking through
-      // a dark charcoal surface. Heavy cratering from the boss fight.
-      return {
-        noiseScale: 2.2,
-        octaves: 5,
-        bandStrength: 0,
-        featureColor: [255, 80, 30],
-        featureThreshold: 0.62,
-        featureMix: 0.9,
-        craters: 34,
-        craterSizeRange: [4, 14]
-      };
-  }
 }
 
 function derivePalette(baseColor: number): readonly [Rgb, Rgb, Rgb, Rgb] {
@@ -166,7 +69,7 @@ function derivePalette(baseColor: number): readonly [Rgb, Rgb, Rgb, Rgb] {
 function paintDiffuse(
   seed: number,
   palette: readonly [Rgb, Rgb, Rgb, Rgb],
-  style: SurfaceStyle,
+  style: PlanetStyle,
   heightsOut: Float32Array
 ): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");

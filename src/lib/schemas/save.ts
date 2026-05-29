@@ -26,6 +26,14 @@ import type {
   MissionId,
   SolarSystemId
 } from "@/types";
+import { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/types";
+// AI-NOTE: ship-shape TYPES (`ReactorConfig`, `ShipConfig`, etc.) deliberately
+// stay imported from `@/game/state/ShipConfig` per the Phase 4 doc-writer
+// decision documented in src/types/game.ts — they're gameplay-state shape,
+// not cross-engine schema. This is an ACCEPTED architectural back-edge from
+// `schemas` to `state` for TYPE imports only. The pure caps moved to
+// `@/types` to close the constant-import half. See
+// docs/audit/04-found-bugs.md 2026-05-29.
 import type {
   ReactorConfig,
   ShipConfig,
@@ -33,7 +41,6 @@ import type {
   WeaponInventory,
   WeaponSlots
 } from "@/game/state/ShipConfig";
-import { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/game/state/ShipConfig";
 import { WEAPON_IDS } from "@/game/data";
 
 /**

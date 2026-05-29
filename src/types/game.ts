@@ -432,6 +432,49 @@ export interface PlanetRing {
 }
 
 /**
+ * RGB triple in 0..255 — surface-feature accent color for procedural planet
+ * texturing.
+ *
+ * @stable
+ */
+export type PlanetFeatureRgb = readonly [number, number, number];
+
+/**
+ * Procedural-surface tuning for the Three.js planet texture generator.
+ *
+ * Mirrors the parameters consumed by `paintDiffuse()` in
+ * `src/game/three/planetTexture.ts`. Lives in `missions.json` per planet so
+ * adding a new entry can't crash the texture generator at render time — a
+ * missing `planetStyle` on a combat mission is caught by the integrity
+ * check at boot rather than by a non-exhaustive switch.
+ *
+ * - `noiseScale` — fbm frequency multiplier; larger = finer detail.
+ * - `octaves` — fbm octave count; more = richer noise but slower.
+ * - `bandStrength` — 0..1 latitudinal banding weight (0 = none, used for
+ *   gas-giant / banded-ice looks).
+ * - `featureColor` — accent RGB blended in above `featureThreshold`; null
+ *   when no accent is desired.
+ * - `featureThreshold` — 0..1 height threshold above which the accent
+ *   color mixes in.
+ * - `featureMix` — 0..1 mix strength of the accent at the top of the
+ *   height ramp.
+ * - `craters` — number of crater impacts to stamp.
+ * - `craterSizeRange` — `[min, max]` crater radius in texels.
+ *
+ * @stable
+ */
+export interface PlanetStyle {
+  readonly noiseScale: number;
+  readonly octaves: number;
+  readonly bandStrength: number;
+  readonly featureColor: PlanetFeatureRgb | null;
+  readonly featureThreshold: number;
+  readonly featureMix: number;
+  readonly craters: number;
+  readonly craterSizeRange: readonly [number, number];
+}
+
+/**
  * One row of `missions.json` — the static catalog entry for a mission /
  * shop / scenery planet.
  *
@@ -468,6 +511,12 @@ export interface MissionDefinition {
   readonly musicTrack: string | null; // path under /public/audio/music/
   readonly ring?: PlanetRing;
   readonly perksAllowed?: boolean;    // if true, mission-only perks may drop here. Default: false.
+  // Procedural-texture style for the Three.js galaxy-view sphere. Optional in
+  // the schema so scenery / shop entries can fall back to a default style, but
+  // every entry that should render with bespoke surface tuning carries one.
+  // The integrity check rejects a `kind: "mission"` entry that omits this —
+  // see src/game/data/integrityCheck.ts.
+  readonly planetStyle?: PlanetStyle;
 }
 
 // ---------------------------------------------------------------------------
@@ -476,3 +525,24 @@ export interface MissionDefinition {
 // ShipConfig, WeaponSlots, and ReactorConfig live in src/game/state/ShipConfig.ts.
 // They are gameplay state, not shared cross-engine schema, so they stay alongside
 // the helpers that mutate them.
+//
+// HOWEVER: the pure caps below ARE shared. They constrain both the wire format
+// (src/lib/schemas/save.ts uses them as .max() bounds) and the cheat guards
+// (src/lib/saveValidation.ts uses MAX_LEVEL in credit-cap derivation). Living
+// in this leaf module means `schemas`, `infra`, and `state` all consume from
+// the same source instead of `schemas/infra → state` back-edges.
+
+/**
+ * Maximum legal weapon-upgrade level. Level 1 is base; each level adds 15%
+ * damage; level MAX_LEVEL is the cap.
+ *
+ * @stable
+ */
+export const MAX_LEVEL = 5;
+
+/**
+ * Soft cap on how many weapon slots a player can buy.
+ *
+ * @stable
+ */
+export const MAX_WEAPON_SLOTS = 6;

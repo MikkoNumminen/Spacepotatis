@@ -18,6 +18,25 @@ The exports listed below are the contract. Anything else exported is INTERNAL
 and may be removed without notice — see [Internal](#internal) for the
 deliberately-not-public surface.
 
+### ⚠ Barrel-import limitation (`@/lib` is nominal-only today)
+
+PR #248 added [`src/lib/index.ts`](./index.ts) re-exporting every infra
+module, intending it to be the public surface (the same pattern Tier 1-4
+adopted for `types`, `schemas`, `audio`, `content`, `state`, `three`,
+`phaser`). **The barrel currently has zero consumers** — every cross-module
+importer reaches a deep path (`@/lib/auth`, `@/lib/db`, `@/lib/routes`, …).
+
+Why: the barrel re-exports from [`auth.ts`](./auth.ts), and `auth.ts` calls
+`NextAuth(config)` at module load. Routing existing imports through `@/lib`
+pulls `next-auth` → `next/server` into 6 test files that don't expect it,
+turning every test of an infra consumer into a `Cannot find module
+'next/server'` failure.
+
+If you are adding **new** code that imports from this module, prefer the
+deep path until the limitation is resolved. See
+[`docs/audit/04-found-bugs.md`](../../docs/audit/04-found-bugs.md) 2026-05-29
+for the three resolution options on the table.
+
 ### DB ([db.ts](./db.ts))
 
 - `getDb()` — lazy-init Kysely client over Neon's serverless `Pool`. Throws
@@ -53,12 +72,11 @@ deliberately-not-public surface.
   retry that catches transient `/api/auth/session` failures (Edge cold-start
   race). Without this, a refreshed page could flip to `unauthenticated` and
   cascade-wipe the optimistic auth cache.
-- `useOptimisticAuth()` — composite hook. Renders the cached auth snapshot
-  immediately, reconciles with the real session in the background. **AI-NOTE:**
-  this file contains the only `lib → game` backedge in the codebase
-  (it imports from `@/game/state/sync` and `@/game/state/syncCache`). Audit
-  Phase 3 plan: move this to `src/game/state/`. Do **not** add more
-  `lib → game` imports.
+- `useOptimisticAuth()` — **MOVED in PR #248**. The composite hook now lives at
+  [`src/game/state/useOptimisticAuth.ts`](../game/state/useOptimisticAuth.ts).
+  Re-exported by the state barrel. The Phase 3 plan to close the `lib → game`
+  backedge is complete. New consumers import from `@/game/state` (or the
+  deep path `@/game/state/useOptimisticAuth`).
 
 ### Cheat guards ([saveValidation.ts](./saveValidation.ts))
 
@@ -161,7 +179,7 @@ compatible.**
 | `@/lib/schemas/*` | API route consumers, **not this module** | Zod schemas validate POST bodies before the cheat guards run. The guards themselves take typed inputs and trust the schema layer for shape. |
 | `@/types/game` | `saveValidation.ts`, `leaderboard.ts` | `MissionId`, `SolarSystemId`, etc. |
 | `@/game/data/*` | `saveValidation.ts` | Mission graph + loot pools + enemy creditValue. **Cross-domain edge** — the cheat guard walks JSON content at module load (`saveValidation.ts:170`); audit recommends lazy-init in a future PR. |
-| `@/game/state/sync`, `@/game/state/syncCache` | `useOptimisticAuth.ts` | **Backedge** — see AI-NOTE in that file. |
+| `@/game/state/ShipConfig` | `saveValidation.ts` (`MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES`) | **Architectural back-edge** — see [04-found-bugs.md 2026-05-29](../../docs/audit/04-found-bugs.md). Pre-dates the audit; surfaced by Phase 5 verification, not yet resolved. |
 
 ## Invariants
 
@@ -203,10 +221,18 @@ compatible.**
 
 ## Common pitfalls
 
-- **The lib → game backedge** in `useOptimisticAuth.ts:10-11`. Today this is
-  the *only* `lib → game` import in the codebase. Don't replicate the
-  pattern in any other lib module — the audit Phase 3 plan is to move this
-  hook to `state/`.
+- **`@/lib` barrel is nominal-only.** See the warning at the top of "Public
+  API". Routing existing deep imports through the barrel breaks 6 test files
+  via `auth.ts`'s NextAuth-at-module-load side effect. For NEW infra
+  consumers, use deep paths; existing code stays on deep paths too. Open
+  question logged in [04-found-bugs.md 2026-05-29](../../docs/audit/04-found-bugs.md).
+- **`infra → state` back-edge in `saveValidation.ts`.** Three constants
+  (`MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES`) are pulled from
+  `@/game/state/ShipConfig` and `@/game/state/stateCore`. Pre-dates the
+  audit. Renaming any of those three exports breaks the cheat-guard chain;
+  the TS compiler catches it but the README explanation for the rename
+  needs to mention this consumer too. Logged in [04-found-bugs.md
+  2026-05-29](../../docs/audit/04-found-bugs.md).
 - **Bypassing `validateNoRegression`** on the POST path is the
   2026-05-02-wipe footgun. The other three guards explicitly *allow*
   shrinking values (credit spending is legitimate). Only this one catches

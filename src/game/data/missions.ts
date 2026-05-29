@@ -22,8 +22,13 @@ import {
 
 // AI-NOTE: deliberate `as` cast — soundness enforced by jsonSchemaValidation.test.ts.
 // Re-adding Zod.parse at module load cost ~98 kB first-load JS (PR history).
+// `as unknown as` because tsc widens fixed-tuple JSON literals
+// (`planetStyle.featureColor: [r, g, b]`, `craterSizeRange: [min, max]`) to
+// `number[]`, and a direct cast to the tuple-typed interface no longer
+// satisfies the overlap heuristic. Soundness check stays in the CI drift
+// gate via MissionsFileSchema.
 const ALL_MISSIONS: readonly MissionDefinition[] =
-  (missionsData as { missions: readonly MissionDefinition[] }).missions;
+  (missionsData as unknown as { missions: readonly MissionDefinition[] }).missions;
 
 const MISSIONS: ReadonlyMap<MissionId, MissionDefinition> = new Map(
   ALL_MISSIONS.map((m) => [m.id, m])
