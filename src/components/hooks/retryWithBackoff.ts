@@ -3,6 +3,14 @@
 // Extracted as a pure helper so the timing + cancellation contract is
 // testable from a `node` test env without a React renderer.
 
+// Defaults the consumer hooks share. Two attempts after the initial one
+// recover from typical transient blips without making a deterministic
+// failure take an unbearable ~3s to surface. 300ms is empirically long
+// enough for a WebGL context to come back after a rapid dispose+recreate
+// without being noticeable as a stutter.
+export const DEFAULT_MAX_INIT_ATTEMPTS = 3;
+export const DEFAULT_RETRY_DELAY_MS = 300;
+
 export interface RetryOptions {
   readonly maxAttempts: number;
   readonly delayMs: number;

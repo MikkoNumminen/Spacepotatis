@@ -3,14 +3,17 @@
 import { useEffect, useState, type RefObject } from "react";
 import type { CombatSummary } from "@/game/phaser";
 import type { MissionId } from "@/types";
-import { retryWithBackoff } from "./retryWithBackoff";
+import {
+  retryWithBackoff,
+  DEFAULT_MAX_INIT_ATTEMPTS,
+  DEFAULT_RETRY_DELAY_MS
+} from "./retryWithBackoff";
 
-// Retry budget for transient init failures (dynamic-import flake, brief
-// WebGL context loss as the parent div mounts, etc.). The error is only
-// surfaced after MAX_INIT_ATTEMPTS — transient blips that recover on a
-// retry never reach the user.
-const MAX_INIT_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 300;
+// Retry budget defaults imported from retryWithBackoff. Aliased locally
+// for `setError` message templating + console.error labels — keeps the
+// failure log readable without re-deriving "X/Y" from raw retry options.
+const MAX_INIT_ATTEMPTS = DEFAULT_MAX_INIT_ATTEMPTS;
+const RETRY_DELAY_MS = DEFAULT_RETRY_DELAY_MS;
 
 // Combat lifecycle: mount Phaser into the parent div when enabled.
 // Callers should route their onComplete through a ref so a mid-combat

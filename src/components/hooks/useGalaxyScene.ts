@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MissionDefinition, MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data";
 import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three";
-import { retryWithBackoff } from "./retryWithBackoff";
+import {
+  retryWithBackoff,
+  DEFAULT_MAX_INIT_ATTEMPTS,
+  DEFAULT_RETRY_DELAY_MS
+} from "./retryWithBackoff";
 
 const STATUS_CLEARED: MissionStatus = { label: "✓ Cleared", color: "#5effa7" };
 const STATUS_AVAILABLE: MissionStatus = { label: "Available", color: "#ffcc33" };
@@ -33,11 +37,11 @@ function buildStatusMap(
   return map;
 }
 
-// Retry budget for transient init failures (WebGL context blip during the
-// dispose/recreate dance on warp, dynamic-import flake, etc.). Each attempt
-// is gated by the `disposed` flag so a cleanup mid-flight stops the loop.
-const MAX_INIT_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 300;
+// Retry budget defaults imported from retryWithBackoff. Aliased locally
+// for `setError` message templating + console.error labels — keeps the
+// failure log readable without re-deriving "X/Y" from raw retry options.
+const MAX_INIT_ATTEMPTS = DEFAULT_MAX_INIT_ATTEMPTS;
+const RETRY_DELAY_MS = DEFAULT_RETRY_DELAY_MS;
 
 // Returns `ready` so SplashGate can wait for the first rendered frame
 // before fading the boot screen out — rendering the HUD over a black
