@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   buyArmorUpgrade,
   buyAugment,
@@ -8,8 +8,6 @@ import {
   buyReactorRechargeUpgrade,
   buyShieldUpgrade,
   buyWeapon,
-  markStorySeen,
-  saveNow,
   MAX_LEVEL,
   armorUpgradeCost,
   getMaxArmor,
@@ -22,8 +20,7 @@ import {
   useGameState
 } from "@/game/state";
 import type { ShipConfig } from "@/game/state";
-import { STORY_ENTRIES } from "@/game/data";
-import { itemSfx, menuMusic, shopMusic, storyAudio } from "@/game/audio";
+import { itemSfx } from "@/game/audio";
 import { getWeapon, getAllAugments, getBuyableWeaponIds } from "@/game/data";
 import type { WeaponDefinition } from "@/types";
 import type { AugmentDefinition } from "@/game/data";
@@ -38,7 +35,6 @@ import { ShopAugmentsSection } from "@/components/shop/ShopAugmentsSection";
 export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
   const ship = useGameState((s) => s.ship);
-  const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
   const completedMissions = useGameState((s) => s.completedMissions);
   const [weaponDetails, setWeaponDetails] = useState<WeaponDefinition | null>(null);
   const [augmentDetails, setAugmentDetails] = useState<AugmentDefinition | null>(null);
@@ -57,51 +53,10 @@ export default function ShopUI() {
     []
   );
 
-  // Plays the on-shop-open briefing every time the player docks (any shop
-  // → /shop). The seen-set is consulted only to decide whether to mark
-  // seen + save (first dock) — the audio plays unconditionally so a
-  // returning player still gets the welcome line on every visit.
-  // Empty dep array intentionally: fire once on mount, cleanup stops
-  // the voice if the player navigates away mid-playback. Adding
-  // `seenStoryEntries` to the deps would tear down and restart the voice
-  // mid-playback when a stale saveNow finally propagates the seen-set
-  // change back into useGameState.
-  //
-  // Stale-capture guard: read seenStoryEntries via a ref inside the
-  // effect so the mark-seen + saveNow branch checks the LATEST value at
-  // the moment the effect runs. Without this, a re-dock that lands
-  // before the previous saveNow has flushed would see a stale
-  // `seenStoryEntries` snapshot and re-POST the same mark-seen state.
-  const seenStoryEntriesRef = useRef(seenStoryEntries);
-  seenStoryEntriesRef.current = seenStoryEntries;
-  useEffect(() => {
-    const entry = STORY_ENTRIES.find((e) => e.autoTrigger?.kind === "on-shop-open");
-    if (!entry) return;
-    storyAudio.play({
-      musicSrc: entry.musicTrack,
-      voiceSrc: entry.voiceTrack,
-      voiceDelayMs: entry.voiceDelayMs
-    });
-    if (!seenStoryEntriesRef.current.includes(entry.id)) {
-      markStorySeen(entry.id);
-      void saveNow();
-    }
-    return () => {
-      storyAudio.stop();
-    };
-  }, []);
-
-  // Shop bed: ducks the menu/galaxy bed and plays /audio/music/shop.ogg
-  // for the duration of the visit. Per-shop music is a future change —
-  // when it lands, swap the hard-coded path for a per-mission lookup.
-  useEffect(() => {
-    menuMusic.duck();
-    shopMusic.loadTrack("/audio/music/shop.ogg");
-    return () => {
-      shopMusic.stop();
-      menuMusic.unduck();
-    };
-  }, []);
+  // Audio orchestration (shop bed + dock-arrival voice) lives in
+  // `useShopAudio`, mounted at the ShopTabs level — see that hook's
+  // header for the contract. ShopUI is now purely the market-tab
+  // purchase view.
 
   // Each handler fires its sfx alongside the mutation. The buttons are
   // disabled when the player can't afford the cost, so reaching the
