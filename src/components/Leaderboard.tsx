@@ -1,11 +1,16 @@
 import type { MissionId } from "@/types";
-import { getCachedLeaderboard, isBuildPhase } from "@/lib/leaderboard";
+import { getCachedLeaderboard } from "@/lib/leaderboard";
 
 // Server Component. Reads via the `unstable_cache`-wrapped helper so a fresh
 // page render hits Neon at most once per revalidate window per (mission,
 // limit) pair, and not at all when the cached entry is still warm. The
 // previous client-side fetch hit /api/leaderboard on every mount because
 // `next.revalidate` on browser fetch is a no-op.
+//
+// Build-phase guard lives at the PAGE level (src/app/leaderboard/page.tsx)
+// — when isBuildPhase() is true the page swaps the whole grid for a
+// single loading screen, so this component never renders during build.
+// The empty branch below covers ONLY the genuine-runtime-empty case.
 export default async function Leaderboard({
   missionId,
   limit = 10
@@ -26,13 +31,6 @@ export default async function Leaderboard({
   }
 
   if (entries.length === 0) {
-    // Distinguish "we skipped Neon at build time, real data lands after
-    // ISR refresh" from "this mission genuinely has zero scores". The
-    // build-phase render is baked into the static HTML for ~60s after
-    // deploy — render a loading skeleton so it cannot be mistaken for an
-    // empty leaderboard. The genuine empty case still gets the "be the
-    // first" copy.
-    if (isBuildPhase()) return <LeaderboardSkeleton />;
     return <div className="text-xs text-space-border">No scores yet — be the first.</div>;
   }
 
@@ -60,29 +58,6 @@ export default async function Leaderboard({
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function LeaderboardSkeleton() {
-  return (
-    <div
-      className="-mx-1 space-y-2 text-xs"
-      aria-busy="true"
-      aria-live="polite"
-    >
-      <span className="sr-only">Loading leaderboard…</span>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 border-t border-space-border/40 py-1 first:border-t-0"
-        >
-          <div className="h-3 w-4 animate-pulse rounded bg-space-border/30" />
-          <div className="h-3 w-28 animate-pulse rounded bg-space-border/30" />
-          <div className="ml-auto h-3 w-12 animate-pulse rounded bg-space-border/30" />
-          <div className="h-3 w-10 animate-pulse rounded bg-space-border/30" />
-        </div>
-      ))}
     </div>
   );
 }

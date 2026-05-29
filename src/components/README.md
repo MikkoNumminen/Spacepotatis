@@ -77,6 +77,7 @@ NEVER reaches the database directly. NEVER reaches schemas directly. All server-
 - **Adding context providers** to share state. Use `useGameState(selector)` instead — the existing subscription is faster and avoids prop-drill via context.
 - **Re-implementing audio playback.** Use the existing engines from `audio/`. The mute fan-out + iOS-budget handling are non-trivial.
 - **Adding raw `fetch("/api/...")` calls** anywhere in this module. Go through `state/sync.ts` (which uses `ROUTES` constants) so the cheat-guard / regression / queue paths can wrap the call.
+- **Adding a build-phase loading state inside `Leaderboard.tsx` / `TopPilots.tsx`.** Don't — the guard lives at the page level (`src/app/leaderboard/page.tsx`) where `isBuildPhase()` swaps the whole data area for one centered loading card. A per-component skeleton fragments the page back into the empty-looking grid the original PR #268 fix removed. The empty branches in those components are for the runtime-empty case only ("be the first").
 
 ## How to test changes
 
