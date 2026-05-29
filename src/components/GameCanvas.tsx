@@ -241,7 +241,23 @@ export default function GameCanvas() {
       splash={<Splash steps={splashSteps} />}
     >
     <div className="relative h-dvh w-dvw overflow-hidden bg-space-bg">
-      {mode === "galaxy" && <canvas ref={galaxyCanvasRef} className="block h-full w-full" />}
+      {mode === "galaxy" && (
+        // INVARIANT: keyed on currentSolarSystemId so React unmounts the old
+        // canvas and mounts a fresh one whenever the active system changes
+        // (warp). SceneRig.dispose() calls renderer.forceContextLoss() to
+        // reclaim the WebGL context budget on galaxy↔combat cycling — that's
+        // only safe when the canvas DOM element is also going away. Reusing
+        // the same canvas across a warp would leave it in a permanently-lost
+        // context state, and the next `new THREE.WebGLRenderer({ canvas })`
+        // would throw deterministically (all 3 retries in useGalaxyScene
+        // would hit the same failure). The key forces the canvas to die
+        // alongside its old context.
+        <canvas
+          ref={galaxyCanvasRef}
+          key={currentSolarSystemId}
+          className="block h-full w-full"
+        />
+      )}
       {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
 
       {mode === "galaxy" && ready && (
