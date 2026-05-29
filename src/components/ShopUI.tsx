@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buyArmorUpgrade,
   buyAugment,
@@ -62,7 +62,18 @@ export default function ShopUI() {
   // seen + save (first dock) — the audio plays unconditionally so a
   // returning player still gets the welcome line on every visit.
   // Empty dep array intentionally: fire once on mount, cleanup stops
-  // the voice if the player navigates away mid-playback.
+  // the voice if the player navigates away mid-playback. Adding
+  // `seenStoryEntries` to the deps would tear down and restart the voice
+  // mid-playback when a stale saveNow finally propagates the seen-set
+  // change back into useGameState.
+  //
+  // Stale-capture guard: read seenStoryEntries via a ref inside the
+  // effect so the mark-seen + saveNow branch checks the LATEST value at
+  // the moment the effect runs. Without this, a re-dock that lands
+  // before the previous saveNow has flushed would see a stale
+  // `seenStoryEntries` snapshot and re-POST the same mark-seen state.
+  const seenStoryEntriesRef = useRef(seenStoryEntries);
+  seenStoryEntriesRef.current = seenStoryEntries;
   useEffect(() => {
     const entry = STORY_ENTRIES.find((e) => e.autoTrigger?.kind === "on-shop-open");
     if (!entry) return;
@@ -71,14 +82,13 @@ export default function ShopUI() {
       voiceSrc: entry.voiceTrack,
       voiceDelayMs: entry.voiceDelayMs
     });
-    if (!seenStoryEntries.includes(entry.id)) {
+    if (!seenStoryEntriesRef.current.includes(entry.id)) {
       markStorySeen(entry.id);
       void saveNow();
     }
     return () => {
       storyAudio.stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Shop bed: ducks the menu/galaxy bed and plays /audio/music/shop.ogg

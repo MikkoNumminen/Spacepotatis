@@ -18,6 +18,15 @@ import { combatMusic, menuMusic, shopMusic } from "@/game/audio";
 // and the ShopTabs lifecycle (ShopUI mounts/unmounts on tab switch), so
 // a defensive stop here guarantees the galaxy view never holds the shop
 // bed alive.
+//
+// Cleanup gating: the cleanup branch must NOT call combatMusic.stop() on
+// a galaxy→combat transition. handleLaunch primes combatMusic.loadTrack
+// BEFORE flipping mode to "combat" — if cleanup unconditionally stops on
+// the dep change, the just-loaded mission bed dies and the player gets
+// silence for the first second of combat (until CombatScene.create()
+// re-loads). Same shape for menuMusic.unduck(): leaving combat needs an
+// unduck, but a route-swap unmount during combat must not pre-unduck the
+// menu bed while the combat scene is still up.
 
 export type Mode = "galaxy" | "combat";
 
@@ -48,9 +57,15 @@ export function useGameMode({ cancelPendingBriefing }: UseGameModeOptions): UseG
       menuMusic.unduck();
     }
     return () => {
-      combatMusic.stop();
-      shopMusic.stop();
-      menuMusic.unduck();
+      // Only stop combat/shop beds and unduck menu when we are LEAVING
+      // combat — never when entering it. The cleanup runs both on a
+      // dep change (galaxy→combat) and on unmount; we want the teardown
+      // half of the contract only when the previous mode was "combat".
+      if (mode === "combat") {
+        combatMusic.stop();
+        shopMusic.stop();
+        menuMusic.unduck();
+      }
     };
   }, [mode, cancelPendingBriefing]);
 

@@ -74,7 +74,9 @@ export function useStoryTriggers({
 
   // Read seenStoryEntries via ref so the cleared-idle effect's first-fire
   // mark-seen doesn't bounce its own dep array and reset the initial-delay
-  // timer.
+  // timer. The ref is mutated on every render so `.current` is always the
+  // latest props value — readers inside `fire` closures see fresh data
+  // without needing seenStoryEntries in the dep array.
   const seenStoryEntriesRef = useRef(seenStoryEntries);
   seenStoryEntriesRef.current = seenStoryEntries;
 
@@ -149,22 +151,18 @@ export function useStoryTriggers({
   // any entry from it, the dedicated bed plays continuously. Opening a
   // replay does NOT restart the music.
   //
-  // The `cancelled` sentinel is set on cleanup. storyLogAudio.play() schedules
-  // `HTMLAudioElement.play()` (returns a Promise that resolves async); the
-  // engine itself handles a rejection by catching and ignoring, but the flag
-  // is the canonical React-effect pattern and guards future maintainers
-  // against re-introducing an unawaited-promise race.
+  // Both branches are fully synchronous — no `cancelled` flag is needed
+  // here. If a future maintainer adds an `await` between the branch and
+  // the audio call, re-introduce the cancelled-flag pattern (set in the
+  // cleanup, checked before the audio call) so a stale effect run can't
+  // step on a fresher one.
   const inStoryLogContext = storyListOpen || (activeStory?.fromLog ?? false);
   useEffect(() => {
-    let cancelled = false;
     if (inStoryLogContext) {
-      if (!cancelled) storyLogAudio.play();
+      storyLogAudio.play();
     } else {
-      if (!cancelled) storyLogAudio.stop();
+      storyLogAudio.stop();
     }
-    return () => {
-      cancelled = true;
-    };
   }, [inStoryLogContext]);
 
   // on-mission-select overlay briefings. SELECT_DELAY_MS lets the player

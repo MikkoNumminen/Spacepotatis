@@ -107,7 +107,18 @@ const RESULT_PENDING_ONLY: LoadResult = { kind: "pending-only" };
 export async function loadSave(): Promise<LoadResult> {
   const cached = getSaveCacheValue();
   const lastResult = getLastLoadResultValue() as LoadResult | null;
-  if (cached !== null && lastResult !== null) return lastResult;
+  // Short-circuit only when the prior result was a hydrating outcome. A
+  // saveNow() between loads flips `cached` to `true` (it just committed a
+  // snapshot to the server), but `lastResult` may still mirror an older
+  // "load-failed" — short-circuiting THAT would surface stale failure to
+  // the splash gate even though the player's data is on the server now.
+  if (cached !== null && lastResult !== null && lastResult.kind !== "load-failed") {
+    return lastResult;
+  }
+  // Capture the player email at entry. Any account swap between now and the
+  // cache writes below makes this load's outcome belong to the prior
+  // account; we must NOT poison the post-swap cache with it.
+  const requestEmail = getCurrentPlayerEmail();
   const existing = getInflightLoad();
   // Concurrent callers share the same in-flight Promise. The slot is typed
   // as `Promise<unknown>` in syncCache (kept Zod-free); the consumer side
@@ -123,6 +134,12 @@ export async function loadSave(): Promise<LoadResult> {
   })();
   setInflightLoad(promise);
   const result = await promise;
+  // Account-swap guard: if the signed-in player changed during the load,
+  // this result belongs to the old account. setCurrentPlayerEmail has
+  // already wiped the cache; rewriting it from this resolved promise
+  // would re-poison the slot the swap just cleared. Mirror of the
+  // save-path account-stamping in saveQueue (PR #100).
+  if (getCurrentPlayerEmail() !== requestEmail) return result;
   // Boolean cache mirrors "do we have ANY hydrated state to render"; the
   // load-failed branch keeps it false so the splash can re-trigger a load
   // attempt if the user retries via the error overlay.
