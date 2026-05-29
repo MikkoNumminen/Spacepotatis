@@ -112,7 +112,7 @@ describe("weapons.json", () => {
 });
 
 describe("missions.json", () => {
-  const missions = missionsJson.missions as readonly MissionDefinition[];
+  const missions = missionsJson.missions as unknown as readonly MissionDefinition[];
 
   it("declares at least one mission", () => {
     expect(missions.length).toBeGreaterThan(0);
@@ -202,7 +202,7 @@ describe("solarSystems.json", () => {
   });
 
   it("every solar system has at least one mission bound to it", () => {
-    const allMissions = missionsJson.missions as readonly MissionDefinition[];
+    const allMissions = missionsJson.missions as unknown as readonly MissionDefinition[];
     const systemsWithMissions = new Set(allMissions.map((m) => m.solarSystemId));
     for (const s of systems) {
       expect(systemsWithMissions.has(s.id)).toBe(true);
@@ -248,7 +248,7 @@ describe("waves.json referential integrity", () => {
     (obstaclesJson.obstacles as readonly ObstacleDefinition[]).map((o) => o.id)
   );
   const missionIds = new Set(
-    (missionsJson.missions as readonly MissionDefinition[]).map((m) => m.id)
+    (missionsJson.missions as unknown as readonly MissionDefinition[]).map((m) => m.id)
   );
   const allWaves = getAllMissionWaves();
 
@@ -328,7 +328,7 @@ describe("waves.json referential integrity", () => {
   });
 
   it("every mission with `kind === 'mission'` has at least one wave defined", () => {
-    const missions = missionsJson.missions as readonly MissionDefinition[];
+    const missions = missionsJson.missions as unknown as readonly MissionDefinition[];
     const definedFor = new Set(allWaves.map((m) => m.missionId));
     for (const m of missions) {
       if (m.kind === "mission") {
