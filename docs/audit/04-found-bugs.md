@@ -92,6 +92,14 @@ Severity is a rough hint, not a release-grade triage.
 - Suggested fix: lazy-init the derived caps inside `validateNoRegression` rather than at module top.
 - **Resolved 2026-05-29 in PR #248**: 5 module-load-time constants (`MAX_SINGLE_EQUIPMENT_REFUND`, `CREDITS_DELTA_SLACK`, `GLOBAL_CREDIT_CAPS`, `MAX_CREDITS_PER_SECOND`, `MAX_CREDITS_PER_FIRST_CLEAR`) converted to first-call getter functions. Removes the `infra → content` module-load edge.
 
+## 2026-05-04 — `ui` god-files (`GameCanvas` 452, `ShopUI` 408, `QuestPanel` 387, `WeaponCard` 306)
+- Path: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx)
+- Found by: Phase 2 (target architecture)
+- Severity: medium (maintainability — over the 300-LOC soft cap from CLAUDE.md §5)
+- Description: Four `ui` components over the soft cap. Each carries multiple responsibilities that have an obvious seam to split (orchestrator vs sub-section, modal owner vs row UI, etc.). Splits scheduled as follow-up PRs after `ui` boundary lands, one focused refactor per PR.
+- Suggested fix: split each into focused sub-components co-located in the same folder.
+- **Partial resolution 2026-05-29 in PR #254: WeaponCard split — extracted `src/components/loadout/WeaponCardAugmentSection.tsx` (per-weapon augment chip row + AugmentDetailsModal owner). WeaponCard.tsx now 248 LOC (down from 306).**
+
 ## 2026-05-29 — `@/lib` barrel can't be the sole import path while `auth.ts` has module-load side effects
 - Path: [`src/lib/index.ts`](src/lib/index.ts), [`src/lib/auth.ts`](src/lib/auth.ts)
 - Found by: Phase 3 Tier 2 (infra extraction, PR #248)
