@@ -36,12 +36,12 @@ const INITIAL_UNLOCKED: readonly MissionId[] = MISSIONS.filter(
   (m) => m.requires.length === 0
 ).map((m) => m.id);
 
-// Completing one of these missions unlocks the corresponding system the next
-// time GameState commits. Keep map small and flat — gating is rare and cheap
-// to read on every completeMission call.
-export const SYSTEM_UNLOCK_GATES: ReadonlyMap<MissionId, SolarSystemId> = new Map([
-  ["boss-1", "tubernovae"]
-]);
+// SYSTEM_UNLOCK_GATES moved to @/game/data/systemUnlocks — it's static
+// content (a gate map), not gameplay logic. Imported here for local use by
+// completeMission and re-exported so existing callers that read it from
+// `@/game/state/stateCore` keep working without an import-path change.
+import { SYSTEM_UNLOCK_GATES } from "@/game/data";
+export { SYSTEM_UNLOCK_GATES };
 
 export const INITIAL_STATE: GameStateShape = {
   credits: 0,
