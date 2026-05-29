@@ -351,12 +351,14 @@ export default function GameCanvas() {
         </div>
       </div>
     )}
-    {rendererError && !showLoadError && !showGalaxyTransition && (
+    {rendererError && !showLoadError && (
       // Surfaces a dynamic-import / WebGL / Phaser init failure. Without
       // this the player would see a blank canvas (combat) or a stuck splash
       // (galaxy, since ready never flips) and have no way to know the
-      // renderer failed to start. Suppressed while the galaxy transition
-      // overlay is up — the retry loop in useGalaxyScene may still resolve.
+      // renderer failed to start. By the time `rendererError` is truthy
+      // the retry budget in useGalaxyScene/usePhaserGame is already
+      // exhausted — `showGalaxyTransition` requires `!galaxyError`, so
+      // the two overlays cannot coexist anyway.
       <div
         role="alertdialog"
         aria-modal="true"

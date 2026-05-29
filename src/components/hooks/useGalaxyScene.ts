@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { MissionDefinition, MissionId, SolarSystemId } from "@/types";
 import { getAllMissions } from "@/game/data";
 import type { GalaxyScene, MissionStatus, MissionStatusMap } from "@/game/three";
+import { retryWithBackoff } from "./retryWithBackoff";
 
 const STATUS_CLEARED: MissionStatus = { label: "✓ Cleared", color: "#5effa7" };
 const STATUS_AVAILABLE: MissionStatus = { label: "Available", color: "#ffcc33" };
@@ -94,47 +95,71 @@ export function useGalaxyScene({
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      for (let attempt = 1; attempt <= MAX_INIT_ATTEMPTS; attempt++) {
-        try {
+      const result = await retryWithBackoff<GalaxyScene>(
+        async () => {
           // Deep path (not the @/game/three barrel) so the galaxy-route
           // chunk only loads GalaxyScene's reachable graph, not every
           // three.js module in the directory. Next.js does not tree-shake
           // dynamic imports of barrels.
           const { GalaxyScene } = await import("@/game/three/GalaxyScene");
-          if (disposed) return;
-          const scene = new GalaxyScene(canvas, {
-            onPlanetHover: onHover,
-            onPlanetSelect: onSelect,
-            activeSystemId: currentSolarSystemId,
-            initialStatuses: statusMapRef.current
-          });
-          sceneRef.current = scene;
-          scene.start();
-          requestAnimationFrame(() => {
-            if (!disposed) setReady(true);
-          });
-          cleanup = () => {
-            sceneRef.current = null;
-            scene.dispose();
-          };
-          return;
-        } catch (err) {
-          console.error(
-            `useGalaxyScene: attempt ${attempt}/${MAX_INIT_ATTEMPTS} failed`,
-            err
-          );
-          if (disposed) return;
-          if (attempt < MAX_INIT_ATTEMPTS) {
-            // Hold the loading state; don't surface the error yet. A
-            // transient WebGL context blip during the dispose/recreate
-            // dance on warp usually recovers on the next attempt.
-            await new Promise((res) => setTimeout(res, RETRY_DELAY_MS));
-            if (disposed) return;
-          } else {
-            setError("Failed to start galaxy view. Refresh the page.");
+          let scene: GalaxyScene | null = null;
+          try {
+            scene = new GalaxyScene(canvas, {
+              onPlanetHover: onHover,
+              onPlanetSelect: onSelect,
+              activeSystemId: currentSolarSystemId,
+              initialStatuses: statusMapRef.current
+            });
+            scene.start();
+            return scene;
+          } catch (err) {
+            // Partial init may leave a scene holding GL resources.
+            // Dispose before letting the retry loop see the throw so
+            // retried attempts can't accumulate dead contexts. dispose
+            // may also throw on a half-dead context; swallow.
+            if (scene) {
+              try {
+                scene.dispose();
+              } catch {
+                /* best-effort */
+              }
+            }
+            throw err;
           }
+        },
+        {
+          maxAttempts: MAX_INIT_ATTEMPTS,
+          delayMs: RETRY_DELAY_MS,
+          isCancelled: () => disposed,
+          onAttemptFailed: (err, attempt) =>
+            console.error(
+              `useGalaxyScene: attempt ${attempt}/${MAX_INIT_ATTEMPTS} failed`,
+              err
+            )
         }
+      );
+
+      if (result.kind === "cancelled") return;
+      if (result.kind === "failed") {
+        setError("Failed to start galaxy view. Refresh the page.");
+        return;
       }
+
+      const scene = result.value;
+      if (disposed) {
+        // Cleanup raced us between attempt success and now. Dispose the
+        // live scene so its WebGL context + tickers don't leak.
+        scene.dispose();
+        return;
+      }
+      sceneRef.current = scene;
+      requestAnimationFrame(() => {
+        if (!disposed) setReady(true);
+      });
+      cleanup = () => {
+        sceneRef.current = null;
+        scene.dispose();
+      };
     })();
 
     return () => {
