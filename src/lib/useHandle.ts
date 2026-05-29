@@ -70,9 +70,14 @@ async function fetchHandle(): Promise<HandleResponse> {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
       });
       if (!res.ok) {
-        const fallback: HandleResponse = { handle: null };
-        cached = fallback;
-        return fallback;
+        // Non-OK is an UNKNOWN state, not a "no handle" signal — the only
+        // body shape that means "no handle" is a 200 with handle:null. A 5xx
+        // here used to be cached as {handle: null} and that's what caused
+        // PlayButton / HandlePrompt to prompt the user to claim a handle they
+        // may already own during a transient DB blip. Throw instead so the
+        // catch branch below schedules the same retry path as a fetch-level
+        // rejection and the hook surfaces status: "error" to consumers.
+        throw new Error(`fetch_failed_${res.status}`);
       }
       const body = (await res.json()) as HandleResponse;
       cached = body;
@@ -134,7 +139,11 @@ export function useHandle(): UseHandleResult {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setHandle(null);
+        // Don't blow away `handle` on fetch error. A flaky GET shouldn't
+        // make a previously-loaded handle look unset to consumers — that's
+        // the rake that had PlayButton / HandlePrompt prompting users to
+        // claim a handle they already owned during a transient blip. The
+        // status flip + error string are the signals consumers gate on.
         setStatus("error");
         setError(err instanceof Error ? err.message : "fetch_failed");
       });

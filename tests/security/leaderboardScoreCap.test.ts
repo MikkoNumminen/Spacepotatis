@@ -46,7 +46,10 @@ function insertChain() {
       insertSpy(v);
       return insertChain();
     },
-    execute: async () => undefined
+    // The route asserts numInsertedOrUpdatedRows > 0n on the leaderboard
+    // INSERT — mirror route.test.ts's success-path shape so insertResult[0]
+    // is a real row, not undefined.
+    execute: async () => [{ numInsertedOrUpdatedRows: 1n }]
   };
 }
 

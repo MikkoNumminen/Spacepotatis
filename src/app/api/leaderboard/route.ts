@@ -139,8 +139,11 @@ export async function POST(request: Request): Promise<Response> {
             .forUpdate()
             .executeTakeFirst();
 
+          // Array.isArray narrows to readonly unknown[]; .includes(missionId)
+          // accepts a string at any position, so no cast is needed here.
+          // (CLAUDE.md §9: no `as` casts at the network edge.)
           const completed = Array.isArray(saveRow?.completed_missions)
-            ? (saveRow.completed_missions as readonly string[])
+            ? saveRow.completed_missions
             : [];
           if (!completed.includes(missionId)) {
             console.warn(
@@ -160,7 +163,7 @@ export async function POST(request: Request): Promise<Response> {
           // so the duplicate sits next to its sibling and the player's
           // actual ranking isn't affected. Acceptable for a casual cohort
           // game; better than failing the user-facing submit.
-          await trx
+          const insertResult = await trx
             .insertInto("spacepotatis.leaderboard")
             .values({
               player_id: playerId,
@@ -169,6 +172,19 @@ export async function POST(request: Request): Promise<Response> {
               time_seconds: timeSeconds
             })
             .execute();
+
+          // Defend against a hypothetical RLS rule or trigger that swallows
+          // the INSERT and returns 0 rows. Mirrors the save_games upsert
+          // assertion in /api/save (route.ts: numInsertedOrUpdatedRows). A
+          // RangeError here is caught by isPermanentServerError above and
+          // surfaces as `server_error_permanent` so scoreQueue drops the
+          // blob instead of spinning on it for 30 days.
+          const insertRows = insertResult[0]?.numInsertedOrUpdatedRows;
+          if (insertRows === undefined || insertRows <= 0n) {
+            throw new RangeError(
+              `Leaderboard insert affected 0 rows (player_id=${playerId}, mission=${missionId})`
+            );
+          }
 
           return { kind: "ok" };
         }),

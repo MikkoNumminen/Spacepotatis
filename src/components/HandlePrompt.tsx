@@ -75,6 +75,12 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
         return;
       }
       const body = (await res.json()) as { handle: string };
+      // Reset submitting BEFORE handing off to the parent. If onSubmit
+      // doesn't unmount/navigate synchronously (a slow router.push, a
+      // refetchHandle that triggers a re-render, etc.), the button used
+      // to stay stuck at "SAVING..." forever — the error branches all
+      // reset the flag; only the happy path leaked.
+      setSubmitting(false);
       onSubmit(body.handle);
     } catch {
       setError("Network error. Try again.");
