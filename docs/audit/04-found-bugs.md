@@ -91,6 +91,7 @@ Severity is a rough hint, not a release-grade triage.
   (a) Restructure `auth.ts` to be side-effect-free at module load by deferring `NextAuth(config)` into a `getAuth()` factory. Every `auth()` caller updates. Most thorough; touches the same files the importer migration would have touched anyway.
   (b) Carve `auth.ts` out of the barrel and keep its deep path canonical. Other infra files migrate to the barrel cleanly. Smallest change.
   (c) Accept the barrel as nominal-only. New code uses the barrel; existing code keeps deep paths. Cheapest but defeats the audit goal for `infra`.
+- **Resolved 2026-05-29**: option (b). The `@/lib/index.ts` barrel no longer re-exports from `./auth`. Auth consumers must use the deep path `@/lib/auth` directly. The barrel is now safe to consume from any test context that doesn't need auth. Carve-out is documented in the barrel header.
 
 ---
 
