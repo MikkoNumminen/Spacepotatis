@@ -22,6 +22,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   //   request headers; if the deploy ever migrates off Vercel or the Google
   //   Console allow-list loosens, this becomes account-takeover-class.
   //   See SEC-012 in docs/security/02b-attack-cells.md.
+  //
+  // INVARIANT: tests/security/authUrlPinned.test.ts asserts that AUTH_URL is
+  //   pinned in production-like environments (VERCEL=1 or NODE_ENV=production)
+  //   so trustHost: true stays a defense-in-depth path rather than the only
+  //   gate on callback-URL construction.
   trustHost: true,
   providers: [
     Google({
