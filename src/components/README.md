@@ -26,7 +26,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 
 ## Subfolders
 
-- **[`galaxy/`](./galaxy/)** — galaxy-view chrome. `HudFrame.tsx`, `WarpPicker.tsx`, `LoadoutModal.tsx`, `QuestPanel.tsx` (**GOD-FILE 387 LOC**), `VictoryModal.tsx`, the `questBuckets.ts` helper. Mounted by `GameCanvas`.
+- **[`galaxy/`](./galaxy/)** — galaxy-view chrome. `HudFrame.tsx`, `WarpPicker.tsx`, `LoadoutModal.tsx`, `QuestPanel.tsx` (197 LOC — down from 387 after the 2026-05-29 row-component split), `QuestPanelRows.tsx` (sub-components: `Section`, `SuggestedRow`, `CollapsibleRow`, `ShopRow`, `SystemClearCta`), `VictoryModal.tsx`, the `questBuckets.ts` helper. Mounted by `GameCanvas`.
 - **[`loadout/`](./loadout/)** — LoadoutMenu sub-components. `SlotGrid.tsx`, `WeaponCard.tsx` (**GOD-FILE 210 LOC**), `WeaponDetailsModal.tsx`, `AugmentDetailsModal.tsx`, picker modals, `dots.tsx`. Used in galaxy + shop.
 - **[`story/`](./story/)** — `StoryModal.tsx` (cinematic popup), `StoryListModal.tsx` (the Story log).
 - **[`hooks/`](./hooks/)** — client-side React hooks: `useGalaxyScene.ts`, `usePhaserGame.ts`, `useCloudSaveSync.ts`, `useCloudSaveSyncLogic.ts` (pure decision helpers tested separately), `useStoryTriggers.ts` (281 LOC, borderline god-file), `useNextMissionAutoSelect.ts`. The single concern per file rule (CLAUDE.md §5) lives here — these exist exactly so `GameCanvas` doesn't have to.
@@ -65,7 +65,7 @@ NEVER reaches the database directly. NEVER reaches schemas directly. All server-
 
 ## Common pitfalls
 
-- **The four god-files** — `GameCanvas` 452, `ShopUI` 408, `QuestPanel` 387, `WeaponCard` 210. Splits are scheduled as follow-up PRs after Phase 4b. **Don't split inside an unrelated PR** — each is a focused refactor in itself.
+- **The remaining god-files** — `GameCanvas` 452, `ShopUI` 408, `WeaponCard` 210. (`QuestPanel` was 387, split to 197 + `QuestPanelRows.tsx` on 2026-05-29.) Splits are scheduled as follow-up PRs after Phase 4b. **Don't split inside an unrelated PR** — each is a focused refactor in itself.
 - **Forgetting `next/dynamic({ ssr: false })` on a Phaser/Three import** — kills SSG. Symptoms: `next build` errors out with `ReferenceError: window is not defined`.
 - **Calling state mutators from inside a render function.** Move to event handlers or effects.
 - **Importing `@/game/phaser` or `@/game/three` directly into a top-level component.** Always go through the dynamic-import boundary.
