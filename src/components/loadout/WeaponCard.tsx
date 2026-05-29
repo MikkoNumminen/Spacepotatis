@@ -9,17 +9,15 @@ import {
 import type { WeaponInstance, WeaponPosition } from "@/game/state";
 import {
   MAX_AUGMENTS_PER_WEAPON,
-  getAugment,
   getStat
 } from "@/game/data";
 import { playUiCue } from "@/game/audio";
-import type { AugmentDefinition } from "@/game/data";
 import type { StatId } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types";
-import { AugmentDot, WeaponDot } from "./dots";
-import { AugmentDetailsModal } from "./AugmentDetailsModal";
+import { WeaponDot } from "./dots";
 import { StatDetailsModal } from "./StatDetailsModal";
 import { WeaponDetailsModal } from "./WeaponDetailsModal";
+import { WeaponCardAugmentSection } from "./WeaponCardAugmentSection";
 import { dpsOf, energyOf } from "./weaponStats";
 
 // Compact loadout/inventory row. The full spec sheet + flavour description
@@ -49,7 +47,6 @@ export function WeaponCard({
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [statDetail, setStatDetail] = useState<{ id: StatId; detail: string } | null>(null);
-  const [augmentDetail, setAugmentDetail] = useState<AugmentDefinition | null>(null);
   const level = instance.level;
   const installedAugments = instance.augments;
   // getSellPrice now folds in the instance's level-history + installed
@@ -115,10 +112,10 @@ export function WeaponCard({
               detail={`${energy} energy per shot`}
               onOpen={(detail) => setStatDetail({ id: "energy", detail })}
             />
-            <AugmentSummary
-              installed={installedAugments}
+            <WeaponCardAugmentSection
+              weapon={weapon}
+              instance={instance}
               onOpenSlots={(detail) => setStatDetail({ id: "augment-slots", detail })}
-              onOpenAugment={(aug) => setAugmentDetail(aug)}
             />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -192,13 +189,6 @@ export function WeaponCard({
           onClose={() => setStatDetail(null)}
         />
       )}
-      {augmentDetail && (
-        <AugmentDetailsModal
-          augment={augmentDetail}
-          context={{ weapon, instance }}
-          onClose={() => setAugmentDetail(null)}
-        />
-      )}
     </>
   );
 }
@@ -234,54 +224,6 @@ function StatChip({
       <span aria-hidden className="mr-1">{stat.icon}</span>
       {valueLabel}
     </button>
-  );
-}
-
-function AugmentSummary({
-  installed,
-  onOpenSlots,
-  onOpenAugment
-}: {
-  installed: readonly AugmentId[];
-  onOpenSlots: (detail: string) => void;
-  onOpenAugment: (aug: AugmentDefinition) => void;
-}) {
-  const slotsLeft = MAX_AUGMENTS_PER_WEAPON - installed.length;
-  const slotsDetail =
-    `${installed.length}/${MAX_AUGMENTS_PER_WEAPON} used · ` +
-    `${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} free`;
-  const slotsStat = getStat("augment-slots");
-  // Every chip renders as a button so the player can click anywhere on
-  // the chip — slot-count or per-augment — to hear the matching Grandma
-  // line. Per-augment chips reuse AugmentDetailsModal (already wired
-  // with `/audio/augments/<id>-voice.mp3`).
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <button
-        type="button"
-        onClick={() => onOpenSlots(slotsDetail)}
-        title={`${slotsStat.name} — click for details`}
-        className="touch-manipulation select-none shrink-0 rounded border border-hud-green/40 px-1.5 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
-      >
-        <span aria-hidden className="mr-1">{slotsStat.icon}</span>
-        {installed.length}/{MAX_AUGMENTS_PER_WEAPON}
-      </button>
-      {installed.map((id, idx) => {
-        const aug = getAugment(id);
-        return (
-          <button
-            key={`${id}-${idx}`}
-            type="button"
-            onClick={() => onOpenAugment(aug)}
-            title={`${aug.name} — click for details`}
-            className="touch-manipulation select-none flex items-center gap-1 rounded border border-hud-amber/40 px-1.5 py-0.5 font-mono text-[10px] text-hud-amber/80 hover:bg-hud-amber/10 active:bg-hud-amber/20"
-          >
-            <AugmentDot tint={aug.tint} />
-            <span>{aug.name}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
