@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
 import { withNeonRetry } from "@/lib/neonRetry";
 import { upsertPlayerId } from "@/lib/players";
-import { MISSION_IDS, SavePayloadSchema } from "@/lib/schemas";
+import { MISSION_IDS, SOLAR_SYSTEM_IDS, SavePayloadSchema } from "@/lib/schemas";
 import {
   computeCreditCapsForPlayer,
   deriveCapInputMissions,
@@ -15,7 +15,9 @@ import {
   validateNoRegression,
   validatePlaytimeDelta
 } from "@/lib/saveValidation";
-import type { MissionId } from "@/types";
+import { STORY_IDS } from "@/game/data/story";
+import type { StoryId } from "@/game/data/story";
+import type { MissionId, SolarSystemId } from "@/types";
 
 // INVARIANT: 64 KB cap on the raw POST body — bound an unbounded JSON parse
 // before Zod ever sees it (Edge runtime memory is per-invocation and a
@@ -124,6 +126,17 @@ export async function GET(): Promise<Response> {
         ? row.updated_at.toISOString()
         : String(row.updated_at);
 
+    // Legacy save_games rows can carry a current_solar_system_id that's no
+    // longer in the SolarSystemId catalog (a system was renamed/retired
+    // post-write). RemoteSaveSchema rejects those on the client and the load
+    // fails with `schema_rejected`; coerce unknowns to null so the client
+    // recovers via initial-state fallback rather than a blocking error.
+    const validCurrentSystem: SolarSystemId | null = (SOLAR_SYSTEM_IDS as readonly string[]).includes(
+      row.current_solar_system_id ?? ""
+    )
+      ? (row.current_solar_system_id as SolarSystemId)
+      : null;
+
     return NextResponse.json({
       slot: row.slot,
       credits: row.credits,
@@ -133,7 +146,7 @@ export async function GET(): Promise<Response> {
       unlockedPlanets: row.unlocked_planets,
       playedTimeSeconds: row.played_time_seconds,
       seenStoryEntries: row.seen_story_entries ?? [],
-      currentSolarSystemId: row.current_solar_system_id,
+      currentSolarSystemId: validCurrentSystem,
       updatedAt
     });
   } catch (err) {
@@ -151,6 +164,21 @@ export async function GET(): Promise<Response> {
 // that the table can't be exhausted by a scripted attacker faster than
 // rate-limiting (SEC-002, separate fix) catches up.
 const AUDIT_PAYLOAD_BYTE_CAP = 64 * 1024;
+
+// INVARIANT: x-forwarded-for / user-agent header writes into save_audit MUST
+// be capped at the application boundary. The columns are TEXT (unbounded at
+// the schema level on purpose — no migration needed for an app-layer cap),
+// but an authenticated attacker can amplify each save POST into multi-MB of
+// Neon storage by stuffing a multi-megabyte UA header. The IP cap is the
+// matching guard for the same shape on x-forwarded-for. Headers are forensic
+// scalars; truncation is acceptable, deletion is not.
+const AUDIT_HEADER_CAP = 256;
+const AUDIT_USER_AGENT_CAP = 512;
+
+function capHeader(value: string | null, cap: number): string | null {
+  if (value === null) return null;
+  return value.length > cap ? value.slice(0, cap) : value;
+}
 
 // Forensic audit row written for every authenticated POST /api/save attempt
 // — success, validator rejection, or server error. Designed so the next data
@@ -265,8 +293,13 @@ export async function POST(request: Request): Promise<Response> {
       ? (raw as Record<string, unknown>)
       : { _nonObjectBody: raw };
 
-  const requestIp = request.headers.get("x-forwarded-for");
-  const userAgent = request.headers.get("user-agent");
+  // SEC-011 (extended) — cap header writes at the application boundary so any
+  // downstream consumer (writeSaveAudit, future ops queries) gets the same
+  // capped value. The save_audit columns are TEXT and unbounded at the
+  // schema level on purpose; truncation is enforced here instead of via a
+  // migration so future header readers don't have to remember the cap.
+  const requestIp = capHeader(request.headers.get("x-forwarded-for"), AUDIT_HEADER_CAP);
+  const userAgent = capHeader(request.headers.get("user-agent"), AUDIT_USER_AGENT_CAP);
 
   // TRUST-BOUNDARY: untrusted request body becomes program input here; everything after this point assumes parsed/validated (INV-SCHEMA-1)
   const parsed = SavePayloadSchema.safeParse(raw);
@@ -474,10 +507,19 @@ export async function POST(request: Request): Promise<Response> {
       // client POSTs INITIAL_STATE on top of an existing save (credits=0,
       // completedMissions=[], playtime=0). The cheat-delta guards below only
       // catch INFLATION, not regression — this is the matching defense.
-      const prevSeenStoryEntries: readonly string[] =
+      //
+      // Mirror the knownPrevMissions pattern for seen_story_entries. A
+      // retired/renamed story id sitting in a legacy row would otherwise
+      // appear in prev but not in next (the client filters unknowns via
+      // isKnownStoryId on hydrate), and setDifferenceStrings(prev, next)
+      // would 422 every subsequent POST as save_regression. The retired id
+      // is no longer trackable, so it shouldn't gate persistence.
+      const knownStoryIds = STORY_IDS as readonly string[];
+      const knownPrevSeenStories: readonly StoryId[] =
         prevRow && Array.isArray(prevRow.seen_story_entries)
           ? prevRow.seen_story_entries.filter(
-              (s): s is string => typeof s === "string"
+              (s): s is StoryId =>
+                typeof s === "string" && knownStoryIds.includes(s)
             )
           : [];
       const prevForRegression = prevRow
@@ -485,7 +527,7 @@ export async function POST(request: Request): Promise<Response> {
             playedTimeSeconds: prevRow.played_time_seconds,
             completedMissions: knownPrevMissions,
             unlockedPlanets: knownPrevUnlocks,
-            seenStoryEntries: prevSeenStoryEntries
+            seenStoryEntries: knownPrevSeenStories
           }
         : null;
       const nextSeenStoryEntries = Array.isArray(body.seenStoryEntries)
