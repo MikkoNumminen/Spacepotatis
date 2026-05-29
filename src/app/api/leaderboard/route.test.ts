@@ -23,6 +23,9 @@ vi.mock("next/cache", () => ({
 
 const dbStub: {
   insertSpy: (v: Record<string, unknown>) => void;
+  // Shape returned by Kysely's insert .execute(): InsertResult[]. The route
+  // now reads numInsertedOrUpdatedRows from the first element, so the mock
+  // returns a one-element array with a bigint count by default.
   insertImpl: () => Promise<unknown>;
   // The leaderboard POST now reads save_games to enforce the mission-
   // completion guard. Tests stub the completed_missions array via this
@@ -83,7 +86,11 @@ beforeEach(() => {
   cachedLeaderboardMock.mockReset();
   revalidateTagMock.mockReset();
   dbStub.insertSpy = vi.fn();
-  dbStub.insertImpl = async () => undefined;
+  // The route now asserts numInsertedOrUpdatedRows > 0n on the leaderboard
+  // INSERT (mirrors the /api/save defensive pattern) — default success path
+  // returns 1n affected row; the dedicated 0-row test below overrides this
+  // to [{ numInsertedOrUpdatedRows: 0n }] to exercise the throw path.
+  dbStub.insertImpl = async () => [{ numInsertedOrUpdatedRows: 1n }];
   dbStub.selectImpl = async () => ({ completed_missions: ["tutorial"] });
 });
 
@@ -318,7 +325,7 @@ describe("POST /api/leaderboard Neon retry", () => {
     dbStub.insertImpl = async () => {
       insertCalls += 1;
       if (insertCalls === 1) throw new Error("Connection terminated unexpectedly");
-      return undefined;
+      return [{ numInsertedOrUpdatedRows: 1n }];
     };
     const insertSpy = vi.fn();
     dbStub.insertSpy = insertSpy;
@@ -387,6 +394,27 @@ describe("POST /api/leaderboard body & error-class guards", () => {
       // so scoreQueue drops the entry instead of retrying for 30 days.
       throw new TypeError("Cannot read properties of undefined (reading 'x')");
     });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await loadRoute();
+    const res = await POST(
+      new Request("http://x/api/leaderboard", {
+        method: "POST",
+        body: JSON.stringify({ missionId: "tutorial", score: 5 })
+      })
+    );
+    errSpy.mockRestore();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server_error_permanent" });
+  });
+
+  it("returns server_error_permanent when the leaderboard insert affects 0 rows", async () => {
+    // Mirrors the /api/save 0-row defense. A future RLS rule or trigger
+    // returning 0 affected rows used to silently 201; the route now throws
+    // a RangeError inside the tx, isPermanentServerError classifies it as
+    // permanent, and the response is server_error_permanent so scoreQueue
+    // drops the blob instead of spinning forever.
+    authMock.mockResolvedValue({ user: { email: "p@example.com", name: null } });
+    dbStub.insertImpl = async () => [{ numInsertedOrUpdatedRows: 0n }];
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { POST } = await loadRoute();
     const res = await POST(

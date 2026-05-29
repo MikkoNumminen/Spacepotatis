@@ -6,6 +6,7 @@ import HandlePrompt from "./HandlePrompt";
 import { BUTTON_PRIMARY } from "./ui/buttonClasses";
 import { menuBriefingAudio } from "@/game/audio";
 import { ROUTES } from "@/lib/routes";
+import { useHandle } from "@/lib/useHandle";
 import { useOptimisticAuth } from "@/game/state";
 
 // Auth-aware Play button on the landing page. The page itself is force-static,
@@ -25,6 +26,12 @@ export default function PlayButton() {
   const router = useRouter();
   const { status, handle, hasSave, isVerified, firstVisit, refetchHandle } =
     useOptimisticAuth();
+  // Direct handle-fetch status so we can distinguish "the GET returned 200
+  // with handle:null" (prompt) from "the GET 5xx'd or timed out" (don't
+  // prompt — the user may already own a handle on the server; prompting
+  // would let them clobber it on a transient blip).
+  const { status: handleStatus } = useHandle();
+  const handleErrored = handleStatus === "error";
   const [showPrompt, setShowPrompt] = useState(false);
   // Set when the user clicks PLAY before the real auth round-trip lands —
   // we intercept the click and decide what to do (open modal vs. navigate)
@@ -46,7 +53,12 @@ export default function PlayButton() {
       setPendingClick(true);
       return;
     }
-    if (handle === null) {
+    // Only prompt when the GET genuinely reported handle:null. A 5xx /
+    // timeout flips handleStatus to "error" and we navigate instead —
+    // /play and the leaderboard chrome will retry the handle fetch with
+    // their own UX rather than the player clobbering a possibly-owned
+    // handle from this prompt.
+    if (handle === null && !handleErrored) {
       setShowPrompt(true);
       return;
     }
@@ -64,12 +76,12 @@ export default function PlayButton() {
       router.push(ROUTES.page.play);
       return;
     }
-    if (handle === null) {
+    if (handle === null && !handleErrored) {
       setShowPrompt(true);
     } else {
       router.push(ROUTES.page.play);
     }
-  }, [pendingClick, isVerified, status, handle, router]);
+  }, [pendingClick, isVerified, status, handle, handleErrored, router]);
 
   function handlePromptSubmit() {
     refetchHandle();
