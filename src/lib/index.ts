@@ -8,8 +8,15 @@
 //
 // NOTE: useOptimisticAuth has moved to @/game/state/useOptimisticAuth —
 //   it was the only lib → game backedge and now lives in the state module.
+//
+// CARVE-OUT — auth.ts deliberately NOT re-exported from this barrel. NextAuth's
+//   module-load side effect (calls `NextAuth(config)` at top level, pulls in
+//   `next-auth` → `next/server`) breaks 6 test files when other test files
+//   import from `@/lib`. Auth consumers MUST use the deep path `@/lib/auth`
+//   directly. See docs/audit/04-found-bugs.md 2026-05-29 — option (b) was
+//   chosen as the resolution. The barrel is now safe to consume from any
+//   test context that doesn't need auth.
 
-export * from "./auth";
 export * from "./authCache";
 export type * from "./authCache";
 export * from "./authEmailVerified";

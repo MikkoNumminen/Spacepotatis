@@ -525,3 +525,24 @@ export interface MissionDefinition {
 // ShipConfig, WeaponSlots, and ReactorConfig live in src/game/state/ShipConfig.ts.
 // They are gameplay state, not shared cross-engine schema, so they stay alongside
 // the helpers that mutate them.
+//
+// HOWEVER: the pure caps below ARE shared. They constrain both the wire format
+// (src/lib/schemas/save.ts uses them as .max() bounds) and the cheat guards
+// (src/lib/saveValidation.ts uses MAX_LEVEL in credit-cap derivation). Living
+// in this leaf module means `schemas`, `infra`, and `state` all consume from
+// the same source instead of `schemas/infra → state` back-edges.
+
+/**
+ * Maximum legal weapon-upgrade level. Level 1 is base; each level adds 15%
+ * damage; level MAX_LEVEL is the cap.
+ *
+ * @stable
+ */
+export const MAX_LEVEL = 5;
+
+/**
+ * Soft cap on how many weapon slots a player can buy.
+ *
+ * @stable
+ */
+export const MAX_WEAPON_SLOTS = 6;
