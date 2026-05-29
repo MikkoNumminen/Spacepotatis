@@ -93,7 +93,18 @@ function fixture(): IntegrityData {
       startAngle: 0,
       scale: 1,
       requires: [],
-      musicTrack: null
+      musicTrack: null,
+      // Combat missions require planetStyle (integrity check enforces it).
+      planetStyle: {
+        noiseScale: 2.6,
+        octaves: 5,
+        bandStrength: 0,
+        featureColor: [200, 200, 200],
+        featureThreshold: 0.6,
+        featureMix: 0.5,
+        craters: 10,
+        craterSizeRange: [3, 10]
+      }
     }
   ];
   const lootPools: readonly LootPool[] = [
@@ -280,6 +291,42 @@ describe("runDataIntegrityCheck — missions → systems / requires / orbitParen
     expect(() => runDataIntegrityCheck(broken)).toThrow(
       /missions\['tutorial'\]\.requires\[0\] is a self-reference/
     );
+  });
+
+  it("throws when a combat mission has no planetStyle", () => {
+    const data = fixture();
+    // Strip planetStyle off the combat mission — the procedural texture
+    // generator can't render without it, so the integrity check must catch
+    // this at boot rather than letting it crash inside paintDiffuse().
+    const { planetStyle: _unused, ...withoutStyle } = data.missions[0]!;
+    void _unused;
+    const broken: IntegrityData = {
+      ...data,
+      missions: [withoutStyle]
+    };
+    expect(() => runDataIntegrityCheck(broken)).toThrow(
+      /missions\['tutorial'\]\.planetStyle is required for combat missions/
+    );
+  });
+
+  it("does not require planetStyle on shop / scenery entries", () => {
+    const data = fixture();
+    const { planetStyle: _unused, ...withoutStyle } = data.missions[0]!;
+    void _unused;
+    const ok: IntegrityData = {
+      ...data,
+      missions: [
+        {
+          ...withoutStyle,
+          id: "shop" as never,
+          kind: "shop"
+        }
+      ],
+      missionWaves: [],
+      missionWeaponRewards: new Map(),
+      stories: []
+    };
+    expect(() => runDataIntegrityCheck(ok)).not.toThrow();
   });
 
   it("throws when orbitParentId points to a mission in a different solar system", () => {

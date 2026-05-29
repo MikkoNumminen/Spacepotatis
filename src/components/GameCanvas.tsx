@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser";
 import type { MissionDefinition, MissionId } from "@/types";
-import { combatMusic, menuMusic, shopMusic, maybePlayClearedCue } from "@/game/audio";
+import { combatMusic } from "@/game/audio";
 import HudFrame from "@/components/galaxy/HudFrame";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import VictoryModal from "@/components/galaxy/VictoryModal";
@@ -20,39 +20,26 @@ import {
   clearLoadSaveCache,
   useGameState,
   setSolarSystem,
-  drainScoreQueue,
-  flushSaveQueue,
-  saveNow,
-  enqueueScore,
-  QUEUED_MESSAGE,
   useOptimisticAuth
 } from "@/game/state";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useStoryTriggers } from "@/components/hooks/useStoryTriggers";
-import { getAllMissions, getMission, getAllSolarSystems, getStoryEntry } from "@/game/data";
-import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
+import { useGameMode } from "@/components/hooks/useGameMode";
+import { useTransitionOverlay } from "@/components/hooks/useTransitionOverlay";
+import { useVictoryFlow } from "@/components/hooks/useVictoryFlow";
+import { getAllMissions, getAllSolarSystems, getMission, getStoryEntry } from "@/game/data";
 import { ROUTES } from "@/lib/routes";
-
-type Mode = "galaxy" | "combat";
 
 export default function GameCanvas() {
   const galaxyCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const combatParentRef = useRef<HTMLDivElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
 
   const router = useRouter();
   const { status: authStatus } = useSession();
   const { isVerified } = useOptimisticAuth();
-  const [mode, setMode] = useState<Mode>("galaxy");
   const [hovered, setHovered] = useState<MissionDefinition | null>(null);
   const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
-  const [launching, setLaunching] = useState<MissionDefinition | null>(null);
-  const [lastSummary, setLastSummary] = useState<CombatSummary | null>(null);
-  // Sync status for the Victory modal — surfaces save / score-post outcomes
-  // so a 422 (cheat-guard rejection) or unauthenticated session doesn't lead
-  // to "I won, where's my leaderboard entry?" silent confusion.
-  const [syncStatus, setSyncStatus] = useState<VictorySyncStatus>({ kind: "idle" });
   const [warpOpen, setWarpOpen] = useState(false);
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
@@ -106,6 +93,21 @@ export default function GameCanvas() {
     window.location.reload();
   }, []);
 
+  const { overlayRef, fadeOverlay } = useTransitionOverlay();
+
+  // useStoryTriggers needs `mode === "galaxy"` to gate its schedulers, and
+  // useGameMode needs `cancelPendingBriefing` from useStoryTriggers — but
+  // we can resolve the apparent circular dep by initialising the mode hook
+  // first (it doesn't read story state) and then handing its `mode` value
+  // into useStoryTriggers. The briefing-cancel arrives via a ref slot
+  // populated immediately after useStoryTriggers returns.
+  const cancelBriefingRef = useRef<() => void>(() => undefined);
+  const stableCancelBriefing = useCallback(() => cancelBriefingRef.current(), []);
+
+  const { mode, setMode, launching, setLaunching } = useGameMode({
+    cancelPendingBriefing: stableCancelBriefing
+  });
+
   const {
     activeStory,
     setActiveStory,
@@ -123,37 +125,7 @@ export default function GameCanvas() {
     completedMissions,
     seenStoryEntries
   });
-
-  // Single source of truth for which bed plays: combat owns audio in combat
-  // mode, menu owns it everywhere else. Hard-stopping combat music on every
-  // non-combat transition is what prevents the two beds from layering on
-  // top of each other during the fade-cross. The combat scene also calls
-  // combatMusic.loadTrack on its own create(), so this effect is the
-  // teardown half of the contract.
-  //
-  // shopMusic is also stopped on every entry to non-combat: if the player
-  // arrived from /shop, ShopUI's own cleanup should already have stopped
-  // the shop bed, but the 4-sec fade can race against rapid navigation
-  // and the new ShopTabs lifecycle (ShopUI mounts/unmounts on tab switch),
-  // so a defensive stop here guarantees the galaxy view never holds the
-  // shop bed alive.
-  useEffect(() => {
-    if (mode === "combat") {
-      menuMusic.duck();
-      // A mission briefing playing under combat would step on the combat
-      // bed — kill any pending or running overlay before combat takes over.
-      cancelPendingBriefing();
-    } else {
-      combatMusic.stop();
-      shopMusic.stop();
-      menuMusic.unduck();
-    }
-    return () => {
-      combatMusic.stop();
-      shopMusic.stop();
-      menuMusic.unduck();
-    };
-  }, [mode, cancelPendingBriefing]);
+  cancelBriefingRef.current = cancelPendingBriefing;
 
   // Planet click in the 3D scene flows into QuestPanel as a focus signal so
   // the matching entry expands inline. Clearing on null lets a click on
@@ -171,16 +143,6 @@ export default function GameCanvas() {
     onHover: setHovered,
     onSelect: handleSceneSelect
   });
-
-  const fadeOverlay = useCallback(async (toOpacity: number) => {
-    const el = overlayRef.current;
-    if (!el) return;
-    // Deep path (not the @/game/three barrel) so this on-demand fade helper
-    // doesn't pull every three.js scene/sun/planet/orbit module into the
-    // chunk. Next.js does not tree-shake dynamic imports of barrels.
-    const { fade } = await import("@/game/three/TransitionManager");
-    await fade(el, toOpacity, 0.35).promise;
-  }, []);
 
   const handleLaunch = useCallback(
     async (mission: MissionDefinition) => {
@@ -205,154 +167,22 @@ export default function GameCanvas() {
       setMode("combat");
       requestAnimationFrame(() => void fadeOverlay(0));
     },
-    [fadeOverlay, router]
+    [fadeOverlay, router, setLaunching, setMode]
   );
 
-  // Sequence counter so a slow submitScore from a prior mission can't
-  // overwrite the syncStatus of a newer one. Bumped on every mission
-  // complete; the async resolver short-circuits if the seq has moved.
-  const missionSeqRef = useRef(0);
+  const onCombatExit = useCallback(() => {
+    setLaunching(null);
+    setMode("galaxy");
+  }, [setLaunching, setMode]);
 
-  const handleMissionComplete = useCallback(
-    async (summary: CombatSummary) => {
-      const seq = ++missionSeqRef.current;
-      setLastSummary(summary);
-
-      // Cleared-state Grandma cues. Fires at most one of two voice clips
-      // when this victory flips the player's progress to "current system
-      // cleared" or "every unlocked system cleared". No-op on losses.
-      // Persistence for the once-per-device "everything cleared" semantics
-      // lives in localStorage inside the helper; nothing on StateSnapshot.
-      if (summary.victory) {
-        maybePlayClearedCue({
-          justCompletedMissionId: summary.missionId,
-          completedMissions,
-          currentSolarSystemId,
-          unlockedSolarSystems
-        });
-      }
-
-      // Every victory is enqueued FIRST, before any network I/O. The queue
-      // is the source of truth for "this score must reach the leaderboard
-      // eventually" — if the player closes the tab right now, the next
-      // mount drains it. Anonymous wins enqueue too: when the player signs
-      // in later, the drain replays them. The leaderboard never silently
-      // forgets a win.
-      if (summary.victory) {
-        enqueueScore({
-          missionId: summary.missionId,
-          score: summary.score,
-          timeSeconds: summary.timeSeconds
-        });
-      }
-
-      // Anonymous: queue captured the score (if any). Post-mount drain
-      // replays once the player signs in. No save POST while anonymous.
-      if (authStatus !== "authenticated") {
-        setSyncStatus(summary.victory ? { kind: "unauthenticated" } : { kind: "idle" });
-        await fadeOverlay(1);
-        setLaunching(null);
-        setMode("galaxy");
-        menuMusic.unduck();
-        requestAnimationFrame(() => void fadeOverlay(0));
-        return;
-      }
-
-      // Authenticated: save first (the leaderboard guard requires the new
-      // mission visible in completed_missions). saveNow now goes through
-      // the durable save queue — its return reflects three outcomes:
-      //   - "ok": server accepted; proceed to score post.
-      //   - "queued": POST didn't land (network / 5xx / 401), but the
-      //     snapshot is durable in localStorage and will retry on mount /
-      //     visibility / online / sign-in. Modal surfaces the queued banner.
-      //   - "failed": permanent rejection (400 / 422 cheat-guard); snapshot
-      //     was dropped. Modal surfaces the red error banner.
-      // The queue drain after saveNow handles the score POST. Drain is
-      // non-blocking on the fade so the mode switch isn't gated on
-      // score-post latency.
-      setSyncStatus({ kind: "pending" });
-      const saveResult = await saveNow();
-      if (missionSeqRef.current !== seq) return;
-
-      if (saveResult.kind === "failed") {
-        setSyncStatus({
-          kind: "save_failed",
-          status: saveResult.status,
-          message: saveResult.message
-        });
-      } else if (saveResult.kind === "queued") {
-        setSyncStatus({ kind: "save_queued", message: saveResult.message });
-      } else if (!summary.victory) {
-        // Loss: save committed, nothing to post. Modal goes back to idle.
-        setSyncStatus({ kind: "idle" });
-      } else {
-        // Victory: drive the queue. drainScoreQueue picks up THIS mission's
-        // entry (and any older queued entries that didn't post yet), POSTs
-        // each, drops on success, retries transients next drain. We update
-        // the modal status from the drain outcome.
-        // SEC-026: await the drain so the save POST always commits before the
-        // leaderboard POST — eliminates the 422 mission_not_completed retry
-        // storm that fires when the score races ahead of the save.
-        const drainResult = await drainScoreQueue();
-        if (missionSeqRef.current !== seq) return;
-        if (drainResult.remaining === 0) {
-          setSyncStatus({ kind: "ok" });
-        } else if (drainResult.succeeded > 0) {
-          // Some entries posted, others still queued. From this player's
-          // POV their latest win went through — show "ok" but the queue
-          // will still retry the others on the next drain trigger.
-          setSyncStatus({ kind: "ok" });
-        } else {
-          // Nothing posted this drain. Could be transient; the next
-          // drain (mount / visibility / auth-change) will retry.
-          setSyncStatus({ kind: "queued", message: QUEUED_MESSAGE });
-        }
-      }
-
-      await fadeOverlay(1);
-      setLaunching(null);
-      setMode("galaxy");
-      // Combat ducked menuMusic; restore volume on return. With the
-      // keep-alive menu engine, this is a pure volume fade — no play()
-      // call, no autoplay risk.
-      menuMusic.unduck();
-      requestAnimationFrame(() => void fadeOverlay(0));
-    },
-    [fadeOverlay, authStatus, completedMissions, currentSolarSystemId, unlockedSolarSystems]
-  );
-
-  // Drive both the save queue AND the score queue on three triggers so a
-  // pending save / missing leaderboard entry self-heals without user action:
-  //   1. Mount + every transition to authenticated (offline saves and
-  //      anonymous wins from a prior session catch up the moment the
-  //      player signs in).
-  //   2. Tab returns to foreground (covers "closed the tab mid-flight" —
-  //      the next visit reposts).
-  //   3. Network-online events (mobile out-of-coverage → coverage).
-  // Save flush runs BEFORE score drain so the leaderboard's mission-graph
-  // guard sees the freshest completed_missions in the same trigger pass.
-  // Both are no-ops when their queue is empty, so spamming triggers is
-  // cheap.
-  useEffect(() => {
-    if (authStatus !== "authenticated") return;
-    const drainBoth = async (): Promise<void> => {
-      await flushSaveQueue();
-      await drainScoreQueue();
-    };
-    void drainBoth();
-    const onVisibility = (): void => {
-      if (document.visibilityState === "visible") void drainBoth();
-    };
-    const onOnline = (): void => {
-      void drainBoth();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("online", onOnline);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("online", onOnline);
-    };
-  }, [authStatus]);
+  const { lastSummary, setLastSummary, syncStatus, handleMissionComplete } = useVictoryFlow({
+    authStatus,
+    currentSolarSystemId,
+    completedMissions,
+    unlockedSolarSystems,
+    fadeOverlay,
+    onCombatExit
+  });
 
   // Route Phaser's onComplete through a ref so a mid-combat auth flip
   // ("loading" → "authenticated") doesn't leave Phaser holding a stale
