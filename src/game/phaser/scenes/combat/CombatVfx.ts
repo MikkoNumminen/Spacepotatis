@@ -56,7 +56,12 @@ export class CombatVfx {
       emitting: false
     });
     emitter.explode(count);
-    this.scene.time.delayedCall(700, () => emitter.destroy());
+    this.scene.time.delayedCall(700, () => {
+      // If the scene was shut down before the 700ms delay fired, Phaser's
+      // auto-purge will have nulled emitter.scene. Guard so we don't trip a
+      // double-destroy warning.
+      if (emitter.scene) emitter.destroy();
+    });
   }
 
   // Squared-distance scan over the active enemy group. Used by friendly
