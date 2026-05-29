@@ -255,10 +255,12 @@ export default function GameCanvas() {
         <canvas
           ref={galaxyCanvasRef}
           key={currentSolarSystemId}
-          className="block h-full w-full"
+          className="block h-full w-full bg-space-bg"
         />
       )}
-      {mode === "combat" && <div ref={combatParentRef} className="h-full w-full" />}
+      {mode === "combat" && (
+        <div ref={combatParentRef} className="h-full w-full bg-space-bg" />
+      )}
 
       {mode === "galaxy" && ready && (
         <div className="pointer-events-none absolute inset-0">
