@@ -432,6 +432,49 @@ export interface PlanetRing {
 }
 
 /**
+ * RGB triple in 0..255 — surface-feature accent color for procedural planet
+ * texturing.
+ *
+ * @stable
+ */
+export type PlanetFeatureRgb = readonly [number, number, number];
+
+/**
+ * Procedural-surface tuning for the Three.js planet texture generator.
+ *
+ * Mirrors the parameters consumed by `paintDiffuse()` in
+ * `src/game/three/planetTexture.ts`. Lives in `missions.json` per planet so
+ * adding a new entry can't crash the texture generator at render time — a
+ * missing `planetStyle` on a combat mission is caught by the integrity
+ * check at boot rather than by a non-exhaustive switch.
+ *
+ * - `noiseScale` — fbm frequency multiplier; larger = finer detail.
+ * - `octaves` — fbm octave count; more = richer noise but slower.
+ * - `bandStrength` — 0..1 latitudinal banding weight (0 = none, used for
+ *   gas-giant / banded-ice looks).
+ * - `featureColor` — accent RGB blended in above `featureThreshold`; null
+ *   when no accent is desired.
+ * - `featureThreshold` — 0..1 height threshold above which the accent
+ *   color mixes in.
+ * - `featureMix` — 0..1 mix strength of the accent at the top of the
+ *   height ramp.
+ * - `craters` — number of crater impacts to stamp.
+ * - `craterSizeRange` — `[min, max]` crater radius in texels.
+ *
+ * @stable
+ */
+export interface PlanetStyle {
+  readonly noiseScale: number;
+  readonly octaves: number;
+  readonly bandStrength: number;
+  readonly featureColor: PlanetFeatureRgb | null;
+  readonly featureThreshold: number;
+  readonly featureMix: number;
+  readonly craters: number;
+  readonly craterSizeRange: readonly [number, number];
+}
+
+/**
  * One row of `missions.json` — the static catalog entry for a mission /
  * shop / scenery planet.
  *
@@ -468,6 +511,12 @@ export interface MissionDefinition {
   readonly musicTrack: string | null; // path under /public/audio/music/
   readonly ring?: PlanetRing;
   readonly perksAllowed?: boolean;    // if true, mission-only perks may drop here. Default: false.
+  // Procedural-texture style for the Three.js galaxy-view sphere. Optional in
+  // the schema so scenery / shop entries can fall back to a default style, but
+  // every entry that should render with bespoke surface tuning carries one.
+  // The integrity check rejects a `kind: "mission"` entry that omits this —
+  // see src/game/data/integrityCheck.ts.
+  readonly planetStyle?: PlanetStyle;
 }
 
 // ---------------------------------------------------------------------------

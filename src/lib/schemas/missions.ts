@@ -23,7 +23,7 @@
 
 import { z } from "zod";
 
-import type { MissionDefinition, PlanetRing } from "@/types";
+import type { MissionDefinition, PlanetRing, PlanetStyle } from "@/types";
 import { MissionIdSchema, SolarSystemIdSchema } from "./save";
 
 const PlanetKindSchema = z.enum(["mission", "shop", "scenery"]);
@@ -32,6 +32,29 @@ const PlanetRingSchema = z.object({
   innerRadius: z.number(),
   outerRadius: z.number(),
   tilt: z.number()
+});
+
+// 0..255 RGB triple. Tuple form catches the "RGBA was pasted in" footgun at
+// parse time instead of letting the 4th channel silently drop on first read.
+const PlanetFeatureRgbSchema = z.tuple([
+  z.number().int().min(0).max(255),
+  z.number().int().min(0).max(255),
+  z.number().int().min(0).max(255)
+]);
+
+// Mirrors `PlanetStyle` in src/types/game.ts. The texture generator's
+// numeric ranges are not exhaustively bounded here — out-of-range values
+// degrade the visuals without crashing — but the tuple shapes ARE
+// constrained so a typo can't push undefined into paintDiffuse().
+const PlanetStyleSchema = z.object({
+  noiseScale: z.number(),
+  octaves: z.number().int().min(1).max(8),
+  bandStrength: z.number().min(0).max(1),
+  featureColor: PlanetFeatureRgbSchema.nullable(),
+  featureThreshold: z.number().min(0).max(1),
+  featureMix: z.number().min(0).max(1),
+  craters: z.number().int().min(0),
+  craterSizeRange: z.tuple([z.number().min(0), z.number().min(0)])
 });
 
 /**
@@ -72,7 +95,12 @@ export const MissionDefinitionSchema = z.object({
   // missing defense would be a footgun.
   musicTrack: z.string().min(1).nullable(),
   ring: PlanetRingSchema.optional(),
-  perksAllowed: z.boolean().optional()
+  perksAllowed: z.boolean().optional(),
+  // Optional in the schema so future scenery / shop additions can fall back
+  // to a default surface style. Combat missions MUST carry one — the
+  // integrity check (src/game/data/integrityCheck.ts) enforces this so a
+  // missing entry is caught at boot, not at planet-mesh construction time.
+  planetStyle: PlanetStyleSchema.optional()
 });
 
 /**
@@ -98,8 +126,11 @@ export const MissionsFileSchema = z.object({
 // in src/types/game.ts could leave the schema silently out of sync until
 // runtime data happened to drift the same way.
 type _PlanetRing = z.infer<typeof PlanetRingSchema>;
+type _PlanetStyle = z.infer<typeof PlanetStyleSchema>;
 type _MissionDefinition = z.infer<typeof MissionDefinitionSchema>;
 const _planetRingCheck = (x: _PlanetRing): PlanetRing => x;
+const _planetStyleCheck = (x: _PlanetStyle): PlanetStyle => x;
 const _missionDefCheck = (x: _MissionDefinition): MissionDefinition => x;
 void _planetRingCheck;
+void _planetStyleCheck;
 void _missionDefCheck;
