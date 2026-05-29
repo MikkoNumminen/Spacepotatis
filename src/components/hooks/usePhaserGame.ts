@@ -3,6 +3,17 @@
 import { useEffect, useState, type RefObject } from "react";
 import type { CombatSummary } from "@/game/phaser";
 import type { MissionId } from "@/types";
+import {
+  retryWithBackoff,
+  DEFAULT_MAX_INIT_ATTEMPTS,
+  DEFAULT_RETRY_DELAY_MS
+} from "./retryWithBackoff";
+
+// Retry budget defaults imported from retryWithBackoff. Aliased locally
+// for `setError` message templating + console.error labels — keeps the
+// failure log readable without re-deriving "X/Y" from raw retry options.
+const MAX_INIT_ATTEMPTS = DEFAULT_MAX_INIT_ATTEMPTS;
+const RETRY_DELAY_MS = DEFAULT_RETRY_DELAY_MS;
 
 // Combat lifecycle: mount Phaser into the parent div when enabled.
 // Callers should route their onComplete through a ref so a mid-combat
@@ -41,26 +52,58 @@ export function usePhaserGame({
     setError(null);
 
     void (async () => {
-      try {
-        const { createPhaserGame } = await import("@/game/phaser");
-        if (disposed || !parentRef.current) return;
-        const created = await createPhaserGame(parentRef.current, {
-          missionId,
-          onComplete: (summary) => onComplete(summary)
-        });
-        // If the effect cleanup ran while createPhaserGame was awaiting,
-        // the outer-scope cleanup already ran with game === null. The
-        // newly-created Phaser.Game would leak its WebGL context + tickers
-        // forever. Destroy it here and exit before assigning the ref.
-        if (disposed) {
-          created.destroy(true);
-          return;
+      const result = await retryWithBackoff<import("phaser").Game>(
+        async () => {
+          const { createPhaserGame } = await import("@/game/phaser");
+          const parent = parentRef.current;
+          if (!parent) throw new Error("usePhaserGame: parent ref detached");
+          let created: import("phaser").Game | null = null;
+          try {
+            created = await createPhaserGame(parent, {
+              missionId,
+              onComplete: (summary) => onComplete(summary)
+            });
+            return created;
+          } catch (err) {
+            // Partial init may leave a half-constructed Phaser.Game
+            // holding a WebGL context + tickers. Destroy before letting
+            // the retry loop see the throw so attempts can't accumulate
+            // dead contexts. destroy() may also throw; swallow.
+            if (created) {
+              try {
+                created.destroy(true);
+              } catch {
+                /* best-effort */
+              }
+            }
+            throw err;
+          }
+        },
+        {
+          maxAttempts: MAX_INIT_ATTEMPTS,
+          delayMs: RETRY_DELAY_MS,
+          isCancelled: () => disposed,
+          onAttemptFailed: (err, attempt) =>
+            console.error(
+              `usePhaserGame: attempt ${attempt}/${MAX_INIT_ATTEMPTS} failed`,
+              err
+            )
         }
-        game = created;
-      } catch (err) {
-        console.error("usePhaserGame: failed to start combat", err);
-        if (!disposed) setError("Failed to start combat. Refresh the page.");
+      );
+
+      if (result.kind === "cancelled") return;
+      if (result.kind === "failed") {
+        setError("Failed to start combat. Refresh the page.");
+        return;
       }
+
+      if (disposed) {
+        // Cleanup raced us between attempt success and now. Destroy the
+        // live Phaser.Game so its WebGL context + tickers don't leak.
+        result.value.destroy(true);
+        return;
+      }
+      game = result.value;
     })();
 
     return () => {

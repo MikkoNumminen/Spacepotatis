@@ -27,18 +27,12 @@ export default async function Leaderboard({
 
   if (entries.length === 0) {
     // Distinguish "we skipped Neon at build time, real data lands after
-    // ISR refresh" from "this mission genuinely has zero scores". Both
-    // render the empty branch, but the copy users see for ~60s after
-    // deploy should not falsely imply their progress was wiped — and
-    // should be ACTIONABLE (the user can refresh to bring it forward
-    // rather than wait for organic ISR).
-    if (isBuildPhase()) {
-      return (
-        <div className="text-xs text-space-border">
-          Leaderboard warming up — refresh in a few seconds to see the latest.
-        </div>
-      );
-    }
+    // ISR refresh" from "this mission genuinely has zero scores". The
+    // build-phase render is baked into the static HTML for ~60s after
+    // deploy — render a loading skeleton so it cannot be mistaken for an
+    // empty leaderboard. The genuine empty case still gets the "be the
+    // first" copy.
+    if (isBuildPhase()) return <LeaderboardSkeleton />;
     return <div className="text-xs text-space-border">No scores yet — be the first.</div>;
   }
 
@@ -66,6 +60,29 @@ export default async function Leaderboard({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function LeaderboardSkeleton() {
+  return (
+    <div
+      className="-mx-1 space-y-2 text-xs"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <span className="sr-only">Loading leaderboard…</span>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 border-t border-space-border/40 py-1 first:border-t-0"
+        >
+          <div className="h-3 w-4 animate-pulse rounded bg-space-border/30" />
+          <div className="h-3 w-28 animate-pulse rounded bg-space-border/30" />
+          <div className="ml-auto h-3 w-12 animate-pulse rounded bg-space-border/30" />
+          <div className="h-3 w-10 animate-pulse rounded bg-space-border/30" />
+        </div>
+      ))}
     </div>
   );
 }

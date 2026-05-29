@@ -206,6 +206,23 @@ export default function GameCanvas() {
   });
   const rendererError = mode === "combat" ? combatError : galaxyError;
 
+  // Latches true once the galaxy scene has rendered at least one frame.
+  // Distinguishes the initial boot (covered by SplashGate) from later
+  // transitions like a warp, where sceneReady briefly flips back to false
+  // while the old GalaxyScene is disposed and a new one is constructed.
+  // The transient overlay below uses this so it only paints during
+  // post-boot transitions and never double-covers the splash.
+  const [galaxyHasBooted, setGalaxyHasBooted] = useState(false);
+  useEffect(() => {
+    if (sceneReady) setGalaxyHasBooted(true);
+  }, [sceneReady]);
+  const showGalaxyTransition =
+    mode === "galaxy"
+    && galaxyHasBooted
+    && !sceneReady
+    && !galaxyError
+    && !showLoadError;
+
   const splashSteps = useMemo<readonly SplashStep[]>(
     () => [
       { label: "verify pilot session", done: isVerified },
@@ -311,11 +328,37 @@ export default function GameCanvas() {
         onDismiss={() => setErrorDismissed(true)}
       />
     )}
+    {showGalaxyTransition && (
+      // Post-boot galaxy transition (warp / dispose+reconstruct). The
+      // splash is gone by now, so without this overlay the player would
+      // see the prior canvas frozen — or a blank dark area — for the
+      // 100–900ms window that GalaxyScene takes to rebuild (longer if
+      // useGalaxyScene retries a transient init failure). The renderer-
+      // error overlay only paints after MAX_INIT_ATTEMPTS, so a recovered
+      // blip surfaces here as "Spinning up…" and never as a hard error.
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-0 z-[55] flex items-center justify-center bg-space-bg/80 backdrop-blur-sm"
+      >
+        <div className="select-none rounded border border-hud-green/40 bg-space-bg/80 p-5 shadow-[0_0_30px_rgba(94,255,167,0.15)] sm:p-6">
+          <div className="font-display text-xl tracking-widest text-hud-green animate-pulse sm:text-2xl">
+            SPINNING UP GALAXY VIEW…
+          </div>
+          <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-hud-amber/70">
+            warp transit
+          </div>
+        </div>
+      </div>
+    )}
     {rendererError && !showLoadError && (
       // Surfaces a dynamic-import / WebGL / Phaser init failure. Without
       // this the player would see a blank canvas (combat) or a stuck splash
       // (galaxy, since ready never flips) and have no way to know the
-      // renderer failed to start.
+      // renderer failed to start. By the time `rendererError` is truthy
+      // the retry budget in useGalaxyScene/usePhaserGame is already
+      // exhausted — `showGalaxyTransition` requires `!galaxyError`, so
+      // the two overlays cannot coexist anyway.
       <div
         role="alertdialog"
         aria-modal="true"
