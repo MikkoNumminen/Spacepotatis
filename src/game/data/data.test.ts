@@ -18,6 +18,14 @@ import type {
   WeaponDefinition
 } from "@/types";
 
+// AI-NOTE: cast sites below use `as unknown as readonly MissionDefinition[]`
+// rather than `as readonly MissionDefinition[]` because JSON imports widen
+// tuple-typed fields (`PlanetStyle.featureColor: readonly [number, number,
+// number]`) to plain `number[]`, so a direct narrowing cast is rejected.
+// Runtime safety is enforced by `runDataIntegrityCheck` at boot — the cast
+// indirection is acknowledging that the JSON shape is structurally
+// compatible after that gate runs.
+
 const KNOWN_FORMATIONS = new Set(["line", "vee", "scatter", "column"]);
 const KNOWN_OBSTACLE_FORMATIONS = new Set(["line", "scatter", "column"]);
 const KNOWN_BEHAVIORS = new Set(["straight", "zigzag", "homing", "boss"]);
