@@ -3,6 +3,7 @@
 import { useState } from "react";
 import LoadoutMenu from "@/components/LoadoutMenu";
 import ShopUI from "@/components/ShopUI";
+import { useShopAudio } from "@/components/hooks/useShopAudio";
 
 // /shop is split into two tabs:
 // - MARKET: HULL & SHIELD + REACTOR + BUY WEAPONS + BUY AUGMENTS (LoadoutMenu
@@ -25,6 +26,11 @@ const TAB_HINTS: Readonly<Record<ShopTab, string>> = {
 
 export default function ShopTabs() {
   const [tab, setTab] = useState<ShopTab>("market");
+  // /shop session audio: shop bed survives tab switches; dock-arrival
+  // voice cancels on switch away from market. Lifted up here from ShopUI
+  // because ShopUI's mount/unmount lifecycle was breaking music on every
+  // tab switch. See useShopAudio for the full contract.
+  useShopAudio(tab);
 
   return (
     <>
