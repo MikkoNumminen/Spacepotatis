@@ -98,7 +98,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: medium (size only — no correctness defect)
 - Description: the four `ui` god-files surfaced by the modular-architecture audit. Per [`_progress.md`](_progress.md) Q4, splits land as follow-up PRs after the `ui` boundary settles, NOT during extraction. Sizes at audit-time: `GameCanvas` 452, `ShopUI` 408, `QuestPanel` 387, `WeaponCard` 210.
 - Suggested fix: per-file refactor PRs that extract sub-components without changing observable behavior. Each split is its own PR.
-- **Partial resolution 2026-05-29 in PR #<TBD>**: QuestPanel split — extracted [`src/components/galaxy/QuestPanelRows.tsx`](src/components/galaxy/QuestPanelRows.tsx) (`Section`, `SuggestedRow`, `CollapsibleRow`, `ShopRow`, `SystemClearCta`). `QuestPanel.tsx` now 197 LOC (was 387). Tests + typecheck + build green; behavior unchanged.
+- **Partial resolution 2026-05-29 in PR #256**: QuestPanel split — extracted [`src/components/galaxy/QuestPanelRows.tsx`](src/components/galaxy/QuestPanelRows.tsx) (`Section`, `SuggestedRow`, `CollapsibleRow`, `ShopRow`, `SystemClearCta`). `QuestPanel.tsx` now 197 LOC (was 387). Tests + typecheck + build green; behavior unchanged.
 
 ---
 
