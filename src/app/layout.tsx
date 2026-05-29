@@ -38,10 +38,26 @@ export const metadata: Metadata = {
   }
 };
 
+// Inline dark background on both html and body. Why both:
+//   - globals.css already sets `html, body { background-color: space-bg }`,
+//     but during a client-side page navigation the browser briefly paints
+//     the document chrome (scrollbars, beyond-viewport background, the
+//     space between an old route unmounting and a new one mounting) using
+//     whatever the user-agent default is — on most platforms that's
+//     white. Inline `style` wins the cascade and is applied even before
+//     the linked stylesheet's `@layer base` has been processed.
+//   - The `body` className still carries `bg-space-bg` for selector-based
+//     tooling (devtools, screenshot fidelity); the inline style guarantees
+//     correctness even when className-derived CSS hasn't matched yet.
+const SPACE_BG_INLINE: React.CSSProperties = { backgroundColor: "#05060f" };
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-dvh bg-space-bg text-hud-green antialiased">
+    <html lang="en" style={SPACE_BG_INLINE}>
+      <body
+        className="min-h-dvh bg-space-bg text-hud-green antialiased"
+        style={SPACE_BG_INLINE}
+      >
         <Providers>{children}</Providers>
         <MenuMusic />
       </body>

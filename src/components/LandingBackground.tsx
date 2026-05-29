@@ -55,7 +55,12 @@ export default function LandingBackground() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="fixed inset-0 z-0 h-screen w-screen"
+      // bg-space-bg on the canvas keeps the document dark while WebGL
+      // is initializing or tearing down. Without it, the canvas's
+      // transparent default backing color lets the browser show its
+      // white user-agent default during page-nav teardown frames,
+      // which the user sees as a flash on every route change.
+      className="fixed inset-0 z-0 h-screen w-screen bg-space-bg"
     />
   );
 }
