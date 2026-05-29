@@ -25,12 +25,18 @@ export default function MenuMusic() {
 
   useEffect(() => {
     const onGesture = (): void => {
+      // The {once: true} option on each listener removes that listener after
+      // its first invocation — but the sibling listener (pointerdown vs.
+      // keydown) is still armed. Remove it here so a stray keystroke after
+      // an early click doesn't re-fire init/arm/ensurePlaying for nothing.
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
       menuMusic.init();
       menuMusic.arm();
       menuMusic.ensurePlaying();
     };
-    window.addEventListener("pointerdown", onGesture);
-    window.addEventListener("keydown", onGesture);
+    window.addEventListener("pointerdown", onGesture, { once: true });
+    window.addEventListener("keydown", onGesture, { once: true });
     return () => {
       window.removeEventListener("pointerdown", onGesture);
       window.removeEventListener("keydown", onGesture);

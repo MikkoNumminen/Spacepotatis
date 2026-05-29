@@ -106,6 +106,10 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
       // defensively. Will only matter when shadows are enabled.
       rimLight.shadow?.map?.dispose();
       rimLight.dispose();
+      // forceContextLoss() before dispose() is the canonical WebGL teardown
+      // pair — without it the context lingers until GC on rapid galaxy↔combat
+      // cycling and can exhaust the browser's per-page WebGL context budget.
+      renderer.forceContextLoss();
       renderer.dispose();
     }
   };
