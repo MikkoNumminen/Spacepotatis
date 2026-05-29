@@ -3,11 +3,15 @@
 // Extracted as a pure helper so the timing + cancellation contract is
 // testable from a `node` test env without a React renderer.
 
-// Defaults the consumer hooks share. Two attempts after the initial one
-// recover from typical transient blips without making a deterministic
-// failure take an unbearable ~3s to surface. 300ms is empirically long
-// enough for a WebGL context to come back after a rapid dispose+recreate
-// without being noticeable as a stutter.
+// Defaults the consumer hooks share. Three attempts × 300ms backoff =
+// 600ms worst-case retry overhead before a deterministic failure
+// surfaces (plus the actual attempt time — typically ~100–500ms for a
+// dynamic import + scene construct, so total ceiling ≈ 1.5s). Two retries
+// is enough to ride out the common transient cases (WebGL context blip
+// during a warp dispose/recreate, dynamic-import flake) without dragging
+// genuine failures into multi-second waits. 300ms is empirically long
+// enough for a WebGL context to come back without being noticeable as
+// a stutter.
 export const DEFAULT_MAX_INIT_ATTEMPTS = 3;
 export const DEFAULT_RETRY_DELAY_MS = 300;
 
