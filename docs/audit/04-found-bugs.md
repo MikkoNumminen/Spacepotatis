@@ -92,6 +92,14 @@ Severity is a rough hint, not a release-grade triage.
   (b) Carve `auth.ts` out of the barrel and keep its deep path canonical. Other infra files migrate to the barrel cleanly. Smallest change.
   (c) Accept the barrel as nominal-only. New code uses the barrel; existing code keeps deep paths. Cheapest but defeats the audit goal for `infra`.
 
+## 2026-05-04 — `components/` god-files (`GameCanvas`, `ShopUI`, `QuestPanel`, `WeaponCard`)
+- Path: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx) (452 LOC), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx) (408 LOC), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx) (387 LOC), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx) (210 LOC)
+- Found by: zone A / [`01-inventory.md:300-310`](01-inventory.md#L300-L310)
+- Severity: medium (modularity; not a functional bug)
+- Description: four `ui` components exceed the ~300-LOC modularity-discipline limit (CLAUDE.md §5). Each mixes multiple concerns the section-component pattern would cleanly split (sub-sections, mutator wirings, audio side effects, helper components). See `01-inventory.md` Q4 for the per-file responsibility breakdown.
+- Suggested fix: split each into a `<name>/` subfolder of section components. State + mutator wirings + audio effects stay in the orchestrator; section components are pure render given props.
+- **Partial resolution 2026-05-29 in PR #<your PR>**: ShopUI split — extracted 3 catalog section components (`shop/ShopUpgradesSection.tsx`, `shop/ShopWeaponsSection.tsx`, `shop/ShopAugmentsSection.tsx`). `ShopUI.tsx` now 254 LOC orchestrator. Remaining: `GameCanvas` 452, `QuestPanel` 387, `WeaponCard` 210.
+
 ---
 
 ## How to add a new entry

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buyArmorUpgrade,
   buyAugment,
@@ -25,36 +25,15 @@ import type { ShipConfig } from "@/game/state";
 import { STORY_ENTRIES } from "@/game/data";
 import { itemSfx, menuMusic, shopMusic, storyAudio } from "@/game/audio";
 import { getWeapon, getAllAugments, getBuyableWeaponIds } from "@/game/data";
-import type { AugmentId, WeaponDefinition, WeaponId } from "@/types";
+import type { WeaponDefinition } from "@/types";
 import type { AugmentDefinition } from "@/game/data";
 import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";
 import { AugmentDetailsModal } from "@/components/loadout/AugmentDetailsModal";
 import { UpgradeDetailsModal } from "@/components/loadout/UpgradeDetailsModal";
-import { AugmentDot, WeaponDot } from "@/components/loadout/dots";
 import { getUpgrade, type UpgradeId } from "@/game/data";
-
-// Total copies of a weapon id the player owns across slots + inventory.
-// Used to decorate buy rows so the player can see "owned · N" before purchase.
-function countOwnedWeapon(ship: ShipConfig, id: WeaponId): number {
-  let n = 0;
-  for (const slot of ship.slots) if (slot?.id === id) n++;
-  for (const inst of ship.inventory) if (inst.id === id) n++;
-  return n;
-}
-
-// Total copies of an augment id, INCLUDING ones already installed on weapons
-// (those can't be uninstalled, but the player still "has" the augment id).
-// Free-to-install copies live in augmentInventory.
-function countOwnedAugment(ship: ShipConfig, id: AugmentId): {
-  total: number;
-  free: number;
-} {
-  const free = ship.augmentInventory.filter((a) => a === id).length;
-  let installed = 0;
-  for (const slot of ship.slots) if (slot) installed += slot.augments.filter((a) => a === id).length;
-  for (const inst of ship.inventory) installed += inst.augments.filter((a) => a === id).length;
-  return { total: free + installed, free };
-}
+import { ShopUpgradesSection } from "@/components/shop/ShopUpgradesSection";
+import { ShopWeaponsSection } from "@/components/shop/ShopWeaponsSection";
+import { ShopAugmentsSection } from "@/components/shop/ShopAugmentsSection";
 
 export default function ShopUI() {
   const credits = useGameState((s) => s.credits);
@@ -68,8 +47,14 @@ export default function ShopUI() {
   // Per-mission unlock gate: each mission-kind mission unlocks one weapon
   // for purchase. See src/game/data/missionWeaponRewards.ts for the map.
   // LoadoutMenu remains ungated — owned weapons stay usable everywhere.
-  const visibleWeapons = getBuyableWeaponIds(new Set(completedMissions)).map(
-    (id) => getWeapon(id)
+  const visibleWeapons = useMemo(
+    () => getBuyableWeaponIds(new Set(completedMissions)).map((id) => getWeapon(id)),
+    [completedMissions]
+  );
+
+  const buyableAugments = useMemo(
+    () => getAllAugments().filter((a) => a.cost > 0),
+    []
   );
 
   // Plays the on-shop-open briefing every time the player docks (any shop
@@ -108,15 +93,6 @@ export default function ShopUI() {
     };
   }, []);
 
-  const shieldCost = shieldUpgradeCost(ship.shieldLevel);
-  const armorCost = armorUpgradeCost(ship.armorLevel);
-  const reactorCapCost = reactorCapacityCost(ship.reactor.capacityLevel);
-  const reactorRechCost = reactorRechargeCost(ship.reactor.rechargeLevel);
-  const shieldMaxed = ship.shieldLevel >= MAX_LEVEL;
-  const armorMaxed = ship.armorLevel >= MAX_LEVEL;
-  const reactorCapMaxed = ship.reactor.capacityLevel >= MAX_LEVEL;
-  const reactorRechMaxed = ship.reactor.rechargeLevel >= MAX_LEVEL;
-
   // Each handler fires its sfx alongside the mutation. The buttons are
   // disabled when the player can't afford the cost, so reaching the
   // handler implies a successful purchase.
@@ -136,200 +112,43 @@ export default function ShopUI() {
     buyReactorRechargeUpgrade();
     itemSfx.upgrade();
   }, []);
+  const handleBuyWeapon = useCallback((weapon: WeaponDefinition) => {
+    buyWeapon(weapon.id);
+    itemSfx.weapon();
+  }, []);
+  const handleBuyAugment = useCallback((aug: AugmentDefinition) => {
+    buyAugment(aug.id);
+    itemSfx.augment();
+  }, []);
 
   return (
     <>
       <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_1fr]">
-        <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-          <h2 className="mb-4 font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
+        <ShopUpgradesSection
+          ship={ship}
+          credits={credits}
+          onBuyShield={handleBuyShield}
+          onBuyArmor={handleBuyArmor}
+          onBuyReactorCapacity={handleBuyReactorCap}
+          onBuyReactorRecharge={handleBuyReactorRech}
+          onShowUpgradeDetails={setUpgradeDetails}
+        />
 
-          <Row
-            label="Shield capacity"
-            detail={`level ${ship.shieldLevel}/${MAX_LEVEL} · max ${getMaxShield(ship)}`}
-            level={ship.shieldLevel}
-            maxLevel={MAX_LEVEL}
-            cost={shieldMaxed ? null : shieldCost}
-            disabled={shieldMaxed || credits < shieldCost}
-            onClick={handleBuyShield}
-            onDetails={() => setUpgradeDetails("shield")}
-          />
-          <Row
-            label="Armor plating"
-            detail={`level ${ship.armorLevel}/${MAX_LEVEL} · max HP ${getMaxArmor(ship)}`}
-            level={ship.armorLevel}
-            maxLevel={MAX_LEVEL}
-            cost={armorMaxed ? null : armorCost}
-            disabled={armorMaxed || credits < armorCost}
-            onClick={handleBuyArmor}
-            onDetails={() => setUpgradeDetails("armor")}
-          />
+        <ShopWeaponsSection
+          ship={ship}
+          credits={credits}
+          visibleWeapons={visibleWeapons}
+          onBuyWeapon={handleBuyWeapon}
+          onShowWeaponDetails={setWeaponDetails}
+        />
 
-          <h3 className="mt-5 mb-2 font-display text-xs tracking-widest text-hud-amber">REACTOR</h3>
-          <Row
-            label="Reactor capacity"
-            detail={`level ${ship.reactor.capacityLevel}/${MAX_LEVEL} · max ⚡ ${getReactorCapacity(ship)}`}
-            level={ship.reactor.capacityLevel}
-            maxLevel={MAX_LEVEL}
-            cost={reactorCapMaxed ? null : reactorCapCost}
-            disabled={reactorCapMaxed || credits < reactorCapCost}
-            onClick={handleBuyReactorCap}
-            onDetails={() => setUpgradeDetails("reactor-capacity")}
-          />
-          <Row
-            label="Reactor recharge"
-            detail={`level ${ship.reactor.rechargeLevel}/${MAX_LEVEL} · ⚡/s ${getReactorRecharge(ship)}`}
-            level={ship.reactor.rechargeLevel}
-            maxLevel={MAX_LEVEL}
-            cost={reactorRechMaxed ? null : reactorRechCost}
-            disabled={reactorRechMaxed || credits < reactorRechCost}
-            onClick={handleBuyReactorRech}
-            onDetails={() => setUpgradeDetails("reactor-recharge")}
-          />
-        </section>
-
-        <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-          <h2 className="mb-4 font-display tracking-widest text-hud-green">BUY WEAPONS</h2>
-
-          {visibleWeapons.length === 0 && (
-            <p className="text-xs text-hud-green/60">
-              Complete missions to unlock weapons for purchase.
-            </p>
-          )}
-
-          <ul className="flex flex-col gap-1.5">
-            {visibleWeapons.map((weapon) => {
-              const owned = countOwnedWeapon(ship, weapon.id);
-              const dps = Math.round(
-                weapon.damage * weapon.projectileCount * (1000 / weapon.fireRateMs)
-              );
-              return (
-                <li
-                  key={weapon.id}
-                  className="rounded border border-space-border px-3 py-2"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <WeaponDot tint={weapon.tint} />
-                      <span className="font-display text-sm tracking-wider truncate">
-                        {weapon.name}
-                      </span>
-                      <TierBadge tier={weapon.tier} />
-                      {owned > 0 && (
-                        <span
-                          className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80"
-                          title={`You already own ${owned} cop${owned === 1 ? "y" : "ies"} of this weapon (sum across loadout slots and inventory).`}
-                        >
-                          ×{owned}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <span className="font-mono text-[11px] text-hud-green/70">
-                      <span
-                        className="text-hud-amber"
-                        title="Damage per second — projectiles × damage × fire rate. Doesn't include any augments yet (you haven't bought it)."
-                      >
-                        DPS {dps}
-                      </span>
-                      <span className="mx-1.5 text-hud-green/30">·</span>
-                      <span title="Energy cost per shot. Drains the reactor; recharges over time.">
-                        ⚡ {weapon.energyCost}
-                      </span>
-                      {weapon.projectileCount > 1 && (
-                        <>
-                          <span className="mx-1.5 text-hud-green/30">·</span>
-                          <span title={`${weapon.damage} damage per projectile × ${weapon.projectileCount} projectiles per shot.`}>
-                            {weapon.damage}×{weapon.projectileCount}
-                          </span>
-                        </>
-                      )}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setWeaponDetails(weapon)}
-                        className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
-                      >
-                        DETAILS
-                      </button>
-                      <button
-                        type="button"
-                        disabled={credits < weapon.cost}
-                        onClick={() => {
-                          buyWeapon(weapon.id);
-                          itemSfx.weapon();
-                        }}
-                        className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                      >
-                        BUY · ¢{weapon.cost}
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        <section className="rounded border border-space-border bg-space-panel/70 p-4 md:col-span-2 sm:p-5">
-          <h2 className="mb-4 font-display tracking-widest text-hud-green">AUGMENTS</h2>
-
-          <p className="mb-3 text-xs text-hud-green/60">
-            Permanent weapon modifiers. One-way install. Open DETAILS for the full description.
-          </p>
-
-          <ul className="flex flex-col gap-1.5">
-            {getAllAugments()
-              .filter((a) => a.cost > 0)
-              .map((aug) => {
-                const { total, free } = countOwnedAugment(ship, aug.id);
-                return (
-                  <li
-                    key={aug.id}
-                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded border border-space-border px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <AugmentDot tint={aug.tint} />
-                      <span className="font-display text-sm tracking-wider truncate">
-                        {aug.name}
-                      </span>
-                      {total > 0 && (
-                        <span
-                          className="shrink-0 rounded border border-hud-green/40 bg-hud-green/5 px-1.5 py-0.5 font-mono text-[10px] text-hud-green/80"
-                          title={`You own ${total} cop${total === 1 ? "y" : "ies"} of this augment in total. ${free} free in inventory ready to install. ${total - free} already installed on a weapon (one-way install — can't be removed).`}
-                        >
-                          ×{total}
-                          {free !== total ? ` (free ${free})` : ""}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setAugmentDetails(aug)}
-                        className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
-                      >
-                        DETAILS
-                      </button>
-                      <button
-                        type="button"
-                        disabled={credits < aug.cost}
-                        onClick={() => {
-                          buyAugment(aug.id);
-                          itemSfx.augment();
-                        }}
-                        className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-                      >
-                        BUY · ¢{aug.cost}
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-          </ul>
-        </section>
+        <ShopAugmentsSection
+          ship={ship}
+          credits={credits}
+          augments={buyableAugments}
+          onBuyAugment={handleBuyAugment}
+          onShowAugmentDetails={setAugmentDetails}
+        />
       </div>
 
       {weaponDetails && (
@@ -432,92 +251,4 @@ function UpgradeDetailsForId({
       return null;
     }
   }
-}
-
-function TierBadge({ tier }: { tier: 1 | 2 }) {
-  const cls =
-    tier === 1
-      ? "border-hud-green/40 text-hud-green/70"
-      : "border-hud-amber/50 text-hud-amber/80";
-  const title = tier === 1
-    ? "Tier 1 — starter / potato-family weapons. Always sold in tutorial-system shops."
-    : "Tier 2 — pirate-haul weapons. Only available in shops past the tutorial system.";
-  return (
-    <span
-      aria-label={`Tier ${tier}`}
-      title={title}
-      className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${cls}`}
-    >
-      T{tier}
-    </span>
-  );
-}
-
-// Hull/reactor upgrade row. Mirrors the weapon-row upgrade button shape so
-// the player learns one visual pattern across all upgrade surfaces:
-//   not maxed: amber "UPGRADE TO Mk{N+1} · ¢{cost}" pill (price folded
-//              into the button so the eye lands on one control, not three).
-//   maxed:    "Mk {maxLevel} maxed" span (no button — there's nothing to do).
-//
-// `cost === null` is the single source of truth for "maxed" — derives
-// from the parent's `cost={maxed ? null : actualCost}` shape and lets
-// TS narrow `cost` to `number` inside the not-maxed branch. The previous
-// `level >= maxLevel` derivation didn't narrow, so the button could
-// silently render `¢ null` if a future caller passed cost: null while
-// not maxed.
-function Row({
-  label,
-  detail,
-  level,
-  maxLevel,
-  cost,
-  disabled,
-  onClick,
-  onDetails
-}: {
-  label: string;
-  detail: string;
-  level: number;
-  maxLevel: number;
-  cost: number | null;
-  disabled: boolean;
-  onClick: () => void;
-  // When provided, renders a "DETAILS" pill before the upgrade control
-  // that opens the per-upgrade modal (with Grandma voiceover).
-  onDetails?: () => void;
-}) {
-  const maxed = cost === null;
-  return (
-    <div className="mb-3 flex items-center justify-between gap-3 rounded border border-space-border p-3">
-      <div className="min-w-0">
-        <div className="font-display tracking-wider">{label}</div>
-        <div className="text-xs text-hud-green/70">{detail}</div>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        {onDetails && (
-          <button
-            type="button"
-            onClick={onDetails}
-            className="touch-manipulation select-none rounded border border-hud-green/40 px-2 py-0.5 font-mono text-[11px] text-hud-green/80 hover:bg-hud-green/10 active:bg-hud-green/20"
-          >
-            DETAILS
-          </button>
-        )}
-        {maxed ? (
-          <span className="font-mono text-[11px] text-hud-green/50">
-            Mk {maxLevel} maxed
-          </span>
-        ) : (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onClick}
-            className="touch-manipulation select-none rounded border border-hud-amber/60 px-2 py-0.5 font-mono text-[11px] text-hud-amber enabled:hover:bg-hud-amber/10 enabled:active:bg-hud-amber/20 disabled:cursor-not-allowed disabled:border-space-border disabled:text-space-border"
-          >
-            UPGRADE TO Mk{level + 1} · ¢{cost}
-          </button>
-        )}
-      </div>
-    </div>
-  );
 }
