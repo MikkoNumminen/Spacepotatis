@@ -120,6 +120,14 @@ Severity is a rough hint, not a release-grade triage.
 - Description: `schemas/save.ts` imports `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots`, `MAX_LEVEL`, `MAX_WEAPON_SLOTS` from `@/game/state/ShipConfig`. Per the Phase 2 graph, `schemas` should depend on `types` only (it's a leaf, tier 1). Reaching up to `state` is a 2-tier back-edge. The TS build passes because the imports are types + constants. Cycle with `state → schemas` (state uses SavePayloadSchema). **Not logged in Phase 2's violations list.** Pre-dates the audit.
 - Suggested fix: same three options as the `infra → state` entry above. Option (a) — move the ship-shape types into `@/types/game.ts` so both `schemas` and `state` consume from the same leaf — is the natural fit since these ARE pure types and pure constants, not runtime behavior.
 
+## 2026-05-04 — `components/` god-files (`GameCanvas`, `ShopUI`, `QuestPanel`, `WeaponCard`)
+- Path: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx) (452 LOC), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx) (408 LOC), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx) (387 LOC), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx) (210 LOC)
+- Found by: zone A / [`01-inventory.md:300-310`](01-inventory.md#L300-L310)
+- Severity: medium (modularity; not a functional bug)
+- Description: four `ui` components exceed the ~300-LOC modularity-discipline limit (CLAUDE.md §5). Each mixes multiple concerns the section-component pattern would cleanly split (sub-sections, mutator wirings, audio side effects, helper components). See `01-inventory.md` Q4 for the per-file responsibility breakdown.
+- Suggested fix: split each into a `<name>/` subfolder of section components. State + mutator wirings + audio effects stay in the orchestrator; section components are pure render given props.
+- **Partial resolution 2026-05-29 in PR #<your PR>**: ShopUI split — extracted 3 catalog section components (`shop/ShopUpgradesSection.tsx`, `shop/ShopWeaponsSection.tsx`, `shop/ShopAugmentsSection.tsx`). `ShopUI.tsx` now 254 LOC orchestrator. Remaining: `GameCanvas` 452, `QuestPanel` 387, `WeaponCard` 210.
+
 ---
 
 ## How to add a new entry
