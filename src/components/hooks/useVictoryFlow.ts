@@ -32,6 +32,12 @@ import type { VictorySyncStatus } from "@/components/galaxy/VictoryModal";
 
 export interface UseVictoryFlowOptions {
   readonly authStatus: "loading" | "authenticated" | "unauthenticated";
+  // sessionEmail is the resolved player identity. We can't rely on
+  // authStatus alone for the drain trigger: useCloudSaveSync flushes the
+  // email into syncCache via its own effect, and the two effects can fire
+  // in either order. The first flush after an auth flip needs both signals
+  // to be live, so this hook re-runs the drain when EITHER changes.
+  readonly sessionEmail: string | null;
   readonly currentSolarSystemId: SolarSystemId;
   readonly completedMissions: readonly MissionId[];
   readonly unlockedSolarSystems: readonly SolarSystemId[];
@@ -48,6 +54,7 @@ export interface UseVictoryFlowResult {
 
 export function useVictoryFlow({
   authStatus,
+  sessionEmail,
   currentSolarSystemId,
   completedMissions,
   unlockedSolarSystems,
@@ -190,6 +197,13 @@ export function useVictoryFlow({
   // guard sees the freshest completed_missions in the same trigger pass.
   // Both are no-ops when their queue is empty, so spamming triggers is
   // cheap.
+  //
+  // sessionEmail is in the dep array alongside authStatus: flushSaveQueue
+  // reads getCurrentPlayerEmail() at call time, and that value is set by
+  // useCloudSaveSync's separate setCurrentPlayerEmail effect. The two
+  // effects can fire in either order on the auth flip, so re-running this
+  // when the email becomes available ensures the initial drain on
+  // authenticated actually has an identity to stamp against.
   useEffect(() => {
     if (authStatus !== "authenticated") return;
     const drainBoth = async (): Promise<void> => {
@@ -209,7 +223,7 @@ export function useVictoryFlow({
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("online", onOnline);
     };
-  }, [authStatus]);
+  }, [authStatus, sessionEmail]);
 
   return {
     lastSummary,

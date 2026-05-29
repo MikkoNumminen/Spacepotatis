@@ -87,7 +87,13 @@ export type LoadResultKind =
 export type LoadFailureReason =
   | "http_error"
   | "network_error"
-  | "schema_rejected";
+  | "schema_rejected"
+  // Account swapped mid-fetch — the GET resolved after the signed-in
+  // identity changed. Returning load-failed (rather than silently dropping)
+  // lets the new account's loadSave fire fresh; PR #262 added the outer
+  // cache-write guard, but doLoadSave's hydrate(snapshot) + markHydrationCompleted()
+  // also need the stamp check, otherwise A's snapshot lands in B's GameState.
+  | "account_swap";
 
 export interface LoadResult {
   readonly kind: LoadResultKind;
@@ -107,7 +113,18 @@ const RESULT_PENDING_ONLY: LoadResult = { kind: "pending-only" };
 export async function loadSave(): Promise<LoadResult> {
   const cached = getSaveCacheValue();
   const lastResult = getLastLoadResultValue() as LoadResult | null;
-  if (cached !== null && lastResult !== null) return lastResult;
+  // Short-circuit only when the prior result was a hydrating outcome. A
+  // saveNow() between loads flips `cached` to `true` (it just committed a
+  // snapshot to the server), but `lastResult` may still mirror an older
+  // "load-failed" — short-circuiting THAT would surface stale failure to
+  // the splash gate even though the player's data is on the server now.
+  if (cached !== null && lastResult !== null && lastResult.kind !== "load-failed") {
+    return lastResult;
+  }
+  // Capture the player email at entry. Any account swap between now and the
+  // cache writes below makes this load's outcome belong to the prior
+  // account; we must NOT poison the post-swap cache with it.
+  const requestEmail = getCurrentPlayerEmail();
   const existing = getInflightLoad();
   // Concurrent callers share the same in-flight Promise. The slot is typed
   // as `Promise<unknown>` in syncCache (kept Zod-free); the consumer side
@@ -123,6 +140,12 @@ export async function loadSave(): Promise<LoadResult> {
   })();
   setInflightLoad(promise);
   const result = await promise;
+  // Account-swap guard: if the signed-in player changed during the load,
+  // this result belongs to the old account. setCurrentPlayerEmail has
+  // already wiped the cache; rewriting it from this resolved promise
+  // would re-poison the slot the swap just cleared. Mirror of the
+  // save-path account-stamping in saveQueue (PR #100).
+  if (getCurrentPlayerEmail() !== requestEmail) return result;
   // Boolean cache mirrors "do we have ANY hydrated state to render"; the
   // load-failed branch keeps it false so the splash can re-trigger a load
   // attempt if the user retries via the error overlay.
@@ -333,18 +356,42 @@ async function doLoadSave(): Promise<LoadResult> {
             // signal for "let hydrate pick a default".
             currentSolarSystemId: body.currentSolarSystemId ?? undefined
           };
-          hydrate(snapshot);
-          markHydrationCompleted();
-          serverOutcome = { kind: "server-loaded" };
+          // Account-swap guard (inner). The outer guard in loadSave (line
+          // ~142) prevents the post-resolve cache writes from poisoning the
+          // post-swap slot, but it can't stop hydrate(snapshot) /
+          // markHydrationCompleted() from already having flipped the live
+          // GameState into A's data while B is signed in. Mirror of the
+          // save-path account-stamping in saveQueue (PR #100) and the outer
+          // guard from PR #262. Anonymous → authenticated counts as a swap
+          // (null !== email); the freshly-signed-in account's loadSave will
+          // re-fire with the new stamp.
+          if (getCurrentPlayerEmail() !== playerEmail) {
+            // Skip hydrate + markHydrationCompleted entirely. The pending
+            // overlay step below also reads playerEmail (the captured one)
+            // so it stays scoped to the original account and won't leak
+            // either. Mapping to load-failed (not a silent return) makes
+            // sure the splash gate doesn't render the galaxy on top of
+            // INITIAL_STATE — saveNow will refuse to POST because
+            // hydrationCompleted is still false.
+            serverOutcome = {
+              kind: "load-failed",
+              reason: "account_swap",
+              status: 0
+            };
+          } else {
+            hydrate(snapshot);
+            markHydrationCompleted();
+            serverOutcome = { kind: "server-loaded" };
 
-          // Server is now this account's authoritative source. Any
-          // anonymous progress in the guest cache from a prior session is
-          // no longer relevant for THIS user, and leaving it would let a
-          // future first-time sign-in on the same browser inadvertently
-          // claim it under a different account. Clearing here is the
-          // cross-account leak defense for the claim path. (See INV in
-          // guestCache.ts.)
-          clearGuestSnapshot();
+            // Server is now this account's authoritative source. Any
+            // anonymous progress in the guest cache from a prior session is
+            // no longer relevant for THIS user, and leaving it would let a
+            // future first-time sign-in on the same browser inadvertently
+            // claim it under a different account. Clearing here is the
+            // cross-account leak defense for the claim path. (See INV in
+            // guestCache.ts.)
+            clearGuestSnapshot();
+          }
         }
       }
     }

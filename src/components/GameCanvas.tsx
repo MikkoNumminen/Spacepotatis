@@ -36,7 +36,8 @@ export default function GameCanvas() {
   const combatParentRef = useRef<HTMLDivElement | null>(null);
 
   const router = useRouter();
-  const { status: authStatus } = useSession();
+  const { status: authStatus, data: session } = useSession();
+  const sessionEmail = session?.user?.email ?? null;
   const { isVerified } = useOptimisticAuth();
   const [hovered, setHovered] = useState<MissionDefinition | null>(null);
   const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
@@ -177,6 +178,7 @@ export default function GameCanvas() {
 
   const { lastSummary, setLastSummary, syncStatus, handleMissionComplete } = useVictoryFlow({
     authStatus,
+    sessionEmail,
     currentSolarSystemId,
     completedMissions,
     unlockedSolarSystems,
