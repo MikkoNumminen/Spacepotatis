@@ -202,7 +202,11 @@ export class Planet implements CelestialBody {
           ? SCENERY_COLOR
           : DIFFICULTY_COLOR[definition.difficulty]);
 
-    const surface = generatePlanetSurface(definition.id satisfies MissionId, baseColor);
+    const surface = generatePlanetSurface(
+      definition.id satisfies MissionId,
+      baseColor,
+      definition.planetStyle
+    );
     this.surfaceMap = surface.map;
     this.bumpMap = surface.bumpMap;
 

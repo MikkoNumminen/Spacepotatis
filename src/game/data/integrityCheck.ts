@@ -212,6 +212,18 @@ export function runDataIntegrityCheck(data: IntegrityData): void {
         systemIdList
       );
     }
+    // Combat missions ALWAYS render through the Three.js procedural texture
+    // generator. Before planetStyle was data-driven, the generator's
+    // styleFor() switch silently fell through to `undefined` for any
+    // unrecognized id and crashed inside paintDiffuse(). The schema makes
+    // the field optional so future scenery / shop additions can lean on the
+    // default style, but combat missions need bespoke surface tuning — and
+    // a missing entry should be caught here at boot, not at render time.
+    if (mission.kind === "mission" && mission.planetStyle === undefined) {
+      throw new Error(
+        `integrityCheck: missions['${mission.id}'].planetStyle is required for combat missions (kind: "mission")`
+      );
+    }
     for (let i = 0; i < mission.requires.length; i++) {
       const req = mission.requires[i];
       if (req === undefined) continue;

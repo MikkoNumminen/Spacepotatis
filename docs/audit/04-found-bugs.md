@@ -44,6 +44,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: medium
 - Description: `lib/` is supposed to be infrastructure with no knowledge of the game side. This file imports `@/game/state/sync` + `@/game/state/syncCache` to drive an "optimistic auth" UX where the splash trusts the cached account. Architecturally this lives on the wrong side of the fence — the auth-state cache should expose a hook that lives in `src/game/state/` (or `src/components/hooks/`) and `src/lib` should provide auth-only primitives.
 - Suggested fix: move the hook to `src/components/hooks/` (or `src/game/state/`) and have `src/lib/useReliableSession.ts` stay pure-auth.
+- **Resolved 2026-05-29 in PR #248**: file moved from `src/lib/useOptimisticAuth.ts` to `src/game/state/useOptimisticAuth.ts`. The lib → game backedge is gone; UI consumers now import from `@/game/state/useOptimisticAuth` (deep path; the state barrel re-exports it as part of the public surface).
 
 ## 2026-05-04 — `loadout/WeaponDetailsModal.tsx` reaches up to `components/WeaponStats.tsx`
 - Path: [`src/components/loadout/WeaponDetailsModal.tsx`](src/components/loadout/WeaponDetailsModal.tsx) → [`src/components/WeaponStats.tsx`](src/components/WeaponStats.tsx)
@@ -59,6 +60,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: medium
 - Description: the `styleFor(missionId)` function has a hard-coded switch covering specific mission ids. Adding a new mission to `missions.json` (which the integrity check deliberately doesn't validate against sprite/texture generators — see [`integrityCheck.ts:50-53`](src/game/data/integrityCheck.ts#L50-L53)) would Zod-validate fine but crash inside `paintDiffuse()` at render time. The TS compiler doesn't catch this because `MissionId` is a wide union and the switch returns a default fallback that doesn't actually execute every code path.
 - Suggested fix: either (a) make the switch exhaustive with a `never` exhaustiveness guard so adding a `MissionId` is a tsc error, OR (b) move the styling data into `missions.json` itself so a missing entry is caught by the schema parser. (b) is more in keeping with the "data-driven" pattern of the rest of the catalog.
+- **Resolved 2026-05-29 in PR #260**: chose option (b). Added `PlanetStyle` interface to `src/types/game.ts` and `PlanetStyleSchema` (Zod) to `src/lib/schemas/missions.ts` as an optional field. Backfilled `planetStyle` into all 9 entries in `src/game/data/missions.json` with the exact data the old switch returned — every planet renders identically. `styleFor()` removed; `generatePlanetSurface(missionId, baseColor, style)` now takes the style as a parameter (default fallback for future undecorated entries). `Planet.ts` passes `definition.planetStyle` through. Added boot-time integrity check in `src/game/data/integrityCheck.ts` rejecting any `kind: "mission"` entry missing `planetStyle`; matching tests in `integrityCheck.test.ts` cover both the rejection and the shop/scenery exemption.
 
 ## 2026-05-04 — `BootScene.ts` at 1819 LOC is the largest god-file
 - Path: [`src/game/phaser/scenes/BootScene.ts`](src/game/phaser/scenes/BootScene.ts)
@@ -66,6 +68,14 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: low (documented placeholder)
 - Description: 1819 lines of procedural texture generation (every weapon bullet, pod, enemy sprite, perk icon, etc.). The zone B agent notes this is a documented placeholder pending real PNG assets. Worth flagging because it skews the god-file metric for the whole codebase, and because the in-file generators are sufficiently independent that they could be split into a `boot/` subfolder of generators with a thin `BootScene.ts` orchestrator.
 - Suggested fix: defer until real art lands. If real art doesn't land soon, split the generators into per-family files (`boot/bullets.ts`, `boot/enemies.ts`, etc.) for sanity.
+
+## 2026-05-04 — Four `ui` god-files (GameCanvas, ShopUI, QuestPanel, WeaponCard)
+- Paths: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx) (452 LOC), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx) (408 LOC), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx) (387 LOC), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx) (210 LOC).
+- Found by: Phase 1 inventory ([`docs/audit/01-inventory.md:303-306`](docs/audit/01-inventory.md))
+- Severity: low (structural — no functional bug, but each carries enough responsibilities that a future change carries change-amplification risk)
+- Description: each file mixes 5+ concerns in one module. `GameCanvas` is the worst with 11 distinct responsibilities listed in the inventory; `ShopUI` mixes 3 catalog sections + 6 mutator wirings + 2 audio side-effects; `QuestPanel` is borderline at 5 sub-sections + 2 expansion effects; `WeaponCard` is a single concern but dense at 210 LOC.
+- Suggested fix: per-file extraction PRs after the `ui` module barrel lands ([`_progress.md`](_progress.md) Q4). Splits are scheduled as small focused refactors, not bundled.
+- **Partial resolution 2026-05-29 in PR refactor/gamecanvas-split**: GameCanvas split — extracted `useGameMode` (mode machine + audio bed contract), `useTransitionOverlay` (black fade + dynamic three.js import), `useVictoryFlow` (post-combat state machine + save/score queue drain triggers). GameCanvas reduced 452 → 338 LOC. The other three god-files (ShopUI, QuestPanel, WeaponCard) remain.
 
 ## 2026-05-04 — `state/stateCore.ts` runs `getAllMissions()` + `readSeenStoriesLocal()` at module load
 - Path: [`src/game/state/stateCore.ts:33`](src/game/state/stateCore.ts#L33), [`:58`](src/game/state/stateCore.ts#L58)
@@ -91,6 +101,32 @@ Severity is a rough hint, not a release-grade triage.
   (a) Restructure `auth.ts` to be side-effect-free at module load by deferring `NextAuth(config)` into a `getAuth()` factory. Every `auth()` caller updates. Most thorough; touches the same files the importer migration would have touched anyway.
   (b) Carve `auth.ts` out of the barrel and keep its deep path canonical. Other infra files migrate to the barrel cleanly. Smallest change.
   (c) Accept the barrel as nominal-only. New code uses the barrel; existing code keeps deep paths. Cheapest but defeats the audit goal for `infra`.
+- **Resolved 2026-05-29**: option (b). The `@/lib/index.ts` barrel no longer re-exports from `./auth`. Auth consumers must use the deep path `@/lib/auth` directly. The barrel is now safe to consume from any test context that doesn't need auth. Carve-out is documented in the barrel header.
+
+## 2026-05-29 — `infra → state` back-edge via `saveValidation.ts`
+- Path: [`src/lib/saveValidation.ts:19-23`](src/lib/saveValidation.ts#L19-L23)
+- Found by: Phase 5 verification (`refactor-architect`)
+- Severity: medium (architectural — module-level cycle with `state → infra` via `sync.ts → @/lib/routes`)
+- Description: `saveValidation.ts` imports `MAX_LEVEL`, `weaponUpgradeCost` from `@/game/state/ShipConfig` and `SYSTEM_UNLOCK_GATES` from `@/game/state/stateCore`. Per the Phase 2 proposed graph, `infra` should depend on `schemas` + `types` (and `content` for the credit-cap derivation), NOT on `state`. The TS build passes because the imported symbols are constants (no symbol-level cycle), but the module graph has a cycle: `state → infra → state`. **Not logged in Phase 2's violations list.** Pre-dates the audit; Phase 3 preserved it unchanged.
+- Suggested fix: pick one —
+  (a) Move `MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES` (and any other constants that genuinely belong to the "shape" rather than "behavior") into `@/types` or a new `src/shared/` module that both `state` and `infra` can depend on.
+  (b) Inline copies in `saveValidation.ts` with explicit "must match `ShipConfig.MAX_LEVEL`" comments. Duplicates the constant; CI test ensures drift detection.
+  (c) Accept the cycle. Document as a known exception. Defeats one of the audit's stated goals (subsystems are isolated).
+
+## 2026-05-29 — `schemas → state` back-edge via `schemas/save.ts`
+- Path: [`src/lib/schemas/save.ts:29-36`](src/lib/schemas/save.ts#L29-L36)
+- Found by: Phase 5 verification (`refactor-architect`)
+- Severity: medium (architectural — leaf module reaches up two tiers)
+- Description: `schemas/save.ts` imports `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots`, `MAX_LEVEL`, `MAX_WEAPON_SLOTS` from `@/game/state/ShipConfig`. Per the Phase 2 graph, `schemas` should depend on `types` only (it's a leaf, tier 1). Reaching up to `state` is a 2-tier back-edge. The TS build passes because the imports are types + constants. Cycle with `state → schemas` (state uses SavePayloadSchema). **Not logged in Phase 2's violations list.** Pre-dates the audit.
+- Suggested fix: same three options as the `infra → state` entry above. Option (a) — move the ship-shape types into `@/types/game.ts` so both `schemas` and `state` consume from the same leaf — is the natural fit since these ARE pure types and pure constants, not runtime behavior.
+
+## 2026-05-04 — `components/` god-files (`GameCanvas`, `ShopUI`, `QuestPanel`, `WeaponCard`)
+- Path: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx) (452 LOC), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx) (408 LOC), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx) (387 LOC), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx) (210 LOC)
+- Found by: zone A / [`01-inventory.md:300-310`](01-inventory.md#L300-L310)
+- Severity: medium (modularity; not a functional bug)
+- Description: four `ui` components exceed the ~300-LOC modularity-discipline limit (CLAUDE.md §5). Each mixes multiple concerns the section-component pattern would cleanly split (sub-sections, mutator wirings, audio side effects, helper components). See `01-inventory.md` Q4 for the per-file responsibility breakdown.
+- Suggested fix: split each into a `<name>/` subfolder of section components. State + mutator wirings + audio effects stay in the orchestrator; section components are pure render given props.
+- **Partial resolution 2026-05-29 in PR #<your PR>**: ShopUI split — extracted 3 catalog section components (`shop/ShopUpgradesSection.tsx`, `shop/ShopWeaponsSection.tsx`, `shop/ShopAugmentsSection.tsx`). `ShopUI.tsx` now 254 LOC orchestrator. Remaining: `GameCanvas` 452, `QuestPanel` 387, `WeaponCard` 210.
 
 ## 2026-05-29 — `ui` god-files awaiting follow-up splits
 - Path: [`src/components/GameCanvas.tsx`](src/components/GameCanvas.tsx), [`src/components/ShopUI.tsx`](src/components/ShopUI.tsx), [`src/components/galaxy/QuestPanel.tsx`](src/components/galaxy/QuestPanel.tsx), [`src/components/loadout/WeaponCard.tsx`](src/components/loadout/WeaponCard.tsx)

@@ -1,5 +1,11 @@
 import type { AugmentId, WeaponId } from "@/types";
 
+// Re-export the pure caps from `@/types` so intra-state callers keep working
+// without an import-path change. The canonical definitions live in
+// src/types/game.ts to close the constant-import half of the schemas → state
+// and infra → state back-edges. See docs/audit/04-found-bugs.md 2026-05-29.
+export { MAX_LEVEL, MAX_WEAPON_SLOTS } from "@/types";
+
 // One physical weapon the player owns. Each instance has its OWN level
 // and augment list — owning two Pulse Cannons means each one is upgraded
 // independently. Instances live in exactly one place at a time: either a
@@ -37,14 +43,11 @@ export interface ShipConfig {
   reactor: ReactorConfig;
 }
 
-export const MAX_LEVEL = 5;
+// MAX_LEVEL and MAX_WEAPON_SLOTS were moved to @/types and are re-exported
+// from this file (see top of file).
+
 // Per-level additive damage bonus. Level 1 = 1.0× base, level 5 = 1.60×.
 const WEAPON_DAMAGE_PER_LEVEL = 0.15;
-
-// Soft cap on how many weapon slots a player can buy. The two starter
-// solar systems are designed around 1-3 slots; the ceiling exists so the
-// loadout UI never has to scroll, and to keep the cost curve bounded.
-export const MAX_WEAPON_SLOTS = 6;
 
 const BASE_SHIELD = 40;
 const BASE_ARMOR = 60;
