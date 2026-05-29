@@ -121,7 +121,7 @@ Severity is a rough hint, not a release-grade triage.
   (b) Inline copies in `saveValidation.ts` with explicit "must match `ShipConfig.MAX_LEVEL`" comments. Duplicates the constant; CI test ensures drift detection.
   (c) Accept the cycle. Document as a known exception. Defeats one of the audit's stated goals (subsystems are isolated).
 - **Partial resolution 2026-05-29 in PR #259**: `MAX_LEVEL` moved to `@/types` (option (a) for that constant). `weaponUpgradeCost` and `SYSTEM_UNLOCK_GATES` documented as accepted exceptions at that time.
-- **Further resolution 2026-05-29**: `SYSTEM_UNLOCK_GATES` moved to `@/game/data/systemUnlocks.ts` (it's static content, not gameplay logic — content was always the right home). `saveValidation.ts` now imports it from `@/game/data` (allowed `infra → content` edge). Only `weaponUpgradeCost` (a function tied to the ship-upgrade ladder) remains as an accepted `infra → state` exception; resolving it requires lifting credit-cap derivation into the state module.
+- **Further resolution 2026-05-29 in PR #261**: `SYSTEM_UNLOCK_GATES` moved to `@/game/data/systemUnlocks.ts` (it's static content, not gameplay logic — content was always the right home). `saveValidation.ts` now imports it from `@/game/data` (allowed `infra → content` edge). Only `weaponUpgradeCost` (a function tied to the ship-upgrade ladder) remains as an accepted `infra → state` exception; resolving it requires lifting credit-cap derivation into the state module.
 
 ## 2026-05-29 — `schemas → state` back-edge via `schemas/save.ts`
 - Path: [`src/lib/schemas/save.ts:29-36`](src/lib/schemas/save.ts#L29-L36)
