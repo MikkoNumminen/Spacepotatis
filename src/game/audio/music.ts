@@ -531,6 +531,18 @@ export const combatMusic = new MusicEngine({
 });
 
 /**
+ * Fallback combat bed for missions whose `musicTrack` is `null`. Most
+ * missions in missions.json don't yet ship a dedicated track; without a
+ * fallback those drop into silent combat, which reads as broken audio.
+ * Callers resolve `mission.musicTrack ?? DEFAULT_COMBAT_MUSIC` so combat
+ * is never silent. A mission that DOES declare a `musicTrack` overrides
+ * this — ship a per-mission asset and set the field to use it.
+ *
+ * @stable
+ */
+export const DEFAULT_COMBAT_MUSIC = "/audio/music/combat-tutorial.ogg";
+
+/**
  * Per-shop bed. `src` is set via `loadTrack(src)` on shop dock; native loop
  * (gapless) like `menuMusic` so a long browse never hits a silence window.
  * Different shops can carry different music in the future; today every
