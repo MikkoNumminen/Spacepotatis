@@ -12,7 +12,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 
 | File | Mounted by | Purpose |
 |---|---|---|
-| [`GameCanvas.tsx`](./GameCanvas.tsx) | `/play` page | **GOD-FILE (452 LOC, 11 responsibilities)** — the main orchestrator. Mode machine (galaxy ↔ combat), fade overlay, save-queue triggers, victory state machine, story-trigger wiring. Split scheduled as a follow-up PR. |
+| [`GameCanvas.tsx`](./GameCanvas.tsx) | `/play` page | **GOD-FILE (338 LOC, partially split 2026-05-29)** — the main orchestrator. Mode machine + fade overlay + victory state machine now live in dedicated hooks (`useGameMode`, `useTransitionOverlay`, `useVictoryFlow`); story-trigger wiring already in `useStoryTriggers`; cloud-save sync in `useCloudSaveSync`. Remaining inline concerns: auto-warp logic, scene-select bridge, renderer error overlay, splash-step assembly. |
 | [`ShopUI.tsx`](./ShopUI.tsx) | `/shop` page | **GOD-FILE (408 LOC)** — the shop. 6 mutator wirings + 2 audio side-effect lifecycles + 3 catalog sections (BUY WEAPONS, AUGMENTS, HULL & SHIELD/REACTOR). Split scheduled. |
 | [`Splash.tsx`](./Splash.tsx) | `/play` page | First-paint splash with sequenced step list. |
 | [`SplashGate.tsx`](./SplashGate.tsx) | `/play` page | Wraps the splash + GameCanvas; gates render on cloud-save load. |
@@ -29,7 +29,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 - **[`galaxy/`](./galaxy/)** — galaxy-view chrome. `HudFrame.tsx`, `WarpPicker.tsx`, `LoadoutModal.tsx`, `QuestPanel.tsx` (**GOD-FILE 387 LOC**), `VictoryModal.tsx`, the `questBuckets.ts` helper. Mounted by `GameCanvas`.
 - **[`loadout/`](./loadout/)** — LoadoutMenu sub-components. `SlotGrid.tsx`, `WeaponCard.tsx` (**GOD-FILE 210 LOC**), `WeaponDetailsModal.tsx`, `AugmentDetailsModal.tsx`, picker modals, `dots.tsx`. Used in galaxy + shop.
 - **[`story/`](./story/)** — `StoryModal.tsx` (cinematic popup), `StoryListModal.tsx` (the Story log).
-- **[`hooks/`](./hooks/)** — client-side React hooks: `useGalaxyScene.ts`, `usePhaserGame.ts`, `useCloudSaveSync.ts`, `useCloudSaveSyncLogic.ts` (pure decision helpers tested separately), `useStoryTriggers.ts` (281 LOC, borderline god-file), `useNextMissionAutoSelect.ts`. The single concern per file rule (CLAUDE.md §5) lives here — these exist exactly so `GameCanvas` doesn't have to.
+- **[`hooks/`](./hooks/)** — client-side React hooks: `useGalaxyScene.ts`, `usePhaserGame.ts`, `useCloudSaveSync.ts`, `useCloudSaveSyncLogic.ts` (pure decision helpers tested separately), `useStoryTriggers.ts` (281 LOC, borderline god-file), `useNextMissionAutoSelect.ts`, `useGameMode.ts` (mode state + audio-bed contract), `useTransitionOverlay.ts` (black fade + dynamic three.js import), `useVictoryFlow.ts` (post-combat state machine + save/score queue drain triggers). The single concern per file rule (CLAUDE.md §5) lives here — these exist exactly so `GameCanvas` doesn't have to.
 - **[`ui/`](./ui/)** — shared UI primitives: `buttonClasses.ts` (the locked button-class constants — see `feedback_back_button_position` auto-memory), `ShopCreditsTicker.tsx`. New shared primitives go here.
 
 ## Internal
@@ -65,7 +65,7 @@ NEVER reaches the database directly. NEVER reaches schemas directly. All server-
 
 ## Common pitfalls
 
-- **The four god-files** — `GameCanvas` 452, `ShopUI` 408, `QuestPanel` 387, `WeaponCard` 210. Splits are scheduled as follow-up PRs after Phase 4b. **Don't split inside an unrelated PR** — each is a focused refactor in itself.
+- **The four god-files** — `GameCanvas` 338 (partially split 2026-05-29), `ShopUI` 408, `QuestPanel` 387, `WeaponCard` 210. Remaining splits are scheduled as follow-up PRs after Phase 4b. **Don't split inside an unrelated PR** — each is a focused refactor in itself.
 - **Forgetting `next/dynamic({ ssr: false })` on a Phaser/Three import** — kills SSG. Symptoms: `next build` errors out with `ReferenceError: window is not defined`.
 - **Calling state mutators from inside a render function.** Move to event handlers or effects.
 - **Importing `@/game/phaser` or `@/game/three` directly into a top-level component.** Always go through the dynamic-import boundary.
