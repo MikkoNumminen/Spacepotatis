@@ -109,6 +109,15 @@ export function createSceneRig(canvas: HTMLCanvasElement, opts: SceneRigOpts): S
       // forceContextLoss() before dispose() is the canonical WebGL teardown
       // pair — without it the context lingers until GC on rapid galaxy↔combat
       // cycling and can exhaust the browser's per-page WebGL context budget.
+      //
+      // INVARIANT (paired with GameCanvas.tsx galaxy <canvas key=...>):
+      // forceContextLoss() makes the canvas's context permanently
+      // unrecoverable. That's safe only when the canvas DOM element is
+      // ALSO going away (galaxy→combat unmount, page nav). On a warp the
+      // canvas would otherwise be reused, so GameCanvas keys it on
+      // currentSolarSystemId to force a fresh DOM element per system.
+      // Dropping the key prop without removing this forceContextLoss call
+      // will break warp deterministically.
       renderer.forceContextLoss();
       renderer.dispose();
     }
