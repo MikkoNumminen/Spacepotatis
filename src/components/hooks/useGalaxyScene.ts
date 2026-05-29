@@ -32,6 +32,12 @@ function buildStatusMap(
   return map;
 }
 
+// Retry budget for transient init failures (WebGL context blip during the
+// dispose/recreate dance on warp, dynamic-import flake, etc.). Each attempt
+// is gated by the `disposed` flag so a cleanup mid-flight stops the loop.
+const MAX_INIT_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 300;
+
 // Returns `ready` so SplashGate can wait for the first rendered frame
 // before fading the boot screen out — rendering the HUD over a black
 // canvas looks worse than holding the splash an extra ~50ms.
@@ -40,6 +46,8 @@ function buildStatusMap(
 // view" overlay when the dynamic import, WebGL context, or GalaxyScene
 // constructor throws. Without this, `ready` would never flip and
 // SplashGate would hold the boot screen forever with no diagnostic.
+// The error is only set after MAX_INIT_ATTEMPTS — transient blips that
+// recover on a retry never reach the user.
 export function useGalaxyScene({
   enabled,
   canvasRef,
@@ -86,31 +94,46 @@ export function useGalaxyScene({
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      try {
-        // Deep path (not the @/game/three barrel) so the galaxy-route chunk
-        // only loads GalaxyScene's reachable graph, not every three.js
-        // module in the directory. Next.js does not tree-shake dynamic
-        // imports of barrels.
-        const { GalaxyScene } = await import("@/game/three/GalaxyScene");
-        if (disposed) return;
-        const scene = new GalaxyScene(canvas, {
-          onPlanetHover: onHover,
-          onPlanetSelect: onSelect,
-          activeSystemId: currentSolarSystemId,
-          initialStatuses: statusMapRef.current
-        });
-        sceneRef.current = scene;
-        scene.start();
-        requestAnimationFrame(() => {
-          if (!disposed) setReady(true);
-        });
-        cleanup = () => {
-          sceneRef.current = null;
-          scene.dispose();
-        };
-      } catch (err) {
-        console.error("useGalaxyScene: failed to start galaxy view", err);
-        if (!disposed) setError("Failed to start galaxy view. Refresh the page.");
+      for (let attempt = 1; attempt <= MAX_INIT_ATTEMPTS; attempt++) {
+        try {
+          // Deep path (not the @/game/three barrel) so the galaxy-route
+          // chunk only loads GalaxyScene's reachable graph, not every
+          // three.js module in the directory. Next.js does not tree-shake
+          // dynamic imports of barrels.
+          const { GalaxyScene } = await import("@/game/three/GalaxyScene");
+          if (disposed) return;
+          const scene = new GalaxyScene(canvas, {
+            onPlanetHover: onHover,
+            onPlanetSelect: onSelect,
+            activeSystemId: currentSolarSystemId,
+            initialStatuses: statusMapRef.current
+          });
+          sceneRef.current = scene;
+          scene.start();
+          requestAnimationFrame(() => {
+            if (!disposed) setReady(true);
+          });
+          cleanup = () => {
+            sceneRef.current = null;
+            scene.dispose();
+          };
+          return;
+        } catch (err) {
+          console.error(
+            `useGalaxyScene: attempt ${attempt}/${MAX_INIT_ATTEMPTS} failed`,
+            err
+          );
+          if (disposed) return;
+          if (attempt < MAX_INIT_ATTEMPTS) {
+            // Hold the loading state; don't surface the error yet. A
+            // transient WebGL context blip during the dispose/recreate
+            // dance on warp usually recovers on the next attempt.
+            await new Promise((res) => setTimeout(res, RETRY_DELAY_MS));
+            if (disposed) return;
+          } else {
+            setError("Failed to start galaxy view. Refresh the page.");
+          }
+        }
       }
     })();
 
