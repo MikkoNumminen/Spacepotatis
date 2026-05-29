@@ -1,8 +1,13 @@
-import { getCachedTopPilots, isBuildPhase } from "@/lib/leaderboard";
+import { getCachedTopPilots } from "@/lib/leaderboard";
 
 // "Top Pilots" composite leaderboard. Sits above the per-mission grid on
 // /leaderboard. Server Component; reads via the cached helper so the page
 // hits Neon at most once per revalidate window.
+//
+// Build-phase guard lives at the PAGE level (src/app/leaderboard/page.tsx)
+// — when isBuildPhase() is true the page swaps the whole grid for a
+// single loading screen, so this component never renders during build.
+// The empty branch below covers ONLY the genuine-runtime-empty case.
 export default async function TopPilots({ limit = 10 }: { limit?: number }) {
   let entries;
   try {
@@ -17,12 +22,6 @@ export default async function TopPilots({ limit = 10 }: { limit?: number }) {
   }
 
   if (entries.length === 0) {
-    // Build-phase skip vs. genuinely empty — see Leaderboard.tsx. During
-    // the post-deploy warming window the static HTML carries an empty
-    // list for ~60s; render a loading skeleton so it cannot be misread
-    // as "the board has no pilots". The genuine empty case keeps the
-    // "be the first" copy.
-    if (isBuildPhase()) return <TopPilotsSkeleton />;
     return (
       <div className="rounded border border-space-border bg-space-panel/70 p-4 text-xs text-space-border">
         No pilots yet — clear a mission and you&apos;ll be the first.
@@ -60,31 +59,6 @@ export default async function TopPilots({ limit = 10 }: { limit?: number }) {
           ))}
         </tbody>
       </table>
-    </section>
-  );
-}
-
-function TopPilotsSkeleton() {
-  return (
-    <section
-      className="rounded border border-space-border bg-space-panel/70 p-4"
-      aria-busy="true"
-      aria-live="polite"
-    >
-      <h2 className="mb-1 font-display tracking-widest text-hud-green">TOP PILOTS</h2>
-      <div className="mb-3 text-[11px] text-hud-amber">Loading…</div>
-      <span className="sr-only">Loading top pilots…</span>
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <div className="h-3 w-4 animate-pulse rounded bg-space-border/30" />
-            <div className="h-3 w-28 animate-pulse rounded bg-space-border/30" />
-            <div className="ml-auto h-3 w-10 animate-pulse rounded bg-space-border/30" />
-            <div className="h-3 w-12 animate-pulse rounded bg-space-border/30" />
-            <div className="h-3 w-12 animate-pulse rounded bg-space-border/30" />
-          </div>
-        ))}
-      </div>
     </section>
   );
 }
