@@ -35,7 +35,11 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 ## Internal
 
 - Subfolder components are NOT meant to be imported across the boundary. `loadout/X.tsx` importing `loadout/Y.tsx` is fine; `loadout/X.tsx` importing `galaxy/Z.tsx` is a smell.
-- The previous cross-folder reach `loadout/WeaponDetailsModal.tsx` → `components/WeaponStats.tsx` was resolved during Phase 3 Tier 5 — the component now lives at `loadout/WeaponStatsView.tsx` next to its sole consumer (renamed from `WeaponStats.tsx` to dodge a case collision with the existing `loadout/weaponStats.ts` helper on case-insensitive filesystems; the symbol export name is still `WeaponStats`).
+- The previous cross-folder reach `loadout/WeaponDetailsModal.tsx` → `components/WeaponStats.tsx` was resolved during Phase 3 Tier 5 — the component now lives at `loadout/WeaponStatsView.tsx` next to its sole consumer (renamed from `WeaponStats.tsx` to dodge a case collision with the existing `loadout/weaponStats.ts` helper on case-insensitive filesystems; the symbol export name is still `WeaponStats`). To add a new consumer inside `loadout/`, import the symbol from the renamed file:
+  ```ts
+  import { WeaponStats } from "./WeaponStatsView";
+  ```
+  Not `./WeaponStats` — on Windows/macOS-default filesystems that lowercase path resolves to the unrelated math helper and TypeScript errors with "no exported member 'WeaponStats'". Outside `loadout/`, prefer passing a `WeaponStats` instance via prop rather than re-importing the component across the folder boundary.
 - Test fixtures and per-component test setups (`*.test.tsx`).
 
 ## Dependencies

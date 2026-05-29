@@ -81,6 +81,15 @@ These are exported from individual files but are NOT part of the module's contra
 
 **No** dependency on `phaser`, `three`, `audio`, `ui`, `app`, `infra` (apart from the schemas + routes constants above).
 
+### Reverse-edges to know about
+
+Two modules import FROM `state/ShipConfig.ts` even though the proposed module graph says they shouldn't. Not yet resolved — logged in [`docs/audit/04-found-bugs.md`](../../../docs/audit/04-found-bugs.md) 2026-05-29 entries.
+
+- **`src/lib/saveValidation.ts`** imports `MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES` from this module. Renaming or removing any of those three exports breaks the save-pipeline cheat guards. The TS compiler catches it, but the AI-NOTE matters because nothing in the export's surrounding code hints at the cross-module consumer.
+- **`src/lib/schemas/save.ts`** imports `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots`, `MAX_LEVEL`, `MAX_WEAPON_SLOTS` from this module. Same shape: renaming any of those breaks Zod schema parsing of the save payload.
+
+When you touch `ShipConfig.ts`, run `npm run typecheck` before assuming the change is local.
+
 ## Invariants
 
 The save round-trip has **8 layers** end-to-end. Adding a `StateSnapshot` field that doesn't thread through ALL 8 causes silent drops. Use `/save-roundtrip-audit` to verify before committing any save-shape change. See ADR 0004.

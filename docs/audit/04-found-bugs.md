@@ -44,6 +44,7 @@ Severity is a rough hint, not a release-grade triage.
 - Severity: medium
 - Description: `lib/` is supposed to be infrastructure with no knowledge of the game side. This file imports `@/game/state/sync` + `@/game/state/syncCache` to drive an "optimistic auth" UX where the splash trusts the cached account. Architecturally this lives on the wrong side of the fence — the auth-state cache should expose a hook that lives in `src/game/state/` (or `src/components/hooks/`) and `src/lib` should provide auth-only primitives.
 - Suggested fix: move the hook to `src/components/hooks/` (or `src/game/state/`) and have `src/lib/useReliableSession.ts` stay pure-auth.
+- **Resolved 2026-05-29 in PR #248**: file moved from `src/lib/useOptimisticAuth.ts` to `src/game/state/useOptimisticAuth.ts`. The lib → game backedge is gone; UI consumers now import from `@/game/state/useOptimisticAuth` (deep path; the state barrel re-exports it as part of the public surface).
 
 ## 2026-05-04 — `loadout/WeaponDetailsModal.tsx` reaches up to `components/WeaponStats.tsx`
 - Path: [`src/components/loadout/WeaponDetailsModal.tsx`](src/components/loadout/WeaponDetailsModal.tsx) → [`src/components/WeaponStats.tsx`](src/components/WeaponStats.tsx)
@@ -93,6 +94,23 @@ Severity is a rough hint, not a release-grade triage.
   (b) Carve `auth.ts` out of the barrel and keep its deep path canonical. Other infra files migrate to the barrel cleanly. Smallest change.
   (c) Accept the barrel as nominal-only. New code uses the barrel; existing code keeps deep paths. Cheapest but defeats the audit goal for `infra`.
 - **Resolved 2026-05-29**: option (b). The `@/lib/index.ts` barrel no longer re-exports from `./auth`. Auth consumers must use the deep path `@/lib/auth` directly. The barrel is now safe to consume from any test context that doesn't need auth. Carve-out is documented in the barrel header.
+
+## 2026-05-29 — `infra → state` back-edge via `saveValidation.ts`
+- Path: [`src/lib/saveValidation.ts:19-23`](src/lib/saveValidation.ts#L19-L23)
+- Found by: Phase 5 verification (`refactor-architect`)
+- Severity: medium (architectural — module-level cycle with `state → infra` via `sync.ts → @/lib/routes`)
+- Description: `saveValidation.ts` imports `MAX_LEVEL`, `weaponUpgradeCost` from `@/game/state/ShipConfig` and `SYSTEM_UNLOCK_GATES` from `@/game/state/stateCore`. Per the Phase 2 proposed graph, `infra` should depend on `schemas` + `types` (and `content` for the credit-cap derivation), NOT on `state`. The TS build passes because the imported symbols are constants (no symbol-level cycle), but the module graph has a cycle: `state → infra → state`. **Not logged in Phase 2's violations list.** Pre-dates the audit; Phase 3 preserved it unchanged.
+- Suggested fix: pick one —
+  (a) Move `MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES` (and any other constants that genuinely belong to the "shape" rather than "behavior") into `@/types` or a new `src/shared/` module that both `state` and `infra` can depend on.
+  (b) Inline copies in `saveValidation.ts` with explicit "must match `ShipConfig.MAX_LEVEL`" comments. Duplicates the constant; CI test ensures drift detection.
+  (c) Accept the cycle. Document as a known exception. Defeats one of the audit's stated goals (subsystems are isolated).
+
+## 2026-05-29 — `schemas → state` back-edge via `schemas/save.ts`
+- Path: [`src/lib/schemas/save.ts:29-36`](src/lib/schemas/save.ts#L29-L36)
+- Found by: Phase 5 verification (`refactor-architect`)
+- Severity: medium (architectural — leaf module reaches up two tiers)
+- Description: `schemas/save.ts` imports `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots`, `MAX_LEVEL`, `MAX_WEAPON_SLOTS` from `@/game/state/ShipConfig`. Per the Phase 2 graph, `schemas` should depend on `types` only (it's a leaf, tier 1). Reaching up to `state` is a 2-tier back-edge. The TS build passes because the imports are types + constants. Cycle with `state → schemas` (state uses SavePayloadSchema). **Not logged in Phase 2's violations list.** Pre-dates the audit.
+- Suggested fix: same three options as the `infra → state` entry above. Option (a) — move the ship-shape types into `@/types/game.ts` so both `schemas` and `state` consume from the same leaf — is the natural fit since these ARE pure types and pure constants, not runtime behavior.
 
 ---
 
