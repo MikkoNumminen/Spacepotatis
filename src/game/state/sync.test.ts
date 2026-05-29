@@ -1124,3 +1124,56 @@ describe("guest-progress claim on first-time sign-in", () => {
     ).not.toBeNull();
   });
 });
+
+// Inner account-swap guard. PR #262 added the outer cache-write guard;
+// this pins the inner hydrate(snapshot) + markHydrationCompleted() guard
+// that closes the residual window between fetch-resolve and the pair of
+// state-mutating calls. Without the inner guard, A's snapshot lands in
+// B's GameState and B's hydration flag flips — B's next saveNow would
+// happily POST A's data as B.
+describe("doLoadSave inner account-swap guard", () => {
+  it("does NOT hydrate A's snapshot when the player email swaps to B mid-fetch", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // A is signed in when the GET fires.
+    setCurrentPlayerEmail("a@example.com");
+    // Fetch resolves with A's authoritative save, but we swap to B before
+    // the body is fully consumed — simulating the OAuth-redirect race
+    // where the GET inflight outlives the account swap.
+    fetchImpl.current = async () => {
+      setCurrentPlayerEmail("b@example.com");
+      return new Response(
+        JSON.stringify({
+          slot: 1,
+          credits: 9999,
+          currentPlanet: null,
+          shipConfig: {
+            slots: [],
+            inventory: [],
+            augmentInventory: [],
+            shieldLevel: 0,
+            armorLevel: 0,
+            reactor: { capacityLevel: 0, rechargeLevel: 0 }
+          },
+          completedMissions: ["tutorial", "combat-1"],
+          unlockedPlanets: ["tutorial", "combat-1"],
+          playedTimeSeconds: 600,
+          updatedAt: "2025-01-01T00:00:00.000Z"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    };
+
+    const result = await loadSave();
+
+    // Surface the swap as load-failed/account_swap so the splash gate
+    // doesn't render over a live INITIAL_STATE — the new account's
+    // loadSave will re-fire and use B's identity throughout.
+    expect(result.kind).toBe("load-failed");
+    if (result.kind === "load-failed") {
+      expect(result.reason).toBe("account_swap");
+    }
+    // Critically: GameState was NOT hydrated with A's 9999 credits.
+    expect(getState().credits).toBe(0);
+    expect(getState().completedMissions).toEqual([]);
+  });
+});

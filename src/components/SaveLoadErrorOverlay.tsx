@@ -30,6 +30,7 @@ function reasonLabel(reason: LoadFailureReason | undefined): string {
   if (reason === "network_error") return "no connection";
   if (reason === "schema_rejected") return "save unreadable";
   if (reason === "http_error") return "server unreachable";
+  if (reason === "account_swap") return "account changed mid-load";
   return "load failed";
 }
 

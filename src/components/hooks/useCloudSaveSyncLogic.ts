@@ -57,7 +57,8 @@ export function cachedResultToState(cached: unknown): CloudSaveSyncState {
     const validReason: LoadFailureReason | undefined =
       reason === "http_error" ||
       reason === "network_error" ||
-      reason === "schema_rejected"
+      reason === "schema_rejected" ||
+      reason === "account_swap"
         ? reason
         : undefined;
     return { status: "load-failed", reason: validReason };
