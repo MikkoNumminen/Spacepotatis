@@ -13,6 +13,7 @@ import {
 } from "@/game/state";
 import type { ShipConfig } from "@/game/state";
 import type { UpgradeId } from "@/game/data";
+import { CatalogSection } from "@/components/ui/CatalogSection";
 
 // Hull/reactor upgrade row. Mirrors the weapon-row upgrade button shape so
 // the player learns one visual pattern across all upgrade surfaces:
@@ -110,9 +111,7 @@ export function ShopUpgradesSection({
   const reactorRechMaxed = ship.reactor.rechargeLevel >= MAX_LEVEL;
 
   return (
-    <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-      <h2 className="mb-4 font-display tracking-widest text-hud-green">HULL & SHIELD</h2>
-
+    <CatalogSection title="HULL & SHIELD">
       <Row
         label="Shield capacity"
         detail={`level ${ship.shieldLevel}/${MAX_LEVEL} · max ${getMaxShield(ship)}`}
@@ -155,6 +154,6 @@ export function ShopUpgradesSection({
         onClick={onBuyReactorRecharge}
         onDetails={() => onShowUpgradeDetails("reactor-recharge")}
       />
-    </section>
+    </CatalogSection>
   );
 }
