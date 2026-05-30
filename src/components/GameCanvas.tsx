@@ -12,10 +12,12 @@ import VictoryModal from "@/components/galaxy/VictoryModal";
 import WarpPicker from "@/components/galaxy/WarpPicker";
 import StoryModal from "@/components/story/StoryModal";
 import StoryListModal from "@/components/story/StoryListModal";
+import GalaxyStatusOverlays from "@/components/galaxy/GalaxyStatusOverlays";
 import Splash, { type SplashStep } from "@/components/Splash";
 import SplashGate from "@/components/SplashGate";
 import SaveLoadErrorOverlay from "@/components/SaveLoadErrorOverlay";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
+import { useGalaxyTransition } from "@/components/hooks/useGalaxyTransition";
 import {
   clearLoadSaveCache,
   useGameState,
@@ -145,27 +147,17 @@ export default function GameCanvas() {
     onSelect: handleSceneSelect
   });
 
-  // Leave the galaxy view for another route (menu, shop). Hides the WebGL
-  // canvas SYNCHRONOUSLY before navigating: the galaxy canvas is a large
-  // GPU-composited layer, and when React tears the /play tree down during
-  // the route swap the browser paints a white frame where that layer was
-  // (the destination — even canvas-less /shop — flashes white for it).
-  // Setting visibility:hidden here, inside the click handler and before
-  // router.push, removes the compositor layer first, so the teardown has
-  // nothing to flash. Must run here, not in useGalaxyScene's effect
-  // cleanup — that's a passive cleanup which React runs AFTER the node is
-  // already detached, too late to affect the painted frame.
-  // No un-hide path needed: leaveGalaxy only fires on a route change that
-  // unmounts GameCanvas (and the canvas with it) within the same tick, so
-  // the hidden canvas is destroyed before it could ever be seen again.
-  const leaveGalaxy = useCallback(
-    (href: string) => {
-      const canvas = galaxyCanvasRef.current;
-      if (canvas) canvas.style.visibility = "hidden";
-      router.push(href);
-    },
-    [router]
-  );
+  // Galaxy boot-latch + warp-transition flag + canvas-hiding nav helper.
+  // See useGalaxyTransition for why leaveGalaxy must hide the canvas
+  // synchronously before router.push.
+  const { showGalaxyTransition, leaveGalaxy } = useGalaxyTransition({
+    mode,
+    sceneReady,
+    galaxyError,
+    showLoadError,
+    canvasRef: galaxyCanvasRef,
+    router
+  });
 
   const handleLaunch = useCallback(
     async (mission: MissionDefinition) => {
@@ -227,23 +219,6 @@ export default function GameCanvas() {
     onComplete: stableComplete
   });
   const rendererError = mode === "combat" ? combatError : galaxyError;
-
-  // Latches true once the galaxy scene has rendered at least one frame.
-  // Distinguishes the initial boot (covered by SplashGate) from later
-  // transitions like a warp, where sceneReady briefly flips back to false
-  // while the old GalaxyScene is disposed and a new one is constructed.
-  // The transient overlay below uses this so it only paints during
-  // post-boot transitions and never double-covers the splash.
-  const [galaxyHasBooted, setGalaxyHasBooted] = useState(false);
-  useEffect(() => {
-    if (sceneReady) setGalaxyHasBooted(true);
-  }, [sceneReady]);
-  const showGalaxyTransition =
-    mode === "galaxy"
-    && galaxyHasBooted
-    && !sceneReady
-    && !galaxyError
-    && !showLoadError;
 
   const splashSteps = useMemo<readonly SplashStep[]>(
     () => [
@@ -368,56 +343,11 @@ export default function GameCanvas() {
         onDismiss={() => setErrorDismissed(true)}
       />
     )}
-    {showGalaxyTransition && (
-      // Post-boot galaxy transition (warp / dispose+reconstruct). The
-      // splash is gone by now, so without this overlay the player would
-      // see the prior canvas frozen — or a blank dark area — for the
-      // 100–900ms window that GalaxyScene takes to rebuild (longer if
-      // useGalaxyScene retries a transient init failure). The renderer-
-      // error overlay only paints after MAX_INIT_ATTEMPTS, so a recovered
-      // blip surfaces here as "Spinning up…" and never as a hard error.
-      <div
-        role="status"
-        aria-live="polite"
-        className="pointer-events-none fixed inset-0 z-[55] flex items-center justify-center bg-space-bg/80 backdrop-blur-sm"
-      >
-        <div className="select-none rounded border border-hud-green/40 bg-space-bg/80 p-5 shadow-[0_0_30px_rgba(94,255,167,0.15)] sm:p-6">
-          <div className="font-display text-xl tracking-widest text-hud-green animate-pulse sm:text-2xl">
-            SPINNING UP GALAXY VIEW…
-          </div>
-          <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-hud-amber/70">
-            warp transit
-          </div>
-        </div>
-      </div>
-    )}
-    {rendererError && !showLoadError && (
-      // Surfaces a dynamic-import / WebGL / Phaser init failure. Without
-      // this the player would see a blank canvas (combat) or a stuck splash
-      // (galaxy, since ready never flips) and have no way to know the
-      // renderer failed to start. By the time `rendererError` is truthy
-      // the retry budget in useGalaxyScene/usePhaserGame is already
-      // exhausted — `showGalaxyTransition` requires `!galaxyError`, so
-      // the two overlays cannot coexist anyway.
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="renderer-error-title"
-        className="fixed inset-0 z-[60] flex items-center justify-center bg-space-bg/90 p-4 backdrop-blur-sm"
-      >
-        <div className="select-none rounded border border-hud-red/40 bg-space-bg/90 p-5 shadow-[0_0_30px_rgba(255,94,94,0.25)] sm:p-6">
-          <div
-            id="renderer-error-title"
-            className="font-display text-2xl tracking-widest text-hud-red sm:text-3xl"
-          >
-            RENDERER FAILED TO START
-          </div>
-          <p className="mt-5 max-w-sm font-mono text-sm text-hud-amber/90">
-            {rendererError}
-          </p>
-        </div>
-      </div>
-    )}
+    <GalaxyStatusOverlays
+      showTransition={showGalaxyTransition}
+      rendererError={rendererError}
+      showLoadError={showLoadError}
+    />
     </>
   );
 }
