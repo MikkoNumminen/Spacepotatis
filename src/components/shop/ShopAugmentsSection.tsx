@@ -4,6 +4,7 @@ import type { ShipConfig } from "@/game/state";
 import type { AugmentId } from "@/types";
 import type { AugmentDefinition } from "@/game/data";
 import { AugmentDot } from "@/components/loadout/dots";
+import { CatalogSection } from "@/components/ui/CatalogSection";
 
 // Total copies of an augment id, INCLUDING ones already installed on weapons
 // (those can't be uninstalled, but the player still "has" the augment id).
@@ -33,9 +34,7 @@ export function ShopAugmentsSection({
   onShowAugmentDetails: (aug: AugmentDefinition) => void;
 }) {
   return (
-    <section className="rounded border border-space-border bg-space-panel/70 p-4 md:col-span-2 sm:p-5">
-      <h2 className="mb-4 font-display tracking-widest text-hud-green">AUGMENTS</h2>
-
+    <CatalogSection title="AUGMENTS" className="md:col-span-2">
       <p className="mb-3 text-xs text-hud-green/60">
         Permanent weapon modifiers. One-way install. Open DETAILS for the full description.
       </p>
@@ -84,6 +83,6 @@ export function ShopAugmentsSection({
           );
         })}
       </ul>
-    </section>
+    </CatalogSection>
   );
 }

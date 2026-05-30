@@ -3,6 +3,7 @@
 import type { ShipConfig } from "@/game/state";
 import type { WeaponDefinition, WeaponId } from "@/types";
 import { WeaponDot } from "@/components/loadout/dots";
+import { CatalogSection } from "@/components/ui/CatalogSection";
 
 // Total copies of a weapon id the player owns across slots + inventory.
 // Used to decorate buy rows so the player can see "owned · N" before purchase.
@@ -46,9 +47,7 @@ export function ShopWeaponsSection({
   onShowWeaponDetails: (weapon: WeaponDefinition) => void;
 }) {
   return (
-    <section className="rounded border border-space-border bg-space-panel/70 p-4 sm:p-5">
-      <h2 className="mb-4 font-display tracking-widest text-hud-green">BUY WEAPONS</h2>
-
+    <CatalogSection title="BUY WEAPONS">
       {visibleWeapons.length === 0 && (
         <p className="text-xs text-hud-green/60">
           Complete missions to unlock weapons for purchase.
@@ -127,6 +126,6 @@ export function ShopWeaponsSection({
           );
         })}
       </ul>
-    </section>
+    </CatalogSection>
   );
 }
