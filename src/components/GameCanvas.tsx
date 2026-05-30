@@ -145,6 +145,25 @@ export default function GameCanvas() {
     onSelect: handleSceneSelect
   });
 
+  // Leave the galaxy view for another route (menu, shop). Hides the WebGL
+  // canvas SYNCHRONOUSLY before navigating: the galaxy canvas is a large
+  // GPU-composited layer, and when React tears the /play tree down during
+  // the route swap the browser paints a white frame where that layer was
+  // (the destination — even canvas-less /shop — flashes white for it).
+  // Setting visibility:hidden here, inside the click handler and before
+  // router.push, removes the compositor layer first, so the teardown has
+  // nothing to flash. Must run here, not in useGalaxyScene's effect
+  // cleanup — that's a passive cleanup which React runs AFTER the node is
+  // already detached, too late to affect the painted frame.
+  const leaveGalaxy = useCallback(
+    (href: string) => {
+      const canvas = galaxyCanvasRef.current;
+      if (canvas) canvas.style.visibility = "hidden";
+      router.push(href);
+    },
+    [router]
+  );
+
   const handleLaunch = useCallback(
     async (mission: MissionDefinition) => {
       // Defensive: scenery bodies have no action and shouldn't reach here
@@ -153,7 +172,7 @@ export default function GameCanvas() {
       if (mission.kind === "scenery") return;
       if (mission.kind === "shop") {
         // Client-side nav preserves in-memory GameState (credits etc.).
-        router.push(ROUTES.page.shop);
+        leaveGalaxy(ROUTES.page.shop);
         return;
       }
       setFocusedPlanetId(null);
@@ -168,7 +187,7 @@ export default function GameCanvas() {
       setMode("combat");
       requestAnimationFrame(() => void fadeOverlay(0));
     },
-    [fadeOverlay, router, setLaunching, setMode]
+    [fadeOverlay, leaveGalaxy, setLaunching, setMode]
   );
 
   const onCombatExit = useCallback(() => {
@@ -266,7 +285,7 @@ export default function GameCanvas() {
         <div className="pointer-events-none absolute inset-0">
           <HudFrame
             hovered={hovered}
-            onBackToMenu={() => router.push(ROUTES.page.home)}
+            onBackToMenu={() => leaveGalaxy(ROUTES.page.home)}
             onOpenWarp={() => setWarpOpen(true)}
             warpAvailable={unlockedSolarSystems.length > 1}
             onOpenStoryList={() => setStoryListOpen(true)}
