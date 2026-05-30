@@ -655,6 +655,11 @@ export function maxLegitScore(missionId: MissionId): number {
       try {
         enemy = getEnemy(spawn.enemy);
       } catch {
+        // Wave references an enemy id we no longer recognise. Skip rather
+        // than throw — data integrity is its own test layer (same rationale
+        // as the sibling getEnemy guard in deriveCreditCaps above). A
+        // dropped enemy only lowers the theoretical max, which fails safe:
+        // it can never inflate the legit-score ceiling a cheater could pass.
         continue;
       }
       theoreticalMax += enemy.scoreValue * MAX_COMBO * spawn.count;
