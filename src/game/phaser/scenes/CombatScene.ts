@@ -10,7 +10,7 @@ import { Player } from "../entities/Player";
 import * as GameState from "@/game/state";
 import { on } from "../events";
 import { setSummary } from "../registry";
-import { sfx, combatMusic, DEFAULT_COMBAT_MUSIC } from "@/game/audio";
+import { sfx, combatMusic, resolveCombatTrack } from "@/game/audio";
 import { getMission } from "@/game/data";
 import { applyMissionReward, rollMissionReward } from "@/game/state";
 import { PowerUpPool } from "../entities/PowerUp";
@@ -174,13 +174,13 @@ export class CombatScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ESC", () => this.togglePause());
     this.input.keyboard?.on("keydown-CTRL", () => this.perks.triggerActive());
 
-    // Start the mission's music bed. Missions without a dedicated track
-    // (musicTrack: null) fall back to the shared combat bed so combat is
-    // never silent — see DEFAULT_COMBAT_MUSIC. loadTrack() handles the
-    // cross-fade if the previous mission left a track loaded; missing
-    // audio files fail silently in startPlayback().
+    // Start the mission's music bed. resolveCombatTrack falls back to the
+    // shared combat bed for missions with no dedicated track (musicTrack:
+    // null) so combat is never silent. loadTrack() handles the cross-fade
+    // if the previous mission left a track loaded; missing audio files
+    // fail silently in startPlayback().
     const mission = getMission(this.bootData.missionId);
-    combatMusic.loadTrack(mission.musicTrack ?? DEFAULT_COMBAT_MUSIC);
+    combatMusic.loadTrack(resolveCombatTrack(mission.musicTrack));
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => combatMusic.stop());
 

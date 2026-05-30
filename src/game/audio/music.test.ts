@@ -234,3 +234,33 @@ describe("watchdog + retry self-healing", () => {
     expect(el.paused).toBe(false);
   });
 });
+
+// Pure resolver — no audio element involved, so it doesn't need the fakes.
+// Pins the contract that GameCanvas.handleLaunch (pre-warm) and
+// CombatScene.create (authoritative load) resolve the SAME src for a given
+// mission. If they ever diverge, loadTrack's `src === src` no-op guard
+// misses and the two calls cross-fade between the same file pointlessly.
+describe("resolveCombatTrack", () => {
+  it("returns the mission's own track when one is declared", async () => {
+    const { resolveCombatTrack } = await import("./music");
+    expect(resolveCombatTrack("/audio/music/boss-theme.ogg")).toBe(
+      "/audio/music/boss-theme.ogg"
+    );
+  });
+
+  it("falls back to DEFAULT_COMBAT_MUSIC when the track is null", async () => {
+    const { resolveCombatTrack, DEFAULT_COMBAT_MUSIC } = await import("./music");
+    expect(resolveCombatTrack(null)).toBe(DEFAULT_COMBAT_MUSIC);
+  });
+
+  it("is idempotent across the two combat-start call sites (same input → same src)", async () => {
+    const { resolveCombatTrack } = await import("./music");
+    // The pre-warm and the scene load both pass mission.musicTrack through
+    // this resolver — equal inputs must yield equal srcs so the second
+    // loadTrack is a no-op.
+    expect(resolveCombatTrack(null)).toBe(resolveCombatTrack(null));
+    expect(resolveCombatTrack("/audio/music/x.ogg")).toBe(
+      resolveCombatTrack("/audio/music/x.ogg")
+    );
+  });
+});

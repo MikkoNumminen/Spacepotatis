@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser";
 import type { MissionDefinition, MissionId } from "@/types";
-import { combatMusic, DEFAULT_COMBAT_MUSIC } from "@/game/audio";
+import { combatMusic, resolveCombatTrack } from "@/game/audio";
 import HudFrame from "@/components/galaxy/HudFrame";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import VictoryModal from "@/components/galaxy/VictoryModal";
@@ -159,12 +159,10 @@ export default function GameCanvas() {
       setFocusedPlanetId(null);
       // Start fetching + playing the mission bed BEFORE the fade-to-black so
       // the audio is up by the time the combat scene appears. CombatScene's
-      // own loadTrack call later is a no-op when the src already matches.
-      // Missions without a dedicated track fall back to the shared combat
-      // bed (DEFAULT_COMBAT_MUSIC) so combat is never silent — must match
-      // CombatScene's resolution exactly or the pre-warm + scene calls would
-      // load two different srcs and cross-fade pointlessly.
-      combatMusic.loadTrack(mission.musicTrack ?? DEFAULT_COMBAT_MUSIC);
+      // own loadTrack call later is a no-op when the src already matches —
+      // resolveCombatTrack guarantees both sites pick the same src (incl.
+      // the fallback for missions with no dedicated track).
+      combatMusic.loadTrack(resolveCombatTrack(mission.musicTrack));
       await fadeOverlay(1);
       setLaunching(mission);
       setMode("combat");
