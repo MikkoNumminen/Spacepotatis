@@ -53,9 +53,9 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 | --------------------------------------------------------- | ----------------------------------------------- |
 | [src/app/](src/app/)                                      | Next.js pages, layouts, API routes              |
 | [src/components/](src/components/)                        | React UI orchestrators (LoadoutMenu, GameCanvas, ShopUI, etc.) |
-| [src/components/galaxy/](src/components/galaxy/)          | Galaxy-view chrome (HudFrame, WarpPicker, LoadoutModal) |
+| [src/components/galaxy/](src/components/galaxy/)          | Galaxy-view chrome (HudFrame, WarpPicker, LoadoutModal, GalaxyStatusOverlays, QuestPanelRows) |
 | [src/components/loadout/](src/components/loadout/)        | LoadoutMenu sub-components (SlotGrid, WeaponCard, pickers) |
-| [src/components/hooks/](src/components/hooks/)            | Client-side React hooks (useGalaxyScene, usePhaserGame, useCloudSaveSync, useNextMissionAutoSelect, useGameMode, useTransitionOverlay, useVictoryFlow, useShopAudio) + the pure `retryWithBackoff` helper |
+| [src/components/hooks/](src/components/hooks/)            | Client-side React hooks (useGalaxyScene, usePhaserGame, useCloudSaveSync, useNextMissionAutoSelect, useGameMode, useTransitionOverlay, useVictoryFlow, useShopAudio, useGalaxyTransition) + the pure `retryWithBackoff` helper |
 | [src/components/shop/](src/components/shop/)              | ShopUI catalog sections (ShopWeaponsSection, ShopAugmentsSection, ShopUpgradesSection) |
 | [src/game/phaser/](src/game/phaser/)                      | Phaser scenes, entities, systems, typed bus     |
 | [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/) | CombatScene helpers (CombatHud, CombatVfx, DropController, PerkController) |
