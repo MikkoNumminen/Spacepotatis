@@ -38,7 +38,7 @@ This game runs on **Vercel Hobby tier**. Serverless CPU hours are scarce. Every 
 - **API routes are the only server functions.** They exist for: auth, save, load, leaderboard. Nothing else.
 - **Prefer Edge Runtime** on API routes when possible (`export const runtime = "edge"`).
 - **No middleware on game routes.** Middleware only wraps API routes that need auth.
-- **Cache aggressively.** Leaderboard reads: ISR with `revalidate: 60`.
+- **Cache aggressively.** Wrap Neon reads in `unstable_cache(..., { revalidate })` so the DB is hit at most once per window regardless of render strategy. (The leaderboard page is `force-dynamic` — it renders per-request to avoid the post-deploy ISR warm-window where a stale empty/loading board would otherwise be served for up to ~60s — but its Neon reads stay bounded by `unstable_cache(60)` in [src/lib/leaderboard.ts](src/lib/leaderboard.ts). Dynamic render ≠ uncached DB.)
 - **Phaser + Three.js are dynamically imported with `ssr: false`.** They must never run during SSR / SSG.
 - **Assets are plain files under [public/](public/)** — sprites, audio, textures. No server-side image pipeline.
 - **Build budget: < 2 minutes.** No heavy generation steps.
@@ -55,7 +55,8 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 | [src/components/](src/components/)                        | React UI orchestrators (LoadoutMenu, GameCanvas, ShopUI, etc.) |
 | [src/components/galaxy/](src/components/galaxy/)          | Galaxy-view chrome (HudFrame, WarpPicker, LoadoutModal) |
 | [src/components/loadout/](src/components/loadout/)        | LoadoutMenu sub-components (SlotGrid, WeaponCard, pickers) |
-| [src/components/hooks/](src/components/hooks/)            | Client-side React hooks (useGalaxyScene, usePhaserGame, useCloudSaveSync, useNextMissionAutoSelect) |
+| [src/components/hooks/](src/components/hooks/)            | Client-side React hooks (useGalaxyScene, usePhaserGame, useCloudSaveSync, useNextMissionAutoSelect, useGameMode, useTransitionOverlay, useVictoryFlow, useShopAudio) + the pure `retryWithBackoff` helper |
+| [src/components/shop/](src/components/shop/)              | ShopUI catalog sections (ShopWeaponsSection, ShopAugmentsSection, ShopUpgradesSection) |
 | [src/game/phaser/](src/game/phaser/)                      | Phaser scenes, entities, systems, typed bus     |
 | [src/game/phaser/scenes/combat/](src/game/phaser/scenes/combat/) | CombatScene helpers (CombatHud, CombatVfx, DropController, PerkController) |
 | [src/game/phaser/entities/player/](src/game/phaser/entities/player/) | Player helpers (SlotModResolver, PlayerCombatant, PlayerFireController, PodController, slotLayout) |

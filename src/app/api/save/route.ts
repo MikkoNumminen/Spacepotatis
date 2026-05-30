@@ -15,8 +15,7 @@ import {
   validateNoRegression,
   validatePlaytimeDelta
 } from "@/lib/saveValidation";
-import { STORY_IDS } from "@/game/data/story";
-import type { StoryId } from "@/game/data/story";
+import { STORY_IDS, type StoryId } from "@/game/data";
 import type { MissionId, SolarSystemId } from "@/types";
 
 // INVARIANT: 64 KB cap on the raw POST body — bound an unbounded JSON parse
