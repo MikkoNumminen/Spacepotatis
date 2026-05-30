@@ -155,6 +155,9 @@ export default function GameCanvas() {
   // nothing to flash. Must run here, not in useGalaxyScene's effect
   // cleanup — that's a passive cleanup which React runs AFTER the node is
   // already detached, too late to affect the painted frame.
+  // No un-hide path needed: leaveGalaxy only fires on a route change that
+  // unmounts GameCanvas (and the canvas with it) within the same tick, so
+  // the hidden canvas is destroyed before it could ever be seen again.
   const leaveGalaxy = useCallback(
     (href: string) => {
       const canvas = galaxyCanvasRef.current;
