@@ -167,7 +167,8 @@ the lifetime of an `AudioContext`.
 | File | LOC | Role |
 |---|---|---|
 | `AudioBus.ts` | 142 | Bus + category state + register API |
-| `music.ts` | **441** | `MusicEngine` + `menuMusic` / `combatMusic` / `shopMusic` singletons. Flagged as a god-file by the audit (`02-target-architecture.md`); split deferred. |
+| `MusicEngine.ts` | 484 | The `MusicEngine` class (element lifecycle, fade/silence loop, watchdog, autoplay recovery). INTERNAL — not re-exported from the barrel; only `music.ts` constructs instances. |
+| `music.ts` | 84 | `menuMusic` / `combatMusic` / `shopMusic` singletons + `DEFAULT_COMBAT_MUSIC` / `resolveCombatTrack`. The public surface re-exported via `index.ts`. |
 | `story.ts` | 199 | StoryModal cinematic player |
 | `storyLogAudio.ts` | 92 | Story-log bed |
 | `menuBriefingAudio.ts` | 126 | Landing-page voice queue |
