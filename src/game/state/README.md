@@ -83,10 +83,10 @@ These are exported from individual files but are NOT part of the module's contra
 
 ### Reverse-edges to know about
 
-Two modules import FROM `state/ShipConfig.ts` even though the proposed module graph says they shouldn't. Not yet resolved — logged in [`docs/audit/04-found-bugs.md`](../../../docs/audit/04-found-bugs.md) 2026-05-29 entries.
+Two modules import FROM `state/ShipConfig.ts` even though the proposed module graph says they shouldn't. Both back-edges SHRANK in the 2026-05 follow-up work (`MAX_LEVEL`/`MAX_WEAPON_SLOTS` → `@/types`, `SYSTEM_UNLOCK_GATES` → `@/game/data`); what remains is logged in [`docs/audit/04-found-bugs.md`](../../../docs/audit/04-found-bugs.md).
 
-- **`src/lib/saveValidation.ts`** imports `MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES` from this module. Renaming or removing any of those three exports breaks the save-pipeline cheat guards. The TS compiler catches it, but the AI-NOTE matters because nothing in the export's surrounding code hints at the cross-module consumer.
-- **`src/lib/schemas/save.ts`** imports `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots`, `MAX_LEVEL`, `MAX_WEAPON_SLOTS` from this module. Same shape: renaming any of those breaks Zod schema parsing of the save payload.
+- **`src/lib/saveValidation.ts`** now imports only `weaponUpgradeCost` from this module (the runtime cost-curve fn tied to the upgrade ladder — the last third of the old back-edge; `MAX_LEVEL` moved to `@/types`, `SYSTEM_UNLOCK_GATES` to `@/game/data`). Renaming or removing it breaks the save-pipeline cheat guards. The TS compiler catches it, but the AI-NOTE matters because nothing in the export's surrounding code hints at the cross-module consumer.
+- **`src/lib/schemas/save.ts`** imports the ship-shape TYPES `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots` from this module (type-only; the `MAX_LEVEL`/`MAX_WEAPON_SLOTS` constants it used to import now come from `@/types`). Same shape: renaming any of those breaks Zod schema parsing of the save payload.
 
 When you touch `ShipConfig.ts`, run `npm run typecheck` before assuming the change is local.
 
