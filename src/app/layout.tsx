@@ -18,7 +18,16 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#05060f"
+  themeColor: "#05060f",
+  // Emits <meta name="color-scheme" content="dark"> into <head>. The
+  // browser reads this during initial document parse — BEFORE the linked
+  // stylesheet's `:root { color-scheme: dark }` applies — so the backdrop
+  // it paints during a route transition (paint-holding between the old
+  // route unmounting and the new one's first paint) is dark, not the
+  // user-agent light default. This is the actual fix for the white flash;
+  // the inline element backgrounds (below + globals.css) only cover the
+  // painted elements, not the inter-frame backdrop the browser owns.
+  colorScheme: "dark"
 };
 
 export const metadata: Metadata = {
@@ -49,7 +58,14 @@ export const metadata: Metadata = {
 //   - The `body` className still carries `bg-space-bg` for selector-based
 //     tooling (devtools, screenshot fidelity); the inline style guarantees
 //     correctness even when className-derived CSS hasn't matched yet.
-const SPACE_BG_INLINE: React.CSSProperties = { backgroundColor: "#05060f" };
+// `colorScheme` here mirrors the viewport meta so the value is also applied
+// as a computed style on the element itself the instant it parses — belt and
+// suspenders against the white navigation flash. `backgroundColor` paints the
+// html/body surfaces dark even before the cascade resolves.
+const SPACE_BG_INLINE: React.CSSProperties = {
+  backgroundColor: "#05060f",
+  colorScheme: "dark"
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
