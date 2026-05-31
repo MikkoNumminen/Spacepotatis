@@ -10,6 +10,7 @@
     { "file": "src/game/data/missions.json", "kind": "orphan-ref", "claim": "mission solarSystemId 'tubernovae-cluster' does not resolve in solarSystems.json" },
     { "file": "src/game/data/story.ts", "kind": "missing-file", "claim": "story voiceTrack /audio/story/market-arrival-voice-v2.mp3 has no matching file under public/audio/story/" },
     { "file": "src/game/data/story.ts", "kind": "orphan-ref", "claim": "on-mission-select trigger references missionId 'combat-2' which is not in missions.json" },
+    { "file": "src/game/phaser/scenes/combat/PerkController.ts", "kind": "missing-handler", "claim": "active perk 'emp' apply() case no longer increments empCharges, so triggerActive() always early-returns and the perk never fires" },
     { "file": "src/game/data/enemies.json", "kind": "balance", "claim": "aphid-empress boss HP looks unusually high vs other bosses" }
   ]
 }

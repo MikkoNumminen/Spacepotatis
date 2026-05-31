@@ -24,13 +24,13 @@ loud failure is the signal to refresh this file.
 | `ca-mission-system-orphan` | #10 | medium | mission `solarSystemId` → `tubernovae-cluster` (no such system) | needs the mission ↔ solarSystems cross-ref |
 | `ca-story-voice-missing` | #11 | hard | story `voiceTrack` → `…market-arrival-voice-v2.mp3` (no file) | needs a `public/audio/story/` **disk** check — a code-only read misses it |
 | `ca-story-trigger-orphan` | #11 | hard | on-mission-select trigger → `combat-2` (no such mission) | needs the trigger ↔ missions cross-ref |
+| `ca-active-perk-no-consumer` | #5 | hard | drops `empCharges += 1` from the `emp` perk's `apply()` case | code-level; emp stays type:`active` but its resource is never charged so `triggerActive()` always early-returns. tsc/lint-clean (empCharges still read elsewhere). Caught only by reading `apply()` per check #5(a). |
 
-## Stubs (2) — documented, not yet applied
+## Stub (1) — deliberately not authored
 
-| id | check | Why stubbed |
+| id | check | Why it stays a stub |
 |---|---|---|
-| `ca-active-perk-no-consumer` | #5 | Code-level (PerkController.ts). Delete one active perk's `triggerActive()` consumer but keep its `apply()` case — compiles, perk silently never fires. Needs a read of PerkController to anchor the exact deletion. |
-| `ca-enemy-behavior-uncovered` | #6 | A fresh behavior string fails the `enemies.json` schema-enum test, so it'd be test-caught not audit-only. A clean version needs a coordinated schema + data edit that omits only the `Enemy.preUpdate` switch case. |
+| `ca-enemy-behavior-uncovered` | #6 | **No clean audit-only version exists.** `behavior` is a closed Zod enum (`EnemyBehaviorSchema`, `src/lib/schemas/enemies.ts:69`), `enemies.test.ts:44` rejects unknown behaviors, and a compile-time `_enemyBehaviorCheck` ties the enum to the `Enemy.preUpdate` switch (no default case). Any seeded behavior is caught by typecheck / schema test, never by audit reasoning. **Finding:** content-audit check #6 is largely redundant with the compiler — prune or annotate it rather than fixture it. |
 
 ## Difficulty buckets
 

@@ -1,0 +1,54 @@
+{
+  "$comment": "Recall-mode fixture for the balance-review skill. balance-review diffs the dirty working tree vs HEAD and reports DPS/TTK/energy/credit deltas + a 'Flagged issues' list. The recall harness seeds these regressions as uncommitted edits (apply-defects --apply mutates the worktree without committing), which is exactly balance-review's input model (git status + git show HEAD:). Gradeable defects here are the things balance-review must surface: a DPS delta it should report, and two flags from its Flagged-issues list. Anchors grounded against Spacepotatis master 2026-05-31; apply-defects drift-guards every op. 3 verified; extend with TTK / energy-per-DPS / augment-turnRate regressions as needed.",
+  "schemaVersion": 1,
+  "skill": "balance-review",
+  "targetRepo": "Spacepotatis",
+  "findingsContract": ".calib/findings.json",
+  "defects": [
+    {
+      "id": "bal-weapon-dps-buff",
+      "title": "Starter weapon damage 6 -> 60 (base DPS 50 -> 500, +900%) — must be reported as a DPS delta",
+      "difficulty": "medium",
+      "detectableBy": ["balance-review"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/weapons.json",
+          "find": "\"damage\": 6,\n      \"fireRateMs\": 120,",
+          "replace": "\"damage\": 60,\n      \"fireRateMs\": 120,"
+        }
+      ],
+      "groundTruth": { "kind": "dps-delta", "file": "src/game/data/weapons.json", "anchor": ["rapid-fire", "dps"], "note": "rapid-fire DPS = damage * projectileCount * (1000/fireRateMs) = 6*1*(1000/120)=50 -> 60*1*8.33=500. This is balance-review's CORE job (delta reporting), not a flag. A correct finding names the weapon and its DPS shift; it should also cascade to TTK-vs-every-enemy." }
+    },
+    {
+      "id": "bal-credits-inverted",
+      "title": "Loot pool credits min >= max — Flagged-issues catch",
+      "difficulty": "easy",
+      "detectableBy": ["balance-review"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/lootPools.ts",
+          "find": "credits: { min: 500, max: 1000 }",
+          "replace": "credits: { min: 1000, max: 500 }"
+        }
+      ],
+      "groundTruth": { "kind": "credits-range", "file": "src/game/data/lootPools.ts", "anchor": "credit", "note": "tubernovae pool min(1000) >= max(500). balance-review's Flagged-issues list names 'credits.min >= max'. Soft anchor — any finding naming the credit range matches." }
+    },
+    {
+      "id": "bal-family-leak",
+      "title": "Tier-2 pirate weapon leaked into the potato-only tutorial pool — Flagged-issues catch",
+      "difficulty": "medium",
+      "detectableBy": ["balance-review"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/lootPools.ts",
+          "find": "weapons: [\"spread-shot\", \"heavy-cannon\"],",
+          "replace": "weapons: [\"spread-shot\", \"heavy-cannon\", \"corsair-missile\"],"
+        }
+      ],
+      "groundTruth": { "kind": "family-leak", "file": "src/game/data/lootPools.ts", "anchor": "corsair-missile", "note": "corsair-missile is family:pirate tier:2 (valid WeaponId, tsc-clean); the tutorial pool is potato-only by design. balance-review's 'Cross-system gating' + Flagged-issues both name a family-gated weapon in the wrong pool." }
+    }
+  ]
+}

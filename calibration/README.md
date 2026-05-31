@@ -33,8 +33,8 @@ node calibration/grade-recall.mjs \
 
 | Arm | Recall | Tokens (total) | Tokens/defect | Token-only verdict | Recall verdict |
 |---|---|---|---|---|---|
-| A (cold) | 22% (2/9) | 71k | 35.5k | baseline | — |
-| B (skill) | 100% (9/9) | 88k | 9.8k | **−24% "save" → worst** | **+78pp recall → earns its keep** |
+| A (cold) | 20% (2/10) | 71k | 35.5k | baseline | — |
+| B (skill) | 100% (10/10) | 88k | 8.8k | **−24% "save" → worst** | **+80pp recall → earns its keep** |
 
 Arm B costs *more total tokens* and catches *4.5× more defects*. Token-only
 scoring buries it; recall scoring vindicates it. That gap is the whole reason
@@ -73,11 +73,15 @@ for the full arm prompts and the keep/cut criterion.
 
 ## Status
 
-- `content-audit`: 9 verified defects + 2 stubs. Anchors validated against
-  master 2026-05-31.
-- Other audit skills (`balance-review`, `save-roundtrip-audit`): TODO — add a
-  `fixtures/<skill>/defects.json`. `balance-review` needs a different fixture
-  shape (seeded *balance regressions* with ground-truth math, not orphan refs).
+- `content-audit`: **10 verified defects + 1 stub**. The stub
+  (`ca-enemy-behavior-uncovered`) is deliberately not authored — behavior
+  coverage is compile-time-enforced (Zod enum + `_enemyBehaviorCheck`), so no
+  clean audit-only version exists. Anchors validated against master 2026-05-31.
+- `balance-review`: **3 verified defects** (one DPS delta + two Flagged-issues
+  catches). Seeded as uncommitted edits, which is balance-review's diff-vs-HEAD
+  input model. See `fixtures/balance-review/README.md`.
+- `save-roundtrip-audit`: TODO — add a `fixtures/save-roundtrip-audit/defects.json`
+  (seed a field that silently drops at one of the 8 save-pipeline layers).
 
 ## Promotion to claude-skills
 

@@ -53,7 +53,14 @@ function countOccurrences(haystack, needle) {
 
 // Returns { ok, count, applied } where `applied` is the new content (only when ok).
 function applyOp(content, op) {
-  const after = op.after ?? "";
+  // Fixtures author multi-line anchors with "\n", but a Windows checkout (git
+  // autocrlf) stores files as "\r\n". Adapt the anchors to the file's own EOL so
+  // a multi-line find matches without rewriting the whole file's line endings
+  // (which would swamp balance-review's working-tree-vs-HEAD diff with EOL noise).
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const find = (op.find ?? "").replaceAll("\n", eol);
+  const replace = (op.replace ?? "").replaceAll("\n", eol);
+  const after = (op.after ?? "").replaceAll("\n", eol);
   const expected = op.count ?? 1;
   let head = "";
   let region = content;
@@ -64,19 +71,19 @@ function applyOp(content, op) {
       return {
         ok: false,
         count: afterCount,
-        reason: `after-anchor ${JSON.stringify(after)} expected ${expectedAfter} match(es), found ${afterCount} — anchor not unique enough, refine it (or set afterCount)`
+        reason: `after-anchor ${JSON.stringify(op.after)} expected ${expectedAfter} match(es), found ${afterCount} — anchor not unique enough, refine it (or set afterCount)`
       };
     }
     const at = content.indexOf(after);
     head = content.slice(0, at);
     region = content.slice(at);
   }
-  const count = countOccurrences(region, op.find);
+  const count = countOccurrences(region, find);
   if (count !== expected) {
     return { ok: false, count, reason: `expected ${expected} match(es) of ${JSON.stringify(op.find)}, found ${count}` };
   }
-  const rel = region.indexOf(op.find);
-  const applied = head + region.slice(0, rel) + op.replace + region.slice(rel + op.find.length);
+  const rel = region.indexOf(find);
+  const applied = head + region.slice(0, rel) + replace + region.slice(rel + find.length);
   return { ok: true, count, applied };
 }
 

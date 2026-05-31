@@ -153,22 +153,28 @@
 
     {
       "id": "ca-active-perk-no-consumer",
-      "title": "STUB: active perk missing its triggerActive() consumer in PerkController",
+      "title": "Active perk's apply() case no longer charges its resource (silently never fires)",
       "probesCheck": 5,
       "difficulty": "hard",
       "detectableBy": ["content-audit"],
-      "apply": [],
-      "stubReason": "Code-level defect (src/game/phaser/scenes/combat/PerkController.ts). Author by deleting the `triggerActive()` consumer for one active perk while leaving its apply() case — types still compile, the perk just silently never fires. Needs a read of PerkController to anchor the exact deletion.",
-      "groundTruth": { "kind": "missing-handler", "file": "src/game/phaser/scenes/combat/PerkController.ts", "anchor": "triggerActive" }
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/phaser/scenes/combat/PerkController.ts",
+          "find": "      case \"emp\":\n        this.empCharges += 1;\n        break;",
+          "replace": "      case \"emp\":\n        break;"
+        }
+      ],
+      "groundTruth": { "kind": "missing-handler", "file": "src/game/phaser/scenes/combat/PerkController.ts", "anchor": "emp", "note": "emp is type:'active' (perks.ts) but its apply() case no longer increments empCharges, so triggerActive()'s `if (empCharges <= 0) return` always returns — the perk is dead. tsc/lint-clean (empCharges still read+decremented elsewhere; detonateEmp still called). content-audit check #5(a) catches it by reading apply()." }
     },
     {
       "id": "ca-enemy-behavior-uncovered",
-      "title": "STUB: enemy behavior value with no case in Enemy.preUpdate switch",
+      "title": "STUB (won't author): behavior coverage is compile-time-enforced, not audit-only",
       "probesCheck": 6,
       "difficulty": "hard",
       "detectableBy": ["content-audit"],
       "apply": [],
-      "stubReason": "Blocked: a fresh behavior string would fail the enemies.json schema-enum test (jsonSchemaValidation), making it test-caught rather than audit-only. A clean version needs a coordinated edit: add the value to the schema enum AND to enemies.json but NOT to the Enemy.preUpdate switch, so only the audit's code-vs-data cross-ref (check #6) catches it.",
+      "stubReason": "Deliberately NOT authored — there is no clean audit-only version. behavior is a closed Zod enum (EnemyBehaviorSchema = z.enum(['straight','zigzag','homing','boss']) in src/lib/schemas/enemies.ts:69), enemies.test.ts:44 already rejects an unknown behavior, and a compile-time `_enemyBehaviorCheck` ties the enum to the Enemy.preUpdate switch (which has no default case). So ANY seeded behavior defect is caught by the TYPECHECK / schema test, never by audit reasoning — a cold arm running `npm run typecheck`/`npm test` catches it for free. Finding: content-audit check #6 (behavior->switch coverage) is largely REDUNDANT with the compiler here; worth pruning or annotating in the skill rather than fixturing.",
       "groundTruth": { "kind": "uncovered-behavior", "file": "src/game/data/enemies.json", "anchor": "uncovered-behavior" }
     }
   ]
