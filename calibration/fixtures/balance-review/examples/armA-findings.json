@@ -1,0 +1,7 @@
+{
+  "$comment": "SYNTHETIC example: a cold arm asked 'what did this change do to balance?'. Computes the obvious DPS blow-up and eyeballs the inverted credit range, but misses the family-gating leak (corsair-missile is a valid weapon id — only the potato-only invariant flags it). Used to validate grade-recall.mjs. Not a real run.",
+  "findings": [
+    { "file": "src/game/data/weapons.json", "kind": "dps", "claim": "rapid-fire damage went 6 -> 60, so its DPS is now huge compared to before" },
+    { "file": "src/game/data/lootPools.ts", "kind": "credits", "claim": "a loot pool credit range looks backwards: min 1000, max 500" }
+  ]
+}

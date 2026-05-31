@@ -57,6 +57,9 @@ function applyOp(content, op) {
   // autocrlf) stores files as "\r\n". Adapt the anchors to the file's own EOL so
   // a multi-line find matches without rewriting the whole file's line endings
   // (which would swamp balance-review's working-tree-vs-HEAD diff with EOL noise).
+  // Assumes a file is uniformly one EOL — true for any git checkout. A
+  // pathological mixed-EOL file (some \n, some \r\n) could mis-match a multi-line
+  // anchor, but the count guard below then fails loudly rather than corrupting.
   const eol = content.includes("\r\n") ? "\r\n" : "\n";
   const find = (op.find ?? "").replaceAll("\n", eol);
   const replace = (op.replace ?? "").replaceAll("\n", eol);

@@ -36,6 +36,11 @@ The arm must still emit the structured `.calib/findings.json` contract; each fin
 `claim` should name the entity id and the metric (e.g. "rapid-fire DPS 50 → 500
 (+900%)"), which is what the anchors match against.
 
+`examples/` holds synthetic arm-A/arm-B findings that validate the grader against
+this fixture without a live A/B (run `node ../../grade-recall.mjs --defects
+defects.json --arm A=examples/armA-findings.json --arm B=examples/armB-findings.json`
+— cold catches 2/3, skill 3/3, +33pp lift).
+
 ## Extending
 
 Add TTK-vs-enemy regressions (bump an `enemies.json` hp), energy-per-DPS (move a
