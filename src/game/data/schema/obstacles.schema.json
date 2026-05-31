@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "obstacles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "asteroid-small"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "behavior": {
+            "type": "string",
+            "enum": [
+              "drift"
+            ]
+          },
+          "spriteKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "collisionDamage": {
+            "type": "number",
+            "minimum": 0
+          },
+          "hitboxRadius": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "speed",
+          "behavior",
+          "spriteKey",
+          "collisionDamage",
+          "hitboxRadius"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "obstacles"
+  ],
+  "additionalProperties": false
+}

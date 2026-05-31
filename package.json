@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
+    "gen:schemas": "vitest run -u src/game/data/__tests__/schemaFiles.test.ts",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "db:migrate:dbmate": "dbmate up",
     "db:rollback": "dbmate down",
