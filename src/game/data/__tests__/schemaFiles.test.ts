@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { EnemiesFileSchema } from "@/lib/schemas/enemies";
@@ -23,6 +26,14 @@ import { ObstaclesFileSchema } from "@/lib/schemas/obstacles";
 // Uses Zod 4's built-in z.toJSONSchema() — no extra dependency. Filenames match
 // the `$schema` pointers already in the data files (note solar-systems is
 // hyphenated, unlike the camelCase solarSystems.json source).
+//
+// NOTE on strictness: z.toJSONSchema emits `additionalProperties: false`, so the
+// editor flags unknown keys. This is intentionally STRICTER than the Zod runtime
+// schemas (which are non-strict and silently ignore extra keys) — the extra
+// strictness is an authoring aid (typo-catching) and is editor-only; it never
+// affects runtime/CI validation. If a data file ever needs a presentational key
+// the editor shouldn't flag, relax the relevant Zod object (e.g. .loose()) and
+// regenerate, rather than hand-editing the emitted schema.
 const CASES: ReadonlyArray<readonly [string, z.ZodType]> = [
   ["enemies.schema.json", EnemiesFileSchema],
   ["weapons.schema.json", WeaponsFileSchema],
@@ -32,6 +43,8 @@ const CASES: ReadonlyArray<readonly [string, z.ZodType]> = [
   ["obstacles.schema.json", ObstaclesFileSchema]
 ];
 
+const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..");
+
 describe("data JSON Schema files stay in sync with the Zod schemas", () => {
   for (const [file, schema] of CASES) {
     it(`${file} matches z.toJSONSchema()`, async () => {
@@ -39,4 +52,20 @@ describe("data JSON Schema files stay in sync with the Zod schemas", () => {
       await expect(json).toMatchFileSnapshot(`../schema/${file}`);
     });
   }
+
+  // CASES is a hand-maintained list, so a new catalog (or a dropped `$schema`
+  // pointer) could silently escape the generator + drift gate. Assert a bijection
+  // between the data files' actual `$schema` pointers and CASES so the mapping
+  // can never drift unnoticed: add a catalog with a pointer → must add to CASES;
+  // remove a pointer → must remove from CASES; either way this fails loudly with
+  // the offending filename. Also rules out a vacuous empty scan (wrong dir).
+  it("CASES exactly mirrors the data files' $schema pointers", () => {
+    const referenced = readdirSync(dataDir)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => /"\$schema":\s*"\.\/schema\/([^"]+)"/.exec(readFileSync(join(dataDir, name), "utf8"))?.[1])
+      .filter((file): file is string => Boolean(file))
+      .sort();
+    const cased = CASES.map(([file]) => file).sort();
+    expect(referenced).toEqual(cased);
+  });
 });
