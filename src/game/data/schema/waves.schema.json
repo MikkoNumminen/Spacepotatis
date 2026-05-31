@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "missions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "missionId": {
+            "type": "string",
+            "enum": [
+              "tutorial",
+              "combat-1",
+              "boss-1",
+              "shop",
+              "market",
+              "pirate-beacon",
+              "ember-run",
+              "burnt-spud",
+              "tubernovae-outpost"
+            ]
+          },
+          "waves": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "durationMs": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "spawns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "enemy": {
+                        "type": "string",
+                        "enum": [
+                          "aphid",
+                          "aphid-giant",
+                          "aphid-queen",
+                          "aphid-empress",
+                          "beetle-scarab",
+                          "beetle-rhino",
+                          "beetle-stag",
+                          "caterpillar-hornworm",
+                          "caterpillar-army",
+                          "caterpillar-monarch",
+                          "spider-wolf",
+                          "spider-widow",
+                          "spider-jumper",
+                          "dragonfly-common",
+                          "dragonfly-heli",
+                          "dragonfly-damsel",
+                          "pirate-skiff",
+                          "pirate-cutlass",
+                          "pirate-marauder",
+                          "pirate-corsair",
+                          "pirate-frigate",
+                          "pirate-galleon",
+                          "pirate-dreadnought"
+                        ]
+                      },
+                      "count": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "delayMs": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "intervalMs": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "formation": {
+                        "type": "string",
+                        "enum": [
+                          "line",
+                          "vee",
+                          "scatter",
+                          "column"
+                        ]
+                      },
+                      "xPercent": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "enemy",
+                      "count",
+                      "delayMs",
+                      "intervalMs",
+                      "formation",
+                      "xPercent"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "obstacleSpawns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "obstacle": {
+                        "type": "string",
+                        "enum": [
+                          "asteroid-small"
+                        ]
+                      },
+                      "count": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "delayMs": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "intervalMs": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "formation": {
+                        "type": "string",
+                        "enum": [
+                          "line",
+                          "scatter",
+                          "column"
+                        ]
+                      },
+                      "xPercent": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "obstacle",
+                      "count",
+                      "delayMs",
+                      "intervalMs",
+                      "formation",
+                      "xPercent"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "durationMs",
+                "spawns"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "missionId",
+          "waves"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "missions"
+  ],
+  "additionalProperties": false
+}

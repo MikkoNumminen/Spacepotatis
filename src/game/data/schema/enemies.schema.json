@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "enemies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "aphid",
+              "aphid-giant",
+              "aphid-queen",
+              "aphid-empress",
+              "beetle-scarab",
+              "beetle-rhino",
+              "beetle-stag",
+              "caterpillar-hornworm",
+              "caterpillar-army",
+              "caterpillar-monarch",
+              "spider-wolf",
+              "spider-widow",
+              "spider-jumper",
+              "dragonfly-common",
+              "dragonfly-heli",
+              "dragonfly-damsel",
+              "pirate-skiff",
+              "pirate-cutlass",
+              "pirate-marauder",
+              "pirate-corsair",
+              "pirate-frigate",
+              "pirate-galleon",
+              "pirate-dreadnought"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "hp": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "speed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "behavior": {
+            "type": "string",
+            "enum": [
+              "straight",
+              "zigzag",
+              "homing",
+              "boss"
+            ]
+          },
+          "scoreValue": {
+            "type": "number",
+            "minimum": 0
+          },
+          "creditValue": {
+            "type": "number",
+            "minimum": 0
+          },
+          "spriteKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fireRateMs": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collisionDamage": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "hp",
+          "speed",
+          "behavior",
+          "scoreValue",
+          "creditValue",
+          "spriteKey",
+          "fireRateMs",
+          "collisionDamage"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "enemies"
+  ],
+  "additionalProperties": false
+}

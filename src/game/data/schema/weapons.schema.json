@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "weapons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "rapid-fire",
+              "spread-shot",
+              "heavy-cannon",
+              "corsair-missile",
+              "grapeshot-cannon",
+              "boarding-snare"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "damage": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "fireRateMs": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "bulletSpeed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "projectileCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "spreadDegrees": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 180
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tint": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "potato",
+              "pirate"
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 1
+              },
+              {
+                "type": "number",
+                "const": 2
+              }
+            ]
+          },
+          "energyCost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "homing": {
+            "type": "boolean"
+          },
+          "turnRateRadPerSec": {
+            "type": "number"
+          },
+          "gravity": {
+            "type": "number"
+          },
+          "explosionRadius": {
+            "type": "number",
+            "minimum": 0
+          },
+          "explosionDamage": {
+            "type": "number",
+            "minimum": 0
+          },
+          "slowFactor": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          },
+          "slowDurationMs": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "bulletSprite": {
+            "type": "string"
+          },
+          "podSprite": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "damage",
+          "fireRateMs",
+          "bulletSpeed",
+          "projectileCount",
+          "spreadDegrees",
+          "cost",
+          "tint",
+          "family",
+          "tier",
+          "energyCost"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "weapons"
+  ],
+  "additionalProperties": false
+}
