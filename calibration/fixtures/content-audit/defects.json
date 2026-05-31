@@ -1,0 +1,175 @@
+{
+  "$comment": "Seeded-defect fixture for recall-mode calibration of the content-audit skill. Each defect is a tsc/lint-CLEAN content-invariant violation — the kind a cold pass misses and the audit's cross-reference logic is supposed to catch. Anchors and find-strings are grounded against Spacepotatis master as of 2026-05-31; apply-defects.mjs drift-guards every op (expects exactly `count` matches, default 1) and writes nothing if the source moved. 9 verified + 2 stubs. See README.md for per-defect rationale.",
+  "schemaVersion": 1,
+  "skill": "content-audit",
+  "targetRepo": "Spacepotatis",
+  "findingsContract": ".calib/findings.json",
+  "defects": [
+    {
+      "id": "ca-orphan-enemy",
+      "title": "Wave spawn references an enemy id not in enemies.json",
+      "probesCheck": 1,
+      "difficulty": "easy",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/waves.json",
+          "find": "\"enemy\": \"aphid-giant\", \"count\": 1, \"delayMs\": 22000",
+          "replace": "\"enemy\": \"aphid-spectre\", \"count\": 1, \"delayMs\": 22000"
+        }
+      ],
+      "groundTruth": { "kind": "orphan-ref", "file": "src/game/data/waves.json", "anchor": "aphid-spectre", "note": "enemy id absent from enemies.json; also caught by data.test.ts" }
+    },
+    {
+      "id": "ca-enemy-spritekey-orphan",
+      "title": "Enemy spriteKey has no BootScene generator and no public/sprites file",
+      "probesCheck": 3,
+      "difficulty": "medium",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/enemies.json",
+          "find": "\"spriteKey\": \"enemy-aphid-queen\"",
+          "replace": "\"spriteKey\": \"enemy-aphid-phantom\""
+        }
+      ],
+      "groundTruth": { "kind": "missing-sprite", "file": "src/game/data/enemies.json", "anchor": "enemy-aphid-phantom", "note": "no draw*(\"enemy-aphid-phantom\") in BootScene.generateTextures()" }
+    },
+    {
+      "id": "ca-bullet-sprite-orphan",
+      "title": "Weapon bulletSprite has no BootScene generator",
+      "probesCheck": 4,
+      "difficulty": "medium",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/weapons.json",
+          "find": "\"bulletSprite\": \"bullet-potato\",",
+          "replace": "\"bulletSprite\": \"bullet-potato-phantom\","
+        }
+      ],
+      "groundTruth": { "kind": "missing-sprite", "file": "src/game/data/weapons.json", "anchor": "bullet-potato-phantom", "note": "rapid-fire bullet sprite no longer generated" }
+    },
+    {
+      "id": "ca-mission-dag-cycle",
+      "title": "Mission prereq graph has a cycle (ember-run <-> burnt-spud)",
+      "probesCheck": 8,
+      "difficulty": "hard",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/missions.json",
+          "find": "\"requires\": [\"pirate-beacon\"],",
+          "replace": "\"requires\": [\"burnt-spud\"],"
+        }
+      ],
+      "groundTruth": { "kind": "dag-cycle", "file": "src/game/data/missions.json", "anchor": ["ember-run", "burnt-spud"], "note": "ember-run now requires burnt-spud; burnt-spud already requires ember-run => 2-cycle. tsc-clean (both are valid ids); only the DFS in check #8 catches it" }
+    },
+    {
+      "id": "ca-lootpool-family-leak",
+      "title": "Tutorial loot pool (potato-only) leaks a tier-2 pirate weapon",
+      "probesCheck": 9,
+      "difficulty": "medium",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/lootPools.ts",
+          "find": "weapons: [\"spread-shot\", \"heavy-cannon\"],",
+          "replace": "weapons: [\"spread-shot\", \"heavy-cannon\", \"corsair-missile\"],"
+        }
+      ],
+      "groundTruth": { "kind": "family-leak", "file": "src/game/data/lootPools.ts", "anchor": "corsair-missile", "note": "corsair-missile is a valid WeaponId (tsc-clean) but pirate/tier-2; tutorial pool is potato-only per the file header invariant" }
+    },
+    {
+      "id": "ca-lootpool-credits-range",
+      "title": "Loot pool credits min >= max",
+      "probesCheck": 9,
+      "difficulty": "medium",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/lootPools.ts",
+          "find": "credits: { min: 500, max: 1000 }",
+          "replace": "credits: { min: 1000, max: 500 }"
+        }
+      ],
+      "groundTruth": { "kind": "credits-range", "file": "src/game/data/lootPools.ts", "anchor": "credit", "note": "tubernovae pool min(1000) >= max(500); soft anchor — any finding mentioning the credit range matches" }
+    },
+    {
+      "id": "ca-mission-system-orphan",
+      "title": "Mission solarSystemId does not resolve in solarSystems.json",
+      "probesCheck": 10,
+      "difficulty": "medium",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/missions.json",
+          "after": "\"id\": \"tubernovae-outpost\"",
+          "find": "\"solarSystemId\": \"tubernovae\"",
+          "replace": "\"solarSystemId\": \"tubernovae-cluster\""
+        }
+      ],
+      "groundTruth": { "kind": "orphan-ref", "file": "src/game/data/missions.json", "anchor": "tubernovae-cluster", "note": "only `tutorial` and `tubernovae` exist in solarSystems.json" }
+    },
+    {
+      "id": "ca-story-voice-missing",
+      "title": "Story entry voiceTrack points at a file that does not exist on disk",
+      "probesCheck": 11,
+      "difficulty": "hard",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/story.ts",
+          "find": "voiceTrack: \"/audio/story/market-arrival-voice.mp3\",",
+          "replace": "voiceTrack: \"/audio/story/market-arrival-voice-v2.mp3\","
+        }
+      ],
+      "groundTruth": { "kind": "missing-file", "file": "src/game/data/story.ts", "anchor": "market-arrival-voice-v2", "note": "requires a public/audio/story disk check — a cold pass that only reads code misses it" }
+    },
+    {
+      "id": "ca-story-trigger-orphan",
+      "title": "Story on-mission-select trigger references a missionId not in missions.json",
+      "probesCheck": 11,
+      "difficulty": "hard",
+      "detectableBy": ["content-audit"],
+      "apply": [
+        {
+          "type": "replace",
+          "file": "src/game/data/story.ts",
+          "find": "autoTrigger: { kind: \"on-mission-select\", missionId: \"combat-1\" },",
+          "replace": "autoTrigger: { kind: \"on-mission-select\", missionId: \"combat-2\" },"
+        }
+      ],
+      "groundTruth": { "kind": "orphan-ref", "file": "src/game/data/story.ts", "anchor": "combat-2", "note": "yamsteroid-belt-arrival trigger; combat-2 is not a mission id. MissionId is a string in the trigger literal, so tsc may not catch a free-string drift" }
+    },
+
+    {
+      "id": "ca-active-perk-no-consumer",
+      "title": "STUB: active perk missing its triggerActive() consumer in PerkController",
+      "probesCheck": 5,
+      "difficulty": "hard",
+      "detectableBy": ["content-audit"],
+      "apply": [],
+      "stubReason": "Code-level defect (src/game/phaser/scenes/combat/PerkController.ts). Author by deleting the `triggerActive()` consumer for one active perk while leaving its apply() case — types still compile, the perk just silently never fires. Needs a read of PerkController to anchor the exact deletion.",
+      "groundTruth": { "kind": "missing-handler", "file": "src/game/phaser/scenes/combat/PerkController.ts", "anchor": "triggerActive" }
+    },
+    {
+      "id": "ca-enemy-behavior-uncovered",
+      "title": "STUB: enemy behavior value with no case in Enemy.preUpdate switch",
+      "probesCheck": 6,
+      "difficulty": "hard",
+      "detectableBy": ["content-audit"],
+      "apply": [],
+      "stubReason": "Blocked: a fresh behavior string would fail the enemies.json schema-enum test (jsonSchemaValidation), making it test-caught rather than audit-only. A clean version needs a coordinated edit: add the value to the schema enum AND to enemies.json but NOT to the Enemy.preUpdate switch, so only the audit's code-vs-data cross-ref (check #6) catches it.",
+      "groundTruth": { "kind": "uncovered-behavior", "file": "src/game/data/enemies.json", "anchor": "uncovered-behavior" }
+    }
+  ]
+}

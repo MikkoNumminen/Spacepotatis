@@ -1,0 +1,15 @@
+{
+  "$comment": "SYNTHETIC example: a thorough skill arm that walked the full content-audit checklist. Used to validate grade-recall.mjs (catches all 9 verified defects + 1 unmatched finding to exercise precision). Not a real run.",
+  "findings": [
+    { "file": "src/game/data/waves.json", "line": 13, "kind": "orphan-ref", "claim": "wave spawn references enemy 'aphid-spectre' which is not present in enemies.json" },
+    { "file": "src/game/data/enemies.json", "kind": "missing-sprite", "claim": "spriteKey 'enemy-aphid-phantom' has no generator in BootScene.generateTextures() and no file under public/sprites/" },
+    { "file": "src/game/data/weapons.json", "kind": "missing-sprite", "claim": "bulletSprite 'bullet-potato-phantom' is not generated in BootScene" },
+    { "file": "src/game/data/missions.json", "kind": "dag-cycle", "claim": "mission prereq cycle detected: ember-run -> burnt-spud -> ember-run" },
+    { "file": "src/game/data/lootPools.ts", "kind": "family-leak", "claim": "tutorial loot pool contains pirate-family weapon 'corsair-missile'; tutorial pool is potato-only by design" },
+    { "file": "src/game/data/lootPools.ts", "kind": "credits-range", "claim": "tubernovae pool has inverted credit range: min 1000 >= max 500" },
+    { "file": "src/game/data/missions.json", "kind": "orphan-ref", "claim": "mission solarSystemId 'tubernovae-cluster' does not resolve in solarSystems.json" },
+    { "file": "src/game/data/story.ts", "kind": "missing-file", "claim": "story voiceTrack /audio/story/market-arrival-voice-v2.mp3 has no matching file under public/audio/story/" },
+    { "file": "src/game/data/story.ts", "kind": "orphan-ref", "claim": "on-mission-select trigger references missionId 'combat-2' which is not in missions.json" },
+    { "file": "src/game/data/enemies.json", "kind": "balance", "claim": "aphid-empress boss HP looks unusually high vs other bosses" }
+  ]
+}
