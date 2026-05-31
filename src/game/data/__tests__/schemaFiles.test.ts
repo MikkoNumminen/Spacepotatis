@@ -62,7 +62,13 @@ describe("data JSON Schema files stay in sync with the Zod schemas", () => {
   it("CASES exactly mirrors the data files' $schema pointers", () => {
     const referenced = readdirSync(dataDir)
       .filter((name) => name.endsWith(".json"))
-      .map((name) => /"\$schema":\s*"\.\/schema\/([^"]+)"/.exec(readFileSync(join(dataDir, name), "utf8"))?.[1])
+      .map((name) => {
+        // Read the actual `$schema` property (not a regex over the raw text) so a
+        // `$schema`-shaped string inside a description field can't false-match.
+        const parsed: unknown = JSON.parse(readFileSync(join(dataDir, name), "utf8"));
+        const pointer = (parsed as { $schema?: unknown }).$schema;
+        return typeof pointer === "string" ? pointer.replace(/^\.\/schema\//, "") : undefined;
+      })
       .filter((file): file is string => Boolean(file))
       .sort();
     const cased = CASES.map(([file]) => file).sort();
