@@ -1,0 +1,8 @@
+{
+  "$comment": "SYNTHETIC example: a cold arm (no SKILL.md) that grepped around and caught only the obvious string-mismatch defects, missing the cross-reference ones (DAG cycle, family gating, credit range, disk-file checks). Used to validate grade-recall.mjs. Not a real run.",
+  "findings": [
+    { "file": "src/game/data/waves.json", "kind": "orphan-ref", "claim": "could not find enemy 'aphid-spectre' referenced by a wave spawn" },
+    { "file": "src/game/data/weapons.json", "kind": "sprite", "claim": "bullet-potato-phantom looks like it might not have a sprite, unsure" },
+    { "file": "src/game/data/missions.json", "kind": "note", "claim": "missions.json looks structurally fine" }
+  ]
+}

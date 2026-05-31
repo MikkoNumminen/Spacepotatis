@@ -1,0 +1,8 @@
+{
+  "$comment": "SYNTHETIC example: a thorough balance-review arm. Catches all 3 seeded defects — the DPS delta (its core job) and both Flagged-issues. Used to validate grade-recall.mjs against the balance fixture without a live A/B. Not a real run.",
+  "findings": [
+    { "file": "src/game/data/weapons.json", "kind": "dps-delta", "claim": "rapid-fire DPS 50 -> 500 (+900%): damage 6 -> 60 makes the free starter weapon out-DPS every tier-2 pirate gun; TTK vs every enemy collapses proportionally" },
+    { "file": "src/game/data/lootPools.ts", "kind": "credits-range", "claim": "tubernovae loot pool credits inverted: min 1000 >= max 500 — the credit roll is broken" },
+    { "file": "src/game/data/lootPools.ts", "kind": "family-leak", "claim": "tutorial pool (potato/tier-1 only by design) now lists corsair-missile, a tier-2 pirate weapon — cross-system gating violated" }
+  ]
+}

@@ -69,6 +69,7 @@ Agents may work in parallel on disjoint directories. Treat these as ownership zo
 | [src/types/](src/types/)                                  | Shared TypeScript types                         |
 | [db/migrations/](db/migrations/)                          | SQL schema migrations (node-based runner; dbmate not required) |
 | [public/](public/)                                        | Static assets (sprites, audio, textures)        |
+| [calibration/](calibration/)                              | Dev-only recall-mode measurement tooling (audit-skill defect fixtures + grader). ESLint-ignored, outside the typecheck/build graph. Never imported by app code. |
 
 **Shared files** (require coordination): `src/types/*.ts`, `src/lib/db.ts`, `src/lib/schemas/*.ts`, `src/lib/routes.ts`, the `src/game/state/` cluster, JSON under `src/game/data/`.
 

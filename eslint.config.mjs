@@ -19,6 +19,10 @@ const eslintConfig = [
       "node_modules/**",
       "coverage/**",
       ".claude/**",
+      // Dev-only recall-calibration tooling (Node scripts + fixture JSON). Not
+      // shipped, not part of the typecheck graph (allowJs:false). Lives here so
+      // the content-audit defect fixtures version with the content they probe.
+      "calibration/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
