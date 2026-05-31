@@ -44,7 +44,7 @@ this directory exists.
 
 | File | Role |
 |---|---|
-| `apply-defects.mjs` | Seeds known defects into a throwaway worktree. Drift-guarded: aborts (writes nothing) if any anchor no longer matches the source. |
+| `apply-defects.mjs` | Seeds known defects into a throwaway worktree. **Dry-run by default — pass `--apply` to write** (mirrors the dbWriteSafety convention). Drift-guarded: aborts (writes nothing) if any anchor no longer matches the source. |
 | `grade-recall.mjs` | Deterministic grader. Recall (bucketed by difficulty), precision, reproducibility (Jaccard across repeated runs), tokens/defect. Read-only; never lets a model grade itself. |
 | `fixtures/<skill>/defects.json` | The seeded-defect corpus for one audit skill, grounded against current master. |
 | `fixtures/<skill>/examples/` | Synthetic findings files used to validate the grader without a live A/B. |

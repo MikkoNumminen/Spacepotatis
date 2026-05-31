@@ -2,9 +2,11 @@
 // apply-defects.mjs — seed known content-audit defects into a worktree for
 // recall-mode skill calibration (see ../RECALL-MODE.md).
 //
-// DESTRUCTIVE: this MUTATES files in --worktree. Only ever point it at a
-// throwaway calibration worktree (e.g. .claude/worktrees/calib-recall-*), NEVER
-// at a real checkout. It refuses to run unless --worktree is given explicitly.
+// SAFE BY DEFAULT: dry-run is the default (validate anchors, write nothing).
+// Pass --apply to actually mutate files — and even then, only ever point
+// --worktree at a THROWAWAY calibration worktree, NEVER a real checkout. The
+// tool refuses to run without an explicit --worktree. (This mirrors the
+// dry-run-by-default + explicit-confirm convention of scripts/_lib/dbWriteSafety.mjs.)
 //
 // Each defect is a list of anchored find/replace ops with a drift guard: every
 // op must match its expected occurrence count BEFORE any file is written. If a
@@ -13,21 +15,24 @@
 // refresh the fixture, which is how fixtures stay tied to the content they probe.
 //
 // Usage:
-//   node apply-defects.mjs --defects <defects.json> --worktree <dir> [--only id,id] [--dry-run] [--list]
+//   node apply-defects.mjs --defects <defects.json> --worktree <dir> [--apply] [--only id,id] [--list]
+//   (default)  dry-run: validate every anchor against the worktree; write nothing
+//   --apply    actually write the mutations (dry-run is the default safety net)
 //   --list     print the defect catalogue and exit (no worktree needed)
-//   --dry-run  validate every anchor against the worktree; write nothing
 //   --only     apply just these defect ids (comma-separated)
+//   --dry-run  explicit no-op alias for the default (accepted for back-compat)
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, basename } from "node:path";
 
 function parseArgs(argv) {
-  const args = { only: null, dryRun: false, list: false };
+  const args = { only: null, apply: false, dryRun: false, list: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--defects") args.defects = argv[++i];
     else if (a === "--worktree") args.worktree = argv[++i];
     else if (a === "--only") args.only = argv[++i].split(",").map((s) => s.trim());
+    else if (a === "--apply") args.apply = true;
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--list") args.list = true;
     else throw new Error(`unknown arg: ${a}`);
@@ -53,8 +58,16 @@ function applyOp(content, op) {
   let head = "";
   let region = content;
   if (after) {
+    const afterCount = countOccurrences(content, after);
+    const expectedAfter = op.afterCount ?? 1;
+    if (afterCount !== expectedAfter) {
+      return {
+        ok: false,
+        count: afterCount,
+        reason: `after-anchor ${JSON.stringify(after)} expected ${expectedAfter} match(es), found ${afterCount} — anchor not unique enough, refine it (or set afterCount)`
+      };
+    }
     const at = content.indexOf(after);
-    if (at === -1) return { ok: false, count: 0, reason: `after-anchor not found: ${JSON.stringify(after)}` };
     head = content.slice(0, at);
     region = content.slice(at);
   }
@@ -131,9 +144,13 @@ function main() {
     process.exit(1);
   }
 
-  if (args.dryRun) {
+  // Dry-run is the DEFAULT. Writing requires an explicit --apply, and an
+  // explicit --dry-run always wins over --apply — a destructive tool should
+  // never surprise. So you only mutate when --apply is set AND --dry-run isn't.
+  if (!args.apply || args.dryRun) {
     console.log(`DRY-RUN ok — ${okOps.length} op(s) across ${touched.size} file(s) would apply cleanly:`);
     for (const o of okOps) console.log(`  ✓ ${o}`);
+    if (!args.apply) console.log(`(dry-run is the default — pass --apply to actually write)`);
     return;
   }
 

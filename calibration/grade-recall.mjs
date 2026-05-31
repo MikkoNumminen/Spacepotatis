@@ -24,6 +24,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
+import { pathToFileURL } from "node:url";
 
 function parseArgs(argv) {
   const args = { arms: [], repro: [], tokens: {} };
@@ -50,19 +51,19 @@ function splitOnce(s, sep) {
   return [s.slice(0, i), s.slice(i + 1)];
 }
 
-const norm = (s) => String(s ?? "").toLowerCase().replaceAll("\\", "/");
+export const norm = (s) => String(s ?? "").toLowerCase().replaceAll("\\", "/");
 
-function fileMatch(findingFile, defectFile) {
+export function fileMatch(findingFile, defectFile) {
   return norm(findingFile).includes(basename(defectFile).toLowerCase());
 }
 
-function anchorsPresent(anchor, claim) {
+export function anchorsPresent(anchor, claim) {
   const c = norm(claim);
   const anchors = Array.isArray(anchor) ? anchor : [anchor];
   return anchors.every((a) => c.includes(norm(a)));
 }
 
-function matchesDefect(defect, finding) {
+export function matchesDefect(defect, finding) {
   const gt = defect.groundTruth;
   return fileMatch(finding.file, gt.file) && anchorsPresent(gt.anchor, finding.claim);
 }
@@ -72,7 +73,14 @@ function loadFindings(file) {
   return parsed.findings ?? [];
 }
 
-function scoreArm(applicable, findings) {
+export function scoreArm(applicable, findings) {
+  // Recall is per-DEFECT: a defect is "caught" if ANY finding matches it. The
+  // mapping is deliberately many-to-many — one finding can satisfy two defects
+  // (if it names both anchors) and one defect can be named by two findings. That
+  // is correct, not double-counting: recall counts distinct defects in `caught`
+  // (a Set), so a finding that legitimately reports two seeded defects credits
+  // both, and two findings for one defect credit it once. Anchors are
+  // discriminating enough (the specific bad id/path) that cross-talk is rare.
   const caught = new Set();
   for (const d of applicable) {
     if (findings.some((f) => matchesDefect(d, f))) caught.add(d.id);
@@ -98,7 +106,7 @@ function scoreArm(applicable, findings) {
   };
 }
 
-function jaccard(a, b) {
+export function jaccard(a, b) {
   const inter = [...a].filter((x) => b.has(x)).length;
   const union = new Set([...a, ...b]).size;
   return union ? inter / union : 1;
@@ -207,4 +215,7 @@ function main() {
   }
 }
 
-main();
+// Run the CLI only when invoked directly; stay importable for the boundary test.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

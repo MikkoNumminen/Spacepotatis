@@ -49,8 +49,9 @@ cutting the skill.
    without one).
 2. **Three worktrees**, branched from master: `calib-recall-A/B/C-<skill>`. For
    arm C, blank or stub `CLAUDE.md` in that worktree before the agent runs.
-3. **Seed defects** into each worktree:
-   `node scripts/apply-defects.mjs --defects <fixture> --worktree <wt>`.
+3. **Seed defects** into each worktree (note `--apply` — the seeder is dry-run by
+   default so a stray invocation can't mutate a real checkout):
+   `node scripts/apply-defects.mjs --defects <fixture> --worktree <wt> --apply`.
    The applier is drift-guarded — if it aborts, the fixture is stale; refresh it
    before continuing (a stale fixture silently measures nothing).
 4. **Dispatch one sub-agent per arm** with the prompts below. Each writes its
