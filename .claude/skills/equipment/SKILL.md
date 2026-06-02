@@ -12,7 +12,7 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 ## Boundary — do NOT use for
 - **Mid-mission perks** → `/new-perk`. Scene-scoped, not persisted.
 - **Enemies** → `/new-enemy`. **Missions** → `/new-mission`. **Story** → `/new-story`.
-- **Systemic caps** (`MAX_LEVEL`, `MAX_AUGMENTS_PER_WEAPON`, `MAX_WEAPON_SLOTS` in `ShipConfig.ts`) — flag before editing.
+- **Systemic caps** — `MAX_LEVEL` / `MAX_WEAPON_SLOTS` (defined in `src/types/game.ts`, re-exported by `ShipConfig.ts`), `MAX_AUGMENTS_PER_WEAPON` (in `augments.ts`) — flag before editing.
 - **A 5th equipment KIND** (e.g. "engine") — that's a feature; STOP and flag.
 - **Player ship-sprite-only changes** — `BootScene.ts#drawPotatoShip` is unrelated to equipment.
 
@@ -29,11 +29,10 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 - **Accessor**: `getWeapon(id)` in [src/game/data/weapons.ts](src/game/data/weapons.ts) — throws on unknown id.
 - **`WeaponDefinition`** ([src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥0), `tint` (CSS hex), `family` (`"potato" | "pirate"`), `tier` (`1 | 2`), `energyCost` (>0). OPTIONAL: `homing`, `turnRateRadPerSec`, `gravity` (px/s² +y; bullets arc and rotate to motion vector — gravity weapons use 60–300), `explosionRadius` + `explosionDamage` (AoE on impact — see `applyBulletAoE` in [CombatScene.ts](src/game/phaser/scenes/CombatScene.ts)), `slowFactor` (0..1, multiplier on enemy speed) + `slowDurationMs` (paired with explosionRadius — slows everything in the AoE), `bulletSprite`, `podSprite`.
 
-### Tier + family gating
-- `tier: 1` (currently the potato family) appears EVERYWHERE including the tutorial shop. The `WeaponTier` type in `types/game.ts` is the canonical surface; the badge UI renders T1/T2 in `ShopUI.tsx` + `WeaponCard.tsx` (look for the `TierBadge` helper).
-- `tier: 2` (currently the pirate family) is HIDDEN in the tutorial-system shop ([ShopUI.tsx](src/components/ShopUI.tsx) filter checks `w.tier === 1` for tutorial). Tubernovae and later systems show every tier.
-- Family is the visual / thematic group ("potato" / "pirate"); tier gates the shop. They tend to align (every tier-1 is potato, every tier-2 is pirate today) but they're independent fields — a future "potato tier-2" or "pirate tier-1" is structurally legal.
-- LoadoutMenu is NEVER tier-gated — owned weapons stay usable everywhere.
+### Shop unlock (mission-gated) + tier/family tags
+- **Shop visibility is mission-gated, NOT tier-gated.** A weapon appears in the shop ONLY after its unlocking mission is wired into `MISSION_WEAPON_REWARDS` in [src/game/data/missionWeaponRewards.ts](src/game/data/missionWeaponRewards.ts). `getBuyableWeaponIds(...)` (same file) walks that map against completed missions to build the buyable set — merely existing in `weapons.json` does NOT make a weapon purchasable. The shop no longer iterates `getAllWeapons()` and filters by `w.tier === 1`.
+- `tier` (`1 | 2`) and `family` (`"potato" | "pirate"`) are cosmetic catalog tags. `TierBadge` is a small local helper independently defined (NOT shared/exported) in [ShopWeaponsSection.tsx](src/components/shop/ShopWeaponsSection.tsx), [WeaponCard.tsx](src/components/loadout/WeaponCard.tsx), and [WeaponDetailsModal.tsx](src/components/loadout/WeaponDetailsModal.tsx) — three separate copies. Edit all three to change the badge everywhere; the shop and details-modal copies render `T{tier}`, the WeaponCard copy renders `TIER {tier}`. They tend to align (every tier-1 is potato, every tier-2 is pirate today) but are independent fields — a "potato tier-2" or "pirate tier-1" is structurally legal and has no gating effect on its own.
+- LoadoutMenu is NEVER gated — owned weapons stay usable everywhere.
 
 ### AoE / slow on impact (tier-2 pirate haul)
 - `explosionRadius > 0` triggers an AoE pass in `CombatScene.applyBulletAoE` after the primary hit. Other enemies inside the radius take `explosionDamage` (scaled by `damageMul` like the direct hit). A small explosion-particles burst fires for visual legibility.
@@ -60,7 +59,7 @@ NOT catalog entries — constants in [src/game/state/ShipConfig.ts](src/game/sta
 |---|---|
 | Weapon **bullet sprite** | `BootScene.ts` `draw<X>Bullet(key)` + `weapons.json#bulletSprite`. **Coupling:** also update `weapons.json#tint` so loadout/shop/pickup dot matches. |
 | Weapon **bullet trajectory (arc)** | `weapons.json#gravity` — px/s² +y. Friendly bullets fire toward -y, so positive gravity arcs them. Bullets rotate to motion vector (cosmetic tumble suppressed). Reference: 60 = sniper drift, 120 = assault arc, 300 = grenade drop. Engine in `Bullet.fire`/`preUpdate` — no code change needed. |
-| Weapon **side-pod sprite** | `BootScene.ts` `draw<X>Pod(key)` + `weapons.json#podSprite`. `PodController.ts` is generic — any weapon with `podSprite` set shows a pod when equipped in a non-primary slot. Multiple weapons can share a pod texture (`pod-potato`). |
+| Weapon **side-pod sprite** | `BootScene.ts` `draw<X>Pod(key)` + `weapons.json#podSprite`. [src/game/phaser/entities/player/PodController.ts](src/game/phaser/entities/player/PodController.ts) is generic — any weapon with `podSprite` set shows a pod when equipped in a non-primary slot. Multiple weapons can share a pod texture (`pod-potato`). |
 | Weapon **UI tint dot** (loadout/shop) | `weapons.json#tint` — CSS color, read by `WeaponDot` in [src/components/loadout/dots.tsx](src/components/loadout/dots.tsx). |
 | Augment **UI tint dot** | `augments.ts#<id>.tint`. |
 | Combat HUD energy/shield/armor **bars** | [src/game/phaser/scenes/combat/CombatHud.ts](src/game/phaser/scenes/combat/CombatHud.ts) — Phaser Graphics. Energy ~L88, shield ~L67, armor ~L73. |
@@ -114,7 +113,8 @@ When in doubt, copy the structurally closest existing entry. Run `/balance-revie
 2. Weapon: id (kebab, unique), name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost (≥0), tint, family, energyCost (>0). Optional: homing, turnRateRadPerSec, bulletSprite, podSprite, gravity.
 3. Augment: id, name, description, cost, tint + ≥1 multiplier.
 4. **Distribution** — must wire at least one or it's inaccessible:
-   - **Shop** (default — `ShopUI.tsx` iterates `getAllWeapons()` / `getAllAugments()`).
+   - **Shop (weapon)** — add a `[missionId, weaponId]` pair to `MISSION_WEAPON_REWARDS` in [missionWeaponRewards.ts](src/game/data/missionWeaponRewards.ts). A weapon WITHOUT such a pair is unbuyable no matter that it exists in `weapons.json` — `getBuyableWeaponIds` only surfaces ids whose unlocking mission is complete.
+   - **Shop (augment)** — augments still surface from `getAllAugments()` with `cost > 0`; no mission pairing needed.
    - **Mission drop** — add to a pool in [lootPools.ts](src/game/data/lootPools.ts) under the right `solarSystemId`.
    - **Mid-mission upgrade ladder** (weapons only) — `nextWeaponUpgrade()` in [DropController.ts](src/game/phaser/scenes/combat/DropController.ts) hard-codes `["rapid-fire", "spread-shot", "heavy-cannon"]`.
    - **Default loadout** (free starters only, cost === 0) — `DEFAULT_SHIP.slots` / `inventory` in [ShipConfig.ts](src/game/state/ShipConfig.ts).
@@ -127,7 +127,7 @@ When in doubt, copy the structurally closest existing entry. Run `/balance-revie
 4. Add id to `WEAPON_IDS` in `save.ts` (`satisfies` enforces parity).
 5. **Visual** (only if custom `bulletSprite`): add `draw<X>Bullet(key)` in `BootScene.ts`, call from `generateTextures()`, set `bulletSprite`.
 6. Wire ≥1 distribution channel.
-7. `/balance-review` against the existing 9 weapons; adjust if out-of-band.
+7. `/balance-review` against the existing 6 weapons; adjust if out-of-band.
 8. `npm run typecheck && npm run lint && npm test`.
 
 ## Steps — augment
@@ -184,13 +184,13 @@ Most dangerous op — codebase has hard-coded references to specific weapon ids 
 
 | File | What it references | What breaks if you remove |
 |---|---|---|
-| [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) `DEFAULT_SHIP` | `"rapid-fire"` (line 71) | New player has no weapons; `ShipConfig.test.ts` fails |
+| [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) `DEFAULT_SHIP` | `"rapid-fire"` in `DEFAULT_SHIP.slots` (line 68) | New player has no weapons; `ShipConfig.test.ts` fails |
 | [src/game/state/persistence/safetyNet.ts](src/game/state/persistence/safetyNet.ts) `seedStarterIfEmpty` | `newWeaponInstance("rapid-fire")` (the post-migration safety net — kicks in when both slots and inventory are empty after every migrator runs). PR #76 split persistence into per-shape migrators under `persistence/`; the safety net is the single starter-fallback site today. | Corrupted save → permanently weaponless player |
 | [src/game/phaser/scenes/combat/DropController.ts](src/game/phaser/scenes/combat/DropController.ts) `nextWeaponUpgrade()` | `"rapid-fire"`, `"spread-shot"`, `"heavy-cannon"` | Mid-mission upgrade ladder skips a rung |
-| [src/game/data/lootPools.ts](src/game/data/lootPools.ts) | spread-shot, heavy-cannon, spud-missile, tater-net (tutorial system); tail-gunner, side-spitter, plasma-whip, hailstorm (tubernovae) | Removed weapon stops appearing as a mission drop |
+| [src/game/data/lootPools.ts](src/game/data/lootPools.ts) | spread-shot, heavy-cannon (tutorial system); corsair-missile, grapeshot-cannon, boarding-snare (tubernovae) | Removed weapon stops appearing as a mission drop |
 | [src/game/state/ShipConfig.test.ts](src/game/state/ShipConfig.test.ts) | `"rapid-fire"` at line 29 (asserts DEFAULT_SHIP starts with it), plus `spread-shot` / `heavy-cannon` literals throughout the slot/inventory assertions | Test fails |
-| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | Extensive weapon-id literals: `rapid-fire`, `spread-shot`, `heavy-cannon`, `tail-gunner`, `side-spitter` (used to assert slot/inventory shape and migration behavior) | Tests fail at every assertion that names the removed id |
-| [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `spud-missile`, `tater-net` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
+| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | Extensive weapon-id literals: `rapid-fire`, `spread-shot`, `heavy-cannon` (used to assert slot/inventory shape and migration behavior) | Tests fail at every assertion that names the removed id |
+| [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `corsair-missile` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
 | [src/game/state/sync.test.ts](src/game/state/sync.test.ts) | `rapid-fire` (lines ~71, ~123 — round-trip save fixtures) | Sync round-trip tests fail |
 
 ## Save-format safety net + credit refund (HARD RULE)
@@ -247,3 +247,42 @@ Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `mi
 - `src/game/state/sync.ts`, save server route, `db/migrations/` — schemas read catalogs at runtime; no DB migration for catalog adds/removes.
 - `src/lib/saveValidation.ts` — credit caps derive from waves + loot pools, not equipment prices.
 - `src/game/audio/itemSfx.ts` — generic per-category cues fire automatically.
+
+## Freshness check
+
+These checks assert the load-bearing surfaces this skill steers edits into still exist and still carry the names the skill cites. All checks are `scope_root`-relative (the Spacepotatis repo root). The skill's body links are repo-root-relative, so `no_broken_md_links` is intentionally omitted (it resolves links against the skill dir and would false-fail every `src/...` link).
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/data/weapons.json"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "src/game/data/augments.ts"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "src/game/state/persistence/salvageRemovedWeapons.ts"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/lib/schemas/save.ts"
+pattern = "WEAPON_IDS"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/state/persistence/salvageRemovedWeapons.ts"
+pattern = "REMOVED_WEAPON_BASE_COSTS"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/augments.ts"
+pattern = "MAX_AUGMENTS_PER_WEAPON"
+root = "scope_root"
+```

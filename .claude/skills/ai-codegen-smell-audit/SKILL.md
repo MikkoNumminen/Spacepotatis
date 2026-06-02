@@ -1,6 +1,6 @@
 ---
 name: ai-codegen-smell-audit
-description: Read-only audit for 10 concrete failure modes that recur in AI-generated code (defensive checks on non-nullable types, paraphrase comments, single-use helpers, generic names in domain code, swallowed errors, mirror tests, phantom TODOs, duplicated helpers, over-typed primitives, intra-file style drift). Produces a markdown report under docs/audits/. Does not modify code. Designed for PR review and on-demand scans, not for use during initial generation.
+description: Read-only audit for 10 concrete failure modes that recur in AI-generated code — defensive checks on non-nullable types, swallowed errors, mirror tests, phantom TODOs, and 6 others (full list in the body). Produces a markdown report under docs/audits/. Does not modify code. Designed for PR review and on-demand scans, not for use during initial generation.
 ---
 
 # When to use
@@ -266,6 +266,8 @@ These rules apply at scan time — a finding that matches a skip rule does not a
 
 The 10 checks were dry-run against `d:/koodaamista/Spacepotatis/src/` before publishing this skill.
 
+Line numbers below are as-of the dated pass; re-run the audit for current locations. The cited files all still exist; only the `:NN` suffixes drift. Re-verify each verdict against current code before relying on it.
+
 Four verdict labels:
 - **Real smells found** — un-suppressed findings in this repo.
 - **Pattern hits, skip rule passes** — the check matches candidates; every match is correctly suppressed by the skip rule. The check is working, but the codebase has no actual smell of this kind.
@@ -281,12 +283,12 @@ Four verdict labels:
 | 5. generic-names-in-domain-context | **Noise-prone** | Domain vocab is rich; `item` / `data` survive only at justified spots (queue accessor, image buffer). High false-positive risk without aggressive skip rules. |
 | 6. swallowed-errors | **Pattern hits, skip rule passes** | `src/game/state/seenStoriesLocal.ts:18` matches the catch pattern but is the legitimate version (returns `[]` with documented why). Skip rule (documented-why comment) correctly suppresses it. No un-suppressed finding. |
 | 7. mirror-tests | **Real smells found (opt-in only)** | Dormant under default scope (tests excluded). With `--include-tests`, `src/game/phaser/systems/weaponMath.test.ts:30` and `src/game/state/ShipConfig.test.ts:70` would be reported — both restate impl formulas. Half-mirror — anchored values sit alongside; per the updated skip rule, report only the formula assertion lines, not the whole tests. |
-| 8. phantom-todos | **Real smells found** | `src/game/audio/story.ts:51` is a phantom TODO (no ticket, no owner, no condition). |
+| 8. phantom-todos | **Pattern hits, skip rule passes** | `src/game/audio/story.ts:52` TODO has no ticket/owner but DOES carry a removal condition ("when per-category sliders ship in MuteToggle"), so the condition leg of the rubric correctly classifies it as legitimate — not a phantom. |
 | 9. duplicated-helpers | **No matches** | Codebase favors single source per math/string operation. Check grounded; fires on copy-paste-heavy code. |
-| 10. over-typed-primitives | **No matches** | `as const satisfies` usage in `src/lib/schemas/*` is the legitimate version (pins literals AND verifies WeaponId membership). |
+| 10. over-typed-primitives | **No matches** | `as const satisfies` is the legitimate version (pins literals AND verifies id membership) — e.g. `EnemyId` in `src/lib/schemas/enemies.ts`; the `as const satisfies readonly WeaponId[]` clause at `src/game/data/weapons.ts:40` (the schemas dir verifies it via `z.enum(WEAPON_IDS)`). |
 
-**Real smells found** on this repo: mirror-tests (opt-in, half-mirror formula assertions), phantom-todos (`story.ts:51`).
-**Pattern hits, skip rule passes** on this repo: defensive-checks-for-impossible-cases, swallowed-errors — the checks match candidates but the skip rules correctly classify every match as legitimate. These prove the skip rules work; they are not findings.
+**Real smells found** on this repo: mirror-tests (opt-in, half-mirror formula assertions).
+**Pattern hits, skip rule passes** on this repo: defensive-checks-for-impossible-cases, swallowed-errors, phantom-todos (`src/game/audio/story.ts:52`) — the checks match candidates but the skip rules correctly classify every match as legitimate. These prove the skip rules work; they are not findings.
 **Noise-prone** on this repo: generic-names-in-domain-context.
 **No matches** on this repo: stylistic-drift, paraphrase-comments, single-use-helpers, duplicated-helpers, over-typed-primitives. The codebase is well-disciplined; these remain useful for less-curated code.
 
@@ -313,3 +315,40 @@ Be honest with the user when these apply:
 - Don't expand the check list beyond 10 without explicit user sign-off. Tool surface area is a feature.
 - Don't add an `--apply` / `--fix` flag. Human decides what's a real issue.
 - Don't run the audit on the whole `src/` by default. Default scope is the current branch's diff; broader scope is opt-in.
+
+## Freshness check
+
+These checks assert the skill's load-bearing pieces still hold: the companion sidecar template it ships, the Spacepotatis paths it writes to and reads from, the full 10-check surface and the same-day append format documented in the body, and the `git` binary the default scope's `git diff` depends on. All paths are relative to the skill dir unless `root` says otherwise (`scope_root` = repo root in project scope).
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "false-positive-log.template.md"
+root = "skill_dir"
+
+[[check]]
+kind = "path_exists"
+path = "docs/audits"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "docs/audits/_dismissals.md"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "SKILL.md"
+pattern = "## 10\\. over-typed-primitives"
+root = "skill_dir"
+
+[[check]]
+kind = "file_contains"
+path = "SKILL.md"
+pattern = "## Run \\{N\\}"
+root = "skill_dir"
+
+[[check]]
+kind = "command_exists"
+command = "git"
+```

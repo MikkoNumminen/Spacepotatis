@@ -15,7 +15,7 @@ This skill is **the orchestrator**. It does NOT do the agents' work itself — i
 # Adjacent skills
 
 - `/audit` — modular-architecture refactor. Orthogonal axis. A finding from this skill that says "auth is checked in 47 different places" might trigger a follow-up `/audit` pass to consolidate.
-- `/save-roundtrip-audit` — save-pipeline integrity. Run BEFORE Phase 3 fixes that touch `src/game/state/persistence.ts`, `src/lib/schemas/save.ts`, `src/app/api/save/route.ts`, `src/lib/db.ts`, or `db/migrations/`.
+- `/save-roundtrip-audit` — save-pipeline integrity. Run BEFORE Phase 3 fixes that touch any file in the **save-sensitive set** (defined once under orchestration rule 6).
 - `/content-audit` — game-data invariants. Orthogonal.
 - `/new-migration` — required workflow when a security fix needs a schema change. CLAUDE.md §7a gates the merge on the migration being applied to prod.
 - `/security-review` — Claude Code built-in. Per-branch / per-PR scope. Use it for incremental PR-level checks; use `/security-audit` for whole-codebase passes. They do not overlap and do not replace each other.
@@ -53,13 +53,21 @@ Continuous logs (no gate, agent appends as it works):
 3. **One finding per `security-fixer` invocation** for critical/high. Low/medium independent fixes may run in parallel via `isolation: "worktree"` if they touch disjoint files. If two findings touch the same file, serialize them.
 4. **Gate explicitly.** After every phase, present the artifact's path and a short summary, and ask the user "Phase N complete — review and reply 'approved' to continue, or 'redo' with changes." Do not advance on a non-explicit nod.
 5. **Behavior preservation outside security fixes is non-negotiable.** Each Phase 3 commit is the security fix and the regression test. Nothing else.
-6. **Save data gets extra scrutiny.** Any fix touching `src/game/state/persistence.ts`, `src/lib/db.ts`, `src/lib/schemas/save.ts`, `src/app/api/save/route.ts`, or `src/lib/saveValidation.ts` triggers `/save-roundtrip-audit` BEFORE that fix's commit lands. The saveValidation cheat guards (CLAUDE.md §9) MUST NOT be weakened by a security fix without explicit user sign-off.
+6. **Save data gets extra scrutiny.** Any fix touching a file in the **save-sensitive set** triggers `/save-roundtrip-audit` BEFORE that fix's commit lands. The save-sensitive set is:
+   - `src/game/state/persistence.ts`
+   - `src/lib/db.ts`
+   - `src/lib/schemas/save.ts`
+   - `src/app/api/save/route.ts`
+   - `src/lib/saveValidation.ts`
+   - `db/migrations/`
+
+   The saveValidation cheat guards (CLAUDE.md §9) MUST NOT be weakened by a security fix without explicit user sign-off.
 7. **Schema-touching fixes follow CLAUDE.md §7a.** A fix that adds a SQL file under `db/migrations/` is not done until applied to prod via `node --env-file=.env.local scripts/migrate.mjs`. Use `/new-migration` to drive the workflow.
 8. **Auth/crypto/secrets fixes always escalate to Opus.** Even if the change looks small. The orchestrator (this skill) reviews each such fix before merging the next.
 9. **Surface critical findings immediately.** If Phase 1 or Phase 2 uncovers a critical issue (live secret leak, unauthenticated RCE, mass-exposure path), STOP and tell the user before continuing the artifact. Don't wait for the gate.
 10. **Checkpointing.** If a phase grows too large for one session, the agent appends to `docs/security/_progress.md` with what's done and what's next, and the orchestrator (this skill) resumes from there next session.
 11. **No exploit details in commit messages or public changelogs.** Exploit details stay in `docs/security/`. Commit messages describe the fix.
-12. **`Co-Authored-By` trailer is forbidden** per repo convention (see `MEMORY.md`).
+12. **`Co-Authored-By` trailer is forbidden** per repo convention (see CLAUDE.md §8).
 
 # Resume protocol
 
@@ -77,4 +85,41 @@ When the user invokes `/security-audit` and `docs/security/_progress.md` already
 - **Don't dispatch a generalist agent.** Use the named agent for each phase. The whole reason these agents exist is single-responsibility scoping.
 - **Don't let the fixer expand scope.** A Phase 3 fix that "while I'm here" refactors unrelated code is rejected. Refactors go through `/audit`. Non-security bugs go to `docs/security/04-other-findings.md`.
 - **Don't commit on the agent's behalf without explicit user OK.** Default is staged-clean and hand back unless the orchestrator's prompt explicitly authorized auto-commit.
-- **Don't downgrade the cheat guards** in `src/lib/saveValidation.ts` to "fix" a security finding. Those guards ARE security; if a finding says "they're too strict", surface to the user and ask.
+- **Don't downgrade the cheat guards** in `src/lib/saveValidation.ts` (a member of the save-sensitive set in rule 6) to "fix" a security finding. Those guards ARE security; if a finding says "they're too strict", surface to the user and ask.
+
+## Freshness check
+
+This skill is an orchestrator: it dispatches three named sub-agents and gates each phase on artifacts under `docs/security/`. The checks below assert that those load-bearing pieces still exist and that the skill still describes itself as the orchestrator (not a do-the-work-itself skill). All paths use `root = "scope_root"` (the Spacepotatis repo root) except the SKILL.md content check, which uses `skill_dir`.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = ".claude/agents/security-auditor.md"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = ".claude/agents/security-fixer.md"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = ".claude/agents/security-doc-writer.md"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "src/lib/saveValidation.ts"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "docs/security"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "SKILL.md"
+pattern = "This skill is \\*\\*the orchestrator\\*\\*"
+root = "skill_dir"
+```

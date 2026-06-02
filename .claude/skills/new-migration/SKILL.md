@@ -38,7 +38,7 @@ Format: `YYYYMMDDhhmmss_short_snake_case_description.sql`. Use a fresh UTC times
 
 ## 2. Write the SQL file
 
-Required dbmate format — the `-- migrate:up` and `-- migrate:down` markers are not optional (the runner extracts the up block by string-search at `scripts/migrate.mjs:89-97`). Header comment explains the WHY.
+Required dbmate format — the `-- migrate:up` and `-- migrate:down` markers are not optional (the runner extracts the up block by string-search in `extractUpBlock()` in `scripts/migrate.mjs`). Header comment explains the WHY.
 
 ```sql
 -- migrate:up
@@ -73,7 +73,7 @@ CREATE INDEX IF NOT EXISTS <table>_player_created_idx
 
 ## 3. Update the Kysely Database interface
 
-Open [src/lib/db.ts](src/lib/db.ts). Add the new table to the `Database` interface, OR add the new column to the existing table interface. `Generated<T>` marks columns that are `NOT NULL DEFAULT ...` in SQL (required on SELECT, optional on INSERT). Nullable columns use `T | null`.
+Open `src/lib/db.ts`. Add the new table to the `Database` interface, OR add the new column to the existing table interface. `Generated<T>` marks columns that are `NOT NULL DEFAULT ...` in SQL (required on SELECT, optional on INSERT). Nullable columns use `T | null`.
 
 ```ts
 export interface SaveGamesTable {
@@ -158,7 +158,7 @@ Tick the "Migration applied to prod" checkbox in the PR body, comment with the v
 # Invariants
 
 - Filename matches `YYYYMMDDhhmmss_<snake_case>.sql`, sorted lexicographically AFTER every existing migration in `db/migrations/`.
-- File contains BOTH `-- migrate:up` and `-- migrate:down` markers (runner uses them at `scripts/migrate.mjs:89-97`).
+- File contains BOTH `-- migrate:up` and `-- migrate:down` markers (the runner extracts the up block by string-search in `extractUpBlock()` in `scripts/migrate.mjs`).
 - Every new table / new column lives under the `spacepotatis.` Postgres schema. Never `public.*`.
 - `ON DELETE CASCADE` on any FK whose lifetime is owned by the parent (typical: `player_id` → `spacepotatis.players(id)`).
 - `src/lib/db.ts` `Database` interface updated in the SAME commit as the SQL file.
@@ -184,3 +184,42 @@ Tick the "Migration applied to prod" checkbox in the PR body, comment with the v
 - Existing files in `db/migrations/` (FORWARD-ONLY).
 - `db/schema.sql` — dbmate auto-generates this on `dbmate up`; checking in a hand-edited version causes drift. Don't commit it (CLAUDE.md §8 lists it under do-not-commit).
 - `dbmate.toml` — config is stable; only touch if the migration runner itself needs reconfiguration.
+
+## Freshness check
+
+These checks assert the load-bearing pieces this skill drives — the two runner scripts it invokes, the migrations directory it appends to, the dbmate up-marker its SQL must contain, the Kysely `Database` interface it edits in lockstep, and the CLAUDE.md §7a HARD RULE it enforces — still exist. Paths are repo-relative (project scope, `root = "scope_root"`). `no_broken_md_links` is intentionally omitted: the skill ships no markdown links to check (its only path reference is a plain code span).
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "scripts/migrate.mjs"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "scripts/check-schema.mjs"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "db/migrations"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "scripts/migrate.mjs"
+pattern = "-- migrate:up"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/lib/db.ts"
+pattern = "spacepotatis\\.save_games"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "CLAUDE.md"
+pattern = "7a\\. Migration shipping rule"
+root = "scope_root"
+```

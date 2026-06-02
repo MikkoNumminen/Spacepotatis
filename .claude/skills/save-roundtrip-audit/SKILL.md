@@ -34,7 +34,7 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
 
 # Steps (the audit checklist)
 
-1. **Build the field list.** Read `StateSnapshot` from `src/game/state/persistence.ts`. Today's fields: `credits`, `completedMissions`, `unlockedPlanets`, `playedTimeSeconds`, `ship`, `saveSlot`, `currentSolarSystemId`, `unlockedSolarSystems`, `seenStoryEntries`. **Diff against `git show HEAD:src/game/state/persistence.ts`** if the working tree has changed it — a field added in this PR is the most common audit target.
+1. **Build the field list.** Read `StateSnapshot` from `src/game/state/persistence.ts` — that interface is the live, authoritative field list. The Known-good baseline table below enumerates the fields as of the last audit, each with its per-field disposition; treat any field present in the interface but absent from that table as the audit target. (Keeping the canonical list in one place — the baseline table — avoids a third copy that has to be hand-synced.) **Diff against `git show HEAD:src/game/state/persistence.ts`** if the working tree has changed it — a field added in this PR is the most common audit target.
 
 2. **Layer 1 — snapshot interface + `toSnapshot()`.** Grep `src/game/state/persistence.ts` for the field name. Both the `StateSnapshot` declaration AND a line under `toSnapshot()` must reference it. A field declared but not emitted is a silent drop at the source.
 
@@ -48,7 +48,7 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
    - The field is written into the `.insertInto("spacepotatis.save_games").values({ ... })` block as `<column_name>: <value>`.
    - The field is ALSO written into the `.onConflict((oc) => oc.columns([...]).doUpdateSet({ <column_name>: sql\`EXCLUDED.<column_name>\`, ... }))` block. **The insert-only-no-conflict-update pattern is a silent drop on every save AFTER the first** — the row exists, the upsert hits the conflict path, and the new value is ignored.
 
-5. **Layer 4 — GET handler in `src/app/api/save/route.ts`.** The `NextResponse.json({...})` shape must include the field, mapped from `row.<column_name>` to the camelCase wire name. Also confirm the `selectFrom("spacepotatis.save_games").selectAll()` (or explicit `.select([...])`) actually fetches the column. `selectAll()` covers everything by default; an explicit `.select([...])` that omits the column is a silent drop on read.
+5. **Layer 4 — GET handler in `src/app/api/save/route.ts`.** Walk BOTH read paths. (1) **Authoritative** — the latest `save_snapshots` row, returned as `NextResponse.json({ ...snapshotRow.payload, updatedAt })`. Field presence here is governed by what the POST handler wrote into the snapshot payload, NOT by a `selectAll` — a field present in the fallback but absent from the written snapshot is a silent drop on read. (2) **Transitional fallback** — `save_games` `selectAll()` + explicit `row.<column_name>`→camelCase mapping; an explicit `.select([...])` that omits the column drops it. Confirm the field flows through both.
 
 6. **Layer 5 — `src/lib/db.ts`.** Confirm the column appears on `SaveGamesTable` with:
    - The right TypeScript type (`number`, `string`, `string[]`, etc.).
@@ -160,3 +160,40 @@ Notes:
 - No `npm install`, no network. File-system inspection plus optional `npm test` if runnable.
 - Don't invent fields. If a field is on `StateSnapshot` but the schema lacks it, that's a ✗ — report it; don't speculate "maybe it's intentional."
 - Don't mark `unlockedSolarSystems` as a failure — its intentional non-persistence is documented above. Flag it only if `hydrate()` stops re-deriving it.
+
+## Freshness check
+
+These checks assert the load-bearing pieces this audit walks still exist with their expected anchors. The `src/...` and `db/...` paths are repo-root-relative (project scope), so they use `root = "scope_root"`.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/state/persistence.ts"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/state/persistence.ts"
+pattern = "interface StateSnapshot"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/lib/schemas/save.ts"
+pattern = "SavePayloadSchema|RemoteSaveSchema"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/state/sync.ts"
+pattern = "doLoadSave"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "db/migrations/20260503010000_persist_current_solar_system.sql"
+root = "scope_root"
+
+[[check]]
+kind = "no_broken_md_links"
+```
