@@ -34,11 +34,11 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
      "galaxyMusicTrack": "/audio/music/<systemId>-galaxy.ogg"
    }
    ```
-   No `planets`, `unlockedByDefault`, or `unlockedAfter` — none exist in schema. Default-unlock lives in `INITIAL_STATE.unlockedSolarSystems` in `src/game/state/stateCore.ts`; mission-gated unlocks live in `SYSTEM_UNLOCK_GATES` in the same file.
+   No `planets`, `unlockedByDefault`, or `unlockedAfter` — none exist in schema. Default-unlock lives in `INITIAL_STATE.unlockedSolarSystems` in `src/game/state/stateCore.ts`; mission-gated unlocks live in the `SYSTEM_UNLOCK_GATES` Map in `src/game/data/systemUnlocks.ts` (re-exported from `stateCore.ts` for backward compat).
 2. **Extend `SolarSystemId` union** in `src/types/game.ts`. Keep sorted by `solarSystems.json` order.
 3. **Wire unlock** in `src/game/state/stateCore.ts`:
    - `"default"` → push id into `INITIAL_STATE.unlockedSolarSystems`. (Most systems should be earned, not default.)
-   - `"<missionId>"` → add `[missionId, systemId]` to `SYSTEM_UNLOCK_GATES` (template: `boss-1 → tubernovae`). Fires in `completeMission()`. `hydrate()` in `persistence.ts` re-derives unlocks from `completedMissions`, so retroactive unlocks work on next refresh.
+   - `"<missionId>"` → add `[missionId, systemId]` to the `SYSTEM_UNLOCK_GATES` Map in `src/game/data/systemUnlocks.ts` (template: `boss-1 → tubernovae`). It is re-exported from `stateCore.ts`; `completeMission()` there reads it. `hydrate()` in `persistence.ts` re-derives unlocks from `completedMissions`, so retroactive unlocks work on next refresh.
 4. **Tests in `src/game/state/GameState.test.ts`** (mirror tubernovae tests):
    - Completing the gating mission pushes id into `unlockedSolarSystems`.
    - `setSolarSystem("<systemId>")` rejected when locked.
@@ -82,3 +82,36 @@ Does NOT touch:
 - `src/game/three/GalaxyScene.ts`, `src/game/three/Sun.ts`, `src/components/GameCanvas.tsx` (WarpPicker) — all data-driven from `solarSystems.json` + `unlockedSolarSystems`.
 - `src/game/data/missions.json` — use `/new-mission`.
 - `src/game/data/lootPools.ts` / `src/components/ShopUI.tsx` — weapon-family availability is `/equipment` work (the system's `lootPools.ts` `weapons` array + `family` field on `weapons.json` entries). New systems inherit "all families allowed" by default.
+
+## Freshness check
+
+These checks assert the load-bearing Spacepotatis files and symbols this skill mutates still exist and keep their names. Paths are relative to the project root (scope_root); the skill is a project skill, so that is the default anchor.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/data/solarSystems.json"
+
+[[check]]
+kind = "path_exists"
+path = "src/game/data/story.ts"
+
+[[check]]
+kind = "file_contains"
+path = "src/types/game.ts"
+pattern = "SolarSystemId"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/solarSystems.json"
+pattern = "galaxyMusicTrack"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/storyTriggers.test.ts"
+pattern = "selectOnSystemEnterEntry"
+
+[[check]]
+kind = "command_exists"
+command = "ffmpeg"
+```

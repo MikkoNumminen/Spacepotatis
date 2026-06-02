@@ -7,7 +7,7 @@ description: Scaffold a new enemy — enemies.json entry, BootScene placeholder 
 `/new-enemy` adds an enemy end-to-end. For retuning an existing enemy, edit `enemies.json` directly.
 
 # Inputs
-- `enemyId` — kebab-case, unique. Family-prefixed: `aphid-*`, `beetle-*`, `caterpillar-*`, `spider-*`, `dragonfly-*`, `pirate-*` (e.g. `dragonfly-bomber`, `pirate-galleon`).
+- `enemyId` — kebab-case, unique. Family-prefixed: `aphid-*`, `beetle-*`, `caterpillar-*`, `spider-*`, `dragonfly-*`, `pirate-*` (e.g. `dragonfly-bomber`, `pirate-schooner`).
 - `displayName`, `hp` (>0), `speed` (>0 px/s), `scoreValue` (≥0), `creditValue` (≥0), `collisionDamage` (≥0).
 - `behavior` ∈ {`straight`, `zigzag`, `homing`, `boss`}.
 - `fireRateMs` — `> 0` or `null` (collision-only).
@@ -26,7 +26,7 @@ description: Scaffold a new enemy — enemies.json entry, BootScene placeholder 
 - `behavior` ∈ {`straight`, `zigzag`, `homing`, `boss`}.
 - `id` unique in `enemies.json`.
 - Every JSON `spriteKey` is registered in `BootScene.generateTextures`.
-- Every registered `spriteKey` has a matching `setEnemyHitbox` call (the five helpers handle this; only matters if a new helper is introduced).
+- Every registered `spriteKey` has a matching `setEnemyHitbox` call (the six helpers handle this; only matters if a new helper is introduced).
 - `fireRateMs` is `null` or `> 0`.
 - Balance numbers stay in `enemies.json` (CLAUDE.md §9). No `any`.
 
@@ -35,3 +35,43 @@ description: Scaffold a new enemy — enemies.json entry, BootScene placeholder 
 - `src/types/game.ts` — `EnemyId` extended.
 - `src/game/phaser/scenes/BootScene.ts` — one draw call.
 - `src/game/data/waves.json` — one spawn (only if `addTestWave`).
+
+## Freshness check
+
+These checks assert the Spacepotatis repo paths and source-level hooks this skill mutates still exist. Project scope: paths are relative to the worktree/repo root (`scope_root`) unless `root = "skill_dir"`. All six verified passing on 2026-06-02.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/data/enemies.json"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "src/game/data/waves.json"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/types/game.ts"
+pattern = "export type EnemyId\\s*="
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/types/game.ts"
+pattern = "EnemyBehavior\\s*=\\s*\"straight\"\\s*\\|\\s*\"zigzag\"\\s*\\|\\s*\"homing\"\\s*\\|\\s*\"boss\""
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/phaser/scenes/BootScene.ts"
+pattern = "private setEnemyHitbox"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/phaser/scenes/BootScene.ts"
+pattern = "private generateTextures"
+root = "scope_root"
+```

@@ -24,6 +24,8 @@ Each phase produces exactly one artifact and STOPS. Do not start the next phase 
 | 4 — Documentation | `doc-writer` | per-module READMEs/TSDoc + `docs/audit/03-documentation-summary.md` | User approves docs |
 | 5 — Verification | `refactor-architect` | `docs/audit/05-final-report.md` | Audit complete |
 
+Artifact file numbers are a fixed sequence and intentionally do not mirror phase numbers (Phase 4 writes `03-documentation-summary.md`; `04-found-bugs.md` is the always-on bug log).
+
 `docs/audit/04-found-bugs.md` is a continuous log written by the module-extractor when it spots a bug it's forbidden from fixing.
 
 # Orchestration rules
@@ -51,3 +53,38 @@ When the user invokes `/audit` and `docs/audit/_progress.md` already exists:
 - **Don't merge phases.** Phase 1's "no proposals" rule is load-bearing — proposals from a still-incomplete inventory tend to lock in the wrong shape.
 - **Don't dispatch a generalist agent.** Use the named agent for each phase. The whole reason these agents exist is single-responsibility scoping.
 - **Don't commit on the agent's behalf without explicit user OK.** The module-extractor may auto-commit per its own contract IFF the orchestrator's prompt allowed it; default is staged-clean and hand back.
+
+## Freshness check
+
+These checks assert the orchestrator's load-bearing references still hold: the named sub-agents it dispatches, the save-data audit it gates on, a representative save-data trigger path from rule 6, the orchestrator contract phrasing, and markdown-link integrity. Project scope, so non-`skill_dir` paths resolve against the repo root.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = ".claude/agents/refactor-architect.md"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = ".claude/agents/module-extractor.md"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = ".claude/skills/save-roundtrip-audit"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "src/lib/schemas/save.ts"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "SKILL.md"
+pattern = "produces exactly one artifact and STOPS"
+root = "skill_dir"
+
+[[check]]
+kind = "no_broken_md_links"
+```

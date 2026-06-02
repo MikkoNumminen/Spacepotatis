@@ -21,10 +21,10 @@ Renaming an entry's `id` is REMOVE + CREATE — see REMOVE.
 ## Boundary — STOP and flag
 
 - **UI styling** of `StoryModal.tsx`, `StoryListModal.tsx`, or audio engine `story.ts`. Code task.
-- **New `autoTrigger` kind** beyond the six listed below. Requires four coordinated edits: (a) variant in `StoryAutoTrigger` union in `src/game/data/story.ts`; (b) helper in `src/game/data/storyTriggers.ts` (mirror `selectFirstTimeEntry` / `selectOnSystemEnterEntry`); (c) firing site in `src/components/hooks/useStoryTriggers.ts`; (d) `describe` block in `src/game/data/storyTriggers.test.ts` covering fires-when-fresh, no-fire-when-seen, no-fire-when-auto-fired, no-fire-on-mismatch.
+- **New `autoTrigger` kind** beyond the seven listed below. Requires five coordinated edits: (a) variant in `StoryAutoTrigger` union in `src/game/data/story.ts`; (b) helper in `src/game/data/storyTriggers.ts` (mirror `selectFirstTimeEntry` / `selectOnSystemEnterEntry`); (c) firing site in `src/components/hooks/useStoryTriggers.ts`; (d) `describe` block in `src/game/data/storyTriggers.test.ts` covering fires-when-fresh, no-fire-when-seen, no-fire-when-auto-fired, no-fire-on-mismatch; (e) a `case` in `runDataIntegrityCheck`'s `switch (trigger.kind)` in `src/game/data/integrityCheck.ts` — the `_exhaustive: never` guard fails `tsc` otherwise (add a cross-ref entry if the kind references a systemId/missionId).
 - **Restructuring `StoryEntry`** (new field, splitting `body`/`logSummary` semantics).
 - **Master-mute or audio engine changes** in `story.ts` / `music.ts`.
-- **DB / state-slice changes** (per-character `seenStoryEntries`, `seenAt` timestamp).
+- **DB / state-slice changes** (per-character `seenStoryEntries`).
 
 ## Adjacent skills
 
@@ -84,6 +84,7 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
    - `{ kind: "on-shop-open" }` — fires every time the player lands on `/shop` (any shop); audio replays unconditionally, seen-set marks once.
    - `{ kind: "on-system-enter", systemId, repeatable? }` — fires on first warp into the system. Pairs with `mode: "modal"` + custom music. Optional `repeatable: true` re-fires the cinematic every time the player transitions into the system (in-session `autoFired` still gates so it can't loop while idle in-system); leave unset / false for once-ever default. Shipping `repeatable: true` to players means they re-watch the chapter on every warp — fine for short beats, tedious for 30s+ chapters.
    - `{ kind: "on-system-cleared-idle", systemId, initialDelayMs, intervalMs }` — repeats while idling in fully-cleared system; cancels on shop / Story log / story modal / system warp.
+   - `{ kind: "on-all-cleared-idle", initialDelayMs, intervalMs }` — fires repeatedly while idling in the galaxy view once EVERY mission across EVERY system is complete; system-agnostic (the "you've caught up to live content" cue). Suppresses the per-system `on-system-cleared-idle` entries so two voice loops don't stack (see `useStoryTriggers`). Shipping example: `all-content-cleared` (story.ts line 286).
    - Anything else → STOP (see boundary).
 9. `mode`:
    - `"modal"` — popup, ducks menu bed when music set, Continue button. Default for big beats.
@@ -168,7 +169,7 @@ Mostly safe — `isKnownStoryId` drops unknown ids on hydrate. The danger is har
 
 | File | Reference | Fix |
 |---|---|---|
-| `src/app/api/save/route.test.ts` (lines 102, 116) | `"great-potato-awakening"` test fixture for seen_story_entries roundtrip | Replace with another known id, OR drop the assertion. |
+| `src/app/api/save/route.test.ts` | multiple `"great-potato-awakening"` fixtures for the seen_story_entries roundtrip (grep the file) | Replace each with another known id, OR drop the assertion. |
 | `src/game/audio/storyLogAudio.ts` (`STORY_LOG_MUSIC_PATH`) | Hard-coded `/audio/story/great-potato-awakening-music.ogg` — Story log + replay bed | **Blocker** on deleting the Awakening's music asset. Repoint `STORY_LOG_MUSIC_PATH` at another committed file first. |
 | `src/game/data/storyTriggers.test.ts` (`selectOnSystemEnterEntry` block) | `"great-potato-awakening"` is asserted as the entry returned for `systemId: "tutorial"`. The `selectFirstTimeEntry` block now asserts `null` on an empty catalog (no current `first-time` entries — both shipping cinematics use `on-system-enter` repeatable). | Update the `selectOnSystemEnterEntry` assertion to point at the new tutorial cinematic, OR drop both. |
 
@@ -190,7 +191,7 @@ Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, a
 
 **All ops** — `StoryId` union matches `STORY_ENTRIES` (parity guard: `STORY_IDS = STORY_ENTRIES.map(...)`; `getStoryEntry` throws on unknown). No `any`. `npm run typecheck && npm test` passes.
 
-**CREATE** — id unique; `body` ≥ 1 paragraph; `logSummary` ≥ 1 (2–4 recommended); `voiceTrack` non-null + starts with `/audio/story/` + file exists; if `musicTrack !== null`, same checks; assets each < 500 KB (CLAUDE.md §13); at most one `first-time` entry; `autoTrigger` ∈ supported six.
+**CREATE** — id unique; `body` ≥ 1 paragraph; `logSummary` ≥ 1 (2–4 recommended); `voiceTrack` non-null + starts with `/audio/story/` + file exists; if `musicTrack !== null`, same checks; assets each < 500 KB (CLAUDE.md §13); at most one `first-time` entry; `autoTrigger` ∈ supported seven.
 
 **MODIFY** — audio replacements keep path; trigger changes don't unseen for existing players.
 
@@ -205,3 +206,36 @@ Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, a
 **REMOVE cleanup:** `src/app/api/save/route.test.ts` (only if removed id is the test fixture), plus the `storyTriggers.test.ts` / `storyLogAudio.ts` / `story.ts` references in the REMOVE table.
 
 **Never:** `StoryModal.tsx`, `StoryListModal.tsx` (data-driven from `StoryEntry`); `story.ts` audio engine (generic); `stateCore.ts` / `persistence.ts` (sanitised via `isKnownStoryId`); `src/lib/schemas/save.ts` (`z.array(z.string())` is intentionally permissive at the wire boundary); `db/migrations/`; `useStoryTriggers.ts` / `ShopUI.tsx` (only modify for a NEW trigger kind — see boundary).
+
+## Freshness check
+
+These checks assert the load-bearing surfaces this skill drives still exist in the Spacepotatis project. Paths are project-scoped (resolved from the repo root); the skill ships no companion files of its own.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/data/story.ts"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/story.ts"
+pattern = "export const STORY_ENTRIES"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/story.ts"
+pattern = "kind:\\s*\"on-all-cleared-idle\""
+
+[[check]]
+kind = "file_contains"
+path = "src/game/audio/storyLogAudio.ts"
+pattern = "STORY_LOG_MUSIC_PATH"
+
+[[check]]
+kind = "path_exists"
+path = "public/audio/story"
+
+[[check]]
+kind = "command_exists"
+command = "ffmpeg"
+```

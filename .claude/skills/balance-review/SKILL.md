@@ -12,18 +12,18 @@ Invoke on `/balance-review`, "what did my JSON tweak do to balance," or any unco
 3. Build keyed maps (`id` for weapons/enemies/missions/augments; `systemId` for loot pools; `(missionId, wave.id, spawn index)` for waves). Diff added / removed / changed.
 4. For each changed entity, compute the metrics below for BEFORE and AFTER, then `(after-before)/before * 100`. Skip percent if before is 0.
 5. Cross-reference: every `spawn.enemy` resolves to an `enemies.json` id; every `waves.json` `missionId` resolves to `missions.json`; every weapon DPS > 0; every loot-pool `weapons[]`/`augments[]` id resolves; PERK_IDS each have a `PERKS` entry; AUGMENT_IDS each have an `AUGMENTS_RECORD` entry; every `mission.solarSystemId` resolves to `solarSystems.json`.
-6. Optionally `npm test -- --reporter=json` (integrity tests in `src/game/data/data.test.ts`, including wave-budget invariant at `data.test.ts:248-256` and `mission.solarSystemId` orphan check at `data.test.ts:159-166`). Skip if npm unavailable.
+6. Optionally `npm test -- --reporter=json` (integrity tests in `src/game/data/data.test.ts`, including the wave-duration invariant — test "a wave's last spawn fits inside its declared durationMs" (`data.test.ts:314-327`) — and the `mission.solarSystemId` orphan check — test "every mission references a known solarSystemId" (`data.test.ts:172-179`)). Skip if npm unavailable.
 7. Print the output tables. No edits, no commits.
 
 # Metrics
-Field names come from real schemas. `WeaponDefinition` source of truth: `src/types/game.ts:34-52`.
+Field names come from real schemas. `WeaponDefinition` source of truth: the `interface WeaponDefinition` in `src/types/game.ts`.
 
 - **Weapon DPS** (base, per `weapons.json`): `damage * projectileCount * (1000 / fireRateMs)`.
 - **Effective DPS under augment** (when `augments.ts` changes): for any weapon a player could pair with the augment, recompute via `foldAugmentEffects()` — `damage * damageMul`, `(projectileCount + projectileBonus)`, `fireRateMs * fireRateMul`. Report each *Mul/*Bonus separately so the user sees which augment did what.
 - **Energy per DPS**: `energyCost / DPS`. `energyCost` is required, drained per FIRE event (not per bullet). Lower is more efficient. Reactor base = 100 cap, 25/sec recharge → sustainable rate ≈ `25 / energyCost` shots/sec. Recompute when `energy-down` (energyMul: 0.6) or `fire-rate-up` (fireRateMul: 0.7) change.
 - **TTK (s)** for `(weapon, enemy)`: `enemy.hp / weaponDPS`. Compute for every pair where either side changed. For tutorial-system missions, restrict weapons to the tutorial loot pool's `weapons[]` (potato family + free starter).
 - **Wave intensity**: per wave, `sum(spawn.count * enemies[spawn.enemy].collisionDamage)`. Use AFTER `enemies.json` for AFTER, BEFORE for BEFORE.
-- **Mission credit-per-second**: per missionId, `sum(enemies[spawn.enemy].creditValue * spawn.count) / max(sum(wave.durationMs)/1000, 1)`. **Use wave-level `durationMs`** — authoritative (`data.test.ts:248-256`). Do NOT divide by `sum(spawn.delayMs)` — that's per-spawn start offset, not duration.
+- **Mission credit-per-second**: per missionId, `sum(enemies[spawn.enemy].creditValue * spawn.count) / max(sum(wave.durationMs)/1000, 1)`. **Use wave-level `durationMs`** — authoritative (test "a wave's last spawn fits inside its declared durationMs", `data.test.ts:314-327`). Do NOT divide by `sum(spawn.delayMs)` — that's per-spawn start offset, not duration.
 - **Mission reward delta**: diff `missions.json` fields directly. Flag `solarSystemId` flips (they shift the loot pool).
 - **Perk drop rate**: `randomPerkId()` is uniform 1/N over `PERK_IDS`. Add/remove shifts every rate by `1/N_before - 1/N_after`. Flag if anyone added a `weight` field — current schema has none.
 
@@ -32,7 +32,7 @@ Field names come from real schemas. `WeaponDefinition` source of truth: `src/typ
 
 - **Cost delta** — `cost` field diff.
 - **Effect-multiplier delta** — `damageMul`, `fireRateMul`, `projectileBonus`, `energyMul`, `turnRateMul`. Each defaults to identity (1 or 0) when absent.
-- **Weapon impact recompute** — when any *Mul/*Bonus moves, recompute every weapon's DPS, energy/DPS, and TTK-vs-each-changed-enemy under the new fold. `homing-up` (turnRateMul) has no effect on non-homing weapons — flag if user only tweaked `turnRateMul`.
+- **Weapon impact recompute** — when any *Mul/*Bonus moves, recompute every weapon's DPS, energy/DPS, and TTK-vs-each-changed-enemy under the new fold. `homing-up` (turnRateMul) has no effect on non-homing weapons — only `corsair-missile` sets `homing: true` — so flag if the user only tweaked `turnRateMul`.
 
 # Loot pools — economy & roster levers
 `src/game/data/lootPools.ts` (`POOLS` Map keyed by `SolarSystemId`). Per pool:
@@ -41,10 +41,10 @@ Field names come from real schemas. `WeaponDefinition` source of truth: `src/typ
 - **Augments roster delta** — same, against `AugmentId`.
 - **Upgrades roster delta** — same, against `UpgradeField` (`shield`, `armor`, `reactor-capacity`, `reactor-recharge`).
 - **Credits min/max delta** — flag if `min >= max`. Report new average (`(min+max)/2`) and percent shift vs old.
-- **Cross-system gating** — flag a non-tutorial weapon (carrot/turnip family) in `tutorial`, or a potato weapon dropping out of `tutorial` (tutorial is potato-only — see file header).
+- **Cross-system gating** — the `tutorial` pool is tier-1 only by design (see file header). Flag a tier-2 / pirate-family weapon (`corsair-missile`, `grapeshot-cannon`, `boarding-snare`) appearing in `tutorial`, or a tier-1 potato weapon dropping out of it.
 
 # Files this skill reads
-- `src/game/data/weapons.json` — `id, name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost, tint, family, energyCost`. Optional: `homing`, `turnRateRadPerSec`, `gravity` (px/s² downward; carrots use 60–300 to arc), `bulletSprite`, `podSprite`. `family` ∈ `"potato"|"carrot"|"turnip"` and gates which solar system surfaces it.
+- `src/game/data/weapons.json` — `id, name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost, tint, family, tier, energyCost`. Optional: `homing` (only `corsair-missile` sets `homing: true`), `turnRateRadPerSec`, `gravity` (px/s² downward; schema-optional, no current weapon sets it), `bulletSprite`, `podSprite`. `family` ∈ `"potato"|"pirate"` — a cosmetic catalog tag (a family change with no roster/tier impact is Cosmetic-only). `tier` ∈ `1` (potato starter line) | `2` (pirate haul) is the load-bearing field: the tutorial loot pool is tier-1 only.
 - `src/game/data/enemies.json` — `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`.
 - `src/game/data/waves.json` — `missions[].waves[].spawns[]` with `enemy, count, delayMs, intervalMs, formation, xPercent`; wave-level `id, durationMs`.
 - `src/game/data/missions.json` — `id, kind, name, difficulty, requires, solarSystemId, ...` (galaxy/visual fields ignored unless changed).
@@ -75,7 +75,7 @@ One markdown table per affected category. Columns: `id | metric | before | after
 ### lootPools.ts
 | systemId   | field            | before              | after                    | note                                  |
 |------------|------------------|---------------------|--------------------------|---------------------------------------|
-| tutorial   | weapons[]        | spread, heavy, spud | + tail-gunner            | ⚠ carrot leaked into potato-only system |
+| tutorial   | weapons[]        | spread, heavy, spud | + corsair-missile        | ⚠ tier-2 pirate weapon leaked into tier-1 tutorial pool |
 | tubernovae | credits.min/max  | 500/1000 (avg 750)  | 700/1100 (avg 900, +20%) | richer drops post-Dreadfruit          |
 ```
 
@@ -84,7 +84,39 @@ Repeat for `### enemies.json`, `### waves.json` (intensity + credit/sec), `### m
 End with:
 ```
 ### Flagged issues
-- (none) — or bullet each: dangling enemy id, DPS <= 0, perk count drift, missing mission ref, wave referencing removed enemy, loot-pool weapon id not in WeaponId, augment turnRateMul change with no homing weapon affected, mission solarSystemId pointing at unknown system, family-gated weapon in wrong pool, credits.min >= credits.max.
+- (none) — or bullet each: dangling enemy id, DPS <= 0, perk count drift, missing mission ref, wave referencing removed enemy, loot-pool weapon id not in WeaponId, augment turnRateMul change with no homing weapon affected, mission solarSystemId pointing at unknown system, pirate/tier-2 weapon in tutorial pool, credits.min >= credits.max.
 ```
 
 Keep the note column to one short clause naming the entity in human terms ("Aphid 30% slower", "Yamsteroid Belt wave 1 easier"). Cosmetic-only changes (tint, name, description, texture, orbitRadius, musicTrack, sunColor, ambientHue, galaxyMusicTrack, bulletSprite, podSprite) get one "Cosmetic-only" line — no deltas computed.
+
+## Freshness check
+
+These checks assert the load-bearing pieces this skill reads. Paths are relative to the project scope root (the repo / worktree root), which is the default `root` for a project-scope skill.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/data/weapons.json"
+
+[[check]]
+kind = "path_exists"
+path = "src/game/data/lootPools.ts"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/augments.ts"
+pattern = "foldAugmentEffects"
+
+[[check]]
+kind = "file_contains"
+path = "src/types/game.ts"
+pattern = "interface WeaponDefinition"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/perks.ts"
+pattern = "randomPerkId"
+
+[[check]]
+kind = "no_broken_md_links"
+```

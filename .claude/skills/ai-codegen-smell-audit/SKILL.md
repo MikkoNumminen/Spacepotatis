@@ -1,6 +1,6 @@
 ---
 name: ai-codegen-smell-audit
-description: Read-only audit for 10 concrete failure modes that recur in AI-generated code (defensive checks on non-nullable types, paraphrase comments, single-use helpers, generic names in domain code, swallowed errors, mirror tests, phantom TODOs, duplicated helpers, over-typed primitives, intra-file style drift). Produces a markdown report under docs/audits/. Does not modify code. Designed for PR review and on-demand scans, not for use during initial generation.
+description: Read-only audit for 10 concrete failure modes that recur in AI-generated code — defensive checks on non-nullable types, swallowed errors, mirror tests, phantom TODOs, and 6 others (full list in the body). Produces a markdown report under docs/audits/. Does not modify code. Designed for PR review and on-demand scans, not for use during initial generation.
 ---
 
 # When to use
@@ -266,6 +266,8 @@ These rules apply at scan time — a finding that matches a skip rule does not a
 
 The 10 checks were dry-run against `d:/koodaamista/Spacepotatis/src/` before publishing this skill.
 
+Line numbers below are as-of the dated pass; re-run the audit for current locations. The cited files all still exist and the verdicts stand; only the `:NN` suffixes drift.
+
 Four verdict labels:
 - **Real smells found** — un-suppressed findings in this repo.
 - **Pattern hits, skip rule passes** — the check matches candidates; every match is correctly suppressed by the skip rule. The check is working, but the codebase has no actual smell of this kind.
@@ -313,3 +315,40 @@ Be honest with the user when these apply:
 - Don't expand the check list beyond 10 without explicit user sign-off. Tool surface area is a feature.
 - Don't add an `--apply` / `--fix` flag. Human decides what's a real issue.
 - Don't run the audit on the whole `src/` by default. Default scope is the current branch's diff; broader scope is opt-in.
+
+## Freshness check
+
+These checks assert the skill's load-bearing pieces still hold: the companion sidecar template it ships, the Spacepotatis paths it writes to and reads from, the full 10-check surface and the same-day append format documented in the body, and the `git` binary the default scope's `git diff` depends on. All paths are relative to the skill dir unless `root` says otherwise (`scope_root` = repo root in project scope).
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "false-positive-log.template.md"
+root = "skill_dir"
+
+[[check]]
+kind = "path_exists"
+path = "docs/audits"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "docs/audits/_dismissals.md"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "SKILL.md"
+pattern = "## 10\\. over-typed-primitives"
+root = "skill_dir"
+
+[[check]]
+kind = "file_contains"
+path = "SKILL.md"
+pattern = "## Run \\{N\\}"
+root = "skill_dir"
+
+[[check]]
+kind = "command_exists"
+command = "git"
+```

@@ -34,7 +34,7 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
 
 # Steps (the audit checklist)
 
-1. **Build the field list.** Read `StateSnapshot` from `src/game/state/persistence.ts`. Today's fields: `credits`, `completedMissions`, `unlockedPlanets`, `playedTimeSeconds`, `ship`, `saveSlot`, `currentSolarSystemId`, `unlockedSolarSystems`, `seenStoryEntries`. **Diff against `git show HEAD:src/game/state/persistence.ts`** if the working tree has changed it — a field added in this PR is the most common audit target.
+1. **Build the field list.** Read `StateSnapshot` from `src/game/state/persistence.ts` — that interface is the live, authoritative field list. The Known-good baseline table below enumerates the fields as of the last audit, each with its per-field disposition; treat any field present in the interface but absent from that table as the audit target. (Keeping the canonical list in one place — the baseline table — avoids a third copy that has to be hand-synced.) **Diff against `git show HEAD:src/game/state/persistence.ts`** if the working tree has changed it — a field added in this PR is the most common audit target.
 
 2. **Layer 1 — snapshot interface + `toSnapshot()`.** Grep `src/game/state/persistence.ts` for the field name. Both the `StateSnapshot` declaration AND a line under `toSnapshot()` must reference it. A field declared but not emitted is a silent drop at the source.
 
@@ -160,3 +160,40 @@ Notes:
 - No `npm install`, no network. File-system inspection plus optional `npm test` if runnable.
 - Don't invent fields. If a field is on `StateSnapshot` but the schema lacks it, that's a ✗ — report it; don't speculate "maybe it's intentional."
 - Don't mark `unlockedSolarSystems` as a failure — its intentional non-persistence is documented above. Flag it only if `hydrate()` stops re-deriving it.
+
+## Freshness check
+
+These checks assert the load-bearing pieces this audit walks still exist with their expected anchors. The `src/...` and `db/...` paths are repo-root-relative (project scope), so they use `root = "scope_root"`. SKILL.md self-checks use `root = "skill_dir"`.
+
+```toml
+[[check]]
+kind = "path_exists"
+path = "src/game/state/persistence.ts"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/state/persistence.ts"
+pattern = "interface StateSnapshot"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/lib/schemas/save.ts"
+pattern = "SavePayloadSchema|RemoteSaveSchema"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/state/sync.ts"
+pattern = "doLoadSave"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = "db/migrations/20260503010000_persist_current_solar_system.sql"
+root = "scope_root"
+
+[[check]]
+kind = "no_broken_md_links"
+```
