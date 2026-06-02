@@ -29,8 +29,8 @@ Invoke on `/content-audit`, "is the content safe to commit," or before a PR touc
    - `upgrades[]` ∈ `{shield, armor, reactor-capacity, reactor-recharge}`.
    - `credits.min < credits.max`, both positive.
    - `systemId` resolves in `solarSystems.json`.
-   - Family gating: `tutorial` pool is potato-family only (per file header); flag carrot/turnip leaks.
-10. **Mission solarSystemId orphan check** — Every mission's `solarSystemId` resolves in `solarSystems.json`. Covered by `data.test.ts:159-166`; surfaced for explicit coverage.
+   - Tier gating: the `tutorial` pool is tier-1 only (per file header); flag a tier-2 / pirate weapon leaking in.
+10. **Mission solarSystemId orphan check** — Every mission's `solarSystemId` resolves in `solarSystems.json`. Covered by the `every mission references a known solarSystemId` test in `data.test.ts`; surfaced for explicit coverage.
 11. **Story integrity** — Parse `STORY_ENTRIES` in `story.ts`. Per entry:
     - `voiceTrack` resolves under `public/audio/story/` (e.g. `/audio/story/x-voice.mp3`).
     - If `musicTrack !== null`, file must exist (most modal entries reuse `/audio/story/great-potato-awakening-music.ogg`).

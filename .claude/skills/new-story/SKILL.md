@@ -62,7 +62,7 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
 | Audio engine | `src/game/audio/story.ts` — `play({ musicSrc, voiceSrc, voiceDelayMs })` |
 | Trigger helpers | `src/game/data/storyTriggers.ts` — `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`; tested in `storyTriggers.test.ts` against real `STORY_ENTRIES` |
 | Auto-fire (firstTime, onMissionSelect, onSystemEnter, onSystemClearedIdle) | `src/components/hooks/useStoryTriggers.ts` |
-| Auto-fire (onShopOpen) | `src/components/ShopUI.tsx` `useEffect` on mount |
+| Auto-fire (onShopOpen) | `src/components/hooks/useShopAudio.ts` `useEffect`, gated on `tab === "market"`, one-shot per `/shop` session |
 | Story-log replay bed | `src/game/audio/storyLogAudio.ts` — **hard-codes** `/audio/story/great-potato-awakening-music.ogg`. See REMOVE table. |
 | Persistence | `seenStoryEntries: StoryId[]` in `src/game/state/stateCore.ts`; hydrate filters via `isKnownStoryId` |
 | DB column | `seen_story_entries TEXT[]` (migration `20260429000000_add_seen_story_entries.sql`) — covers any size; no migration needed for content adds/removes |
@@ -205,7 +205,7 @@ Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, a
 
 **REMOVE cleanup:** `src/app/api/save/route.test.ts` (only if removed id is the test fixture), plus the `storyTriggers.test.ts` / `storyLogAudio.ts` / `story.ts` references in the REMOVE table.
 
-**Never:** `StoryModal.tsx`, `StoryListModal.tsx` (data-driven from `StoryEntry`); `story.ts` audio engine (generic); `stateCore.ts` / `persistence.ts` (sanitised via `isKnownStoryId`); `src/lib/schemas/save.ts` (`z.array(z.string())` is intentionally permissive at the wire boundary); `db/migrations/`; `useStoryTriggers.ts` / `ShopUI.tsx` (only modify for a NEW trigger kind — see boundary).
+**Never:** `StoryModal.tsx`, `StoryListModal.tsx` (data-driven from `StoryEntry`); `story.ts` audio engine (generic); `stateCore.ts` / `persistence.ts` (sanitised via `isKnownStoryId`); `src/lib/schemas/save.ts` (`z.array(z.string())` is intentionally permissive at the wire boundary); `db/migrations/`; `useStoryTriggers.ts` / `useShopAudio.ts` (only modify for a NEW trigger kind — see boundary).
 
 ## Freshness check
 

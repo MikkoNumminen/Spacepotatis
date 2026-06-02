@@ -48,7 +48,7 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
    - The field is written into the `.insertInto("spacepotatis.save_games").values({ ... })` block as `<column_name>: <value>`.
    - The field is ALSO written into the `.onConflict((oc) => oc.columns([...]).doUpdateSet({ <column_name>: sql\`EXCLUDED.<column_name>\`, ... }))` block. **The insert-only-no-conflict-update pattern is a silent drop on every save AFTER the first** — the row exists, the upsert hits the conflict path, and the new value is ignored.
 
-5. **Layer 4 — GET handler in `src/app/api/save/route.ts`.** The `NextResponse.json({...})` shape must include the field, mapped from `row.<column_name>` to the camelCase wire name. Also confirm the `selectFrom("spacepotatis.save_games").selectAll()` (or explicit `.select([...])`) actually fetches the column. `selectAll()` covers everything by default; an explicit `.select([...])` that omits the column is a silent drop on read.
+5. **Layer 4 — GET handler in `src/app/api/save/route.ts`.** Walk BOTH read paths. (1) **Authoritative** — the latest `save_snapshots` row, returned as `NextResponse.json({ ...snapshotRow.payload, updatedAt })`. Field presence here is governed by what the POST handler wrote into the snapshot payload, NOT by a `selectAll` — a field present in the fallback but absent from the written snapshot is a silent drop on read. (2) **Transitional fallback** — `save_games` `selectAll()` + explicit `row.<column_name>`→camelCase mapping; an explicit `.select([...])` that omits the column drops it. Confirm the field flows through both.
 
 6. **Layer 5 — `src/lib/db.ts`.** Confirm the column appears on `SaveGamesTable` with:
    - The right TypeScript type (`number`, `string`, `string[]`, etc.).
