@@ -24,7 +24,7 @@ Each phase produces exactly one artifact and STOPS. Do not start the next phase 
 | 4 — Documentation | `doc-writer` | per-module READMEs/TSDoc + `docs/audit/03-documentation-summary.md` | User approves docs |
 | 5 — Verification | `refactor-architect` | `docs/audit/05-final-report.md` | Audit complete |
 
-Artifact file numbers are a fixed sequence and intentionally do not mirror phase numbers (Phase 4 writes `03-documentation-summary.md`; `04-found-bugs.md` is the always-on bug log).
+Artifact file numbers form one fixed 00–05 sequence and do not always mirror phase numbers (Phase 3 has no numbered artifact; Phase 4 writes `03-documentation-summary.md`; `04-found-bugs.md` is the always-on bug log).
 
 `docs/audit/04-found-bugs.md` is a continuous log written by the module-extractor when it spots a bug it's forbidden from fixing.
 

@@ -20,10 +20,13 @@ User says "/new-perk", "add a perk", or asks for a new mid-mission buff drop. NO
 1. **`src/game/data/perks.ts`** — Extend `PerkId` union. Add entry to `PERKS` with `id`, `name`, `type`, `textureKey: "perk-<id>"`, `tint`, `hint`. `PERK_IDS` derives from `Object.keys(PERKS)` — auto-joins drop pool.
 2. **`src/game/phaser/scenes/BootScene.ts`** — Add `this.drawMissionPerk("perk-<id>", <tint>, "<icon>");` in `generateTextures()`. New icon name → extend the `icon` union and add an `else if` branch. Keep magenta star frame + "M" tab.
 3. **`src/game/phaser/scenes/combat/PerkController.ts`** — Add case in `apply()` switch. Passives: set flag/multiplier via `this.player()`. Actives: increment a charge counter (mirror `this.empCharges += 1`). PerkController owns `activePerks` and charge counters; CombatScene only wires the keybind.
-4. **Active perks only** — Extend `triggerActive()` with a case that consumes a charge, runs the effect, calls `this.onChange()` (CombatScene wires this to `hud.refreshPerkChips`). The `keydown-CTRL` handler is already wired. Multiple actives later → single-keybind dispatch needs to switch on most-recent active perk; flag this. **CRITICAL — adding a NEW active perk with charges requires:**
-   - Extending the `PerkState` interface in `src/game/phaser/scenes/combat/PerkController.ts` (today only `empCharges` is exposed).
-   - Adding a branch to the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()` (``CTRL × ${perkId === "emp" ? s.empCharges : 1}``).
-   Without both edits the chip silently renders "CTRL × 1" forever.
+4. **Active perks only** — Extend `triggerActive()` with a case that consumes a charge, runs the effect, calls `this.onChange()` (CombatScene wires this to `hud.refreshPerkChips`). The `keydown-CTRL` handler is already wired. Multiple actives later → single-keybind dispatch needs to switch on most-recent active perk; flag this. **CRITICAL — a NEW active perk that needs its own charge counter (rather than reusing the existing generic `empCharges` field) must thread that field through the FULL count data-flow — five sites, because the chip count crosses the `PerkState` → `HudSnapshot` boundary:**
+   - Add the field to the `PerkState` interface in `src/game/phaser/scenes/combat/PerkController.ts` (today only `empCharges` is exposed).
+   - Add it to the `PerkController.getState()` return literal (same file) — the object that actually populates `PerkState`.
+   - Add it to the `HudSnapshot` interface in `src/game/phaser/scenes/combat/CombatHud.ts` — `refreshPerkChips()` reads a `HudSnapshot`, NOT a `PerkState`.
+   - Copy it into the HUD-snapshot object literal in `src/game/phaser/scenes/CombatScene.ts` (note: `scenes/`, NOT `scenes/combat/`) where `new CombatHud(this, () => ({ ... empCharges: perkState.empCharges }))` is built.
+   - Add a branch to the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()` (``CTRL × ${perkId === "emp" ? s.empCharges : 1}``).
+   Without ALL five the chip silently renders "CTRL × 1" forever, or the un-extended `HudSnapshot` fails to compile. Simplest alternative: reuse the existing `empCharges` field for any single-keybind active and edit only the ternary.
 5. **Passive perks only** — Add the read-site flag. Player-scoped: add `hasFoo = false;` near `hasOverdrive` / `hasHardened` in `src/game/phaser/entities/Player.ts`, consume in `preUpdate` / `takeDamage`. Weapon-scoped: plumb a multiplier through `WeaponSystem.tryFire` like `fireRateMul`. Reset on boot is automatic — Player is reconstructed each CombatScene start.
 6. **HUD chip** — No React work. `CombatHud.refreshPerkChips()` (NOT `CombatScene.refreshPerkChips()`) iterates `activePerks` and reads `PERKS[perkId]` automatically. Actives with a charge counter must expose a getter on PerkController and mirror the `empCharges` plumbing in `CombatHud`.
 7. Run `npm run typecheck && npm test`. Report perk id, files modified, kind.
@@ -32,7 +35,7 @@ User says "/new-perk", "add a perk", or asks for a new mid-mission buff drop. NO
 - Perks are **mission-only**. Do NOT add perk state to `src/game/state/GameState.ts` or `ShipConfig` — flags live on Phaser entities or scene-local fields and reset every CombatScene boot.
 - `PerkId` union includes the new id. No `any`.
 - `textureKey` follows `"perk-<id>"` and a matching `drawMissionPerk` call exists in `BootScene`.
-- Active perks: case in BOTH `PerkController.apply()` AND `triggerActive()`, plus existing `keydown-CTRL` handler. Charge-counter actives also extend the `PerkState` interface in `PerkController.ts` AND the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()`.
+- Active perks: case in BOTH `PerkController.apply()` AND `triggerActive()`, plus existing `keydown-CTRL` handler. A charge-counter active that adds its own field (not reusing `empCharges`) threads it through all five count sites: the `PerkState` interface AND the `PerkController.getState()` return literal (both in `PerkController.ts`) AND the `HudSnapshot` interface in `CombatHud.ts` AND the HUD-snapshot object literal in `CombatScene.ts` (`scenes/`, not `scenes/combat/`) AND the `perkId === "emp"` ternary in `CombatHud.refreshPerkChips()`.
 - Passive perks: flag/modifier read by the affected system every relevant tick.
 - Drop weights uniform — adding a perk dilutes every existing perk's chance by `1/n`. Non-uniform weights require extending `PerkDef` with `dropWeight: number` AND rewriting `randomPerkId()` to do a weighted roll (out of scope; flag and ask).
 - `npm test` passes.
@@ -54,7 +57,7 @@ Never:
 
 ## Freshness check
 
-Asserts the perk scaffolding pipeline this skill drives still exists: the data module, the controller and HUD it edits, the two load-bearing extension points an active-charge perk must touch (the `PerkState` interface and the `perkId === "emp"` chip ternary), and SKILL.md's own `# Steps` spine. Source paths are project-scope (relative to the repo root that holds `.claude/skills/`); the SKILL.md check is skill-dir-scope.
+Asserts the perk scaffolding pipeline this skill drives still exists: the data module, the controller and HUD it edits, two anchor points on the active-charge data-flow (the `PerkState` interface and the `perkId === "emp"` chip ternary — Step 4 lists the full five-site set), and SKILL.md's own `# Steps` spine. Source paths are project-scope (relative to the repo root that holds `.claude/skills/`); the SKILL.md check is skill-dir-scope.
 
 ```toml
 [[check]]

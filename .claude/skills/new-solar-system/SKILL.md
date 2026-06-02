@@ -36,22 +36,24 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
    ```
    No `planets`, `unlockedByDefault`, or `unlockedAfter` — none exist in schema. Default-unlock lives in `INITIAL_STATE.unlockedSolarSystems` in `src/game/state/stateCore.ts`; mission-gated unlocks live in the `SYSTEM_UNLOCK_GATES` Map in `src/game/data/systemUnlocks.ts` (re-exported from `stateCore.ts` for backward compat).
 2. **Extend `SolarSystemId` union** in `src/types/game.ts`. Keep sorted by `solarSystems.json` order.
-3. **Wire unlock** in `src/game/state/stateCore.ts`:
+3. **Add the id to `SOLAR_SYSTEM_IDS`** in `src/lib/schemas/save.ts` (the runtime array `z.enum(SOLAR_SYSTEM_IDS)` validates save payloads against). The `as const satisfies readonly SolarSystemId[]` clause only checks each member is a valid id — it does NOT force the array to be exhaustive, so `npm run typecheck` will NOT flag a missing id. Only `npm test` catches it, and the failure names `solarSystems.json` (via `jsonSchemaValidation.test.ts`), not `save.ts` — so add it here deliberately. Skipping it means `SolarSystemIdSchema` rejects the new system in `unlockedSolarSystems` / `currentSolarSystemId`.
+4. **Regenerate the committed JSON schema.** Run `npm run gen:schemas` (runs `vitest run -u` on `schemaFiles.test.ts`) to regenerate `src/game/data/schema/solar-systems.schema.json` from the Zod schema — its `id` enum is derived from `SOLAR_SYSTEM_IDS`, so it drifts once the new id is added. Commit the regenerated file.
+5. **Wire unlock** in `src/game/state/stateCore.ts`:
    - `"default"` → push id into `INITIAL_STATE.unlockedSolarSystems`. (Most systems should be earned, not default.)
    - `"<missionId>"` → add `[missionId, systemId]` to the `SYSTEM_UNLOCK_GATES` Map in `src/game/data/systemUnlocks.ts` (template: `boss-1 → tubernovae`). It is re-exported from `stateCore.ts`; `completeMission()` there reads it. `hydrate()` in `persistence.ts` re-derives unlocks from `completedMissions`, so retroactive unlocks work on next refresh.
-4. **Tests in `src/game/state/GameState.test.ts`** (mirror tubernovae tests):
+6. **Tests in `src/game/state/GameState.test.ts`** (mirror tubernovae tests):
    - Completing the gating mission pushes id into `unlockedSolarSystems`.
    - `setSolarSystem("<systemId>")` rejected when locked.
-5. **Verify `src/game/data/data.test.ts`** covers id-uniqueness + `MissionDefinition.solarSystemId` resolution. Likely already present.
-6. **Mission-binding reminder.** This skill creates no missions. Tell user: "Run `/new-mission` for each planet in `<systemId>` with `solarSystemId: \"<systemId>\"`." Empty system = empty starfield in `GalaxyScene`.
-7. **Encode the galaxy bed (REQUIRED).** `ffmpeg -y -i <galaxyMusicAsset> -t 150 -af "afade=in:st=0:d=3,afade=out:st=145:d=5" -c:a libvorbis -q:a 3 public/audio/music/<systemId>-galaxy.ogg`. ~150s clipped with loop-friendly fades, ends ~1.5MB. Plays whenever the player is in this system's galaxy view (swapped by `MenuMusic.tsx` reading `currentSolarSystemId`).
-8. **Scaffold the on-system-enter cinematic (REQUIRED).** Either invoke `/new-story` (Template E) or inline:
+7. **Verify `src/game/data/data.test.ts`** covers id-uniqueness + `MissionDefinition.solarSystemId` resolution. Likely already present.
+8. **Mission-binding reminder.** This skill creates no missions. Tell user: "Run `/new-mission` for each planet in `<systemId>` with `solarSystemId: \"<systemId>\"`." Empty system = empty starfield in `GalaxyScene`.
+9. **Encode the galaxy bed (REQUIRED).** `ffmpeg -y -i <galaxyMusicAsset> -t 150 -af "afade=in:st=0:d=3,afade=out:st=145:d=5" -c:a libvorbis -q:a 3 public/audio/music/<systemId>-galaxy.ogg`. ~150s clipped with loop-friendly fades, ends ~1.5MB. Plays whenever the player is in this system's galaxy view (swapped by `MenuMusic.tsx` reading `currentSolarSystemId`).
+10. **Scaffold the on-system-enter cinematic (REQUIRED).** Either invoke `/new-story` (Template E) or inline:
    - Re-encode voice ≤500 KB (`ffmpeg -i in.mp3 -ac 1 -b:a 64k out.mp3`) → `public/audio/story/<systemId>-intro-voice.mp3`.
    - Copy `introMusicAsset` to `public/audio/story/<systemId>-intro-music.ogg`. Music is REQUIRED — every new arc gets its own bed. Don't fall back to reusing the awakening track.
-   - Add `STORY_ENTRIES` entry in `src/game/data/story.ts`: id `<systemId>-cluster-intro`, `mode: "modal"`, `voiceDelayMs: 3000`, `autoTrigger: { kind: "on-system-enter", systemId: "<systemId>" }`. Extend `StoryId` union. Optional `repeatable: true` on the trigger re-fires the cinematic on every system entry (intended for QA / chapter-length beats player should re-watch — leave unset for once-ever default).
+   - Add `STORY_ENTRIES` entry in `src/game/data/story.ts`: id `<systemId>-cluster-intro`, `mode: "modal"`, `voiceDelayMs: 3000`, `autoTrigger: { kind: "on-system-enter", systemId: "<systemId>" }`. Extend `StoryId` union. Optional `repeatable: true` on the trigger re-fires the cinematic on every system entry (intended for QA / chapter-length beats player should re-watch). Note: the shipped tutorial and tubernovae templates both set `repeatable: true` (story.ts), so mirroring them verbatim yields every-entry firing — drop it if you want once-ever.
    - Add fires-when-fresh assertion in `selectOnSystemEnterEntry` block of `src/game/data/storyTriggers.test.ts`: id, `mode === "modal"`, `musicTrack !== null`, `voiceTrack` under `/audio/story/`. Tubernovae block is template.
-9. **Run** `npm run typecheck && npm test`. Common failures: forgot to extend `SolarSystemId`; shipped without paired on-system-enter entry (storyTriggers test catches this); forgot `galaxyMusicTrack` field on the `solarSystems.json` entry (typecheck catches this).
-10. **Report** new id, files modified, unlock condition, cinematic story id, galaxy bed path, the `/new-mission` reminder. Optionally suggest `/new-story` Template D for `on-system-cleared-idle` close (mirrors `sol-spudensis-cleared`) — optional, fires only when system fully cleared.
+11. **Run** `npm run typecheck && npm test`. Common failures: forgot to extend `SolarSystemId`; forgot to add the id to `SOLAR_SYSTEM_IDS` in `save.ts` (a `jsonSchemaValidation.test.ts` failure naming `solarSystems.json` means the enum rejects the new id — `typecheck` won't flag it); a `schemaFiles.test.ts` snapshot failure means the generated `solar-systems.schema.json` is stale — run `npm run gen:schemas` and commit it; shipped without paired on-system-enter entry (storyTriggers test catches this); forgot `galaxyMusicTrack` field on the `solarSystems.json` entry (typecheck catches this).
+12. **Report** new id, files modified, unlock condition, cinematic story id, galaxy bed path, the `/new-mission` reminder. Optionally suggest `/new-story` Template D for `on-system-cleared-idle` close (mirrors `sol-spudensis-cleared`) — optional, fires only when system fully cleared.
 
 # Invariants
 - `solarSystems.json` is valid JSON with the seven-field shape above (incl. `galaxyMusicTrack`).
@@ -67,6 +69,8 @@ The multi-system data model is live; see `src/game/data/solarSystems.json` (exis
 Always:
 - `src/game/data/solarSystems.json` — append entry (incl. `galaxyMusicTrack`).
 - `src/types/game.ts` — extend `SolarSystemId`.
+- `src/lib/schemas/save.ts` — add id to `SOLAR_SYSTEM_IDS` (`satisfies` won't catch an omission; only `npm test` will).
+- `src/game/data/schema/solar-systems.schema.json` — regenerate via `npm run gen:schemas` and commit (its `id` enum is derived from `SOLAR_SYSTEM_IDS`).
 - `src/game/data/story.ts` — append cinematic + extend `StoryId`.
 - `src/game/data/storyTriggers.test.ts` — fires-when-fresh assertion.
 - `public/audio/story/<systemId>-intro-voice.mp3` — re-encoded ≤500 KB.

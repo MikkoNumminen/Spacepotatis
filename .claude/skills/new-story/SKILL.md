@@ -21,7 +21,7 @@ Renaming an entry's `id` is REMOVE + CREATE — see REMOVE.
 ## Boundary — STOP and flag
 
 - **UI styling** of `StoryModal.tsx`, `StoryListModal.tsx`, or audio engine `story.ts`. Code task.
-- **New `autoTrigger` kind** beyond the seven listed below. Requires five coordinated edits: (a) variant in `StoryAutoTrigger` union in `src/game/data/story.ts`; (b) helper in `src/game/data/storyTriggers.ts` (mirror `selectFirstTimeEntry` / `selectOnSystemEnterEntry`); (c) firing site in `src/components/hooks/useStoryTriggers.ts`; (d) `describe` block in `src/game/data/storyTriggers.test.ts` covering fires-when-fresh, no-fire-when-seen, no-fire-when-auto-fired, no-fire-on-mismatch; (e) a `case` in `runDataIntegrityCheck`'s `switch (trigger.kind)` in `src/game/data/integrityCheck.ts` — the `_exhaustive: never` guard fails `tsc` otherwise (add a cross-ref entry if the kind references a systemId/missionId).
+- **New `autoTrigger` kind** beyond the six listed below. Requires five coordinated edits: (a) variant in `StoryAutoTrigger` union in `src/game/data/story.ts`; (b) helper in `src/game/data/storyTriggers.ts` (mirror `selectFirstTimeEntry` / `selectOnSystemEnterEntry`); (c) firing site in `src/components/hooks/useStoryTriggers.ts`; (d) `describe` block in `src/game/data/storyTriggers.test.ts` covering fires-when-fresh, no-fire-when-seen, no-fire-when-auto-fired, no-fire-on-mismatch; (e) a `case` in `runDataIntegrityCheck`'s `switch (trigger.kind)` in `src/game/data/integrityCheck.ts` — the `_exhaustive: never` guard fails `tsc` otherwise (add a cross-ref entry if the kind references a systemId/missionId).
 - **Restructuring `StoryEntry`** (new field, splitting `body`/`logSummary` semantics).
 - **Master-mute or audio engine changes** in `story.ts` / `music.ts`.
 - **DB / state-slice changes** (per-character `seenStoryEntries`).
@@ -191,7 +191,7 @@ Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, a
 
 **All ops** — `StoryId` union matches `STORY_ENTRIES` (parity guard: `STORY_IDS = STORY_ENTRIES.map(...)`; `getStoryEntry` throws on unknown). No `any`. `npm run typecheck && npm test` passes.
 
-**CREATE** — id unique; `body` ≥ 1 paragraph; `logSummary` ≥ 1 (2–4 recommended); `voiceTrack` non-null + starts with `/audio/story/` + file exists; if `musicTrack !== null`, same checks; assets each < 500 KB (CLAUDE.md §13); at most one `first-time` entry; `autoTrigger` ∈ supported seven.
+**CREATE** — id unique; `body` ≥ 1 paragraph; `logSummary` ≥ 1 (2–4 recommended); `voiceTrack` non-null + starts with `/audio/story/` + file exists; if `musicTrack !== null`, same checks; assets each < 500 KB (CLAUDE.md §13); at most one `first-time` entry; `autoTrigger` ∈ supported six.
 
 **MODIFY** — audio replacements keep path; trigger changes don't unseen for existing players.
 

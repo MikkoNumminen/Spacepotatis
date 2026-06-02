@@ -266,7 +266,7 @@ These rules apply at scan time — a finding that matches a skip rule does not a
 
 The 10 checks were dry-run against `d:/koodaamista/Spacepotatis/src/` before publishing this skill.
 
-Line numbers below are as-of the dated pass; re-run the audit for current locations. The cited files all still exist and the verdicts stand; only the `:NN` suffixes drift.
+Line numbers below are as-of the dated pass; re-run the audit for current locations. The cited files all still exist; only the `:NN` suffixes drift. Re-verify each verdict against current code before relying on it.
 
 Four verdict labels:
 - **Real smells found** — un-suppressed findings in this repo.

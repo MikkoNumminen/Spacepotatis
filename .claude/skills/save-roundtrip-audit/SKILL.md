@@ -163,7 +163,7 @@ Notes:
 
 ## Freshness check
 
-These checks assert the load-bearing pieces this audit walks still exist with their expected anchors. The `src/...` and `db/...` paths are repo-root-relative (project scope), so they use `root = "scope_root"`. SKILL.md self-checks use `root = "skill_dir"`.
+These checks assert the load-bearing pieces this audit walks still exist with their expected anchors. The `src/...` and `db/...` paths are repo-root-relative (project scope), so they use `root = "scope_root"`.
 
 ```toml
 [[check]]

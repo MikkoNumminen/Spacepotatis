@@ -44,7 +44,7 @@ Field names come from real schemas. `WeaponDefinition` source of truth: the `int
 - **Cross-system gating** — the `tutorial` pool is tier-1 only by design (see file header). Flag a tier-2 / pirate-family weapon (`corsair-missile`, `grapeshot-cannon`, `boarding-snare`) appearing in `tutorial`, or a tier-1 potato weapon dropping out of it.
 
 # Files this skill reads
-- `src/game/data/weapons.json` — `id, name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost, tint, family, tier, energyCost`. Optional: `homing` (only `corsair-missile` sets `homing: true`), `turnRateRadPerSec`, `gravity` (px/s² downward; schema-optional, no current weapon sets it), `bulletSprite`, `podSprite`. `family` ∈ `"potato"|"pirate"` — a cosmetic catalog tag (a family change with no roster/tier impact is Cosmetic-only). `tier` ∈ `1` (potato starter line) | `2` (pirate haul) is the load-bearing field: the tutorial loot pool is tier-1 only.
+- `src/game/data/weapons.json` — `id, name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost, tint, family, tier, energyCost`. Optional: `homing` (only `corsair-missile` sets `homing: true`), `turnRateRadPerSec`, `gravity` (px/s² downward; schema-optional, no current weapon sets it), `explosionRadius`, `explosionDamage`, `slowFactor`, `slowDurationMs` (AoE/slow combat fields the pirate weapons set; base DPS does not capture them, so effective impact for those weapons is understated by the DPS metric alone), `bulletSprite`, `podSprite`. `family` ∈ `"potato"|"pirate"` — a cosmetic catalog tag (a family change with no roster/tier impact is Cosmetic-only). `tier` ∈ `1` (potato starter line) | `2` (pirate haul) is the load-bearing field: the tutorial loot pool is tier-1 only.
 - `src/game/data/enemies.json` — `id, name, hp, speed, behavior, scoreValue, creditValue, spriteKey, fireRateMs, collisionDamage`.
 - `src/game/data/waves.json` — `missions[].waves[].spawns[]` with `enemy, count, delayMs, intervalMs, formation, xPercent`; wave-level `id, durationMs`.
 - `src/game/data/missions.json` — `id, kind, name, difficulty, requires, solarSystemId, ...` (galaxy/visual fields ignored unless changed).
@@ -75,7 +75,7 @@ One markdown table per affected category. Columns: `id | metric | before | after
 ### lootPools.ts
 | systemId   | field            | before              | after                    | note                                  |
 |------------|------------------|---------------------|--------------------------|---------------------------------------|
-| tutorial   | weapons[]        | spread, heavy, spud | + corsair-missile        | ⚠ tier-2 pirate weapon leaked into tier-1 tutorial pool |
+| tutorial   | weapons[]        | spread, heavy       | + corsair-missile        | ⚠ tier-2 pirate weapon leaked into tier-1 tutorial pool |
 | tubernovae | credits.min/max  | 500/1000 (avg 750)  | 700/1100 (avg 900, +20%) | richer drops post-Dreadfruit          |
 ```
 

@@ -37,7 +37,7 @@ Invoke on `/content-audit`, "is the content safe to commit," or before a PR touc
     - `autoTrigger.kind === "on-mission-select"` → `missionId` resolves in `missions.json`.
     - `autoTrigger.kind` ∈ `{"on-system-enter", "on-system-cleared-idle"}` → `systemId` resolves in `solarSystems.json`.
     - Every member of the `StoryId` union in `story.ts` has an entry, and vice versa.
-12. **storyTriggers helper coverage** — Re-derive the `StoryAutoTrigger` kinds from the `StoryAutoTrigger` union in `story.ts` (today, verify against `story.ts` and `storyTriggers.ts`: `first-time`, `on-mission-select`, `on-shop-open`, `on-system-enter`, `on-system-cleared-idle`, `on-all-cleared-idle`). Galaxy-view kinds need a matching `select*Entry` exported from `storyTriggers.ts` (today, re-derive: `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`, `selectReadyAllClearedIdleEntries`). `on-shop-open` is the documented exception — fired inline by `src/components/ShopUI.tsx` (see comment at `useStoryTriggers.ts:29`). Flag any new galaxy-view kind without a helper.
+12. **storyTriggers helper coverage** — Re-derive the `StoryAutoTrigger` kinds from the `StoryAutoTrigger` union in `story.ts` (today, verify against `story.ts` and `storyTriggers.ts`: `first-time`, `on-mission-select`, `on-shop-open`, `on-system-enter`, `on-system-cleared-idle`, `on-all-cleared-idle`). Galaxy-view kinds need a matching `select*Entry` exported from `storyTriggers.ts` (today, re-derive: `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`, `selectReadyAllClearedIdleEntries`). `on-shop-open` is the documented exception — fired by `src/components/hooks/useShopAudio.ts` (the dock-arrival voice hook, mounted at the ShopTabs level — see its on-shop-open effect ~L56-81). Flag any new galaxy-view kind without a helper.
 13. **Music track refs** — For every mission with `musicTrack !== null`, check `public/<musicTrack>` exists; same for story `musicTrack`. Missing mission music = "no audio file yet (placeholder)" (soft) — list each missing path. Missing story voice file IS a hard fail (voice files exist today). Also check every `solarSystems.json` `galaxyMusicTrack` resolves under `public/audio/music/` — that file is REQUIRED (the menu/galaxy bed swaps to it on system enter via `MenuMusic.tsx`); missing IS a hard fail.
 
 # Invariants this skill enforces
@@ -97,7 +97,7 @@ Markdown report, this shape:
 - ⚠ note — 7 entries match StoryId union; all voiceTracks resolve; 1 musicTrack missing: `/audio/story/spud-prime-arrival-music.ogg`
 
 ## 12. storyTriggers helper coverage
-- ✓ pass — 4 galaxy-view kinds have helpers; `on-shop-open` fired inline from ShopUI.tsx
+- ✓ pass — 4 galaxy-view kinds have helpers; `on-shop-open` fired from useShopAudio.ts
 
 ## 13. Music track refs
 - ⚠ note — 4/9 mission tracks missing (placeholders)

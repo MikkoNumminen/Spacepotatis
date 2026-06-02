@@ -31,7 +31,7 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 
 ### Shop unlock (mission-gated) + tier/family tags
 - **Shop visibility is mission-gated, NOT tier-gated.** A weapon appears in the shop ONLY after its unlocking mission is wired into `MISSION_WEAPON_REWARDS` in [src/game/data/missionWeaponRewards.ts](src/game/data/missionWeaponRewards.ts). `getBuyableWeaponIds(...)` (same file) walks that map against completed missions to build the buyable set — merely existing in `weapons.json` does NOT make a weapon purchasable. The shop no longer iterates `getAllWeapons()` and filters by `w.tier === 1`.
-- `tier` (`1 | 2`) and `family` (`"potato" | "pirate"`) are cosmetic catalog tags. The badge UI renders T1/T2 — the `TierBadge` helper lives in [ShopWeaponsSection.tsx](src/components/shop/ShopWeaponsSection.tsx) (defined there) and is reused in [WeaponCard.tsx](src/components/loadout/WeaponCard.tsx). They tend to align (every tier-1 is potato, every tier-2 is pirate today) but are independent fields — a "potato tier-2" or "pirate tier-1" is structurally legal and has no gating effect on its own.
+- `tier` (`1 | 2`) and `family` (`"potato" | "pirate"`) are cosmetic catalog tags. `TierBadge` is a small local helper independently defined (NOT shared/exported) in [ShopWeaponsSection.tsx](src/components/shop/ShopWeaponsSection.tsx), [WeaponCard.tsx](src/components/loadout/WeaponCard.tsx), and [WeaponDetailsModal.tsx](src/components/loadout/WeaponDetailsModal.tsx) — three separate copies. Edit all three to change the badge everywhere; the shop and details-modal copies render `T{tier}`, the WeaponCard copy renders `TIER {tier}`. They tend to align (every tier-1 is potato, every tier-2 is pirate today) but are independent fields — a "potato tier-2" or "pirate tier-1" is structurally legal and has no gating effect on its own.
 - LoadoutMenu is NEVER gated — owned weapons stay usable everywhere.
 
 ### AoE / slow on impact (tier-2 pirate haul)
@@ -187,10 +187,10 @@ Most dangerous op — codebase has hard-coded references to specific weapon ids 
 | [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) `DEFAULT_SHIP` | `"rapid-fire"` in `DEFAULT_SHIP.slots` (line 68) | New player has no weapons; `ShipConfig.test.ts` fails |
 | [src/game/state/persistence/safetyNet.ts](src/game/state/persistence/safetyNet.ts) `seedStarterIfEmpty` | `newWeaponInstance("rapid-fire")` (the post-migration safety net — kicks in when both slots and inventory are empty after every migrator runs). PR #76 split persistence into per-shape migrators under `persistence/`; the safety net is the single starter-fallback site today. | Corrupted save → permanently weaponless player |
 | [src/game/phaser/scenes/combat/DropController.ts](src/game/phaser/scenes/combat/DropController.ts) `nextWeaponUpgrade()` | `"rapid-fire"`, `"spread-shot"`, `"heavy-cannon"` | Mid-mission upgrade ladder skips a rung |
-| [src/game/data/lootPools.ts](src/game/data/lootPools.ts) | spread-shot, heavy-cannon, spud-missile, tater-net (tutorial system); tail-gunner, side-spitter, plasma-whip, hailstorm (tubernovae) | Removed weapon stops appearing as a mission drop |
+| [src/game/data/lootPools.ts](src/game/data/lootPools.ts) | spread-shot, heavy-cannon (tutorial system); corsair-missile, grapeshot-cannon, boarding-snare (tubernovae) | Removed weapon stops appearing as a mission drop |
 | [src/game/state/ShipConfig.test.ts](src/game/state/ShipConfig.test.ts) | `"rapid-fire"` at line 29 (asserts DEFAULT_SHIP starts with it), plus `spread-shot` / `heavy-cannon` literals throughout the slot/inventory assertions | Test fails |
-| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | Extensive weapon-id literals: `rapid-fire`, `spread-shot`, `heavy-cannon`, `tail-gunner`, `side-spitter` (used to assert slot/inventory shape and migration behavior) | Tests fail at every assertion that names the removed id |
-| [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `spud-missile`, `tater-net` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
+| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | Extensive weapon-id literals: `rapid-fire`, `spread-shot`, `heavy-cannon` (used to assert slot/inventory shape and migration behavior) | Tests fail at every assertion that names the removed id |
+| [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `corsair-missile` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
 | [src/game/state/sync.test.ts](src/game/state/sync.test.ts) | `rapid-fire` (lines ~71, ~123 — round-trip save fixtures) | Sync round-trip tests fail |
 
 ## Save-format safety net + credit refund (HARD RULE)
@@ -250,7 +250,7 @@ Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `mi
 
 ## Freshness check
 
-These checks assert the load-bearing surfaces this skill steers edits into still exist and still carry the names the skill cites. Paths default to `scope_root` (the Spacepotatis repo root); the two SKILL.md checks use `skill_dir`. The skill's body links are repo-root-relative, so `no_broken_md_links` is intentionally omitted (it resolves links against the skill dir and would false-fail every `src/...` link).
+These checks assert the load-bearing surfaces this skill steers edits into still exist and still carry the names the skill cites. All checks are `scope_root`-relative (the Spacepotatis repo root). The skill's body links are repo-root-relative, so `no_broken_md_links` is intentionally omitted (it resolves links against the skill dir and would false-fail every `src/...` link).
 
 ```toml
 [[check]]
