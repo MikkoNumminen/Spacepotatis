@@ -283,12 +283,12 @@ Four verdict labels:
 | 5. generic-names-in-domain-context | **Noise-prone** | Domain vocab is rich; `item` / `data` survive only at justified spots (queue accessor, image buffer). High false-positive risk without aggressive skip rules. |
 | 6. swallowed-errors | **Pattern hits, skip rule passes** | `src/game/state/seenStoriesLocal.ts:18` matches the catch pattern but is the legitimate version (returns `[]` with documented why). Skip rule (documented-why comment) correctly suppresses it. No un-suppressed finding. |
 | 7. mirror-tests | **Real smells found (opt-in only)** | Dormant under default scope (tests excluded). With `--include-tests`, `src/game/phaser/systems/weaponMath.test.ts:30` and `src/game/state/ShipConfig.test.ts:70` would be reported — both restate impl formulas. Half-mirror — anchored values sit alongside; per the updated skip rule, report only the formula assertion lines, not the whole tests. |
-| 8. phantom-todos | **Borderline — not a clean smell** | `src/game/audio/story.ts:51` TODO has no ticket/owner but DOES carry a removal condition ("when per-category sliders ship in MuteToggle"), so it satisfies the condition leg of the rubric. |
+| 8. phantom-todos | **Pattern hits, skip rule passes** | `src/game/audio/story.ts:52` TODO has no ticket/owner but DOES carry a removal condition ("when per-category sliders ship in MuteToggle"), so the condition leg of the rubric correctly classifies it as legitimate — not a phantom. |
 | 9. duplicated-helpers | **No matches** | Codebase favors single source per math/string operation. Check grounded; fires on copy-paste-heavy code. |
-| 10. over-typed-primitives | **No matches** | `as const satisfies` is the legitimate version (pins literals AND verifies id membership) — e.g. `EnemyId` in `src/lib/schemas/enemies.ts`; `WeaponId` lives at `src/game/data/weapons.ts:40` (the schemas dir verifies it via `z.enum(WEAPON_IDS)`). |
+| 10. over-typed-primitives | **No matches** | `as const satisfies` is the legitimate version (pins literals AND verifies id membership) — e.g. `EnemyId` in `src/lib/schemas/enemies.ts`; the `as const satisfies readonly WeaponId[]` clause at `src/game/data/weapons.ts:40` (the schemas dir verifies it via `z.enum(WEAPON_IDS)`). |
 
-**Real smells found** on this repo: mirror-tests (opt-in, half-mirror formula assertions), phantom-todos (`story.ts:51`).
-**Pattern hits, skip rule passes** on this repo: defensive-checks-for-impossible-cases, swallowed-errors — the checks match candidates but the skip rules correctly classify every match as legitimate. These prove the skip rules work; they are not findings.
+**Real smells found** on this repo: mirror-tests (opt-in, half-mirror formula assertions).
+**Pattern hits, skip rule passes** on this repo: defensive-checks-for-impossible-cases, swallowed-errors, phantom-todos (`src/game/audio/story.ts:52`) — the checks match candidates but the skip rules correctly classify every match as legitimate. These prove the skip rules work; they are not findings.
 **Noise-prone** on this repo: generic-names-in-domain-context.
 **No matches** on this repo: stylistic-drift, paraphrase-comments, single-use-helpers, duplicated-helpers, over-typed-primitives. The codebase is well-disciplined; these remain useful for less-curated code.
 
