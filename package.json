@@ -41,7 +41,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^15.5.18",
+    "eslint-config-next": "^16.2.7",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
     "postcss": "^8.5.14",
