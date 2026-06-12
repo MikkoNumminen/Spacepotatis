@@ -1,6 +1,6 @@
 ---
 name: new-weapon
-description: Superseded by /equipment. Adding a weapon now lives inside the broader CRUD-and-visuals skill. This stub redirects.
+description: Superseded by /equipment. This stub redirects.
 ---
 
 # Superseded — use `/equipment` instead
@@ -9,11 +9,11 @@ This skill used to scaffold a new weapon. It has been folded into [/equipment](.
 
 **Action:** invoke `/equipment` for any weapon work — adding, removing, balancing, recoloring, or anything else.
 
-The new skill's CREATE-weapon section includes the four ready-to-fill scaffolds, distribution-channel choices (shop catalog / mission drop / mid-mission upgrade ladder / default loadout / boss reward), and the same balance-comparison step (`/balance-review`) the old skill recommended.
+It carries forward the ready-to-fill templates, the distribution-channel choices, and the `/balance-review` step the old skill recommended.
 
 ## Freshness check
 
-This is a redirect stub. Its load-bearing job is to point at `/equipment` and to keep that promise honest — the redirect target must exist, must still own the CREATE-weapon path the stub claims it absorbed, and the `/balance-review` it name-drops must still be installed. Paths are scope_root-relative (project root) except the markdown-link check, which is anchored at the skill dir.
+Redirect stub — the checks keep the promise honest: `/equipment` must exist and still own the CREATE path, and `/balance-review` must still be installed.
 
 ```toml
 [[check]]

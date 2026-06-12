@@ -234,6 +234,10 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 | **Anything** schema-related — add a column, add a table, alter the save shape, any change under `db/migrations/` | `/new-migration` |
 | "What did this JSON tweak do to balance?"      | `/balance-review`   |
 | "Is the content safe to commit?" / pre-PR      | `/content-audit`    |
+| Save-pipeline change (persistence / sync / save schema / `/api/save`) pre-commit check | `/save-roundtrip-audit` |
+| "Smell audit" / pre-merge scan of AI-generated code patterns | `/ai-codegen-smell-audit` |
+| A dependabot / dependency-bump PR, or an npm peer-dep / ERESOLVE error | `/deps-triage` |
+| A non-story Grandma voice line (shop DETAILS, UI cues, menu briefing) | `/voice-asset` |
 
 If the request maps to a skill, **invoke it before grepping or reading files** — the skill body already contains the file paths, field names, and invariants you'd otherwise have to derive. If the request *almost* maps to a skill but has an extra constraint, still invoke the skill and adapt; do not fall back to the long path.
 
@@ -374,7 +378,10 @@ decisions behind the shape live in [docs/decisions/](docs/decisions/) (ADRs).
 Highest-risk surface: the `state` module's persistence sub-cluster (the
 8-layer save round-trip — see [ADR 0004](docs/decisions/0004-save-round-trip-eight-layers.md)).
 Any change there triggers `/save-roundtrip-audit` before commit. See §7a
-for the migration shipping rule.
+for the migration shipping rule. The save-sensitive set (referenced by the
+audit skills): src/game/state/{persistence.ts, persistence/, stateCore.ts,
+sync.ts}, src/lib/schemas/save.ts, src/lib/db.ts, src/lib/saveValidation.ts,
+src/app/api/save/route.ts, db/migrations/.
 
 **Boundary rules:**
 

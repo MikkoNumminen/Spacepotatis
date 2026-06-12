@@ -1,11 +1,11 @@
 ---
 name: modular-architecture-audit
-description: Orchestrates the multi-phase modular-architecture audit + refactor. Phase 0 sets up agents; Phase 1 inventories every file; Phase 2 proposes module boundaries; Phase 3 mechanically extracts modules one at a time (parallelizable across worktrees); Phase 4 writes AI-first documentation; Phase 5 verifies. Each phase produces a written artifact under docs/audit/ and STOPS at a gate for user approval. Never auto-advances.
+description: Orchestrates the multi-phase modular-architecture audit + refactor — file inventory, module-boundary proposal, mechanical extraction (parallelizable across worktrees), AI-first docs, verification. Each phase writes an artifact under docs/audit/ and STOPS at a gate for user approval. Never auto-advances.
 ---
 
 # When to use
 
-- The user types `/audit` to start or resume the modular-refactor audit.
+- The user invokes `/modular-architecture-audit` to start or resume the modular-refactor audit.
 - The user asks "let's refactor toward proper modules" or "let's audit the architecture for AI-friendliness".
 - The user references `docs/audit/_progress.md` and asks to continue.
 
@@ -24,9 +24,7 @@ Each phase produces exactly one artifact and STOPS. Do not start the next phase 
 | 4 — Documentation | `doc-writer` | per-module READMEs/TSDoc + `docs/audit/03-documentation-summary.md` | User approves docs |
 | 5 — Verification | `refactor-architect` | `docs/audit/05-final-report.md` | Audit complete |
 
-Artifact file numbers form one fixed 00–05 sequence and do not always mirror phase numbers (Phase 3 has no numbered artifact; Phase 4 writes `03-documentation-summary.md`; `04-found-bugs.md` is the always-on bug log).
-
-`docs/audit/04-found-bugs.md` is a continuous log written by the module-extractor when it spots a bug it's forbidden from fixing.
+Artifact numbers form one fixed 00–05 sequence and do not mirror phase numbers (Phase 3 has no numbered artifact; Phase 4 writes `03-documentation-summary.md`). `docs/audit/04-found-bugs.md` is the always-on bug log: any phase's agent appends bugs it is forbidden from fixing (the shipped entries came from the Phase 1 inventory walk).
 
 # Orchestration rules
 
@@ -40,23 +38,22 @@ Artifact file numbers form one fixed 00–05 sequence and do not always mirror p
 
 # Resume protocol
 
-When the user invokes `/audit` and `docs/audit/_progress.md` already exists:
+When the skill is invoked and `docs/audit/_progress.md` already exists:
 
 1. Read `_progress.md`.
-2. Identify the next pending phase (or the next pending module within Phase 3).
+2. Identify the next pending phase (or the next pending module within Phase 3). If `docs/audit/05-final-report.md` exists, the audit already ran to completion — treat the invocation as a drift re-check (pattern: `docs/audit/01-inventory-drift-2026-05-31.md`), not a resume; `_progress.md` under-logs the landed Phase 3 extractions.
 3. Re-state the user-facing summary: "We're on Phase X. Last completed: <Y>. Next dispatch: <Z>."
 4. Wait for "go" before dispatching.
 
 # Anti-patterns
 
-- **Don't auto-advance.** Even if a phase looks complete and tests pass, never start the next phase without explicit user OK.
 - **Don't merge phases.** Phase 1's "no proposals" rule is load-bearing — proposals from a still-incomplete inventory tend to lock in the wrong shape.
 - **Don't dispatch a generalist agent.** Use the named agent for each phase. The whole reason these agents exist is single-responsibility scoping.
-- **Don't commit on the agent's behalf without explicit user OK.** The module-extractor may auto-commit per its own contract IFF the orchestrator's prompt allowed it; default is staged-clean and hand back.
+- **Don't push or open PRs on the agent's behalf.** The module-extractor commits locally by default (one commit per module; `--no-commit` in its prompt leaves a staged-clean tree instead) and never pushes or runs `gh pr create` unless the orchestrator's prompt explicitly allows it.
 
 ## Freshness check
 
-These checks assert the orchestrator's load-bearing references still hold: the named sub-agents it dispatches, the save-data audit it gates on, a representative save-data trigger path from rule 6, the orchestrator contract phrasing, and markdown-link integrity. Project scope, so non-`skill_dir` paths resolve against the repo root.
+Asserts the dispatched sub-agents, the save-roundtrip gate, a rule-6 trigger path, the contract phrasing, and markdown-link integrity still hold. Project scope: non-`skill_dir` paths resolve against the repo root.
 
 ```toml
 [[check]]
@@ -67,6 +64,11 @@ root = "scope_root"
 [[check]]
 kind = "path_exists"
 path = ".claude/agents/module-extractor.md"
+root = "scope_root"
+
+[[check]]
+kind = "path_exists"
+path = ".claude/agents/doc-writer.md"
 root = "scope_root"
 
 [[check]]

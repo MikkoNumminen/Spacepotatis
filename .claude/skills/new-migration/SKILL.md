@@ -1,13 +1,13 @@
 ---
 name: new-migration
-description: Add a Postgres schema migration end-to-end — dated SQL file in db/migrations/, Database interface update in src/lib/db.ts, prod application via scripts/migrate.mjs, schema verification via scripts/check-schema.mjs, and the PR-body checkbox that gates merge. Enforces CLAUDE.md §7a HARD RULE so the next save POST doesn't 500.
+description: Add a Postgres schema migration end-to-end — dated SQL file in db/migrations/, Database interface update in src/lib/db.ts, prod application + schema verification scripts, and the PR-body checkbox that gates merge. Enforces CLAUDE.md §7a HARD RULE so the next save POST doesn't 500.
 ---
 
 # When to use
 
 Invoke on `/new-migration`, "add a column", "add a table", "schema change", "alter the save shape", or any request that requires touching `db/migrations/` or `src/lib/db.ts`.
 
-This skill exists because PR #89 shipped a `seen_story_entries` column referenced from code without applying the migration to prod — every save POST 500'd for 3 days. CLAUDE.md §7a is the HARD RULE; this skill is the executable version.
+This skill is the executable version of CLAUDE.md §7a (see the PR #89 incident there).
 
 ## Boundary — STOP and flag
 
@@ -18,7 +18,7 @@ This skill exists because PR #89 shipped a `seen_story_entries` column reference
 
 ## Adjacent skills
 
-- New API route or save-shape field that needs a column → this skill, then update `src/lib/schemas/save.ts` + the Kysely query in `src/app/api/save/route.ts`.
+- New API route or save-shape field that needs a column → this skill, then update `src/lib/schemas/save.ts` + the Kysely query in `src/app/api/save/route.ts`, then run `/save-roundtrip-audit` before commit (CLAUDE.md §17: any save-pipeline change requires it).
 - New content surface that fits in JSON (mission, weapon, perk) → use the matching content skill; no migration needed.
 - Story content (`seen_story_entries TEXT[]` already covers any size) → `/new-story`; no migration needed.
 
@@ -26,7 +26,7 @@ This skill exists because PR #89 shipped a `seen_story_entries` column reference
 
 1. **What changes** — added column / new table / new index / data backfill. Be specific (column name, type, nullability, default, FK target).
 2. **Why** — one sentence. Drives the file's header comment AND the PR body. Mandatory; "the code needs it" is not an answer.
-3. **Default policy** — for `ADD COLUMN`: nullable (existing rows stay NULL until a write touches them) OR `NOT NULL DEFAULT <value>` (Postgres rewrites the table — fast on small tables, multi-minute lock on large ones; the `save_games` table is small today, but flag if the user wants `NOT NULL` on a table > 100k rows).
+3. **Default policy** — for `ADD COLUMN`: nullable (existing rows stay NULL until a write touches them) OR `NOT NULL DEFAULT <value>` (constant defaults are metadata-only on Postgres 11+ — no table rewrite; volatile defaults like `gen_random_uuid()` rewrite every row, so flag those on tables > 100k rows).
 4. **Backfill needed?** If yes, write the backfill as a separate `UPDATE` in the SAME migration file (idempotent — guard with `WHERE col IS NULL` or similar).
 5. **Confirmation: ready to apply to prod immediately on merge?** If no, the migration MUST NOT merge. Hold the PR.
 
@@ -127,7 +127,7 @@ Typecheck catches Database-interface drift in any code that reads/writes the new
 
 ## 7. Open the PR with the gating checkbox
 
-PR body MUST include the standard checklist + a "Migration applied to prod" checkbox (the §7a hard rule). The "Schema verified" checkbox below is a skill-level addition — recommended but not §7a; don't reject a PR that lacks the second one.
+PR body MUST include the standard checklist + a "Migration applied to prod" checkbox (the §7a hard rule). "Schema verified" is a skill convention, not §7a — don't block a PR on it.
 
 ```markdown
 ## Summary
@@ -147,9 +147,9 @@ PR body MUST include the standard checklist + a "Migration applied to prod" chec
 DATABASE_URL_UNPOOLED="<neon-direct-url>" node scripts/migrate.mjs
 ```
 
-Drop `--env-file=.env.local` here — `.env.local` defines `DATABASE_URL_UNPOOLED` for local, and Node loads `--env-file` BEFORE inline vars take effect. Inline-only is unambiguous: the prod URL is the only candidate the runner can see. Then re-verify with `check-schema.mjs` against the same URL (same trick — pass `DATABASE_URL_UNPOOLED=...` inline, no `--env-file`).
+Drop `--env-file=.env.local` here — inline-only is unambiguous: the prod URL is the only candidate the runner can see. Re-verify with `check-schema.mjs` the same way (inline `DATABASE_URL_UNPOOLED=...`, no `--env-file`).
 
-**If you can't apply now, don't merge yet.** The Vercel deploy fires within seconds of merge — once the new code is live, every API call referencing the missing column will 500 until the migration runs. The symptom is `error: "server_error"` in the save modal; logs show `column "X" does not exist`.
+**If you can't apply now, don't merge yet** (CLAUDE.md §7a item 4) — the symptom of merged-but-unapplied is `error: "server_error"` in the save modal with `column "X" does not exist` in the logs.
 
 ## 9. Tick the checkbox + close the loop
 
@@ -158,7 +158,7 @@ Tick the "Migration applied to prod" checkbox in the PR body, comment with the v
 # Invariants
 
 - Filename matches `YYYYMMDDhhmmss_<snake_case>.sql`, sorted lexicographically AFTER every existing migration in `db/migrations/`.
-- File contains BOTH `-- migrate:up` and `-- migrate:down` markers (the runner extracts the up block by string-search in `extractUpBlock()` in `scripts/migrate.mjs`).
+- File contains BOTH `-- migrate:up` and `-- migrate:down` markers (step 2).
 - Every new table / new column lives under the `spacepotatis.` Postgres schema. Never `public.*`.
 - `ON DELETE CASCADE` on any FK whose lifetime is owned by the parent (typical: `player_id` → `spacepotatis.players(id)`).
 - `src/lib/db.ts` `Database` interface updated in the SAME commit as the SQL file.
@@ -187,7 +187,7 @@ Tick the "Migration applied to prod" checkbox in the PR body, comment with the v
 
 ## Freshness check
 
-These checks assert the load-bearing pieces this skill drives — the two runner scripts it invokes, the migrations directory it appends to, the dbmate up-marker its SQL must contain, the Kysely `Database` interface it edits in lockstep, and the CLAUDE.md §7a HARD RULE it enforces — still exist. Paths are repo-relative (project scope, `root = "scope_root"`). `no_broken_md_links` is intentionally omitted: the skill ships no markdown links to check (its only path reference is a plain code span).
+Asserts the load-bearing pieces still exist: both runner scripts, the migrations dir, the dbmate up-marker, the Kysely `Database` interface, and the CLAUDE.md §7a anchor. Paths are repo-relative (`root = "scope_root"`). `no_broken_md_links` omitted — this skill ships no markdown links.
 
 ```toml
 [[check]]
