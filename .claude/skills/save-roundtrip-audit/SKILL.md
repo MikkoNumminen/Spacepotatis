@@ -1,10 +1,10 @@
 ---
 name: save-roundtrip-audit
-description: Pre-commit save-pipeline invariants check — walks every StateSnapshot field through the 8 layers of the save round-trip (snapshot interface → toSnapshot → POST schema → POST handler → DB column → migration → GET handler → RemoteSaveSchema → sync.loadSave → hydrate) and flags any layer that silently drops the field. Read-only.
+description: Pre-commit save-pipeline invariants check — walks every StateSnapshot field through all 8 layers of the save round-trip (snapshot → POST schema → handler → DB column → migration → GET → RemoteSaveSchema → hydrate) and flags any layer that silently drops the field. Read-only.
 ---
 
 # When to use
-Invoke on `/save-roundtrip-audit`, "is the save pipeline intact?", or before a PR touching any of: `src/game/state/persistence.ts`, `src/game/state/stateCore.ts`, `src/game/state/sync.ts`, `src/lib/schemas/save.ts`, `src/app/api/save/route.ts`, `src/lib/db.ts`, or `db/migrations/`. Read-only — never modify any file.
+Invoke on `/save-roundtrip-audit`, "is the save pipeline intact?", or before a PR touching any file in the save-sensitive set (enumerated in CLAUDE.md §17). Read-only — never modify any file.
 
 This skill exists because the save round-trip has 8 layers and a field that lives in one but is silently dropped in another produces a class of bug that doesn't fail any test, doesn't 500, and doesn't surface until a player notices their state didn't survive a reload. We've shipped this bug twice in two days:
 
@@ -34,7 +34,7 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
 
 # Steps (the audit checklist)
 
-1. **Build the field list.** Read `StateSnapshot` from `src/game/state/persistence.ts` — that interface is the live, authoritative field list. The Known-good baseline table below enumerates the fields as of the last audit, each with its per-field disposition; treat any field present in the interface but absent from that table as the audit target. (Keeping the canonical list in one place — the baseline table — avoids a third copy that has to be hand-synced.) **Diff against `git show HEAD:src/game/state/persistence.ts`** if the working tree has changed it — a field added in this PR is the most common audit target.
+1. **Build the field list.** Read `StateSnapshot` from `src/game/state/persistence.ts` — that interface is the live, authoritative field list. The Known-good baseline table below enumerates the fields as of the last audit, each with its per-field disposition; treat any field present in the interface but absent from that table as the audit target. **Diff against `git show HEAD:src/game/state/persistence.ts`** if the working tree has changed it — a field added in this PR is the most common audit target.
 
 2. **Layer 1 — snapshot interface + `toSnapshot()`.** Grep `src/game/state/persistence.ts` for the field name. Both the `StateSnapshot` declaration AND a line under `toSnapshot()` must reference it. A field declared but not emitted is a silent drop at the source.
 
@@ -43,10 +43,11 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
    - On `RemoteSaveSchema` (GET output — required or `.nullable().optional()` depending on the column's NULL policy).
    A field that's on `SavePayloadSchema` but NOT on `RemoteSaveSchema` is the exact 2026-05-03 bug.
 
-4. **Layer 3 — POST handler in `src/app/api/save/route.ts`.** Three checks:
+4. **Layer 3 — POST handler in `src/app/api/save/route.ts`.** Four checks:
    - The handler READS the field (`body.X`, possibly with `??` default).
    - The field is written into the `.insertInto("spacepotatis.save_games").values({ ... })` block as `<column_name>: <value>`.
    - The field is ALSO written into the `.onConflict((oc) => oc.columns([...]).doUpdateSet({ <column_name>: sql\`EXCLUDED.<column_name>\`, ... }))` block. **The insert-only-no-conflict-update pattern is a silent drop on every save AFTER the first** — the row exists, the upsert hits the conflict path, and the new value is ignored.
+   - The field is ALSO a key in the `newSnapshot` payload literal inserted into `spacepotatis.save_snapshots` (same handler, just below the upsert). That payload is the authoritative GET source (v2 read-cutover) — a field missing here vanishes on every read even when every `save_games` column is wired.
 
 5. **Layer 4 — GET handler in `src/app/api/save/route.ts`.** Walk BOTH read paths. (1) **Authoritative** — the latest `save_snapshots` row, returned as `NextResponse.json({ ...snapshotRow.payload, updatedAt })`. Field presence here is governed by what the POST handler wrote into the snapshot payload, NOT by a `selectAll` — a field present in the fallback but absent from the written snapshot is a silent drop on read. (2) **Transitional fallback** — `save_games` `selectAll()` + explicit `row.<column_name>`→camelCase mapping; an explicit `.select([...])` that omits the column drops it. Confirm the field flows through both.
 
@@ -65,11 +66,11 @@ The audit walks every `StateSnapshot` field through these layers. Each cell in t
    - `body.X ?? undefined` patterns are fine when `hydrate()` supplies a default.
 
 9. **Layer 8 — `hydrate()` in `src/game/state/persistence.ts`.** Inside the `commit({...})` call, confirm:
-   - The field is read from `snapshot.X` (with a fallback to `INITIAL_STATE.X` for the no-save / partial-snapshot case).
+   - The field is read from `snapshot.X` (with a fallback to `INITIAL_STATE.X` for the no-save / partial-snapshot case). For `credits`, the salvage-refund addend (`baseCredits + refundOutcome.creditRefund`) is expected — the weapon-salvage refund is load-bearing; don't flag it.
    - The field is NOT silently overridden by `INITIAL_STATE.X` in the absence of a check (that's how 2026-05-02's wipe walked through hydrate).
    - For derived fields (`unlockedSolarSystems`), there's an explicit re-derivation step (`SYSTEM_UNLOCK_GATES`) — note this as expected and document the exception in the table.
 
-10. **Cross-check the saveQueue snapshot shape.** The pending-save localStorage path (`saveQueue.ts` / `markSavePending` / `flushPendingSave`) serializes `toSnapshot()` whole — it inherits whatever `StateSnapshot` declares — so adding a field here is a free win. But: bumping `StateSnapshot` ahead of `hydrate()` ON THE SAME DEPLOY is required (the sync.ts header explicitly warns about this — `hydrate` REPLACES, missing keys fall back to `INITIAL_STATE`). Confirm Layer 1 and Layer 8 are coherent in the same PR.
+10. **Cross-check the saveQueue snapshot shape.** The pending-save localStorage path (`saveQueue.ts` / `markSavePending` / `flushPendingSave`) serializes `toSnapshot()` whole — it inherits whatever `StateSnapshot` declares — so adding a field here is a free win. But: bumping `StateSnapshot` ahead of `hydrate()` ON THE SAME DEPLOY is required (the INVARIANT comment above the pending-save hydrate in sync.ts warns about this — `hydrate` REPLACES, missing keys fall back to `INITIAL_STATE`). Confirm Layer 1 and Layer 8 are coherent in the same PR.
 
 # Output format
 Markdown report, this shape:
@@ -82,15 +83,9 @@ Markdown report, this shape:
 | Field | L1 snap+emit | L2 POST schema | L2 GET schema | L3 POST read | L3 POST insert | L3 POST upsert | L4 GET resp | L5 db.ts | L6 migration | L7 sync.ts | L8 hydrate |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | credits | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| completedMissions | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| unlockedPlanets | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| playedTimeSeconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| ship | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| saveSlot | ✓ | ✓ | ✓ | N/A | N/A | N/A | ✓ | ✓ | ✓ | ✓ | ✓ |
-| currentSolarSystemId | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| unlockedSolarSystems | ✓ | ✗ | ✗ | N/A | N/A | N/A | N/A | N/A | N/A | N/A | ✓ (re-derived) |
-| seenStoryEntries | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | <new-field>     | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+_(one row per StateSnapshot field; expected per-field dispositions live in the Known-good baseline table below)_
 
 ## Findings
 
@@ -112,19 +107,10 @@ Markdown report, this shape:
 `✓` carries through, `✗` drops silently, `N/A` does not apply at this layer (e.g. derived fields, the slot/saveSlot column-name mismatch). Cite file paths + line numbers when fact lives at a specific line. End with `**Summary: PASS**` or `**Summary: FAIL (N issues)**` (N counts only `✗` cells in fields where ✓ was expected; ✗ cells covered by an explicit "intentional gap" note in the Known-good baseline don't count).
 
 # Invariants this skill enforces
-- Every `StateSnapshot` field except `unlockedSolarSystems` (re-derived from `completedMissions`) is present in:
-  - `toSnapshot()` emit list
-  - `SavePayloadSchema` (POST input)
-  - `RemoteSaveSchema` (GET output)
-  - POST handler reads + insert + onConflict.doUpdateSet (all three)
-  - GET handler response
-  - `SaveGamesTable` interface in `src/lib/db.ts`
-  - A `db/migrations/*.sql` file (most recent file that adds the matching column)
-  - `doLoadSave` snapshot construction in `src/game/state/sync.ts`
-  - `hydrate()` commit payload in `src/game/state/persistence.ts`
+- Every `StateSnapshot` field except `unlockedSolarSystems` (re-derived from `completedMissions`) carries ✓ through all 8 layers in the table above — including the POST `newSnapshot` save_snapshots payload AND the `onConflict.doUpdateSet` block.
 - POST upsert ALWAYS writes the same column set in both `.values({...})` and `onConflict.doUpdateSet({...})`. Insert-only is a silent drop on every save except the first.
 - Migration file for any column referenced from app code is APPLIED to prod (CLAUDE.md §7a HARD RULE — verify out-of-band via `node scripts/check-schema.mjs`).
-- `unlockedSolarSystems` is intentionally NOT persisted — `hydrate()` re-derives it from `completedMissions` via `SYSTEM_UNLOCK_GATES` so old saves catch up to gate map changes without a one-shot migration. Document this gap; do not "fix" it.
+- `unlockedSolarSystems` is intentionally NOT persisted — `hydrate()` re-derives it from `completedMissions` via `SYSTEM_UNLOCK_GATES` so old saves catch up to gate map changes without a one-shot migration. Document this gap; do not "fix" it. Flag it only if `hydrate()` stops re-deriving it.
 - The `saveSlot` field rides as `slot` on the wire (`RemoteSaveSchema.slot`) and as `slot` in the DB column. Layers 3, 4, 5, 6 use the column name `slot`; layers 1, 2, 7, 8 use `saveSlot`. Note this mismatch in the per-field walkthrough; it's not a bug.
 
 # Known-good baseline (today)
@@ -156,14 +142,11 @@ Notes:
 - If the audit finds a ✗ in a field that ALREADY shipped (i.e. the silent drop is on master), surface it loudly: "this is a latent silent-drop bug, not a missing piece of in-progress work." File an issue or open a separate PR rather than bundling it into the current PR.
 
 # Constraints
-- Read-only. Never edit/stage/commit.
-- No `npm install`, no network. File-system inspection plus optional `npm test` if runnable.
 - Don't invent fields. If a field is on `StateSnapshot` but the schema lacks it, that's a ✗ — report it; don't speculate "maybe it's intentional."
-- Don't mark `unlockedSolarSystems` as a failure — its intentional non-persistence is documented above. Flag it only if `hydrate()` stops re-deriving it.
 
 ## Freshness check
 
-These checks assert the load-bearing pieces this audit walks still exist with their expected anchors. The `src/...` and `db/...` paths are repo-root-relative (project scope), so they use `root = "scope_root"`.
+Paths are repo-root-relative (`root = "scope_root"`).
 
 ```toml
 [[check]]
@@ -192,6 +175,12 @@ root = "scope_root"
 [[check]]
 kind = "path_exists"
 path = "db/migrations/20260503010000_persist_current_solar_system.sql"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/app/api/save/route.ts"
+pattern = "save_snapshots"
 root = "scope_root"
 
 [[check]]

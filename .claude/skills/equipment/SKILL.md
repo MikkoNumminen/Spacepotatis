@@ -25,7 +25,7 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 ## Weapons
 - **Catalog**: `src/game/data/weapons.json` (6 entries — tier 1: rapid-fire, spread-shot, heavy-cannon; tier 2: corsair-missile, grapeshot-cannon, boarding-snare). Six previously-shipped weapons (the carrot/turnip family + spud-missile) live in TODO.md "Phase Vegetable-Catalog" with their last-shipped specs for reintroduction.
 - **Type union**: `WeaponId` in [src/types/game.ts](src/types/game.ts).
-- **Schema array**: `WEAPON_IDS` in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — `satisfies readonly WeaponId[]` makes union/array drift fail typecheck.
+- **Runtime id list**: `WEAPON_IDS` in [src/game/data/weapons.ts](src/game/data/weapons.ts) — `satisfies readonly WeaponId[]` rejects unknown ids; omissions are caught by the `z.enum(WEAPON_IDS)` CI test instead (see CREATE step 4). `src/lib/schemas/save.ts` re-exports it (keeps Zod out of persistence bundles).
 - **Accessor**: `getWeapon(id)` in [src/game/data/weapons.ts](src/game/data/weapons.ts) — throws on unknown id.
 - **`WeaponDefinition`** ([src/types/game.ts](src/types/game.ts)) — REQUIRED: `id`, `name`, `description`, `damage`, `fireRateMs`, `bulletSpeed`, `projectileCount`, `spreadDegrees`, `cost` (≥0), `tint` (CSS hex), `family` (`"potato" | "pirate"`), `tier` (`1 | 2`), `energyCost` (>0). OPTIONAL: `homing`, `turnRateRadPerSec`, `gravity` (px/s² +y; bullets arc and rotate to motion vector — gravity weapons use 60–300), `explosionRadius` + `explosionDamage` (AoE on impact — see `applyBulletAoE` in [CombatScene.ts](src/game/phaser/scenes/CombatScene.ts)), `slowFactor` (0..1, multiplier on enemy speed) + `slowDurationMs` (paired with explosionRadius — slows everything in the AoE), `bulletSprite`, `podSprite`.
 
@@ -50,7 +50,7 @@ NOT catalog entries — constants in [src/game/state/ShipConfig.ts](src/game/sta
 - `BASE_SHIELD = 40`, `BASE_ARMOR = 60`
 - `BASE_REACTOR_CAPACITY = 100`, `REACTOR_CAPACITY_PER_LEVEL = 30`
 - `BASE_REACTOR_RECHARGE = 25`, `REACTOR_RECHARGE_PER_LEVEL = 8`
-- `MAX_LEVEL = 5`
+- `MAX_LEVEL = 5` (lives in `types/game.ts`, re-exported here)
 - Cost curves: `shieldUpgradeCost`, `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost` (default: double per level).
 
 ## Visuals — what to edit per surface
@@ -64,7 +64,7 @@ NOT catalog entries — constants in [src/game/state/ShipConfig.ts](src/game/sta
 | Augment **UI tint dot** | `augments.ts#<id>.tint`. |
 | Combat HUD energy/shield/armor **bars** | [src/game/phaser/scenes/combat/CombatHud.ts](src/game/phaser/scenes/combat/CombatHud.ts) — Phaser Graphics. Energy ~L88, shield ~L67, armor ~L73. |
 | HUD **perk chips** | `CombatHud.ts#refreshPerkChips()` ~L105. Chip tint from `PERKS[id].tint` (see `/new-perk`). Layout/typography here. |
-| **Explosion / hit / impact particles** | [CombatVfx.ts](src/game/phaser/scenes/combat/CombatVfx.ts) `emitExplosionParticles` (~L21). Uses `particle-spark` from `BootScene.ts`. NO per-weapon variation today (generic white). |
+| **Explosion / hit / impact particles** | [CombatVfx.ts](src/game/phaser/scenes/combat/CombatVfx.ts) `emitExplosionParticles` (~L48). Uses `particle-spark` from `BootScene.ts`. NO per-weapon variation today (generic white). |
 | **Muzzle flash / projectile trails** | NOT IMPLEMENTED. Feature ask — STOP and flag. |
 | Player **ship sprite** | `BootScene.ts#drawPotatoShip`. Doesn't react to equipment. Equipment-driven ship visuals = new feature; STOP and flag. |
 | **Per-weapon energy chip** | NOT IMPLEMENTED — only one shared energy bar. |
@@ -85,7 +85,7 @@ Some `BootScene.ts` bullet generators hard-code their fill (e.g. `drawPotatoBull
   "damage": 12, "fireRateMs": 220, "bulletSpeed": 520,
   "projectileCount": 1, "spreadDegrees": 0,
   "cost": 600, "tint": "#88ccff",
-  "family": "potato", "energyCost": 6
+  "family": "potato", "tier": 1, "energyCost": 6
 }
 ```
 
@@ -102,7 +102,7 @@ Some `BootScene.ts` bullet generators hard-code their fill (e.g. `drawPotatoBull
 
 **D. Augment — trade-off** — same shape as C with two multipliers (one positive, one negative), e.g. `fireRateMul: 0.5, damageMul: 0.6`.
 
-**E. Re-skinned existing weapon** — rename + new bullet sprite + matching tint, stats unchanged. The `id` MUST stay (referenced from saves, loot pools, upgrade ladder, `DEFAULT_SHIP`). Renaming the id is REMOVE+CREATE, not re-skin. Edit `weapons.json` entry IN PLACE: `name`, `description`, `tint` (matching new bullet color), `bulletSprite` (new key), `podSprite` (optional, reusable). Stats/family/cost/energyCost stay frozen.
+**E. Re-skinned existing weapon** — rename + new bullet sprite + matching tint, stats unchanged. Full procedure under Operation MODIFY → Re-skin; `id` MUST stay (id rename = REMOVE+CREATE).
 
 When in doubt, copy the structurally closest existing entry. Run `/balance-review` after drafting numbers.
 
@@ -110,10 +110,10 @@ When in doubt, copy the structurally closest existing entry. Run `/balance-revie
 
 ## Inputs
 1. Kind (weapon | augment).
-2. Weapon: id (kebab, unique), name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost (≥0), tint, family, energyCost (>0). Optional: homing, turnRateRadPerSec, bulletSprite, podSprite, gravity.
+2. Weapon: id (kebab, unique), name, description, damage, fireRateMs, bulletSpeed, projectileCount, spreadDegrees, cost (≥0), tint, family, tier (1|2), energyCost (>0). Optional: homing, turnRateRadPerSec, bulletSprite, podSprite, gravity.
 3. Augment: id, name, description, cost, tint + ≥1 multiplier.
-4. **Distribution** — must wire at least one or it's inaccessible:
-   - **Shop (weapon)** — add a `[missionId, weaponId]` pair to `MISSION_WEAPON_REWARDS` in [missionWeaponRewards.ts](src/game/data/missionWeaponRewards.ts). A weapon WITHOUT such a pair is unbuyable no matter that it exists in `weapons.json` — `getBuyableWeaponIds` only surfaces ids whose unlocking mission is complete.
+4. **Distribution.**
+   - **Mission-reward pair (weapons — MANDATORY)** — every live weapon needs a `[missionId, weaponId]` pair in `MISSION_WEAPON_REWARDS` ([missionWeaponRewards.ts](src/game/data/missionWeaponRewards.ts)). `missionWeaponRewards.test.ts` enforces a strict bijection — every combat-kind mission maps to exactly one weapon AND every weapon to exactly one mission — so a new weapon needs a new combat mission (`/new-mission`) or a remap. A pair-less weapon fails `npm test` and is unbuyable (`getBuyableWeaponIds`).
    - **Shop (augment)** — augments still surface from `getAllAugments()` with `cost > 0`; no mission pairing needed.
    - **Mission drop** — add to a pool in [lootPools.ts](src/game/data/lootPools.ts) under the right `solarSystemId`.
    - **Mid-mission upgrade ladder** (weapons only) — `nextWeaponUpgrade()` in [DropController.ts](src/game/phaser/scenes/combat/DropController.ts) hard-codes `["rapid-fire", "spread-shot", "heavy-cannon"]`.
@@ -124,9 +124,9 @@ When in doubt, copy the structurally closest existing entry. Run `/balance-revie
 1. Read `weapons.json`; confirm id unique; compare balance.
 2. Append entry.
 3. Extend `WeaponId` union in `types/game.ts`.
-4. Add id to `WEAPON_IDS` in `save.ts` (`satisfies` enforces parity).
+4. Add id to `WEAPON_IDS` in `src/game/data/weapons.ts` (`save.ts` re-exports it). `satisfies` does NOT catch omitting the new id here — the `z.enum(WEAPON_IDS)` JSON-schema CI test ([jsonSchemaValidation.test.ts](src/game/data/__tests__/jsonSchemaValidation.test.ts)) fails instead if you forget.
 5. **Visual** (only if custom `bulletSprite`): add `draw<X>Bullet(key)` in `BootScene.ts`, call from `generateTextures()`, set `bulletSprite`.
-6. Wire ≥1 distribution channel.
+6. Add the mandatory `MISSION_WEAPON_REWARDS` pair (bijection — see Distribution) + any optional channels.
 7. `/balance-review` against the existing 6 weapons; adjust if out-of-band.
 8. `npm run typecheck && npm run lint && npm test`.
 
@@ -185,21 +185,21 @@ Most dangerous op — codebase has hard-coded references to specific weapon ids 
 | File | What it references | What breaks if you remove |
 |---|---|---|
 | [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) `DEFAULT_SHIP` | `"rapid-fire"` in `DEFAULT_SHIP.slots` (line 68) | New player has no weapons; `ShipConfig.test.ts` fails |
-| [src/game/state/persistence/safetyNet.ts](src/game/state/persistence/safetyNet.ts) `seedStarterIfEmpty` | `newWeaponInstance("rapid-fire")` (the post-migration safety net — kicks in when both slots and inventory are empty after every migrator runs). PR #76 split persistence into per-shape migrators under `persistence/`; the safety net is the single starter-fallback site today. | Corrupted save → permanently weaponless player |
+| [src/game/state/persistence/safetyNet.ts](src/game/state/persistence/safetyNet.ts) `seedStarterIfEmpty` | `newWeaponInstance("rapid-fire")` — post-migration safety net (fires when slots AND inventory end up empty after every migrator); the single starter-fallback site. | Corrupted save → permanently weaponless player |
 | [src/game/phaser/scenes/combat/DropController.ts](src/game/phaser/scenes/combat/DropController.ts) `nextWeaponUpgrade()` | `"rapid-fire"`, `"spread-shot"`, `"heavy-cannon"` | Mid-mission upgrade ladder skips a rung |
 | [src/game/data/lootPools.ts](src/game/data/lootPools.ts) | spread-shot, heavy-cannon (tutorial system); corsair-missile, grapeshot-cannon, boarding-snare (tubernovae) | Removed weapon stops appearing as a mission drop |
+| [src/game/data/missionWeaponRewards.ts](src/game/data/missionWeaponRewards.ts) | every live weapon's `[missionId, weaponId]` pair (strict bijection) | Bijection tests fail; the orphaned combat mission must be remapped to another weapon or removed |
 | [src/game/state/ShipConfig.test.ts](src/game/state/ShipConfig.test.ts) | `"rapid-fire"` at line 29 (asserts DEFAULT_SHIP starts with it), plus `spread-shot` / `heavy-cannon` literals throughout the slot/inventory assertions | Test fails |
-| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | Extensive weapon-id literals: `rapid-fire`, `spread-shot`, `heavy-cannon` (used to assert slot/inventory shape and migration behavior) | Tests fail at every assertion that names the removed id |
+| [src/game/state/GameState.test.ts](src/game/state/GameState.test.ts) | `rapid-fire` / `spread-shot` / `heavy-cannon` literals throughout (slot/inventory + migration assertions) | Tests fail |
 | [src/game/state/rewards.test.ts](src/game/state/rewards.test.ts) | `spread-shot`, `heavy-cannon`, `corsair-missile` (mission-reward selection tests) | Reward-pool tests assert specific id outcomes and fail if any of these go away |
-| [src/game/state/sync.test.ts](src/game/state/sync.test.ts) | `rapid-fire` (lines ~71, ~123 — round-trip save fixtures) | Sync round-trip tests fail |
+| [src/game/state/sync.test.ts](src/game/state/sync.test.ts) | `rapid-fire` (round-trip save fixtures, 5 sites) | Sync round-trip tests fail |
 
 ## Save-format safety net + credit refund (HARD RULE)
 `migrateShip` silently DROPS unknown weapon and augment ids on hydrate — existing saves are SAFE from crashes. Server schema is permissive (`LegacyShipSchema`). **No DB migration needed for removals.**
 
-**Player progress, however, is the load-bearing concern.** When a weapon is removed from the catalog, every player who owned a copy must be reimbursed in credits — **base cost + per-level upgrade costs paid + cost of every installed augment**. The refund is a HARD RULE: removing a weapon without wiring the refund silently destroys hours of player progression and that's not acceptable.
+**Player progress, however, is the load-bearing concern** — the refund (**base cost + upgrades paid + installed augment costs**) is the HARD RULE in the banner above.
 
 The refund pipeline lives at [src/game/state/persistence/salvageRemovedWeapons.ts](src/game/state/persistence/salvageRemovedWeapons.ts):
-- `REMOVED_WEAPON_BASE_COSTS` is the load-bearing map. **Add the removed id + its last-shipped `cost` here** before deleting the weapons.json entry. Once the id leaves `WEAPON_IDS`, this map is the only place that remembers what the player paid.
 - `calculateLegacyRefund(raw)` is called from `hydrate()` in [persistence.ts](src/game/state/persistence.ts) BEFORE the per-shape migrators (because they drop unknown ids via `isKnownWeapon` before salvage can see them). It walks the raw legacy snapshot — supports new-shape (per-instance), legacy id-array (`unlockedWeapons` + `weaponLevels` + `weaponAugments`), named-slots, and pre-loadout `primaryWeapon` shapes.
 - The refund is added to `state.credits` purely additively. No mutation of slots/inventory — those are still cleaned up by `migrateShip` as before.
 - Tests: [salvageRemovedWeapons.test.ts](src/game/state/persistence/salvageRemovedWeapons.test.ts). Add a new case for any new wave of removals (covers the per-instance + per-id-ledger paths).
@@ -210,12 +210,12 @@ The other danger is the hard-coded reference list above.
 Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `migrateShip`, `DropController`, or `ShipConfig.test.ts` today. Migrate-save drops unknown augment ids the same way. **Still grep the id** — `lootPools.ts`, mission rewards, and tests CAN reference augment ids.
 
 ## Steps
-1. **Refund entry FIRST.** Before touching the catalog, add the removed id + its current `cost` to `REMOVED_WEAPON_BASE_COSTS` in [salvageRemovedWeapons.ts](src/game/state/persistence/salvageRemovedWeapons.ts). Order matters — once `WEAPON_IDS` no longer contains the id, you can't easily look up the original cost. Augments installed on the removed weapon get refunded automatically via `AUGMENTS[augId].cost`; no extra work needed for those.
+1. **Refund entry FIRST** (HARD RULE banner above): add the removed id + its current `cost` to `REMOVED_WEAPON_BASE_COSTS`. Augments installed on it refund automatically via `AUGMENTS[augId].cost` — no extra work.
 2. `grep -rn '"<id>"' src/` (catches anything new since last skill update; includes `*.test.ts` fixtures).
 3. Replace each ref with a sensible fallback id, or delete if optional.
 4. Remove entry from `weapons.json` / `augments.ts`.
 5. Remove from `WeaponId` / `AugmentId` union.
-6. Remove from `WEAPON_IDS` / `AUGMENT_IDS` (`satisfies` will fail to compile if these drift).
+6. Remove from `WEAPON_IDS` / `AUGMENT_IDS` — a stale id left in the array fails typecheck (`satisfies readonly WeaponId[]` rejects ids outside the union).
 7. (Optional) drop unused `BootScene.ts` generator + texture key — harmless dead code if left.
 8. **Salvage test.** Add a new `it()` to `salvageRemovedWeapons.test.ts` covering the new id at level 1 (no augments) and at higher levels with augments. The test is the contract that the refund is wired correctly.
 9. **TODO.md backlog entry.** Append the verbatim weapons.json spec under "Phase Vegetable-Catalog (backlog)" so the weapon can be reintroduced later. Include `tier`, `family`, sprite keys.
@@ -236,7 +236,7 @@ Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `mi
 - **Reintroducing a previously-removed id is safe** — `salvageRemovedWeapons.ts` filters out any id present in the live `WEAPON_IDS`, so a stale `REMOVED_WEAPON_BASE_COSTS` entry stops firing automatically once the id is back in the catalog. Leave the entry; the salvage map is a graveyard, not a registry. Optionally remove it for tidiness.
 
 ## REMOVE
-- **Refund entry in `REMOVED_WEAPON_BASE_COSTS` (HARD RULE — see banner at the top of the REMOVE section).** Skipping it silently wipes player progression. `salvageInvariants.test.ts` catches the easy case (id in TODO backlog but missing from the map) — but the human ledger of "what cost did this weapon ship at" only exists in your head and the soon-deleted `weapons.json` entry.
+- **Refund entry in `REMOVED_WEAPON_BASE_COSTS` (HARD RULE — see REMOVE banner).** `salvageInvariants.test.ts` only catches the easy case (id in TODO backlog but missing from the map); the rest is on you.
 - Every hard-coded reference in the table is updated/deleted.
 - `DEFAULT_SHIP.slots[0].id` and `migrateShip` fallback resolve to a known `WeaponId`.
 - `ShipConfig.test.ts:29` updated to the new starter weapon. `GameState.test.ts`, `rewards.test.ts`, `sync.test.ts` only need editing if they assert the removed id — `grep -rn '"<id>"' src/game/state/*.test.ts`.
@@ -270,7 +270,7 @@ root = "scope_root"
 
 [[check]]
 kind = "file_contains"
-path = "src/lib/schemas/save.ts"
+path = "src/game/data/weapons.ts"
 pattern = "WEAPON_IDS"
 root = "scope_root"
 

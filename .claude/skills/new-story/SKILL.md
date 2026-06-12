@@ -10,9 +10,6 @@ Invoke for ANY request touching story content — adding, rewriting, retriggerin
 ## Triggers
 
 - **Slash:** `/new-story`, `/edit-story`, `/story`
-- **Create:** "add a story / chapter / cinematic / cutscene / voiceover / narration / lore / popup"; "show a story when X happens"
-- **Modify:** "rewrite / edit / tweak / punch up / trim / extend the X synopsis | body | log summary"; "rerecord / regenerate / fix X's voice"; "swap X's music"; "make X auto-fire on Y"; "X feels too long / short / dry"
-- **Remove:** "remove / delete / drop / scrap / rip out / kill / retire / disable / mute the X story | cinematic | briefing | voice"
 
 If the request names a story id, uses any word in {Story log, cinematic, voiceover, narration, chapter, lore, synopsis, log summary, briefing} alongside an action verb, or expresses sentiment about an existing story, invoke this skill.
 
@@ -38,18 +35,12 @@ Renaming an entry's `id` is REMOVE + CREATE — see REMOVE.
 - `StoryModal` only ducks the menu bed when `musicTrack !== null`.
 - Replay from Story log is ALWAYS voice-only over the existing bed (`StoryModal.tsx#useEffect` `replay-from-log` hard-codes `musicSrc: null`).
 
-Pairings: cinematic = music + voice + `voiceDelayMs: 3000`. Briefing = `musicTrack: null` + `voiceDelayMs: 0`. If user gives only voice, that's valid — don't prompt for music.
+If user gives only voice, that's valid — don't prompt for music.
 
-# Body vs logSummary
+# Body vs logSummary — authoring deltas (definitions: CLAUDE.md §1)
 
-Two parallel text fields, independent jobs:
-
-- **`body`** — SPOKEN. What Grandma reads aloud. Short, sentence-clean, each string is a `<p>` in `StoryModal`.
-- **`logSummary`** — WRITTEN deeper synopsis in `StoryListModal`. Lore, context, foreshadowing, stakes. 2–4 paragraphs, ~80–150 words. Designed to go further than `body` — don't shrink it to match.
-
-# Narrator — Grandma
-
-All voice in the game = one in-character narrator (Grandma), generated via Chatterbox in `MikkoNumminen/AudiobookMaker`. Write `body` as Grandma speaking aloud: warm-but-no-nonsense, friendly, no UI jargon, no "click here". `logSummary` is read silently — denser sentences OK, same voice.
+- `body` (spoken): each string renders as a `<p>` in `StoryModal`. Short, sentence-clean, warm-but-no-nonsense; no UI jargon, no "click here". Voice generated via Chatterbox in `MikkoNumminen/AudiobookMaker`.
+- `logSummary` (written): 2–4 paragraphs, ~80–150 words; read silently — denser sentences OK, same voice. Goes further than `body`; don't shrink it to match.
 
 # Surface map
 
@@ -60,11 +51,11 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
 | Cinematic popup | `src/components/story/StoryModal.tsx` (renders `body`) |
 | Story log list | `src/components/story/StoryListModal.tsx` (renders `title` + `logSummary`) |
 | Audio engine | `src/game/audio/story.ts` — `play({ musicSrc, voiceSrc, voiceDelayMs })` |
-| Trigger helpers | `src/game/data/storyTriggers.ts` — `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`; tested in `storyTriggers.test.ts` against real `STORY_ENTRIES` |
+| Trigger helpers | `src/game/data/storyTriggers.ts` — `selectFirstTimeEntry`, `selectOnSystemEnterEntry`, `selectOnMissionSelectEntry`, `selectReadyClearedIdleEntries`, `selectReadyAllClearedIdleEntries`; tested in `storyTriggers.test.ts` against real `STORY_ENTRIES` |
 | Auto-fire (firstTime, onMissionSelect, onSystemEnter, onSystemClearedIdle) | `src/components/hooks/useStoryTriggers.ts` |
 | Auto-fire (onShopOpen) | `src/components/hooks/useShopAudio.ts` `useEffect`, gated on `tab === "market"`, one-shot per `/shop` session |
 | Story-log replay bed | `src/game/audio/storyLogAudio.ts` — **hard-codes** `/audio/story/great-potato-awakening-music.ogg`. See REMOVE table. |
-| Persistence | `seenStoryEntries: StoryId[]` in `src/game/state/stateCore.ts`; hydrate filters via `isKnownStoryId` |
+| Persistence | `seenStoryEntries: StoryId[]` in `src/game/state/stateCore.ts`; hydrate filters via `isKnownStoryId`; browser-local backup `src/game/state/seenStoriesLocal.ts` filters the same way on read |
 | DB column | `seen_story_entries TEXT[]` (migration `20260429000000_add_seen_story_entries.sql`) — covers any size; no migration needed for content adds/removes |
 | Audio assets | `public/audio/story/<storyId>-voice.{mp3\|ogg}`, `public/audio/story/<storyId>-music.{ogg\|mp3}` |
 
@@ -79,10 +70,10 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
 7. `voiceDelayMs` — `3000` if music present, `0` if not.
 8. `autoTrigger`:
    - `null` — replay-only via Story log; never auto-fires. (Caveat: never reaches `seenStoryEntries`, so won't surface in the log unless something else marks it seen.)
-   - `{ kind: "first-time" }` — first galaxy load. Firing loop picks the FIRST unseen `first-time` entry; ship at most one usefully. **No current entries use this kind** — `great-potato-awakening` migrated to `on-system-enter` repeatable for parity with `tubernovae-cluster-intro`. Helper is kept as scaffolding; prefer `on-system-enter` for new chapter openers.
+   - `{ kind: "first-time" }` — first galaxy load. Firing loop picks the FIRST unseen `first-time` entry; ship at most one usefully. **No shipping entries use this kind** — prefer `on-system-enter` for chapter openers.
    - `{ kind: "on-mission-select", missionId }` — fires once when the mission card opens; gated on `unlockedPlanets`.
    - `{ kind: "on-shop-open" }` — fires every time the player lands on `/shop` (any shop); audio replays unconditionally, seen-set marks once.
-   - `{ kind: "on-system-enter", systemId, repeatable? }` — fires on first warp into the system. Pairs with `mode: "modal"` + custom music. Optional `repeatable: true` re-fires the cinematic every time the player transitions into the system (in-session `autoFired` still gates so it can't loop while idle in-system); leave unset / false for once-ever default. Shipping `repeatable: true` to players means they re-watch the chapter on every warp — fine for short beats, tedious for 30s+ chapters.
+   - `{ kind: "on-system-enter", systemId, repeatable? }` — fires on first warp into the system. Pairs with `mode: "modal"` + custom music. Optional `repeatable: true` re-fires the cinematic every time the player transitions into the system (in-session `autoFired` still gates so it can't loop while idle in-system); leave unset / false for once-ever default. Both shipping chapter cinematics use `repeatable: true`; drop it for beats players shouldn't re-watch on every warp.
    - `{ kind: "on-system-cleared-idle", systemId, initialDelayMs, intervalMs }` — repeats while idling in fully-cleared system; cancels on shop / Story log / story modal / system warp.
    - `{ kind: "on-all-cleared-idle", initialDelayMs, intervalMs }` — fires repeatedly while idling in the galaxy view once EVERY mission across EVERY system is complete; system-agnostic (the "you've caught up to live content" cue). Suppresses the per-system `on-system-cleared-idle` entries so two voice loops don't stack (see `useStoryTriggers`). Shipping example: `all-content-cleared` (story.ts line 286).
    - Anything else → STOP (see boundary).
@@ -92,7 +83,7 @@ All voice in the game = one in-character narrator (Grandma), generated via Chatt
 
 # Templates
 
-A–E ship today; F is reserved for future replay-only/lore drops.
+B–E ship today (A's `first-time` kind has no shipping entries); F is reserved for replay-only/lore drops.
 
 **A. Cinematic intro (`first-time`, modal, music + voice)**
 ```ts
@@ -136,7 +127,7 @@ autoTrigger: {
 ```
 `logSummary`: what was won, reflection, hook to next system.
 
-**E. System-entry chapter cinematic (`on-system-enter`, modal, music + voice)** — same shape as A but `autoTrigger: { kind: "on-system-enter", systemId: "<solarSystemId>" }`. Add `repeatable: true` to the trigger to re-fire on every system entry (default: once-ever). Today's example: `tubernovae-cluster-intro` (currently ships repeatable for chapter-replayability — flip to false / drop the field for short beats players shouldn't re-watch).
+**E. System-entry chapter cinematic (`on-system-enter`, modal, music + voice)** — same shape as A but `autoTrigger: { kind: "on-system-enter", systemId: "<solarSystemId>" }`. Add `repeatable: true` to the trigger to re-fire on every system entry (default: once-ever). Today's example: `tubernovae-cluster-intro` (ships `repeatable: true`).
 
 **F. Replay-only / lore drop (`null`, modal)** — `autoTrigger: null`. See caveat in input #8.
 
@@ -173,7 +164,7 @@ Mostly safe — `isKnownStoryId` drops unknown ids on hydrate. The danger is har
 | `src/game/audio/storyLogAudio.ts` (`STORY_LOG_MUSIC_PATH`) | Hard-coded `/audio/story/great-potato-awakening-music.ogg` — Story log + replay bed | **Blocker** on deleting the Awakening's music asset. Repoint `STORY_LOG_MUSIC_PATH` at another committed file first. |
 | `src/game/data/storyTriggers.test.ts` (`selectOnSystemEnterEntry` block) | `"great-potato-awakening"` is asserted as the entry returned for `systemId: "tutorial"`. The `selectFirstTimeEntry` block now asserts `null` on an empty catalog (no current `first-time` entries — both shipping cinematics use `on-system-enter` repeatable). | Update the `selectOnSystemEnterEntry` assertion to point at the new tutorial cinematic, OR drop both. |
 
-Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, auth/save guards, or user-facing components.
+Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, runtime guard code, or user-facing components — but `story.test.ts`, `saveValidation.test.ts`, and `integrityCheck.test.ts` hard-code `"great-potato-awakening"` in `StoryId`-typed fixtures, so `tsc`/tests break on its removal until those are repointed.
 
 **Grep is non-optional** — catches any id reference added since this skill was last updated.
 
@@ -203,7 +194,7 @@ Story ids do not appear in mission/weapon/perk/enemy catalogs, `lootPools.ts`, a
 
 **Asset work:** `public/audio/story/<storyId>-voice.{mp3|ogg}`, `-music.{ogg|mp3}` (only when music set).
 
-**REMOVE cleanup:** `src/app/api/save/route.test.ts` (only if removed id is the test fixture), plus the `storyTriggers.test.ts` / `storyLogAudio.ts` / `story.ts` references in the REMOVE table.
+**REMOVE cleanup:** the files in the REMOVE table, plus whatever step-1 grep turns up.
 
 **Never:** `StoryModal.tsx`, `StoryListModal.tsx` (data-driven from `StoryEntry`); `story.ts` audio engine (generic); `stateCore.ts` / `persistence.ts` (sanitised via `isKnownStoryId`); `src/lib/schemas/save.ts` (`z.array(z.string())` is intentionally permissive at the wire boundary); `db/migrations/`; `useStoryTriggers.ts` / `useShopAudio.ts` (only modify for a NEW trigger kind — see boundary).
 

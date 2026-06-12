@@ -1,6 +1,6 @@
 ---
 name: ai-codegen-smell-audit
-description: Read-only audit for 10 concrete failure modes that recur in AI-generated code — defensive checks on non-nullable types, swallowed errors, mirror tests, phantom TODOs, and 6 others (full list in the body). Produces a markdown report under docs/audits/. Does not modify code. Designed for PR review and on-demand scans, not for use during initial generation.
+description: Read-only audit for 10 failure modes that recur in AI-generated code — defensive checks on non-nullable types, swallowed errors, mirror tests, phantom TODOs, and 6 others. Writes a markdown report under docs/audits/. For PR review and on-demand scans, not during initial generation.
 ---
 
 # When to use
@@ -211,7 +211,7 @@ For each check below: scan the configured scope, apply the calibration rules (be
 
 # Output format
 
-Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-runs APPEND to the same file under a `## Run {N} ({HH:MM} UTC)` divider, where `{N}` is `(count of existing "## Run " headers in the file) + 1` (first run is "Run 1" and gets the divider too — so a same-day diff against Run 1 is mechanical). UTC is fixed regardless of the operator's timezone so cross-timezone reviewers reading the report agree on ordering. Each run section repeats the full structure below; nothing from a prior run is rewritten or deleted. Structure:
+Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-runs APPEND under a `## Run {N} ({HH:MM} UTC)` divider — `{N}` = count of existing `## Run ` headers + 1; the first run is Run 1 and gets the divider too. Times are always UTC so cross-timezone reviewers agree on ordering. Each run section repeats the full structure below; nothing from a prior run is rewritten or deleted. Structure:
 
 ```markdown
 # AI-codegen smell audit — {YYYY-MM-DD}
@@ -219,7 +219,7 @@ Markdown report written to `docs/audits/ai-smell-{YYYY-MM-DD}.md`. Same-day re-r
 ## Run 1 (HH:MM UTC)
 
 **Scope:** {files / directory / PR diff string}
-**Checks run:** 10
+**Checks run:** {N of 10}
 **Total findings:** {N} ({maj} major, {min} minor, {nit} nit)
 
 ### Findings
@@ -254,17 +254,13 @@ The final report ends with `**Summary: clean**` (0 findings), `**Summary: N nits
 
 These rules apply at scan time — a finding that matches a skip rule does not appear in the report.
 
-- **Trust boundaries** — user input, network responses, FS reads, third-party API responses, browser APIs that can throw on hostile DOM state — defensive checks here are required.
-- **Intent-naming helpers** — `assertNever`, `unreachable`, `panic`, `invariant`, `defaultTo`, `pluralize`, `assert*` — these document a contract; "single-use" doesn't apply.
-- **Generic code on purpose** — utility libraries, type-level helpers, any folder named `utils/` or `helpers/` — `data`/`result`/`value` here is the correct vocabulary.
-- **Explicit legacy markers** — files or sections marked `// LEGACY:` are excluded from style-drift checks.
-- **Documented why-comments** — comments containing `because|so that|prevents|workaround|SECURITY|INVARIANT|AI-NOTE|HACK` are not paraphrase-comments.
+- **Per-check Skip rules are binding** — each check's own **Skip** line (trust boundaries for #1, `// LEGACY:` markers for #2, why-comment keywords for #3, intent-named helpers for #4, utility-namespace dirs for #5) suppresses at scan time; they are not restated here.
 - **Project conventions in CLAUDE.md** — if the repo declares a convention, that convention is the baseline; intra-file consistency is measured against project style.
 - **Sidecar dismissals** — past dismissals listed in `docs/audits/_dismissals.md` are honored on every run. The sidecar is the single source of truth for what's known-false; it is NOT a section of any per-day report. The next run reads the sidecar before scanning and drops any finding whose `file:line:check` key appears there. To dismiss a new finding, append a row to the sidecar (template at `.claude/skills/ai-codegen-smell-audit/false-positive-log.template.md`). To revive a dismissal, delete its row. The sidecar is committed to the repo — dismissals are a team contract.
 
 # Calibration against this repo (validation pass — 2026-05-17)
 
-The 10 checks were dry-run against `d:/koodaamista/Spacepotatis/src/` before publishing this skill.
+The 10 checks were dry-run against this repo's `src/` tree before publishing this skill.
 
 Line numbers below are as-of the dated pass; re-run the audit for current locations. The cited files all still exist; only the `:NN` suffixes drift. Re-verify each verdict against current code before relying on it.
 
@@ -282,15 +278,10 @@ Four verdict labels:
 | 4. single-use-helpers | **No matches** | Exports are domain-anchored or multi-call. Check grounded; fires in greenfield repos. |
 | 5. generic-names-in-domain-context | **Noise-prone** | Domain vocab is rich; `item` / `data` survive only at justified spots (queue accessor, image buffer). High false-positive risk without aggressive skip rules. |
 | 6. swallowed-errors | **Pattern hits, skip rule passes** | `src/game/state/seenStoriesLocal.ts:18` matches the catch pattern but is the legitimate version (returns `[]` with documented why). Skip rule (documented-why comment) correctly suppresses it. No un-suppressed finding. |
-| 7. mirror-tests | **Real smells found (opt-in only)** | Dormant under default scope (tests excluded). With `--include-tests`, `src/game/phaser/systems/weaponMath.test.ts:30` and `src/game/state/ShipConfig.test.ts:70` would be reported — both restate impl formulas. Half-mirror — anchored values sit alongside; per the updated skip rule, report only the formula assertion lines, not the whole tests. |
+| 7. mirror-tests | **Real smells found (opt-in only)** | Dormant under default scope (tests excluded). With `--include-tests`, `src/game/phaser/systems/weaponMath.test.ts:26` and `src/game/state/ShipConfig.test.ts:70` would be reported — both restate impl formulas. Half-mirror — anchored values sit alongside; per the updated skip rule, report only the formula assertion lines, not the whole tests. |
 | 8. phantom-todos | **Pattern hits, skip rule passes** | `src/game/audio/story.ts:52` TODO has no ticket/owner but DOES carry a removal condition ("when per-category sliders ship in MuteToggle"), so the condition leg of the rubric correctly classifies it as legitimate — not a phantom. |
 | 9. duplicated-helpers | **No matches** | Codebase favors single source per math/string operation. Check grounded; fires on copy-paste-heavy code. |
 | 10. over-typed-primitives | **No matches** | `as const satisfies` is the legitimate version (pins literals AND verifies id membership) — e.g. `EnemyId` in `src/lib/schemas/enemies.ts`; the `as const satisfies readonly WeaponId[]` clause at `src/game/data/weapons.ts:40` (the schemas dir verifies it via `z.enum(WEAPON_IDS)`). |
-
-**Real smells found** on this repo: mirror-tests (opt-in, half-mirror formula assertions).
-**Pattern hits, skip rule passes** on this repo: defensive-checks-for-impossible-cases, swallowed-errors, phantom-todos (`src/game/audio/story.ts:52`) — the checks match candidates but the skip rules correctly classify every match as legitimate. These prove the skip rules work; they are not findings.
-**Noise-prone** on this repo: generic-names-in-domain-context.
-**No matches** on this repo: stylistic-drift, paraphrase-comments, single-use-helpers, duplicated-helpers, over-typed-primitives. The codebase is well-disciplined; these remain useful for less-curated code.
 
 # Failure modes of the skill itself
 
