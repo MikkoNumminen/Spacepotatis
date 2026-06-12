@@ -4,7 +4,6 @@ import {
   buyWeaponSlot,
   MAX_WEAPON_SLOTS,
   getInstanceAt,
-  slotPurchaseCost,
   useGameState
 } from "@/game/state";
 import { LoadoutDpsGraph } from "@/components/loadout/LoadoutDpsGraph";
@@ -19,7 +18,7 @@ import {
   getEquippedEntries,
   getInventoryEntries
 } from "@/components/loadout/selectors";
-import { getWeapon } from "@/game/data";
+import { getWeapon, slotPurchaseCost } from "@/game/data";
 
 // `mode` is retained for the shop page call site but no longer branches —
 // LoadoutMenu is mounted only by the shop now (the galaxy-view loadout

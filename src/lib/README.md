@@ -178,8 +178,7 @@ compatible.**
 | `next/cache` | `leaderboard.ts` | `unstable_cache` for ISR-style read caching. CLAUDE.md §13. |
 | `@/lib/schemas/*` | API route consumers, **not this module** | Zod schemas validate POST bodies before the cheat guards run. The guards themselves take typed inputs and trust the schema layer for shape. |
 | `@/types/game` | `saveValidation.ts`, `leaderboard.ts` | `MissionId`, `SolarSystemId`, etc. |
-| `@/game/data/*` | `saveValidation.ts` | Mission graph + loot pools + enemy creditValue. **Cross-domain edge** — the cheat guard walks JSON content at module load (`saveValidation.ts:170`); audit recommends lazy-init in a future PR. |
-| `@/game/state/ShipConfig` | `saveValidation.ts` (`MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES`) | **Architectural back-edge** — see [04-found-bugs.md 2026-05-29](../../docs/audit/04-found-bugs.md). Pre-dates the audit; surfaced by Phase 5 verification, not yet resolved. |
+| `@/game/data/*` | `saveValidation.ts` | Mission graph + loot pools + enemy creditValue + `SYSTEM_UNLOCK_GATES` + `weaponUpgradeCost`. Allowed `infra → content` edge; the derived caps are lazy-init (first-call getters, PR #248). |
 
 ## Invariants
 
@@ -190,8 +189,9 @@ compatible.**
   primitives. The DB client uses Neon's WebSocket pool specifically so it
   works on Edge. ([db.ts](./db.ts))
 - **Every save POST runs the full cheat-guard suite + `save_audit` write.**
-  The order is `validateMissionGraph` → `validateCreditsDelta` →
-  `validatePlaytimeDelta` → `validateNoRegression`. Skipping
+  The order is `validateMissionGraph` → `validateNoRegression` →
+  `validatePlaytimeDelta` → `validateCreditsDelta` (see the handler in
+  [`src/app/api/save/route.ts`](../app/api/save/route.ts)). Skipping
   `validateNoRegression` was the 2026-05-02 wipe trigger.
   ([saveValidation.ts:383](./saveValidation.ts))
 - **Cheat-guard rejections are 422, transient, never 4xx-account-block.**
@@ -226,13 +226,14 @@ compatible.**
   via `auth.ts`'s NextAuth-at-module-load side effect. For NEW infra
   consumers, use deep paths; existing code stays on deep paths too. Open
   question logged in [04-found-bugs.md 2026-05-29](../../docs/audit/04-found-bugs.md).
-- **`infra → state` back-edge in `saveValidation.ts`.** Three constants
-  (`MAX_LEVEL`, `weaponUpgradeCost`, `SYSTEM_UNLOCK_GATES`) are pulled from
-  `@/game/state/ShipConfig` and `@/game/state/stateCore`. Pre-dates the
-  audit. Renaming any of those three exports breaks the cheat-guard chain;
-  the TS compiler catches it but the README explanation for the rename
-  needs to mention this consumer too. Logged in [04-found-bugs.md
-  2026-05-29](../../docs/audit/04-found-bugs.md).
+- **Don't re-open the `infra → state` back-edge.** This module imports
+  NOTHING from `@/game/state` anymore — the back-edge surfaced by the audit
+  was closed in stages (`MAX_LEVEL` → `@/types`, `SYSTEM_UNLOCK_GATES` →
+  `@/game/data`, and finally `weaponUpgradeCost` → `@/game/data/upgradeCurves`
+  on 2026-06-12). If a new cheat guard needs a ship constant or balance
+  curve, it lives in `@/types` (pure caps) or `@/game/data` (balance data) —
+  never reach into `@/game/state`, which would re-create the module-level
+  cycle. History in [04-found-bugs.md 2026-05-29](../../docs/audit/04-found-bugs.md).
 - **Bypassing `validateNoRegression`** on the POST path is the
   2026-05-02-wipe footgun. The other three guards explicitly *allow*
   shrinking values (credit spending is legitimate). Only this one catches

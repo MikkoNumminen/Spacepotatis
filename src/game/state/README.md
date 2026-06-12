@@ -48,10 +48,16 @@ Every state change goes through one of these:
 ### ShipConfig values ([ShipConfig.ts](./ShipConfig.ts))
 
 - Defaults + caps: `DEFAULT_SHIP`, `MAX_LEVEL`, `MAX_AUGMENTS_PER_WEAPON`, `MAX_WEAPON_SLOTS`
-- Cost curves: `weaponUpgradeCost`, `shieldUpgradeCost`, `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost`
-- Effective stats: `weaponDamageMultiplier`, `getMaxShield`, `getMaxArmor`, `getReactorCapacity`, `getReactorRecharge`
+- Effective stats (ShipConfig-reading getters): `getMaxShield`, `getMaxArmor`, `getReactorCapacity`, `getReactorRecharge`
 - Ship instance helper: `newWeaponInstance`
 - Re-exported types: `ShipConfig`, `WeaponInstance`, `WeaponPosition`, `ReactorConfig`
+
+The pure cost/damage curves (`weaponUpgradeCost`, `shieldUpgradeCost`,
+`armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost`,
+`slotPurchaseCost`, `weaponDamageMultiplier`) moved to
+[`src/game/data/upgradeCurves.ts`](../data/upgradeCurves.ts) on 2026-06-12 —
+they're balance data, and the move closed the `infra → state` back-edge.
+Import them from `@/game/data`, not from this module.
 
 ### Constants
 
@@ -83,10 +89,9 @@ These are exported from individual files but are NOT part of the module's contra
 
 ### Reverse-edges to know about
 
-Two modules import FROM `state/ShipConfig.ts` even though the proposed module graph says they shouldn't. Both back-edges SHRANK in the 2026-05 follow-up work (`MAX_LEVEL`/`MAX_WEAPON_SLOTS` → `@/types`, `SYSTEM_UNLOCK_GATES` → `@/game/data`); what remains is logged in [`docs/audit/04-found-bugs.md`](../../../docs/audit/04-found-bugs.md).
+One module still imports FROM `state/ShipConfig.ts` even though the proposed module graph says it shouldn't. The original back-edges were closed in stages (`MAX_LEVEL`/`MAX_WEAPON_SLOTS` → `@/types` PR #259, `SYSTEM_UNLOCK_GATES` → `@/game/data` PR #261, the cost curves → `@/game/data/upgradeCurves.ts` 2026-06-12 — `saveValidation.ts` no longer imports anything from this module). History in [`docs/audit/04-found-bugs.md`](../../../docs/audit/04-found-bugs.md).
 
-- **`src/lib/saveValidation.ts`** now imports only `weaponUpgradeCost` from this module (the runtime cost-curve fn tied to the upgrade ladder — the last third of the old back-edge; `MAX_LEVEL` moved to `@/types`, `SYSTEM_UNLOCK_GATES` to `@/game/data`). Renaming or removing it breaks the save-pipeline cheat guards. The TS compiler catches it, but the AI-NOTE matters because nothing in the export's surrounding code hints at the cross-module consumer.
-- **`src/lib/schemas/save.ts`** imports the ship-shape TYPES `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots` from this module (type-only; the `MAX_LEVEL`/`MAX_WEAPON_SLOTS` constants it used to import now come from `@/types`). Same shape: renaming any of those breaks Zod schema parsing of the save payload.
+- **`src/lib/schemas/save.ts`** imports the ship-shape TYPES `ReactorConfig`, `ShipConfig`, `WeaponInstance`, `WeaponInventory`, `WeaponSlots` from this module (type-only — an ACCEPTED exception per the Phase 4 doc-writer decision; the runtime constants it used to import now come from `@/types`). Renaming any of those types breaks Zod schema parsing of the save payload.
 
 When you touch `ShipConfig.ts`, run `npm run typecheck` before assuming the change is local.
 

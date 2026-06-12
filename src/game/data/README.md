@@ -41,6 +41,13 @@ Per-catalog accessors (one row per JSON catalog):
 - **Mission-weapon rewards** — [`missionWeaponRewards.ts`](missionWeaponRewards.ts):
   `MISSION_WEAPON_REWARDS`, `getBuyableWeaponIds(completed)`,
   `getMissionForWeapon(weaponId)`.
+- **Upgrade curves** — [`upgradeCurves.ts`](upgradeCurves.ts): the pure
+  `number → number` balance curves — `weaponUpgradeCost`, `shieldUpgradeCost`,
+  `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost`,
+  `slotPurchaseCost`, `weaponDamageMultiplier`. Moved here from
+  `state/ShipConfig.ts` (2026-06-12) so `saveValidation.ts`'s credit-cap
+  derivation consumes them via the allowed `infra → content` edge. The
+  ShipConfig-reading stat getters (`getMaxShield` etc.) stay in `state`.
 
 Integrity check (mostly for tests):
 

@@ -3,13 +3,13 @@ import {
   buyWeaponUpgrade,
   getSellPrice,
   sellWeapon,
-  MAX_LEVEL,
-  weaponUpgradeCost
+  MAX_LEVEL
 } from "@/game/state";
 import type { WeaponInstance, WeaponPosition } from "@/game/state";
 import {
   MAX_AUGMENTS_PER_WEAPON,
-  getStat
+  getStat,
+  weaponUpgradeCost
 } from "@/game/data";
 import { playUiCue } from "@/game/audio";
 import type { StatId } from "@/game/data";

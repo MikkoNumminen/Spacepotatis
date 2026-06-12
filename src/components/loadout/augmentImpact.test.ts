@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeAugmentImpact, describeAugmentEffect } from "./augmentImpact";
-import { getAugment, getWeapon } from "@/game/data";
-import { weaponDamageMultiplier, type WeaponInstance } from "@/game/state/ShipConfig";
+import { getAugment, getWeapon, weaponDamageMultiplier } from "@/game/data";
+import type { WeaponInstance } from "@/game/state";
 
 const baseInstance = (level: number, augments: WeaponInstance["augments"] = []): WeaponInstance => ({
   id: "rapid-fire",

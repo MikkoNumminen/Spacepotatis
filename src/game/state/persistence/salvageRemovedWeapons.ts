@@ -13,8 +13,7 @@
 // out before lookup), so leaving rows here is harmless and forward-safe.
 
 import type { WeaponInstance } from "../ShipConfig";
-import { weaponUpgradeCost } from "../ShipConfig";
-import { WEAPON_IDS, AUGMENTS } from "@/game/data";
+import { WEAPON_IDS, AUGMENTS, weaponUpgradeCost } from "@/game/data";
 import type { AugmentId } from "@/types";
 import type { LegacyShipSnapshot } from "./types";
 import type { LegacyWeaponInstanceLike } from "./helpers";

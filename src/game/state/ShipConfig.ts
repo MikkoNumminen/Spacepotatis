@@ -44,10 +44,11 @@ export interface ShipConfig {
 }
 
 // MAX_LEVEL and MAX_WEAPON_SLOTS were moved to @/types and are re-exported
-// from this file (see top of file).
-
-// Per-level additive damage bonus. Level 1 = 1.0× base, level 5 = 1.60×.
-const WEAPON_DAMAGE_PER_LEVEL = 0.15;
+// from this file (see top of file). The pure cost/damage curves
+// (weaponUpgradeCost, shieldUpgradeCost, slotPurchaseCost, etc.) moved to
+// `src/game/data/upgradeCurves.ts` on 2026-06-12 — they're balance data,
+// and homing them in `content` keeps `infra` (saveValidation) off this
+// module. Only ShipConfig-reading getters stay here.
 
 const BASE_SHIELD = 40;
 const BASE_ARMOR = 60;
@@ -87,44 +88,6 @@ export function getReactorCapacity(config: ShipConfig): number {
 
 export function getReactorRecharge(config: ShipConfig): number {
   return BASE_REACTOR_RECHARGE + config.reactor.rechargeLevel * REACTOR_RECHARGE_PER_LEVEL;
-}
-
-export function shieldUpgradeCost(level: number): number {
-  return 200 * Math.pow(2, level);
-}
-
-export function armorUpgradeCost(level: number): number {
-  return 300 * Math.pow(2, level);
-}
-
-export function reactorCapacityCost(level: number): number {
-  return 200 * Math.pow(2, level);
-}
-
-export function reactorRechargeCost(level: number): number {
-  return 200 * Math.pow(2, level);
-}
-
-// Cost to buy ONE more weapon slot, given how many slots the ship already
-// owns. The first expansion (slot #2) is intentionally cheap so a player
-// who's cleared the first mission can afford it; from there the curve
-// climbs steeply enough that a 4+ slot loadout is real progression.
-export function slotPurchaseCost(currentSlotCount: number): number {
-  if (currentSlotCount < 1) return 0;
-  if (currentSlotCount === 1) return 500;
-  if (currentSlotCount === 2) return 2000;
-  // Slot 4: 4000, slot 5: 8000, slot 6: 16000 — doubles past slot 3.
-  return 4000 * Math.pow(2, currentSlotCount - 3);
-}
-
-export function weaponDamageMultiplier(level: number): number {
-  return 1 + WEAPON_DAMAGE_PER_LEVEL * (level - 1);
-}
-
-// Level 1 → 2 costs 200; doubles each step. Level 5 is the cap; once there,
-// callers should refuse the purchase.
-export function weaponUpgradeCost(currentLevel: number): number {
-  return 200 * Math.pow(2, currentLevel - 1);
 }
 
 // Position references for mutators. Each instance lives in exactly one

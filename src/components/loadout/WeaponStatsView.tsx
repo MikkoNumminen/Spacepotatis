@@ -1,5 +1,4 @@
-import { weaponDamageMultiplier } from "@/game/state";
-import { foldAugmentEffects } from "@/game/data";
+import { foldAugmentEffects, weaponDamageMultiplier } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types";
 
 // Two-column "spec sheet". Designed to make the per-bullet vs total picture
