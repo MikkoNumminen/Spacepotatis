@@ -236,6 +236,8 @@ Project skills live under [.claude/skills/](.claude/skills/) and are auto-loaded
 | "Is the content safe to commit?" / pre-PR      | `/content-audit`    |
 | Save-pipeline change (persistence / sync / save schema / `/api/save`) pre-commit check | `/save-roundtrip-audit` |
 | "Smell audit" / pre-merge scan of AI-generated code patterns | `/ai-codegen-smell-audit` |
+| A dependabot / dependency-bump PR, or an npm peer-dep / ERESOLVE error | `/deps-triage` |
+| A non-story Grandma voice line (shop DETAILS, UI cues, menu briefing) | `/voice-asset` |
 
 If the request maps to a skill, **invoke it before grepping or reading files** — the skill body already contains the file paths, field names, and invariants you'd otherwise have to derive. If the request *almost* maps to a skill but has an extra constraint, still invoke the skill and adapt; do not fall back to the long path.
 
