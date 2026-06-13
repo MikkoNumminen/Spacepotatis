@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CombatSummary } from "@/game/phaser";
 import type { MissionId, SolarSystemId } from "@/types";
 import { menuMusic, maybePlayClearedCue } from "@/game/audio";
+import { evaluateClearedBoundaries } from "@/game/data";
 import {
   drainScoreQueue,
   flushSaveQueue,
@@ -83,12 +84,14 @@ export function useVictoryFlow({
       // Persistence for the once-per-device "everything cleared" semantics
       // lives in localStorage inside the helper; nothing on StateSnapshot.
       if (summary.victory) {
-        maybePlayClearedCue({
-          justCompletedMissionId: summary.missionId,
-          completedMissions,
-          currentSolarSystemId,
-          unlockedSolarSystems
-        });
+        maybePlayClearedCue(
+          evaluateClearedBoundaries({
+            justCompletedMissionId: summary.missionId,
+            completedMissions,
+            currentSolarSystemId,
+            unlockedSolarSystems
+          })
+        );
       }
 
       // Every victory is enqueued FIRST, before any network I/O. The queue

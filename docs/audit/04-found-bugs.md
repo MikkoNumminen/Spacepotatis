@@ -149,6 +149,29 @@ Severity is a rough hint, not a release-grade triage.
 - Suggested fix: per-file refactor PRs that extract sub-components without changing observable behavior. Each split is its own PR.
 - **Partial resolution 2026-05-29 in PR #256**: QuestPanel split — extracted [`src/components/galaxy/QuestPanelRows.tsx`](src/components/galaxy/QuestPanelRows.tsx) (`Section`, `SuggestedRow`, `CollapsibleRow`, `ShopRow`, `SystemClearCta`). `QuestPanel.tsx` now 197 LOC (was 387). Tests + typecheck + build green; behavior unchanged.
 
+## 2026-06-13 — `audio → content` value edge via `clearedStateCue.ts`
+- Path: [`src/game/audio/clearedStateCue.ts`](src/game/audio/clearedStateCue.ts)
+- Found by: ESLint module-boundary enforcement work (the import-matrix sweep that preceded writing the lint rules)
+- Severity: medium (architectural — `audio` is supposed to depend on `types` only; CLAUDE.md §17)
+- Description: `maybePlayClearedCue` called `getAllMissions()` from `@/game/data` — a VALUE import — to compute whether a victory cleared the current system / all unlocked systems. That made `audio → content` a real runtime edge, contradicting §17 ("audio depends on types only; it does NOT reach content"). The audit's "0 runtime back-edges" claim had focused on the infra/state/schemas axis and missed this one. The progress-evaluation logic didn't belong in an audio engine anyway — it's catalog + progress math.
+- **Resolved 2026-06-13**: extracted the roster computation into a pure content selector `evaluateClearedBoundaries()` ([`src/game/data/clearedState.ts`](src/game/data/clearedState.ts)). `maybePlayClearedCue` now takes the two resulting booleans (`{ systemNowCleared, everythingNowCleared }`) and keeps only the localStorage re-arm + `playUiCue` firing logic — so `audio` is genuinely types-only again (its sole remaining content touch is `itemSfx`'s `import type { PerkId }`, which is type-only and erased). The ui caller (`useVictoryFlow`) runs the selector and passes the verdict in. Behavior is identical; roster test cases moved to [`src/game/data/clearedState.test.ts`](src/game/data/clearedState.test.ts), the audio test now drives the firing logic with explicit booleans.
+
+## 2026-06-13 — `audio → content` (type-only) and `schemas → {content, infra}` are accepted, narrow exceptions
+- Paths: [`src/game/audio/itemSfx.ts:3`](src/game/audio/itemSfx.ts#L3) (`import type { PerkId } from "@/game/data"`); [`src/lib/schemas/save.ts`](src/lib/schemas/save.ts) (`import { WEAPON_IDS } from "@/game/data"`); [`src/lib/schemas/handle.ts:12-17`](src/lib/schemas/handle.ts#L12-L17) (`HANDLE_*` constants from `@/lib/handle`)
+- Found by: same import-matrix sweep
+- Severity: low (documented, deliberate — no cycle / no bundle cost)
+- Description: three pre-existing cross-module edges that are intentional and benign, surfaced while writing the boundary lint:
+  - `audio → content` TYPE-ONLY (`PerkId`): erased at compile time, no runtime edge. The lint allows it via `allowTypeImports: true`.
+  - `schemas → content` (`WEAPON_IDS`, value): the runtime id list deliberately lives in `content/weapons.ts` so client persistence helpers can membership-check without pulling Zod; `save.ts` re-exports it. `content → schemas` is test-only (drift gate), so there is no runtime cycle.
+  - `schemas → infra` (`@/lib/handle` pure `HANDLE_*` constants): `handle.ts` is a dependency-free leaf shared by the schema and the validator so both agree on the wire rules.
+- Status: accepted. The lint config does not forbid these specific edges; the rationale is documented inline in `eslint.config.mjs`. Future cleanup option (not scheduled): move `HANDLE_*` and `WEAPON_IDS` into `@/types` so both consumers pull from the leaf.
+
+## 2026-06-13 — Module boundaries are now lint-enforced (not just documented)
+- Path: [`eslint.config.mjs`](eslint.config.mjs) (the `MODULE_GLOBS` / `denyModules` / `moduleBoundaryConfigs` block)
+- Found by: AI-first follow-up (rating doc "Next +points" item 1)
+- Severity: n/a (improvement, not a defect)
+- Description: the §17 acyclic dependency graph was prose-only — nothing mechanical stopped a regression like the `infra → state` back-edge (PR #289) or the `audio → content` value edge (above) from returning. Added per-zone `@typescript-eslint/no-restricted-imports` overrides encoding the allowed-downward edges. Test files are exempt (the audit blessed a few deep-path test imports); dynamic `import()` is not matched, so the intentional code-split deep imports are unaffected. `allowTypeImports` covers the two accepted type-only edges (`audio → content` PerkId, `schemas → state` ship-shape types). Verified by deliberate-violation probes: every forbidden direction errors, every allowed edge passes, full lint stays green.
+
 ---
 
 ## How to add a new entry

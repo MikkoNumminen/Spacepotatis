@@ -6,6 +6,161 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 
+// ---------------------------------------------------------------------------
+// Module-boundary enforcement (CLAUDE.md §17 / ARCHITECTURE.md §11).
+//
+// The codebase is 10 modules with a STRICT ACYCLIC dependency graph; cross-
+// module imports may only point "downward". These rules turn that graph from
+// prose into a CI gate so the infra→state class of back-edge (closed in
+// PR #289) and the audio→content value edge (closed 2026-06-13) cannot
+// silently return. Each zone override below forbids the `@/<module>` paths
+// that module must NOT import. `allowTypeImports: true` permits a compile-time
+// `import type` (erased at build, no runtime edge) where a type-only
+// dependency is an accepted exception.
+//
+// Test files are intentionally exempt — the modular audit (Phase 5) blessed a
+// handful of deep-path test imports (e.g. player-entity tests reaching
+// @/game/state/ShipConfig for fixtures). Boundary discipline is a
+// production-code invariant; tests may reach wherever they must to isolate.
+//
+// Dynamic `import()` is NOT matched by no-restricted-imports, so the
+// intentional code-split deep imports (ui → @/game/three/GalaxyScene, etc.)
+// are unaffected by design.
+// ---------------------------------------------------------------------------
+const MODULE_GLOBS = {
+  types: ["@/types", "@/types/**"],
+  schemas: ["@/lib/schemas", "@/lib/schemas/**"],
+  audio: ["@/game/audio", "@/game/audio/**"],
+  content: ["@/game/data", "@/game/data/**"],
+  state: ["@/game/state", "@/game/state/**"],
+  three: ["@/game/three", "@/game/three/**"],
+  phaser: ["@/game/phaser", "@/game/phaser/**"],
+  app: ["@/app", "@/app/**"],
+  ui: ["@/components", "@/components/**"],
+  // infra = the whole src/lib tree (includes schemas). Zones that may depend
+  // on `schemas` but not the rest of infra (only `state` today) simply don't
+  // list `infra` in their deny set and rely on the more specific entries.
+  // NOTE: no-restricted-imports `group` matching is gitignore-style and cannot
+  // re-include a child once its parent dir is excluded, so a "lib-except-
+  // schemas" glob is not expressible here — we don't need it (see below).
+  infra: ["@/lib", "@/lib/**"],
+};
+
+const BOUNDARY_TEST_IGNORES = ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"];
+
+// specs: array of { mod, typeOnlyOk?, note? }
+function denyModules(specs) {
+  return {
+    "@typescript-eslint/no-restricted-imports": [
+      "error",
+      {
+        patterns: specs.map(({ mod, typeOnlyOk, note }) => ({
+          group: MODULE_GLOBS[mod],
+          allowTypeImports: Boolean(typeOnlyOk),
+          message:
+            `Module-boundary violation (CLAUDE.md §17): this module may not import the \`${mod}\` module` +
+            (typeOnlyOk ? " as a VALUE (a type-only `import type` is allowed)." : ".") +
+            (note ? ` ${note}` : "") +
+            " The dependency graph is acyclic — imports point downward only.",
+        })),
+      },
+    ],
+  };
+}
+
+const moduleBoundaryConfigs = [
+  {
+    // types — the leaf. Imports nothing from any other module.
+    files: ["src/types/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "schemas" }, { mod: "audio" }, { mod: "content" }, { mod: "state" },
+      { mod: "three" }, { mod: "phaser" }, { mod: "app" }, { mod: "ui" }, { mod: "infra" },
+    ]),
+  },
+  {
+    // schemas — depends on types. Two accepted non-type edges (not denied
+    // below, documented here): `@/lib/handle` (pure HANDLE_* constants shared
+    // with validateHandle) and `@/game/data` WEAPON_IDS (the runtime id list
+    // lives in content to keep Zod out of client bundles). schemas→state is
+    // TYPE-ONLY (ship-shape types in save.ts).
+    files: ["src/lib/schemas/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "state", typeOnlyOk: true },
+      { mod: "audio" }, { mod: "three" }, { mod: "phaser" }, { mod: "app" }, { mod: "ui" },
+    ]),
+  },
+  {
+    // audio — depends on types. content is allowed TYPE-ONLY (itemSfx imports
+    // `type PerkId`); the cleared-state roster math lives in content and audio
+    // consumes its booleans (see docs/audit/04-found-bugs.md 2026-06-13).
+    files: ["src/game/audio/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "content", typeOnlyOk: true },
+      { mod: "state" }, { mod: "three" }, { mod: "phaser" },
+      { mod: "app" }, { mod: "ui" }, { mod: "infra" },
+    ]),
+  },
+  {
+    // content — depends on types (+ schemas at the CI drift gate ONLY, which is
+    // a test and thus exempt). Production content must NOT import schemas at
+    // runtime (Zod bundle-weight invariant, content/README.md) — denying
+    // `infra` (whole lib, incl schemas) enforces exactly that. Never reaches
+    // state/engines/UI either.
+    files: ["src/game/data/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "audio" }, { mod: "state" }, { mod: "three" }, { mod: "phaser" },
+      { mod: "app" }, { mod: "ui" }, { mod: "infra" },
+    ]),
+  },
+  {
+    // infra — depends on schemas, types, content. The back-edge guard: infra
+    // must NOT import state (the PR #289 regression class).
+    files: ["src/lib/**/*.{ts,tsx}"],
+    ignores: ["src/lib/schemas/**", ...BOUNDARY_TEST_IGNORES],
+    rules: denyModules([
+      { mod: "state" }, { mod: "audio" }, { mod: "three" }, { mod: "phaser" },
+      { mod: "app" }, { mod: "ui" },
+    ]),
+  },
+  {
+    // state — depends on content, schemas, types, and infra (forward edges:
+    // routes, authCache, useHandle, useReliableSession). Never the engines/UI.
+    files: ["src/game/state/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "audio" }, { mod: "three" }, { mod: "phaser" }, { mod: "app" }, { mod: "ui" },
+    ]),
+  },
+  {
+    // three — depends on content + types only.
+    files: ["src/game/three/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "audio" }, { mod: "state" }, { mod: "phaser" },
+      { mod: "infra" }, { mod: "app" }, { mod: "ui" },
+    ]),
+  },
+  {
+    // phaser — depends on content, state, audio, types.
+    files: ["src/game/phaser/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([
+      { mod: "three" }, { mod: "infra" }, { mod: "app" }, { mod: "ui" },
+    ]),
+  },
+  {
+    // ui — a SINK that mounts engines; depends on everything below. The only
+    // illegal direction is reaching into the app router.
+    files: ["src/components/**/*.{ts,tsx}"],
+    ignores: BOUNDARY_TEST_IGNORES,
+    rules: denyModules([{ mod: "app" }]),
+  },
+];
+
 const eslintConfig = [
   {
     ignores: [
@@ -115,6 +270,10 @@ const eslintConfig = [
       ],
     },
   },
+  // Module-boundary enforcement (CLAUDE.md §17). Spread last so these
+  // per-zone no-restricted-imports rules win over any earlier config for the
+  // same files. See the MODULE_GLOBS / denyModules block above for the model.
+  ...moduleBoundaryConfigs,
 ];
 
 export default eslintConfig;

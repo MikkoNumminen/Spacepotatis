@@ -16,15 +16,20 @@ deterministic measurement so two auditors get the same number.
 
 | # | Dimension | Score | One-line basis |
 |---|---|---|---|
-| 1 | Module boundary integrity | 9 | 0 runtime back-edges; 1 accepted type-only exception; infra barrel nominal-only |
+| 1 | Module boundary integrity | 10 | 0 runtime back-edges (audio→content closed 2026-06-13) AND now lint-enforced; 2 accepted type-only edges |
 | 2 | Documentation coverage & freshness | 9 | 10/10 module READMEs, drift found this pass fixed; dated phase artifacts can mislead |
-| 3 | Automated guardrails | 8 | 4 blocking CI gates + 1411 tests + security suite; no lint-level boundary enforcement |
+| 3 | Automated guardrails | 9 | 4 blocking CI gates + 1416 tests + security suite + per-zone module-boundary lint; no mutation/coverage gate |
 | 4 | File-size discipline | 7 | 18 files >300 LOC; most justified, GameCanvas (353) still over from the audit's named four |
 | 5 | Skills coverage | 10 | 16 skill dirs (15 active + new-weapon redirect stub) cover every content task + audits; freshness-audited 2026-06 |
 | 6 | Fresh-agent navigability | 9 | All Phase 5 PARTIAL causes fixed; needs a fresh spot-check run to confirm PASS×3 |
-| | **Overall (mean)** | **8.7** | |
+| | **Overall (mean)** | **9.0** | |
 
-## 1. Module boundary integrity — 9/10
+> **Update 2026-06-13:** boundary integrity 9→10 and guardrails 8→9 — the
+> §17 graph is now mechanically enforced by ESLint (`no-restricted-imports`
+> per zone) and the last value back-edge (`audio→content`) was closed. See
+> "What changed in the 2026-06-13 pass" below.
+
+## 1. Module boundary integrity — 10/10
 
 Measure:
 
@@ -34,22 +39,27 @@ grep -rn 'from "@/game/state/' src --include="*.ts" --include="*.tsx" \
   | grep -v "\.test\." | grep -v "src/game/state/"
 ```
 
-Measured 2026-06-12:
+Measured 2026-06-13:
 
-- **0 runtime back-edges.** The last one (`infra → state` via
-  `saveValidation.ts` importing `weaponUpgradeCost`) closed this session —
-  the full cost-curve family moved to
-  [`src/game/data/upgradeCurves.ts`](../../src/game/data/upgradeCurves.ts).
-- **1 accepted type-only exception:** `schemas/save.ts:43 → state/ShipConfig`
-  (ship-shape TYPES; erased at compile time; documented in
-  [04-found-bugs.md](04-found-bugs.md) 2026-05-29 + AI-NOTE in file).
-- Barrel routing: `types` 100% (last deep path fixed this session),
-  `schemas`/`audio`/`content`/`phaser` 100%, `state` 100% non-test
-  (6 test-file exceptions, all justified — down from 7),
+- **0 runtime back-edges, and now mechanically enforced.** The `infra →
+  state` edge (`weaponUpgradeCost`) closed 2026-06-12; the `audio → content`
+  VALUE edge (`clearedStateCue.ts` calling `getAllMissions()`) — which the
+  earlier "0 back-edges" claim had missed — closed 2026-06-13 by moving the
+  roster math to a content selector ([`clearedState.ts`](../../src/game/data/clearedState.ts)).
+  The §17 graph is enforced by per-zone `no-restricted-imports` in
+  [eslint.config.mjs](../../eslint.config.mjs); a new illegal edge fails CI.
+- **2 accepted type-only edges** (erased at compile time, allowed via
+  `allowTypeImports`): `schemas/save.ts → state/ShipConfig` (ship-shape types)
+  and `audio/itemSfx.ts → content` (`type PerkId`). Both documented in
+  [04-found-bugs.md](04-found-bugs.md).
+- Barrel routing: `types` 100%, `schemas`/`audio`/`content`/`phaser` 100%,
+  `state` 100% non-test (6 justified test-file exceptions),
   `three` intentional dynamic deep paths (code-splitting).
-- **Gap (−1):** the `infra` barrel is nominal-only — 0 consumers route
-  through `@/lib` (auth.ts side-effect carve-out, 04-found-bugs 2026-05-29).
-  Deep paths ARE the documented contract for infra; structural, accepted.
+- **Caveat (does not cost a point now that the graph is enforced):** the
+  `infra` barrel is nominal-only — 0 consumers route through `@/lib`
+  (auth.ts side-effect carve-out, 04-found-bugs 2026-05-29). Deep paths ARE
+  the documented contract for infra; the lint enforces the *direction* of
+  every infra import regardless of barrel-vs-deep-path, so integrity holds.
 
 ## 2. Documentation coverage & freshness — 9/10
 
@@ -80,25 +90,31 @@ test -f $d/README.md; done`); spot-grep READMEs for claims vs code.
   the living sources; the phase reports are history. See "Next +points" item
   4 for the superseded-banner follow-up.
 
-## 3. Automated guardrails — 8/10
+## 3. Automated guardrails — 9/10
 
 Measure: `.github/workflows/ci.yml` gates; `npm test` count;
 `ls tests/security/`; grep for typed-bus usage violations.
 
 - 4 blocking CI gates (typecheck / lint / test / build) on every push + PR.
-- 1411 tests across 113 files, including `tests/security/` (executable
+- 1416 tests across 114 files, including `tests/security/` (executable
   invariants), the JSON↔schema drift gate, save round-trip coverage, and
   per-migrator persistence tests.
 - Typed Phaser event bus + registry (no string keys), Zod at every network
   edge, boot-time content integrity check, husky pre-commit
   (lint-staged + typecheck).
-- New since this pass: [`upgradeCurves.test.ts`](../../src/game/data/upgradeCurves.test.ts)
-  pins every balance curve (boundary test for the new content API).
-- **Gap (−2):** module boundaries are enforced by review + docs only.
-  Nothing mechanical stops `ui` from deep-importing `@/game/state/stateCore`.
-  An ESLint `no-restricted-imports` (or `import/no-internal-modules`)
-  config encoding §17 would convert the boundary rules from prose to CI.
-  This is the highest-leverage next improvement.
+- **Module boundaries are now lint-enforced** (2026-06-13): per-zone
+  `@typescript-eslint/no-restricted-imports` in
+  [eslint.config.mjs](../../eslint.config.mjs) fails the build on any illegal
+  cross-module import — `ui` deep-importing `@/game/state/stateCore`, a new
+  `infra → state` back-edge, an `audio → content` value edge all error at
+  `npm run lint`. Verified by deliberate-violation probes. This was the
+  prior pass's "highest-leverage next improvement"; it is now shipped.
+- `upgradeCurves.test.ts` + `clearedState.test.ts` pin the balance curves
+  and the cleared-boundary selector (boundary tests for new content API).
+- **Gap (−1):** no mutation testing or coverage-threshold gate, so a test
+  can assert weakly without CI noticing. The boundary/security/round-trip
+  invariants are all executable now, which is the load-bearing part; a
+  coverage gate is the remaining nice-to-have.
 
 ## 4. File-size discipline — 7/10
 
@@ -163,18 +179,41 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
    back-edge entries in 04-found-bugs.md.
 5. **This rubric** — the score is now defined, measured, and trackable.
 
+## What changed in the 2026-06-13 pass
+
+1. **Shipped ESLint module-boundary enforcement** (was the prior pass's #1
+   Next +point). Per-zone `no-restricted-imports` in
+   [eslint.config.mjs](../../eslint.config.mjs) encodes the §17 acyclic DAG;
+   illegal cross-module imports fail `npm run lint`. Test files exempt;
+   dynamic `import()` unaffected; `allowTypeImports` covers the two accepted
+   type-only edges. Verified with deliberate-violation probes (every
+   forbidden direction errors, every allowed edge passes). → guardrails 8→9.
+2. **Closed the `audio → content` value edge** surfaced while writing the
+   lint (the audit's "0 back-edges" had missed it). `clearedStateCue.ts`'s
+   `getAllMissions()` call moved to a pure content selector
+   `evaluateClearedBoundaries` ([clearedState.ts](../../src/game/data/clearedState.ts));
+   the audio engine now consumes booleans and is genuinely types-only.
+   Behavior identical; tests split accordingly. → boundary integrity 9→10.
+3. **Documented two accepted type-only edges** (`schemas → state`,
+   `audio → content` PerkId) and two benign value edges (`schemas → content`
+   WEAPON_IDS, `schemas → @/lib/handle` constants) in 04-found-bugs.md.
+4. **Docs synced** — CLAUDE.md §17 + ARCHITECTURE.md §11 now state the
+   graph is lint-enforced; the §17 `audio` rule updated for the type-only
+   nuance.
+
 ## Score history
 
 | Date | Score | Notes |
 |---|---|---|
 | 2026-06-12 | 8.7 | First measured rating (this doc). Baseline ~7.8 reconstructed from the same rubric applied to the pre-pass state (open runtime back-edge, 3 doc-drift instances, types barrel 99%). |
+| 2026-06-13 | 9.0 | Boundary integrity 9→10 (audio→content closed + graph lint-enforced); guardrails 8→9 (per-zone no-restricted-imports CI gate). |
 
 ## Next +points, in leverage order
 
-1. **ESLint boundary enforcement** (+1 to guardrails, →~8.9): encode §17
-   in `no-restricted-imports` so cross-module deep paths fail CI.
-2. **GameCanvas under 300** (+1–2 to file discipline): one more hook
+1. **GameCanvas under 300** (+1–2 to file discipline): one more hook
    extraction (story-trigger wiring or the planet-click bridge).
-3. **Re-run the fresh-agent spot-check** (+1 to navigability if PASS×3).
-4. **Mark superseded phase artifacts**: one-line "superseded by
+2. **Re-run the fresh-agent spot-check** (+1 to navigability if PASS×3).
+3. **Mark superseded phase artifacts**: one-line "superseded by
    04-found-bugs.md ledger + ai-first-rating" header on 05-final-report.md.
+4. **Coverage / mutation gate** (+1 to guardrails): the last guardrails
+   point — a coverage threshold so weak assertions can't slip through.

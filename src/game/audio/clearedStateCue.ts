@@ -1,7 +1,5 @@
 "use client";
 
-import type { MissionId, SolarSystemId } from "@/types";
-import { getAllMissions } from "@/game/data";
 import { playUiCue } from "./uiCues";
 
 // Cleared-state Grandma cues. Two one-shot voice clips that fire when a
@@ -13,6 +11,12 @@ import { playUiCue } from "./uiCues";
 // The two are mutually exclusive: when "everything cleared" fires it
 // suppresses the system-cleared cue, so the player never hears two voices
 // stacked on top of each other.
+//
+// The catalog/progress math that decides those two booleans lives in
+// `content` (evaluateClearedBoundaries in src/game/data/clearedState.ts) so
+// this engine stays a types-only audio module — it consumes the verdict, it
+// does not compute it. The ui caller (useVictoryFlow) runs the selector and
+// passes the result in. See docs/audit/04-found-bugs.md 2026-06-13.
 //
 // Persistence for the once-per-device "everything cleared" semantics lives
 // in localStorage rather than on StateSnapshot. The cue is a player-feel
@@ -30,10 +34,8 @@ import { playUiCue } from "./uiCues";
 const EVERYTHING_CLEARED_KEY = "spacepotatis:ui_everything_cleared_fired_v1";
 
 interface Input {
-  readonly justCompletedMissionId: MissionId;
-  readonly completedMissions: readonly MissionId[];
-  readonly currentSolarSystemId: SolarSystemId;
-  readonly unlockedSolarSystems: readonly SolarSystemId[];
+  readonly systemNowCleared: boolean;
+  readonly everythingNowCleared: boolean;
 }
 
 function getStorage(): Storage | null {
@@ -69,34 +71,15 @@ function writeFiredFlag(value: boolean): void {
 
 /**
  * Decide whether to play `systemCleared` or `everythingCleared` after a
- * mission victory. At most one cue fires per call.
+ * mission victory, given the cleared-boundary verdict computed by
+ * `evaluateClearedBoundaries` (content). At most one cue fires per call.
  *
  * Re-arming: if the player's post-victory state is NOT all-cleared but the
  * "everything cleared" flag is set, drop the flag so a future return to
  * all-cleared (e.g. after new content ships) plays the cue again.
  */
 export function maybePlayClearedCue(input: Input): void {
-  const {
-    justCompletedMissionId,
-    completedMissions,
-    currentSolarSystemId,
-    unlockedSolarSystems
-  } = input;
-
-  const nextCompleted = new Set<MissionId>([...completedMissions, justCompletedMissionId]);
-  const allMissions = getAllMissions().filter((m) => m.kind === "mission");
-
-  const systemMissions = allMissions.filter((m) => m.solarSystemId === currentSolarSystemId);
-  const systemNowCleared =
-    systemMissions.length > 0 && systemMissions.every((m) => nextCompleted.has(m.id));
-
-  // "Available content" = missions in unlocked systems. Locked systems'
-  // missions can't be cleared yet anyway, so this matches the wording
-  // "they're cooking up more, have a sit".
-  const unlockedSet = new Set<SolarSystemId>(unlockedSolarSystems);
-  const availableMissions = allMissions.filter((m) => unlockedSet.has(m.solarSystemId));
-  const everythingNowCleared =
-    availableMissions.length > 0 && availableMissions.every((m) => nextCompleted.has(m.id));
+  const { systemNowCleared, everythingNowCleared } = input;
 
   const alreadyFired = readFiredFlag();
 

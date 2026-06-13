@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MissionId, SolarSystemId } from "@/types";
-import { getAllMissions } from "@/game/data";
 import type * as UiCuesT from "./uiCues";
 import type * as ClearedStateCueT from "./clearedStateCue";
 
-// clearedStateCue decides which of two cleared-state Grandma cues to fire on
-// a mission victory. The "everything cleared" flag is localStorage-persisted
-// once-per-device; system-cleared fires unconditionally on the matching
-// state flip and is suppressed when everythingCleared fired.
+// clearedStateCue decides which of two cleared-state Grandma cues to fire on a
+// mission victory, GIVEN the {systemNowCleared, everythingNowCleared} verdict.
+// The roster/progress math that produces those booleans lives in content
+// (evaluateClearedBoundaries) and is tested in
+// src/game/data/clearedState.test.ts — this file stays a pure audio-engine
+// test with no @/game/data dependency. The "everything cleared" flag is
+// localStorage-persisted once-per-device; system-cleared fires on the matching
+// flip and is suppressed when everythingCleared fired.
 
-const TUTORIAL: SolarSystemId = "tutorial";
-const TUBERNOVAE: SolarSystemId = "tubernovae";
+const FLAG_KEY = "spacepotatis:ui_everything_cleared_fired_v1";
 
 // In-memory localStorage shim. The test environment is `node`; jsdom is not
 // installed in this repo. The helper's getStorage() reads `window.localStorage`,
@@ -33,8 +34,6 @@ let storage: MemoryStorage;
 
 beforeEach(async () => {
   storage = new MemoryStorage();
-  // Attach a minimal window with localStorage so the helper's getStorage()
-  // resolves. Keep it scoped to the test — restored in afterEach.
   (globalThis as { window?: unknown }).window = { localStorage: storage };
 
   vi.resetModules();
@@ -49,69 +48,27 @@ afterEach(() => {
   delete (globalThis as { window?: unknown }).window;
 });
 
-// Mission catalog is static; pull the ids per system once.
-function getMissionIds(systemId: SolarSystemId): MissionId[] {
-  return getAllMissions()
-    .filter((m) => m.solarSystemId === systemId && m.kind === "mission")
-    .map((m) => m.id);
-}
-
 describe("maybePlayClearedCue", () => {
   it("does nothing when neither system nor everything is cleared", () => {
-    clearedStateCue.maybePlayClearedCue({
-      justCompletedMissionId: "tutorial" as MissionId,
-      completedMissions: [],
-      currentSolarSystemId: TUTORIAL,
-      unlockedSolarSystems: [TUTORIAL]
-    });
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: false, everythingNowCleared: false });
     expect(playSpy).not.toHaveBeenCalled();
   });
 
-  it("plays systemCleared when the current system flips cleared but other systems still have open missions", () => {
-    const tutorialIds = getMissionIds(TUTORIAL);
-    const lastTutorial = tutorialIds[tutorialIds.length - 1];
-    if (!lastTutorial) throw new Error("tutorial has no missions to test against");
-    const completedBefore = tutorialIds.slice(0, -1);
-
-    clearedStateCue.maybePlayClearedCue({
-      justCompletedMissionId: lastTutorial,
-      completedMissions: completedBefore,
-      currentSolarSystemId: TUTORIAL,
-      unlockedSolarSystems: [TUTORIAL, TUBERNOVAE]
-    });
+  it("plays systemCleared when only the current system flipped cleared", () => {
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: true, everythingNowCleared: false });
     expect(playSpy).toHaveBeenCalledWith("systemCleared");
     expect(playSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("plays everythingCleared (not systemCleared) when the last mission across all unlocked systems completes", () => {
-    const all = [...getMissionIds(TUTORIAL), ...getMissionIds(TUBERNOVAE)];
-    const last = all[all.length - 1];
-    if (!last) throw new Error("no missions to test against");
-    const completedBefore = all.slice(0, -1);
-
-    clearedStateCue.maybePlayClearedCue({
-      justCompletedMissionId: last,
-      completedMissions: completedBefore,
-      currentSolarSystemId: TUBERNOVAE,
-      unlockedSolarSystems: [TUTORIAL, TUBERNOVAE]
-    });
+  it("plays everythingCleared (not systemCleared) when everything flipped cleared", () => {
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: true, everythingNowCleared: true });
     expect(playSpy).toHaveBeenCalledWith("everythingCleared");
     expect(playSpy).not.toHaveBeenCalledWith("systemCleared");
     expect(playSpy).toHaveBeenCalledTimes(1);
   });
 
   it("everythingCleared fires only once per device (localStorage flag)", () => {
-    const all = [...getMissionIds(TUTORIAL), ...getMissionIds(TUBERNOVAE)];
-    const last = all[all.length - 1];
-    if (!last) throw new Error("no missions to test against");
-    const completedBefore = all.slice(0, -1);
-    const input = {
-      justCompletedMissionId: last,
-      completedMissions: completedBefore,
-      currentSolarSystemId: TUBERNOVAE,
-      unlockedSolarSystems: [TUTORIAL, TUBERNOVAE]
-    } as const;
-
+    const input = { systemNowCleared: true, everythingNowCleared: true } as const;
     clearedStateCue.maybePlayClearedCue(input);
     clearedStateCue.maybePlayClearedCue(input);
     clearedStateCue.maybePlayClearedCue(input);
@@ -121,40 +78,25 @@ describe("maybePlayClearedCue", () => {
   });
 
   it("re-arms the everythingCleared flag once the player is back below all-cleared", () => {
-    const all = [...getMissionIds(TUTORIAL), ...getMissionIds(TUBERNOVAE)];
-    const last = all[all.length - 1];
-    if (!last) throw new Error("no missions to test against");
-
-    // First trip to all-cleared: fires.
-    clearedStateCue.maybePlayClearedCue({
-      justCompletedMissionId: last,
-      completedMissions: all.slice(0, -1),
-      currentSolarSystemId: TUBERNOVAE,
-      unlockedSolarSystems: [TUTORIAL, TUBERNOVAE]
-    });
+    // First trip to all-cleared: fires + sets the flag.
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: true, everythingNowCleared: true });
     expect(playSpy).toHaveBeenCalledTimes(1);
-    expect(storage.getItem("spacepotatis:ui_everything_cleared_fired_v1")).toBe("1");
+    expect(storage.getItem(FLAG_KEY)).toBe("1");
 
-    // Sim "new content shipped": completing a mission in the current
-    // already-completed list while the available-mission set has GROWN —
-    // we approximate by passing a smaller completedMissions slice so the
-    // helper sees "not everything cleared." This is the re-arm trigger.
-    clearedStateCue.maybePlayClearedCue({
-      justCompletedMissionId: last,
-      completedMissions: all.slice(0, 1), // pretend most missions are now incomplete
-      currentSolarSystemId: TUBERNOVAE,
-      unlockedSolarSystems: [TUTORIAL, TUBERNOVAE]
-    });
-    // Flag should be cleared. No cue fires on this call.
-    expect(storage.getItem("spacepotatis:ui_everything_cleared_fired_v1")).toBeNull();
+    // New content shipped → no longer all-cleared. Flag drops; no cue fires.
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: false, everythingNowCleared: false });
+    expect(storage.getItem(FLAG_KEY)).toBeNull();
 
     // Next trip to all-cleared: fires again.
-    clearedStateCue.maybePlayClearedCue({
-      justCompletedMissionId: last,
-      completedMissions: all.slice(0, -1),
-      currentSolarSystemId: TUBERNOVAE,
-      unlockedSolarSystems: [TUTORIAL, TUBERNOVAE]
-    });
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: true, everythingNowCleared: true });
     expect(playSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not fire everythingCleared again if it was already cleared (flag set, no flip this victory)", () => {
+    // Pre-set the flag as if everything was already cleared on a prior visit.
+    storage.setItem(FLAG_KEY, "1");
+    // This victory reports everything still cleared (no flip). Neither cue fires.
+    clearedStateCue.maybePlayClearedCue({ systemNowCleared: true, everythingNowCleared: true });
+    expect(playSpy).not.toHaveBeenCalled();
   });
 });

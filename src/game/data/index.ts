@@ -36,6 +36,8 @@ export type * from "./stats";
 export * from "./upgrades";
 export type * from "./upgrades";
 export * from "./upgradeCurves";
+export * from "./clearedState";
+export type * from "./clearedState";
 export * from "./systemUnlocks";
 export * from "./integrityCheck";
 export type * from "./integrityCheck";
