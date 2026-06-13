@@ -247,12 +247,20 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
 
 ## Next +points, in leverage order
 
-1. **Push the last 2 navigability PARTIALs to PASS** — likely via a
+1. **Coverage / mutation gate** (+1 to guardrails → 10): the last guardrails
+   point — a coverage threshold so weak assertions can't slip through. NOTE:
+   this is a CI-policy + budget decision (adds a coverage-provider dep + CI
+   time; CLAUDE.md §13 keeps the build budget tight), so it wants an explicit
+   sign-off on the threshold rather than a unilateral add.
+2. **Push the last 2 navigability PARTIALs to PASS** — likely via a
    skill (`/equipment` extended to cover "new purchasable upgrade kind"),
    not more single-module README prose.
-2. **Mark superseded phase artifacts**: one-line "superseded by
-   04-found-bugs.md ledger + ai-first-rating" header on 05-final-report.md.
-3. **Coverage / mutation gate** (+1 to guardrails): the last guardrails
-   point — a coverage threshold so weak assertions can't slip through.
-4. **BootScene `boot/` split** (file discipline → 9): when real art lands,
+3. **BootScene `boot/` split** (file discipline → 9): when real art lands,
    split the 1829-LOC placeholder generator into per-family files.
+
+> **Done 2026-06-13:** "mark superseded phase artifacts" — added a HISTORICAL
+> banner to 01-inventory.md, 01-inventory-drift-2026-05-31.md,
+> 02-target-architecture.md, and 05-final-report.md pointing at the living
+> sources (04-found-bugs.md ledger + this rating doc), so a fresh agent
+> grepping the audit dir lands on a "this is history" notice instead of
+> chasing a resolved follow-up.

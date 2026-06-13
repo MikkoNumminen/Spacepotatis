@@ -1,5 +1,13 @@
 # Phase 1 — Codebase inventory
 
+> **HISTORICAL ARTIFACT (dated snapshot).** Captures the codebase during the
+> 2026-04/05 modular audit. NOT the current state — it may name pre-refactor
+> file locations (e.g. cost curves before they moved to
+> `src/game/data/upgradeCurves.ts`). Current module map:
+> [ARCHITECTURE.md §11](../../ARCHITECTURE.md) + [CLAUDE.md §17](../../CLAUDE.md);
+> what's resolved: the [04-found-bugs.md](04-found-bugs.md) ledger +
+> [ai-first-rating-2026-06-12.md](ai-first-rating-2026-06-12.md).
+
 Spacepotatis modular-architecture audit, Phase 1. Read-only walk of every meaningful source file. **No proposals here** — that's Phase 2's job. This artifact is evidence, not direction.
 
 > Synthesized from four parallel zone artifacts produced by independent `refactor-architect` agents. Each zone artifact is appended verbatim below; the synthesis sections at the top of this file are the cross-cutting findings that span zones.

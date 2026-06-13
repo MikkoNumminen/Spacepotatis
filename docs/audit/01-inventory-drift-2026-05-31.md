@@ -1,5 +1,11 @@
 # Phase 1 — Inventory Drift Delta (2026-05-31)
 
+> **HISTORICAL ARTIFACT (dated 2026-05-31 snapshot).** Superseded — items it
+> lists as "open" (e.g. the `infra → state` `weaponUpgradeCost` edge, "state
+> README is now STALE") were resolved on/after 2026-06-12. Current state:
+> [04-found-bugs.md](04-found-bugs.md) ledger +
+> [ai-first-rating-2026-06-12.md](ai-first-rating-2026-06-12.md).
+
 Re-run of Phase 1 to catch architectural drift since the Phase 5 verification. Baseline = `docs/audit/01-inventory.md` + `docs/audit/05-final-report.md`. This is a delta, not a re-inventory; the original `01-inventory.md` is untouched.
 
 ## 1. Method + scope

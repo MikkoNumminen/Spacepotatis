@@ -1,5 +1,12 @@
 # Phase 2 — Target module architecture
 
+> **HISTORICAL ARTIFACT (the Phase 2 PROPOSAL).** CLAUDE.md §17 cites this for
+> the boundary rationale, but the as-built graph has moved on — e.g. the cost
+> curves now live in `src/game/data/upgradeCurves.ts` (not `state`), and the
+> §17 graph is ESLint-enforced. Where this doc and the current code disagree,
+> the code + [ARCHITECTURE.md §11](../../ARCHITECTURE.md) + the
+> [04-found-bugs.md](04-found-bugs.md) ledger win.
+
 Read [01-inventory.md](01-inventory.md) and [04-found-bugs.md](04-found-bugs.md) first. This file ONLY proposes; nothing here gets executed without explicit approval. Phase 3 is the executor.
 
 ## Goals
