@@ -45,7 +45,25 @@ export default defineConfig({
         // string templates consumed by JSX.
         "src/components/loadout/selectors.ts",
         "src/components/ui/buttonClasses.ts"
-      ]
+      ],
+      // RATCHET GATE — `vitest run --coverage` (npm run coverage, the CI test
+      // step) exits non-zero if any metric drops below these floors. Set
+      // ~5 points below the 2026-06-13 measured baseline (stmts 89.23 / branch
+      // 81.89 / funcs 88.11 / lines 92.86), so honest churn doesn't false-fail
+      // but an assertion-gutting drop (>~5 pts) trips CI.
+      //
+      // These RATCHET: when coverage rises durably, raise the floors to match
+      // (keeping the ~5-pt margin). NEVER lower a floor to make a red PR green
+      // — that's the regression the gate exists to catch; add the missing test
+      // instead. Excludes above are the legitimate "can't unit-test from node"
+      // set (WebGL/Phaser/React-hook surfaces); widen those, not the floors,
+      // if a genuinely-untestable file lands.
+      thresholds: {
+        statements: 84,
+        branches: 76,
+        functions: 83,
+        lines: 87
+      }
     }
   }
 });

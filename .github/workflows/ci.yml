@@ -33,10 +33,15 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
-      # Security regression tests are also exercised by `npm test` above (the
-      # `tests/security/` suite is part of the default vitest collection), but
-      # this dedicated step re-runs them on their own so a Phase-3 regression
+      # The full test suite runs WITH coverage in one pass (v8 provider) so the
+      # coverage ratchet in vitest.config.ts is enforced here — no separate
+      # vitest run. A metric dropping below its floor fails this step. The
+      # coverage/ report is uploaded below (if: always()) so a breach is
+      # debuggable from the PR.
+      - run: npm run coverage
+      # Security regression tests are also exercised by `npm run coverage` above
+      # (the `tests/security/` suite is part of the default vitest collection),
+      # but this dedicated step re-runs them on their own so a Phase-3 regression
       # surfaces as a clearly-named failed check ("Security regression tests
       # failed") in the PR review UI rather than buried in the 1300+ lines of
       # general vitest output. Adding a NEW finding with a regression test
@@ -59,8 +64,8 @@ jobs:
             awk '/^Route \(app\)/{flag=1} flag{print} /server-rendered on demand/{flag=0; exit}' build.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - run: npm run coverage
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        if: always()  # upload even when the coverage threshold step failed, so the report is debuggable
         with:
           name: coverage
           path: coverage/
