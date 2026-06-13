@@ -18,17 +18,18 @@ deterministic measurement so two auditors get the same number.
 |---|---|---|---|
 | 1 | Module boundary integrity | 10 | 0 runtime back-edges (audio→content closed 2026-06-13) AND now lint-enforced; 2 accepted type-only edges |
 | 2 | Documentation coverage & freshness | 9 | 10/10 module READMEs; a 5-module spot-check found + fixed 5 blocker-class drift instances (2026-06-13); dated phase artifacts can still mislead |
-| 3 | Automated guardrails | 9 | 4 blocking CI gates + 1416 tests + security suite + per-zone module-boundary lint; no mutation/coverage gate |
+| 3 | Automated guardrails | 10 | 4 blocking CI gates + 1416 tests + security suite + per-zone module-boundary lint + a coverage ratchet gate (vitest thresholds ~5 pts below baseline) |
 | 4 | File-size discipline | 8 | 17 files >300 LOC; all four audit-named ui god-files now under cap (GameCanvas 286); the rest are BootScene placeholder + justified save-pipeline files |
 | 5 | Skills coverage | 10 | 16 skill dirs (15 active + new-weapon redirect stub) cover every content task + audits; freshness-audited 2026-06 |
 | 6 | Fresh-agent navigability | 9 | MEASURED 2026-06-13: 3 PASS / 2 PARTIAL / 0 FAIL, 0 blockers across 5 modules (was 0 PASS / 1 FAIL / 5 blockers before the README fixes); remaining gaps are minor cross-module-wiring notes |
-| | **Overall (mean)** | **9.2** | |
+| | **Overall (mean)** | **9.3** | |
 
-> **Update 2026-06-13:** boundary integrity 9→10, guardrails 8→9, file-size
+> **Update 2026-06-13:** boundary integrity 9→10, guardrails 8→**10**, file-size
 > discipline 7→8. The §17 graph is now mechanically ESLint-enforced, the
-> `audio→content` back-edge was closed, and GameCanvas (the last over-cap
-> ui god-file) was split 353→286 via four cohesive hooks. See "What changed
-> in the 2026-06-13 pass" below.
+> `audio→content` back-edge was closed, GameCanvas (the last over-cap ui
+> god-file) was split 353→286 via four cohesive hooks, and a coverage ratchet
+> gate now fails CI on a coverage drop. See "What changed in the 2026-06-13
+> pass" below.
 
 ## 1. Module boundary integrity — 10/10
 
@@ -91,31 +92,34 @@ test -f $d/README.md; done`); spot-grep READMEs for claims vs code.
   the living sources; the phase reports are history. See "Next +points" item
   4 for the superseded-banner follow-up.
 
-## 3. Automated guardrails — 9/10
+## 3. Automated guardrails — 10/10
 
-Measure: `.github/workflows/ci.yml` gates; `npm test` count;
-`ls tests/security/`; grep for typed-bus usage violations.
+Measure: `.github/workflows/ci.yml` gates; `npm run coverage` totals + the
+`thresholds` in `vitest.config.ts`; `ls tests/security/`; grep for typed-bus
+usage violations.
 
-- 4 blocking CI gates (typecheck / lint / test / build) on every push + PR.
+- 4 blocking CI gates (typecheck / lint / test+coverage / build) on every push + PR.
 - 1416 tests across 114 files, including `tests/security/` (executable
   invariants), the JSON↔schema drift gate, save round-trip coverage, and
   per-migrator persistence tests.
 - Typed Phaser event bus + registry (no string keys), Zod at every network
   edge, boot-time content integrity check, husky pre-commit
   (lint-staged + typecheck).
-- **Module boundaries are now lint-enforced** (2026-06-13): per-zone
+- **Module boundaries are lint-enforced** (2026-06-13): per-zone
   `@typescript-eslint/no-restricted-imports` in
   [eslint.config.mjs](../../eslint.config.mjs) fails the build on any illegal
-  cross-module import — `ui` deep-importing `@/game/state/stateCore`, a new
-  `infra → state` back-edge, an `audio → content` value edge all error at
-  `npm run lint`. Verified by deliberate-violation probes. This was the
-  prior pass's "highest-leverage next improvement"; it is now shipped.
+  cross-module import. Verified by deliberate-violation probes.
+- **Coverage is a ratchet gate** (2026-06-13): the CI test step runs
+  `npm run coverage` (one pass, v8 provider — no separate run) and the
+  thresholds in [vitest.config.ts](../../vitest.config.ts)
+  (`statements 84 / branches 76 / functions 83 / lines 87`, ~5 pts below the
+  measured baseline of 89.2 / 81.9 / 88.1 / 92.9) fail CI if coverage drops.
+  Verified the gate fires: forcing `lines=99` errors `Coverage for lines
+  (92.86%) does not meet global threshold`. Floors ratchet UP as coverage
+  rises; the legitimately-untestable-from-node surfaces (WebGL/Phaser/
+  React-hook) are handled by `coverage.exclude`, not by lowering floors.
 - `upgradeCurves.test.ts` + `clearedState.test.ts` pin the balance curves
   and the cleared-boundary selector (boundary tests for new content API).
-- **Gap (−1):** no mutation testing or coverage-threshold gate, so a test
-  can assert weakly without CI noticing. The boundary/security/round-trip
-  invariants are all executable now, which is the load-bearing part; a
-  coverage gate is the remaining nice-to-have.
 
 ## 4. File-size discipline — 8/10
 
@@ -235,6 +239,17 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
    MEASURED, not asserted. The honest read: this didn't raise the number,
    it *earned* it — and surfaced+fixed five drift instances that strengthen
    dimension 2 (doc freshness) too.
+7. **Marked the dated audit artifacts as historical** — one-line banners on
+   01-inventory.md / 01-inventory-drift / 02-target-architecture.md /
+   05-final-report.md pointing at the living sources, so a fresh agent
+   grepping `docs/audit/` lands on "this is history" instead of chasing a
+   resolved follow-up. (Tightens dimension 2.)
+8. **Added the coverage ratchet gate** (the last guardrails point). Baseline
+   measured (stmts 89.2 / branch 81.9 / funcs 88.1 / lines 92.9); thresholds
+   set ~5 pts below (84 / 76 / 83 / 87) in `vitest.config.ts`; CI consolidated
+   so the test step runs `npm run coverage` once (no separate vitest run) and
+   enforces them; the artifact uploads even on a breach. Gate-fires verified
+   (forcing `lines=99` errors out). → guardrails 9→10, overall 9.2→9.3.
 
 ## Score history
 
@@ -244,15 +259,11 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
 | 2026-06-13 | 9.0 | Boundary integrity 9→10 (audio→content closed + graph lint-enforced); guardrails 8→9 (per-zone no-restricted-imports CI gate). |
 | 2026-06-13 | 9.2 | File-size discipline 7→8 — GameCanvas split 353→286; all four audit-named ui god-files now under the 300 cap. |
 | 2026-06-13 | 9.2 | Navigability spot-check run + acted on (0 PASS/5 blockers → 3 PASS/0 blockers via README fixes). Dimension 6's 9 is now measured, not asserted; overall unchanged but better-evidenced. |
+| 2026-06-13 | 9.3 | Guardrails 9→10 — coverage ratchet gate (vitest thresholds ~5 pts below baseline, enforced in the consolidated CI test step; @vitest/coverage-v8 was already installed). Gate-fires verified. |
 
 ## Next +points, in leverage order
 
-1. **Coverage / mutation gate** (+1 to guardrails → 10): the last guardrails
-   point — a coverage threshold so weak assertions can't slip through. NOTE:
-   this is a CI-policy + budget decision (adds a coverage-provider dep + CI
-   time; CLAUDE.md §13 keeps the build budget tight), so it wants an explicit
-   sign-off on the threshold rather than a unilateral add.
-2. **Push the last 2 navigability PARTIALs to PASS** — likely via a
+1. **Push the last 2 navigability PARTIALs to PASS** — likely via a
    skill (`/equipment` extended to cover "new purchasable upgrade kind"),
    not more single-module README prose.
 3. **BootScene `boot/` split** (file discipline → 9): when real art lands,
