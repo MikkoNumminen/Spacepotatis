@@ -67,6 +67,12 @@ Per-catalog accessors (one row per JSON catalog):
   `state/ShipConfig.ts` (2026-06-12) so `saveValidation.ts`'s credit-cap
   derivation consumes them via the allowed `infra → content` edge. The
   ShipConfig-reading stat getters (`getMaxShield` etc.) stay in `state`.
+  **Adding a NEW purchasable upgrade kind (a new cost curve + its shop
+  upgrade) is a multi-module change → use [`/equipment`](../../../.claude/skills/equipment/SKILL.md),
+  not this README.** A new curve here is only one of ~7 touchpoints (id union,
+  `upgrades.ts` registry, `ShipConfig` level field, `shipMutators` buy fn,
+  ShopUI row, AND the save round-trip for the new level field). The skill's
+  "new hull/reactor upgrade kind" procedure owns the full sequence.
 
 Integrity check (mostly for tests):
 
@@ -205,6 +211,7 @@ exception, not a permanent placement.
 | New combat mission or shop planet | `/new-mission` |
 | New enemy type | `/new-enemy` |
 | Anything weapon/equipment-related (CRUD + visuals) | `/equipment` |
+| A new purchasable hull/reactor upgrade kind, or a new displayed ship stat | `/equipment` |
 | New mission perk (passive or active) | `/new-perk` |
 | New solar system in the overworld | `/new-solar-system` |
 | Anything story-related (entry, cinematic, voice, log copy) | `/new-story` |

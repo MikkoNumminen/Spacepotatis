@@ -1,19 +1,19 @@
 ---
 name: equipment
-description: Create, modify, or remove a weapon or piece of equipment (augment / reactor / shield / armor) — including visual changes to how it appears in combat or in the loadout UI. Covers stats, sprites, prices, and the full CRUD lifecycle for the entire ship-loadout content surface.
+description: Create, modify, or remove a weapon or piece of equipment (augment / reactor / shield / armor) — including a new purchasable hull/reactor upgrade kind, a new displayed ship stat, and visual changes to how gear appears in combat or in the loadout UI. Covers stats, sprites, prices, and the full CRUD lifecycle for the entire ship-loadout content surface.
 ---
 
 # When to use
 
-Invoke for ANY request touching weapons, augments, reactor, shield, or armor — adding, removing, balancing, recoloring, re-skinning. Equipment is the only ship-gear surface in the codebase.
+Invoke for ANY request touching weapons, augments, reactor, shield, or armor — adding, removing, balancing, recoloring, re-skinning. Equipment is the only ship-gear surface in the codebase. Also invoke for **a new purchasable hull/reactor upgrade** (a new level-based shop upgrade in the shield/armor/reactor family, e.g. "pod repair", "hull regen") and **a new displayed ship stat** (a number surfaced in a DETAILS modal) — those flows are documented below under Operation: CREATE.
 
-Route here on: action verb (`add / remove / change / tweak / rebalance / buff / nerf / recolor / re-skin / rip out / scrap / clone / design`) + any of `weapon / augment / shield / armor / reactor / loadout / projectile / bullet sprite / energy bar / tint dot`, OR sentiment-only ("X feels too weak/strong/cheap"), OR explicit ids. Visual asks ("recolor", "brighten", "make the bullet red", "augment dots are too dim", "energy bar should be green") also belong here.
+Route here on: action verb (`add / remove / change / tweak / rebalance / buff / nerf / recolor / re-skin / rip out / scrap / clone / design`) + any of `weapon / augment / shield / armor / reactor / loadout / projectile / bullet sprite / energy bar / tint dot / upgrade / stat / DETAILS modal`, OR sentiment-only ("X feels too weak/strong/cheap"), OR explicit ids. Visual asks ("recolor", "brighten", "make the bullet red", "augment dots are too dim", "energy bar should be green") also belong here.
 
 ## Boundary — do NOT use for
 - **Mid-mission perks** → `/new-perk`. Scene-scoped, not persisted.
 - **Enemies** → `/new-enemy`. **Missions** → `/new-mission`. **Story** → `/new-story`.
 - **Systemic caps** — `MAX_LEVEL` / `MAX_WEAPON_SLOTS` (defined in `src/types/game.ts`, re-exported by `ShipConfig.ts`), `MAX_AUGMENTS_PER_WEAPON` (in `augments.ts`) — flag before editing.
-- **A 5th equipment KIND** (e.g. "engine") — that's a feature; STOP and flag.
+- **A new GEAR KIND with its own slot or combat behavior** (e.g. an "engine" that changes movement, a deployable "drone") — that's a feature; STOP and flag. NOTE the distinction: a new *purchasable hull/reactor upgrade* in the existing level-based family (pod repair, hull regen, a new reactor stat) IS in scope — it clones the shield/armor/reactor pattern with no new combat mechanics. See **Operation: CREATE → a new hull/reactor upgrade kind**.
 - **Player ship-sprite-only changes** — `BootScene.ts#drawPotatoShip` is unrelated to equipment.
 
 ## Adjacent
@@ -46,13 +46,28 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 - **Cap**: `MAX_AUGMENTS_PER_WEAPON = 2`.
 
 ## Reactor / Shield / Armor
-Split across two files (both are constants/curves, NOT JSON catalog entries):
-- Base stats + getters in [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts):
-  - `BASE_SHIELD = 40`, `BASE_ARMOR = 60`
-  - `BASE_REACTOR_CAPACITY = 100`, `REACTOR_CAPACITY_PER_LEVEL = 30`
-  - `BASE_REACTOR_RECHARGE = 25`, `REACTOR_RECHARGE_PER_LEVEL = 8`
-  - `MAX_LEVEL = 5` (lives in `types/game.ts`, re-exported here)
-- Cost curves in [src/game/data/upgradeCurves.ts](src/game/data/upgradeCurves.ts) — `shieldUpgradeCost`, `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost` (default: double per level). Moved here 2026-06-12 (they're balance data; CLAUDE.md §5/§9). Consume via the `@/game/data` barrel.
+The four existing hull/reactor upgrades (shield, armor, reactor-capacity, reactor-recharge) are level-based purchasables — NOT JSON catalog entries. Each one is the same pattern spread across SIX surfaces; "clone shield" is the canonical move when adding a new one (see Operation: CREATE → a new hull/reactor upgrade kind):
+
+| Surface | File | What lives there |
+|---|---|---|
+| Id union | [src/types/game.ts](src/types/game.ts) | `UpgradeId` (keystone — keys the registry, the DETAILS copy, and the `/audio/upgrades/<id>-voice.mp3` voice path) |
+| Presentation | [src/game/data/upgrades.ts](src/game/data/upgrades.ts) | `UpgradeDefinition` (id + name + `body` copy that Grandma reads AND the modal shows) in `REGISTRY` + the `UPGRADES` array |
+| Cost curve | [src/game/data/upgradeCurves.ts](src/game/data/upgradeCurves.ts) | `shieldUpgradeCost` / `armorUpgradeCost` / `reactorCapacityCost` / `reactorRechargeCost` — pure `number → number` (default: double per level). Balance data (CLAUDE.md §5/§9); consume via `@/game/data`. |
+| Live state + getter | [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) | the level field on `ShipConfig` (`shieldLevel`, `armorLevel`, `reactor.capacityLevel/rechargeLevel`) + `DEFAULT_SHIP` default + `BASE_*` const + the `getMaxShield`/`getReactorCapacity`-style getter. `MAX_LEVEL = 5` is in `types/game.ts`, re-exported here. |
+| Mutator | [src/game/state/shipMutators.ts](src/game/state/shipMutators.ts) | the `LevelField` union + `getLevel`/`withIncrementedLevel` switch arms + `buyShieldUpgrade`/`grantShieldUpgrade`-style mutators (via `applyLevelUpgrade`) |
+| Shop UI | [src/components/shop/ShopUpgradesSection.tsx](src/components/shop/ShopUpgradesSection.tsx) + [src/components/ShopUI.tsx](src/components/ShopUI.tsx) | the upgrade `<Row>` + the `buy*` wiring + the `UpgradeDetailsForId` switch. The DETAILS modal ([UpgradeDetailsModal.tsx](src/components/loadout/UpgradeDetailsModal.tsx)) is generic — no per-upgrade edit. |
+
+> **The level field on `ShipConfig` is PERSISTED** (it rides inside the `ship_config` jsonb save column). Adding a new one is a **save-SHAPE change** — it must thread `ShipConfigSchema` + `LegacyShipSchema` ([save.ts](src/lib/schemas/save.ts)), `cloneShip` + `migrateShip` ([persistence.ts](src/game/state/persistence.ts)), and `LegacyShipSnapshot` ([persistence/types.ts](src/game/state/persistence/types.ts)). NO DB migration is needed (jsonb, not a column). Most of the threading is **tsc-forced** (the `_shipCheck` guard + the `: ShipConfig`-typed return literals — forgetting the field fails typecheck); the ONE genuine silent trap is the `migrateShip` read-from-`raw` (see the CREATE sub-procedure step 6). This is the ONE case where this skill touches the save pipeline — modifying EXISTING upgrade numbers (below) does not.
+
+## Ship stats (DETAILS chips)
+A "stat" is a number surfaced in a clickable DETAILS chip (the player taps it for a voiced explanation) — distinct from an upgrade (a purchasable level). Catalog: [src/game/data/stats.ts](src/game/data/stats.ts) — `StatId` (union in `types/game.ts`), `STATS`, `getStat(id)`, `StatDefinition` (id + name + icon + `body` copy; voice `/audio/stats/<id>-voice.mp3`). The three existing stats (`dps`, `energy`, `augment-slots`) are all WEAPON-scoped, rendered as `<StatChip>` in [WeaponCard.tsx](src/components/loadout/WeaponCard.tsx).
+
+**stats.ts is presentation-only — it carries ZERO numbers.** The displayed VALUE is computed elsewhere ([weaponStats.ts](src/components/loadout/weaponStats.ts) `dpsOf`/`energyOf` for weapon stats, or a `ShipConfig` getter for hull stats). A new `StatId` + `STATS` entry alone renders nothing — you MUST also (a) source the value, and (b) add a render site. A ship-level stat (e.g. "shield regen/sec") has NO existing render surface (the chips are weapon-scoped today) — surfacing one is a bigger lift than a weapon stat; flag that to the user.
+
+### Which modal does a stat/number belong in?
+- **Per-weapon stat** (damage, dps, fire rate) → `WeaponStats` block in [WeaponStatsView.tsx](src/components/loadout/WeaponStatsView.tsx), shown by [WeaponDetailsModal.tsx](src/components/loadout/WeaponDetailsModal.tsx) (`/audio/weapons/<id>`). NOTE `WeaponStatsView` uses hard-coded labels, NOT the `StatId` registry.
+- **Hull / shield / reactor purchasable** → [UpgradeDetailsModal.tsx](src/components/loadout/UpgradeDetailsModal.tsx) (`/audio/upgrades/<id>`), reached via ShopUI's `UpgradeDetailsForId` switch.
+- **Aggregate clickable ship stat chip** → [StatDetailsModal.tsx](src/components/loadout/StatDetailsModal.tsx) (`/audio/stats/<id>`), via a `<StatChip>` in `WeaponCard.tsx`.
 
 ## Visuals — what to edit per surface
 
@@ -139,6 +154,35 @@ When in doubt, copy the structurally closest existing entry. Run `/balance-revie
 5. New multiplier KIND → STOP (code change).
 6. (Optional) loot pool entry.
 7. Run checks.
+
+## Steps — a new hull/reactor upgrade kind (clone `shield`)
+A new level-based purchasable (e.g. `pod-repair`) is the same six-surface pattern as shield/armor/reactor. Clone an existing upgrade across all of them. **This flow touches the SAVE pipeline** — the new level field is persisted in the `ship_config` jsonb — so it is NOT a pure catalog add; `/save-roundtrip-audit` applies (no DB migration, jsonb).
+
+Decide first: top-level field (like `shieldLevel`) or nested under `reactor` (like `capacityLevel`). Then, cloning the `shield` arm everywhere:
+
+1. **Id** — add the literal to the `UpgradeId` union in [types/game.ts](src/types/game.ts).
+2. **Presentation** — add an `UpgradeDefinition` (id + name + `body[]`) to `REGISTRY` AND the `UPGRADES` array in [upgrades.ts](src/game/data/upgrades.ts). `REGISTRY` is `Record<UpgradeId, …>`, so a missing row fails tsc (the union edit forces this one).
+3. **Cost curve** — add `<name>UpgradeCost(level)` to [upgradeCurves.ts](src/game/data/upgradeCurves.ts) (auto re-exported via `@/game/data`).
+4. **Live state** — in [ShipConfig.ts](src/game/state/ShipConfig.ts): add the level field to the `ShipConfig` interface, default it in `DEFAULT_SHIP`, add `BASE_*` const(s), and add a `getMax*`/`get*`-style getter.
+5. **Mutator** — in [shipMutators.ts](src/game/state/shipMutators.ts): add to the `LevelField` union, add the `getLevel` + `withIncrementedLevel` switch arms (exhaustive — tsc forces both), and export `buy<Name>Upgrade` + `grant<Name>Upgrade` via `applyLevelUpgrade`.
+6. **SAVE round-trip — the level field is persisted in `ship_config` jsonb (save-SHAPE change; NO DB migration).** For a REQUIRED top-level field most of this is tsc-FORCED — forgetting a piece fails typecheck, not silently — but there is ONE genuine silent trap. Mirror `shieldLevel` everywhere:
+   - [save.ts](src/lib/schemas/save.ts): add `<field>: z.number().int().nonnegative()` to `ShipConfigSchema`. **tsc-forced**: the `_shipCheck` guard `(x: z.infer<ShipConfigSchema>): ShipConfig => x` fails to compile if the schema lacks a field the `ShipConfig` interface requires. Also add the loose optional to `LegacyShipSchema` (and to `ReactorConfigSchema` if you nested under reactor) so a legacy-shaped payload carrying it still validates.
+   - [persistence.ts](src/game/state/persistence.ts): add the field to BOTH the `cloneShip` and `migrateShip` return literals — **tsc-forced** (both return `: ShipConfig`, so a missing field is a compile error). ⚠️ **THE SILENT TRAP**: in `migrateShip` you must READ the value from the raw save via `clampUpgradeLevel(raw.<field>)` (clamps to `[0, MAX_LEVEL]`, backfills pre-existing saves to 0). Satisfying the return type by hardcoding a default INSTEAD compiles fine but **silently resets the field to 0 for every existing player on load**. This is the one place tsc won't save you.
+   - [persistence/types.ts](src/game/state/persistence/types.ts): add `<field>?: number` to `LegacyShipSnapshot` so `raw.<field>` typechecks in `migrateShip` (nested-under-reactor: `reactor?` is already `Partial`, no edit).
+   - A new ShipConfig SUB-field is not a top-level `StateSnapshot` field, so the StateSnapshot-granularity `/save-roundtrip-audit` won't single it out — the tsc chain above is the structural guard; **add a round-trip test** asserting a non-zero `<field>` survives save→load to cover the `migrateShip` read trap.
+7. **Shop UI** — in [ShopUpgradesSection.tsx](src/components/shop/ShopUpgradesSection.tsx): add an `onBuy<Name>` prop + a `<Row>` (pass `cost={maxed ? null : <name>Cost(level)}` — `cost === null` IS the maxed signal). In [ShopUI.tsx](src/components/ShopUI.tsx): import the `buy<Name>Upgrade` mutator (`@/game/state`) + cost/getter (`@/game/data`), add the `handleBuy<Name>` callback, wire the section prop, and add the `UpgradeDetailsForId` switch `case` (exhaustive `never` default — tsc forces it). `UpgradeDetailsModal` itself is generic; no edit.
+8. **saveValidation** — NO change. A purchase is a credit SINK and `validateCreditsDelta` allows any non-positive delta. (Only a curve that GRANTS/REFUNDS credits would need the cap derivation updated.)
+9. **Voice** — drop `/audio/upgrades/<id>-voice.mp3` (silent 404 if absent — ship without it, then add via `/voice-asset`).
+10. `/save-roundtrip-audit`, then `npm run typecheck && npm run lint && npm test`. `/balance-review` for the cost curve.
+
+## Steps — a new displayed ship stat (DETAILS chip)
+A "stat" is a clickable number, not a purchasable. **Two-place change**: presentation + a real value source + a render site.
+1. **Id** — add to the `StatId` union in [types/game.ts](src/types/game.ts).
+2. **Presentation** — add a `StatDefinition` (id + name + icon + `body[]`) to `REGISTRY` AND the hand-listed `STATS` array in [stats.ts](src/game/data/stats.ts). `getStat` throws on unknown id; `REGISTRY` is `Record<StatId,…>` so the row is tsc-forced, but **the `STATS` array is hand-listed — forgetting it silently omits the stat from any catalog view**.
+3. **Value source** — stats carry NO numbers. A weapon stat's value is computed in [weaponStats.ts](src/components/loadout/weaponStats.ts); a hull stat's comes from a `ShipConfig` getter. If the number doesn't exist yet, that's the harder half — add it to content/state first.
+4. **Render site** — add a `<StatChip>` in [WeaponCard.tsx](src/components/loadout/WeaponCard.tsx) (the only existing chip surface — it's WEAPON-scoped; a ship-level stat has no existing surface, so FLAG that to the user as a larger lift).
+5. **Voice** — `/audio/stats/<id>-voice.mp3` (silent 404).
+6. Run checks.
 
 # Operation: MODIFY
 
@@ -242,12 +286,13 @@ Simpler than weapon removal — no hard-coded augment ids in `DEFAULT_SHIP`, `mi
 - `DEFAULT_SHIP.slots[0].id` and `migrateShip` fallback resolve to a known `WeaponId`.
 - `ShipConfig.test.ts:29` updated to the new starter weapon. `GameState.test.ts`, `rewards.test.ts`, `sync.test.ts` only need editing if they assert the removed id — `grep -rn '"<id>"' src/game/state/*.test.ts`.
 
-# Files this skill never touches
-- `src/game/state/shipMutators.ts` — id-agnostic.
-- `src/components/loadout/*` — generic across all ids.
-- `src/game/state/sync.ts`, save server route, `db/migrations/` — schemas read catalogs at runtime; no DB migration for catalog adds/removes.
-- `src/lib/saveValidation.ts` — credit caps derive from waves + loot pools, not equipment prices.
-- `src/game/audio/itemSfx.ts` — generic per-category cues fire automatically.
+# Files this skill never touches — for WEAPON / AUGMENT CRUD
+These are id-agnostic for the weapon/augment catalog flows. **The new-hull/reactor-upgrade-kind flow is the exception** — it deliberately touches `shipMutators.ts`, `save.ts`, and `persistence.ts` (see its CREATE sub-procedure); the entries below apply to weapon/augment work only.
+- `src/game/state/shipMutators.ts` — id-agnostic for weapons/augments. (A NEW upgrade kind DOES add a `buy*` mutator here.)
+- `src/components/loadout/*` — generic across all weapon/augment ids. (A new upgrade row touches `shop/ShopUpgradesSection.tsx`; a new stat chip touches `WeaponCard.tsx`.)
+- `src/game/state/sync.ts`, save server route, `db/migrations/` — catalog (weapon/augment) adds/removes need no schema or DB change. (A new upgrade-LEVEL field is a ship-SHAPE change — it threads `save.ts` + `persistence.ts`, but still NO `db/migrations/` since `ship_config` is jsonb.)
+- `src/lib/saveValidation.ts` — credit caps derive from waves + loot pools, not equipment prices; a new purchasable is a credit sink (no change).
+- `src/game/audio/itemSfx.ts` — generic per-category cues fire automatically. (Per-id DETAILS-modal voice is the `/audio/{upgrades,stats,weapons}/<id>-voice.mp3` convention, added via `/voice-asset`.)
 
 ## Freshness check
 
@@ -285,5 +330,30 @@ root = "scope_root"
 kind = "file_contains"
 path = "src/game/data/augments.ts"
 pattern = "MAX_AUGMENTS_PER_WEAPON"
+root = "scope_root"
+
+# Hull/reactor upgrade-kind + ship-stat surfaces (the 2026-06-13 flows).
+[[check]]
+kind = "file_contains"
+path = "src/game/data/upgrades.ts"
+pattern = "UpgradeDefinition"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/upgradeCurves.ts"
+pattern = "shieldUpgradeCost"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/data/stats.ts"
+pattern = "StatDefinition"
+root = "scope_root"
+
+[[check]]
+kind = "file_contains"
+path = "src/game/state/shipMutators.ts"
+pattern = "applyLevelUpgrade"
 root = "scope_root"
 ```
