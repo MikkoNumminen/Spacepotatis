@@ -18,24 +18,24 @@ The exports listed below are the contract. Anything else exported is INTERNAL
 and may be removed without notice — see [Internal](#internal) for the
 deliberately-not-public surface.
 
-### ⚠ Barrel-import limitation (`@/lib` is nominal-only today)
+### ⚠ Barrel-import limitation (`auth.ts` is carved out of `@/lib`)
 
 PR #248 added [`src/lib/index.ts`](./index.ts) re-exporting every infra
 module, intending it to be the public surface (the same pattern Tier 1-4
 adopted for `types`, `schemas`, `audio`, `content`, `state`, `three`,
-`phaser`). **The barrel currently has zero consumers** — every cross-module
-importer reaches a deep path (`@/lib/auth`, `@/lib/db`, `@/lib/routes`, …).
+`phaser`).
 
-Why: the barrel re-exports from [`auth.ts`](./auth.ts), and `auth.ts` calls
-`NextAuth(config)` at module load. Routing existing imports through `@/lib`
-pulls `next-auth` → `next/server` into 6 test files that don't expect it,
-turning every test of an infra consumer into a `Cannot find module
-'next/server'` failure.
+[`auth.ts`](./auth.ts) is deliberately **NOT** re-exported from the barrel
+(option (b), resolved 2026-05-29). `auth.ts` calls `NextAuth(config)` at
+module load, which pulls `next-auth` → `next/server`; routing infra imports
+through `@/lib` would drag that side effect into 6 test files that don't
+expect it, turning every test of an infra consumer into a `Cannot find
+module 'next/server'` failure. With auth carved out, **the barrel is now
+safe to consume from any test context that doesn't need auth** — auth
+consumers MUST use the deep path [`@/lib/auth`](./auth.ts).
 
-If you are adding **new** code that imports from this module, prefer the
-deep path until the limitation is resolved. See
-[`docs/audit/04-found-bugs.md`](../../docs/audit/04-found-bugs.md) 2026-05-29
-for the three resolution options on the table.
+See [`docs/audit/04-found-bugs.md`](../../docs/audit/04-found-bugs.md)
+2026-05-29 for the resolution rationale.
 
 ### DB ([db.ts](./db.ts))
 
@@ -110,6 +110,16 @@ in this order on every authenticated `POST /api/save`; **do not skip
 - `GLOBAL_CREDIT_CAPS`, `MAX_CREDITS_PER_SECOND`, `MAX_CREDITS_PER_FIRST_CLEAR`,
   `CREDITS_DELTA_SLACK`, `PLAYTIME_DELTA_SLACK_SECONDS` — constants exposed
   for routes and tests.
+
+The four guards above consume only the progression fields
+(`completedMissions` / `unlockedPlanets` / `credits` / `playedTimeSeconds`).
+A guard validating ship/loadout state (augments, reactor, shield/armor
+levels, weapon slots) reads those off the same validated POST body — their
+shapes live in `ShipConfigSchema` in
+[`@/lib/schemas/save.ts`](./schemas/save.ts) (`augmentInventory` capped at
+50, `slots` at `MAX_WEAPON_SLOTS`). Add a `.max()` bound there before
+trusting any new array (INV-SCHEMA-1 in
+[`docs/security/invariants.md`](../../docs/security/invariants.md)).
 
 ### Leaderboard helpers ([leaderboard.ts](./leaderboard.ts), [players.ts](./players.ts), [handle.ts](./handle.ts), [leaderboardMapper.ts](./leaderboardMapper.ts))
 
@@ -193,19 +203,27 @@ compatible.**
   `validatePlaytimeDelta` → `validateCreditsDelta` (see the handler in
   [`src/app/api/save/route.ts`](../app/api/save/route.ts)). Skipping
   `validateNoRegression` was the 2026-05-02 wipe trigger.
-  ([saveValidation.ts:383](./saveValidation.ts))
+  (`validateMissionGraph`, `validateNoRegression`, `validatePlaytimeDelta`,
+  `validateCreditsDelta`)
 - **Cheat-guard rejections are 422, transient, never 4xx-account-block.**
   See ADR 0003. saveQueue holds the snapshot and retries after a successful
-  load reconciles state. ([saveValidation.ts:383](./saveValidation.ts))
+  load reconciles state. (`validateNoRegression`)
+- **A NEW guard call goes INSIDE the existing `.forUpdate()` transaction in
+  the save route** (INV-SAVE-2 / SEC-013) and derives any trusted baseline
+  from the locked prev row (`deriveCapInputMissions`), never the request
+  body (SEC-017). The `writeSaveAudit` calls stay OUTSIDE the txn so an
+  audit-table outage can't roll back a user-visible save. See
+  [`docs/security/invariants.md`](../../docs/security/invariants.md) and
+  [`saveValidation.SECURITY.md`](./saveValidation.SECURITY.md).
 - **Credit caps derive from JSON content, never hard-coded constants.**
   Walking `enemies.json` + `lootPools.ts` per request keeps the cap
   proportional to balance changes — a 10× damage buff scales the cap 10×
   automatically. CLAUDE.md §9.
-  ([saveValidation.ts:94](./saveValidation.ts))
+  (`computeCreditCapsForSystems` / `computeCreditCapsForPlayer`)
 - **Reachable systems derive from server-stored `completedMissions`, never
   the request body.** The graph guard runs first; only after it passes do
   we recompute caps. Otherwise a cheater could expand their cap by claiming
-  fake completions. ([saveValidation.ts:74](./saveValidation.ts))
+  fake completions. (`getReachableSolarSystems` / `deriveCapInputMissions`)
 - **DB queries should be wrapped in `unstable_cache(...,{revalidate, tags})`
   per CLAUDE.md §13.** Mutating routes call `revalidateTag()` to flush.
   Both leaderboard reads do this. ([leaderboard.ts:57](./leaderboard.ts),

@@ -17,11 +17,11 @@ deterministic measurement so two auditors get the same number.
 | # | Dimension | Score | One-line basis |
 |---|---|---|---|
 | 1 | Module boundary integrity | 10 | 0 runtime back-edges (audio→content closed 2026-06-13) AND now lint-enforced; 2 accepted type-only edges |
-| 2 | Documentation coverage & freshness | 9 | 10/10 module READMEs, drift found this pass fixed; dated phase artifacts can mislead |
+| 2 | Documentation coverage & freshness | 9 | 10/10 module READMEs; a 5-module spot-check found + fixed 5 blocker-class drift instances (2026-06-13); dated phase artifacts can still mislead |
 | 3 | Automated guardrails | 9 | 4 blocking CI gates + 1416 tests + security suite + per-zone module-boundary lint; no mutation/coverage gate |
 | 4 | File-size discipline | 8 | 17 files >300 LOC; all four audit-named ui god-files now under cap (GameCanvas 286); the rest are BootScene placeholder + justified save-pipeline files |
 | 5 | Skills coverage | 10 | 16 skill dirs (15 active + new-weapon redirect stub) cover every content task + audits; freshness-audited 2026-06 |
-| 6 | Fresh-agent navigability | 9 | All Phase 5 PARTIAL causes fixed; needs a fresh spot-check run to confirm PASS×3 |
+| 6 | Fresh-agent navigability | 9 | MEASURED 2026-06-13: 3 PASS / 2 PARTIAL / 0 FAIL, 0 blockers across 5 modules (was 0 PASS / 1 FAIL / 5 blockers before the README fixes); remaining gaps are minor cross-module-wiring notes |
 | | **Overall (mean)** | **9.2** | |
 
 > **Update 2026-06-13:** boundary integrity 9→10, guardrails 8→9, file-size
@@ -159,14 +159,27 @@ Measure: the Phase 5 "fresh-agent test" protocol
 ([05-final-report.md §3](05-final-report.md)) — README + barrel +
 CLAUDE.md §17 only; can the agent make a typical change safely?
 
-- Phase 5 scored state PASS, infra PARTIAL, ui PARTIAL. Every named cause
-  of both PARTIALs is now resolved: infra README documents the barrel
-  limitation, the closed back-edge (with a "don't re-open" rule), and the
-  corrected guard order; ui README has the `WeaponStatsView` import
-  example; state README points curve-seekers to `@/game/data`.
-- **Gap (−1):** the spot-check hasn't been formally re-run post-fixes;
-  next audit pass should re-execute the protocol and record PASS/PARTIAL
-  per module here.
+- **Re-run 2026-06-13 (5 modules: state, infra, ui, content, audio), each
+  with a realistic "typical change":**
+  - FIRST run (before README fixes): **0 PASS / 4 PARTIAL / 1 FAIL, 5
+    blockers.** The blockers were real, source-verified omissions — the
+    state README never mentioned `guestCache.ts` (a whole-`StateSnapshot`
+    localStorage surface); the content README's Public API had drifted out
+    of sync with the barrel (omitted `upgrades.ts`/`stats.ts`/
+    `clearedState.ts`/`systemUnlocks.ts`) and didn't name the `UpgradeId`
+    union edit; the audio README still said "nine engines" and never
+    documented `uiCues.ts` (`playUiCue`) — the exact file a UI-cue change
+    needs; the infra README contradicted `index.ts` on the barrel/auth
+    carve-out. This honestly showed the dimension had been OVER-rated at 9.
+  - SECOND run (after the fixes): **3 PASS / 2 PARTIAL / 0 FAIL, 0
+    blockers.** state/infra/audio now PASS; ui and content remain PARTIAL
+    with only minor cross-module-wiring notes (e.g. "a new stat row /
+    purchasable is a multi-module change").
+- **Gap (−1):** the 2 residual PARTIALs are cross-module-wiring guidance
+  that arguably belongs in a skill (`/equipment`, `/new-*`) rather than a
+  single-module README; documenting full cross-module flows inside one
+  module's README cuts against the modular-doc philosophy, so they're left
+  as minor.
 
 ## What changed in the 2026-06-12 pass
 
@@ -211,6 +224,17 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
    `useSaveLoadErrorGate` (load-error overlay state machine), and
    `useCombatLaunch` (galaxy↔combat entry/exit). All four audit-named ui
    god-files are now under cap. → file-size discipline 7→8.
+6. **Ran the fresh-agent navigability spot-check (the prior pass's #1
+   Next +point) and acted on it.** A 5-module run found navigability had
+   been OVER-rated at 9 — 0 PASS / 1 FAIL / 5 blockers, the blockers being
+   real source-verified doc omissions (undocumented `guestCache.ts`
+   wipe-surface, content Public-API drift vs the barrel, the audio README's
+   stale "nine engines" surface that hid `uiCues.ts`, the infra barrel/auth
+   contradiction). Fixed all five module READMEs (doc-only) and RE-RAN the
+   check: **3 PASS / 2 PARTIAL / 0 blockers.** Dimension 6's 9 is now
+   MEASURED, not asserted. The honest read: this didn't raise the number,
+   it *earned* it — and surfaced+fixed five drift instances that strengthen
+   dimension 2 (doc freshness) too.
 
 ## Score history
 
@@ -219,10 +243,13 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
 | 2026-06-12 | 8.7 | First measured rating (this doc). Baseline ~7.8 reconstructed from the same rubric applied to the pre-pass state (open runtime back-edge, 3 doc-drift instances, types barrel 99%). |
 | 2026-06-13 | 9.0 | Boundary integrity 9→10 (audio→content closed + graph lint-enforced); guardrails 8→9 (per-zone no-restricted-imports CI gate). |
 | 2026-06-13 | 9.2 | File-size discipline 7→8 — GameCanvas split 353→286; all four audit-named ui god-files now under the 300 cap. |
+| 2026-06-13 | 9.2 | Navigability spot-check run + acted on (0 PASS/5 blockers → 3 PASS/0 blockers via README fixes). Dimension 6's 9 is now measured, not asserted; overall unchanged but better-evidenced. |
 
 ## Next +points, in leverage order
 
-1. **Re-run the fresh-agent spot-check** (+1 to navigability if PASS×3).
+1. **Push the last 2 navigability PARTIALs to PASS** — likely via a
+   skill (`/equipment` extended to cover "new purchasable upgrade kind"),
+   not more single-module README prose.
 2. **Mark superseded phase artifacts**: one-line "superseded by
    04-found-bugs.md ledger + ai-first-rating" header on 05-final-report.md.
 3. **Coverage / mutation gate** (+1 to guardrails): the last guardrails

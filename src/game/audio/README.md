@@ -21,8 +21,12 @@ for that category flips. UI flips state via `audioBus.setMasterMuted` /
 
 ## Public API
 
-The `audio` module exposes one bus + nine singleton engines. Anything else in
-this folder is internal.
+The `audio` module exposes, via the barrel, one bus + nine singleton engines
+plus three function-level surfaces: the UI action cues (`uiCues.ts`), the
+cleared-state cue (`clearedStateCue.ts`), and the user-activation gate
+(`userActivation.ts`). The "Internal" section below lists what stays private;
+do not assume a file is internal just because it isn't an engine — check
+`index.ts`.
 
 ### Bus
 
@@ -73,6 +77,36 @@ this folder is internal.
   `play*` call MUST wire `autoDispose(stopper, ...rest)` so nodes disconnect
   on `ended`.
 
+### Function-level cue surfaces (no own engine singleton)
+
+- **`playUiCue(id: UiCueId)`** + the **`UI_CUE`** map (`uiCues.ts`) — one-shot
+  Grandma voice cues for shop/loadout UI **actions** (equip / unequip / sell /
+  upgrade-mark / picker-open / install-augment). Reuses `storyAudio`'s single
+  voice slot, so a new cue **preempts** the previous one — desired on
+  click-spam (no overlapping voices). Voice path convention
+  `/audio/ui/<action>-voice.mp3` with silent-404 drop-in. Callers
+  fire-and-forget — there is intentionally **no** `useEffect` cleanup, since a
+  click that fires the cue often immediately unmounts the picker that fired it.
+  Distinct from `itemSfx`, which fires on item **ACQUISITION** (purchase/drop):
+  `uiCues` fires on a UI **ACTION**. `UI_CUE` already carries
+  `installAugment` / `augmentPickerOpen` (and the `systemCleared` /
+  `everythingCleared` entries under `/audio/sfx/`) — check the map before
+  adding a new cue id.
+- **`maybePlayClearedCue(input)`** (`clearedStateCue.ts`) — fires at most one
+  cleared-state cue (`systemCleared` / `everythingCleared`) after a mission
+  victory, given the content-computed verdict (`evaluateClearedBoundaries`)
+  passed in by the `ui` caller. Uses its **own** versioned localStorage key
+  (`spacepotatis:ui_everything_cleared_fired_v1`) for once-per-device
+  semantics; re-arms when the player drops back below all-cleared. This is the
+  one localStorage write in the module — it is a player-feel flag, NOT mute
+  state (see invariant 1).
+- **`onUserActivation(cb)`** / **`isUserActivated()`** (`userActivation.ts`) —
+  shared first-gesture gate. Engines (notably `story.ts`) call
+  `onUserActivation(cb)` instead of `el.play()` directly so a play() rejected
+  before the first user gesture isn't silently stranded; `cb` runs inline if
+  already activated, else queues for the first pointerdown / keydown /
+  touchstart.
+
 ## Internal
 
 These are not part of the contract — do not import them from outside the
@@ -106,10 +140,11 @@ The load-bearing rules. Breaking any of these silently corrupts mute
 behavior, leaks HTMLAudioElement slots on iOS, or pins Web Audio nodes for
 the lifetime of an `AudioContext`.
 
-1. **Mute is session-only.** Never read or write
+1. **Never persist MUTE STATE.** Never read or write
    `localStorage["spacepotatis:muted"]` from new code (PR #70 explicitly
-   removed this). Never reintroduce a manual fan-out hub like the old
-   `setAllMuted`.
+   removed this), and never reintroduce a `setAllMuted` fan-out hub. This is
+   scoped to mute — non-mute, player-feel flags (e.g. `clearedStateCue`'s
+   once-per-device key) may use their own versioned localStorage key.
 2. **Every engine MUST register with `audioBus` in its constructor** under
    one of `music | voice | sfx`. The bus drives every engine's
    `setMuted(boolean)` when the effective mute flips. A new engine that
@@ -175,6 +210,9 @@ the lifetime of an `AudioContext`.
 | `itemSfx.ts` | 112 | Per-category drop/shop cues |
 | `leaderboardAudio.ts` | 73 | Hall of Mediocrity intro |
 | `sfx.ts` | 186 | Procedural Web Audio combat SFX |
+| `uiCues.ts` | 53 | `playUiCue` + `UI_CUE` map (shop/loadout UI action cues) |
+| `clearedStateCue.ts` | 106 | `maybePlayClearedCue` — once-per-device cleared-state cues |
+| `userActivation.ts` | 109 | `onUserActivation` / `isUserActivated` first-gesture gate |
 | `__tests__/fakeAudio.ts` | 385 | Hand-rolled DOM/Web-Audio fakes |
 | `*.test.ts` | — | Per-engine unit tests |
 
