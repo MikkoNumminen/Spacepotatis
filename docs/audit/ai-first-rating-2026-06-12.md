@@ -20,7 +20,7 @@ deterministic measurement so two auditors get the same number.
 | 2 | Documentation coverage & freshness | 9 | 10/10 module READMEs, drift found this pass fixed; dated phase artifacts can mislead |
 | 3 | Automated guardrails | 8 | 4 blocking CI gates + 1411 tests + security suite; no lint-level boundary enforcement |
 | 4 | File-size discipline | 7 | 18 files >300 LOC; most justified, GameCanvas (353) still over from the audit's named four |
-| 5 | Skills coverage | 10 | 14 project skills cover every content task + audits; freshness-audited 2026-06 |
+| 5 | Skills coverage | 10 | 16 skill dirs (15 active + new-weapon redirect stub) cover every content task + audits; freshness-audited 2026-06 |
 | 6 | Fresh-agent navigability | 9 | All Phase 5 PARTIAL causes fixed; needs a fresh spot-check run to confirm PASS×3 |
 | | **Overall (mean)** | **8.7** | |
 
@@ -66,13 +66,19 @@ test -f $d/README.md; done`); spot-grep READMEs for claims vs code.
   pre-refactor ShipConfig shape (named slots / `unlockedWeapons`).
 - CLAUDE.md §17's dependency table is now exactly true (infra depends on
   schemas/types/content only).
-- **Gap (−1):** dated phase artifacts (esp.
-  [05-final-report.md](05-final-report.md)) snapshot a superseded state and
+- **Gap (−1):** dated phase artifacts snapshot a superseded state and
   don't say so. A fresh agent reading the final report would chase already-
   resolved follow-ups (4 of its 7 outstanding items were resolved by the
-  time of this doc). Mitigation: this rating doc + the ledger in
-  [04-found-bugs.md](04-found-bugs.md) are the living sources; the phase
-  reports are history.
+  time of this doc); and four phase docs
+  ([05-final-report.md](05-final-report.md):107,227,
+  [01-inventory.md](01-inventory.md):675,
+  [01-inventory-drift-2026-05-31.md](01-inventory-drift-2026-05-31.md):67,95,
+  and [02-target-architecture.md](02-target-architecture.md):177 — the last
+  patched with a dated note this pass since CLAUDE.md §17 cites it as
+  canonical) still place the cost curves at `state/ShipConfig`. Mitigation:
+  this rating doc + the ledger in [04-found-bugs.md](04-found-bugs.md) are
+  the living sources; the phase reports are history. See "Next +points" item
+  4 for the superseded-banner follow-up.
 
 ## 3. Automated guardrails — 8/10
 
@@ -110,7 +116,7 @@ find src -name "*.ts" -o -name "*.tsx" | grep -v "\.test\." \
   `saveValidation.ts`, `schemas/save.ts` = save-pipeline surfaces where
   splitting increases round-trip risk).
 - Of the modular audit's four named ui god-files, three are now under cap
-  (ShopUI 219, QuestPanel 197, WeaponCard 247); **GameCanvas at 353**
+  (ShopUI 223, QuestPanel 197, WeaponCard 247); **GameCanvas at 353**
   remains over despite the PR-split to hooks (was 452).
 - **Gap (−3):** GameCanvas still over cap; a handful of the 18 lack an
   explicit in-file justification comment.
@@ -119,10 +125,12 @@ find src -name "*.ts" -o -name "*.tsx" | grep -v "\.test\." \
 
 Measure: `ls .claude/skills/` vs the content-task table in CLAUDE.md §10.
 
-- 14 project skills; every recurring content task (missions, enemies,
+- 16 skill directories (15 active + `new-weapon`, a redirect stub to
+  `/equipment`); every recurring content task (missions, enemies,
   equipment, perks, systems, story, migrations, voice assets) and every
   audit loop (balance, content, save round-trip, smell, deps) has one.
-- Skills were drift-audited and finetuned 2026-06 (PRs #286, #288).
+- Skills were drift-audited and finetuned 2026-06 (PRs #286, #288 — #288
+  added `deps-triage` and `voice-asset`, taking the count 14 → 16).
 
 ## 6. Fresh-agent navigability — 9/10
 

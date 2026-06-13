@@ -154,7 +154,6 @@ describe("weapon mark levels", () => {
       ship.inventory.find(i => i.id === "spread-shot");
     expect(spread?.level ?? 1).toBe(1);
   });
-
 });
 
 describe("installed augments", () => {

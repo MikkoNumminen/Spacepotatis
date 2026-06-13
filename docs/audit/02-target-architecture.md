@@ -174,7 +174,7 @@ Acyclic. Longest chain is 5 hops (`ui → app → state → content → schemas 
   - Mutators: every `buy*`, `equip*`, `install*`, `grantWeapon`, `grantAugment`, `addCredits`, `spendCredits`, `addPlayedTime`, `completeMission`, `setSolarSystem`, `markStorySeen`, `isMissionCompleted`, `isPlanetUnlocked`, `resetForTests`
   - Save round-trip surface: `loadSave`, `saveNow`, `flushSaveQueue`, `markSavePending`, `enqueueScore`, `drainScoreQueue`, `clearLoadSaveCache`, `LoadResult` type
   - Hooks: `useOptimisticAuth`
-  - ShipConfig values: `DEFAULT_SHIP`, `MAX_LEVEL`, `MAX_AUGMENTS_PER_WEAPON`, `MAX_WEAPON_SLOTS`, `weaponDamageMultiplier`, `weaponUpgradeCost`, all `*UpgradeCost` curves, all `getMax*` derived getters
+  - ShipConfig values: `DEFAULT_SHIP`, `MAX_LEVEL`, `MAX_AUGMENTS_PER_WEAPON`, `MAX_WEAPON_SLOTS`, all `getMax*` derived getters. (UPDATE 2026-06-12: the pure cost/damage curves — `weaponDamageMultiplier`, `weaponUpgradeCost`, all `*UpgradeCost` — moved to the `content` module at `src/game/data/upgradeCurves.ts`; they are balance data, not state. See docs/audit/04-found-bugs.md 2026-05-29.)
   - Constants: `SYSTEM_UNLOCK_GATES`, `INITIAL_STATE`
 - **Internal**: every `persistence/*` migrator (only `persistence.ts` exposes `hydrate`/`toSnapshot`); the cache module's mutable refs; the localStorage key constants.
 - **Dependencies**: `content`, `schemas`, `infra` (for `db` access — wait, NO; `db` access lives in API routes, not state directly. `state/sync.ts` calls `/api/save` via fetch, which is a network call, not a `db` import). Re-check: `state` → `content` only. `schemas` is used through `content`'s parsers + through `state/sync.ts`'s payload validation.
