@@ -2,11 +2,12 @@
 //   Stable. Breaking changes coordinate with state/, ui/, phaser/, three/, app/.
 //   See ./README.md for the rationale.
 
-// Ship-upgrade flavour copy. Unlike weapons / augments, the actual numeric
-// behaviour of these upgrades lives in `src/game/state/ShipConfig.ts`
-// (BASE_SHIELD, REACTOR_CAPACITY_PER_LEVEL, the cost curves, etc.). This
-// module is a thin presentation registry: id → display name + body copy
-// for the DETAILS modal, and an id-to-voice-file convention for Grandma.
+// Ship-upgrade flavour copy. The cost curves live next door in
+// `./upgradeCurves.ts`; the ShipConfig-reading stat getters (BASE_SHIELD,
+// REACTOR_CAPACITY_PER_LEVEL, getMaxShield, etc.) live in
+// `src/game/state/ShipConfig.ts`. This module is a thin presentation
+// registry: id → display name + body copy for the DETAILS modal, and an
+// id-to-voice-file convention for Grandma.
 //
 // Voice path: `/audio/upgrades/<id>-voice.mp3`. Missing files fail silently
 // (HTMLAudioElement doesn't throw on 404), matching weapons / augments.

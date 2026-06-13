@@ -6,7 +6,7 @@ import {
   deriveCapInputMissions,
   getReachableSolarSystems
 } from "@/lib/saveValidation";
-import type { MissionId } from "@/types/game";
+import type { MissionId } from "@/types";
 
 // SEC-017 — Credit-cap input must be SERVER-DERIVED, not the user-submitted
 // `completedMissions` list.

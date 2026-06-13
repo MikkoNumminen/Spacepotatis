@@ -2,20 +2,22 @@ import type { AugmentId, WeaponId } from "@/types";
 import {
   MAX_LEVEL,
   MAX_WEAPON_SLOTS,
-  armorUpgradeCost,
   firstEmptySlot,
   getInstanceAt,
   newWeaponInstance,
-  reactorCapacityCost,
-  reactorRechargeCost,
-  shieldUpgradeCost,
-  slotPurchaseCost,
-  weaponUpgradeCost,
   type WeaponInstance,
   type WeaponInventory,
   type WeaponPosition,
   type WeaponSlots
 } from "./ShipConfig";
+import {
+  armorUpgradeCost,
+  reactorCapacityCost,
+  reactorRechargeCost,
+  shieldUpgradeCost,
+  slotPurchaseCost,
+  weaponUpgradeCost
+} from "@/game/data";
 import { getWeapon } from "../data/weapons";
 import { MAX_AUGMENTS_PER_WEAPON, getAugment } from "../data/augments";
 import { getAugmentSellPrice, getSellPrice } from "./pricing";

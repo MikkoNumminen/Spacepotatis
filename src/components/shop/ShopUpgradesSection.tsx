@@ -2,17 +2,19 @@
 
 import {
   MAX_LEVEL,
-  armorUpgradeCost,
   getMaxArmor,
   getMaxShield,
   getReactorCapacity,
-  getReactorRecharge,
-  reactorCapacityCost,
-  reactorRechargeCost,
-  shieldUpgradeCost
+  getReactorRecharge
 } from "@/game/state";
 import type { ShipConfig } from "@/game/state";
-import type { UpgradeId } from "@/game/data";
+import {
+  armorUpgradeCost,
+  reactorCapacityCost,
+  reactorRechargeCost,
+  shieldUpgradeCost,
+  type UpgradeId
+} from "@/game/data";
 import { CatalogSection } from "@/components/ui/CatalogSection";
 
 // Hull/reactor upgrade row. Mirrors the weapon-row upgrade button shape so

@@ -9,19 +9,23 @@ import {
   buyShieldUpgrade,
   buyWeapon,
   MAX_LEVEL,
-  armorUpgradeCost,
   getMaxArmor,
   getMaxShield,
   getReactorCapacity,
   getReactorRecharge,
-  reactorCapacityCost,
-  reactorRechargeCost,
-  shieldUpgradeCost,
   useGameState
 } from "@/game/state";
 import type { ShipConfig } from "@/game/state";
 import { itemSfx } from "@/game/audio";
-import { getWeapon, getAllAugments, getBuyableWeaponIds } from "@/game/data";
+import {
+  armorUpgradeCost,
+  getWeapon,
+  getAllAugments,
+  getBuyableWeaponIds,
+  reactorCapacityCost,
+  reactorRechargeCost,
+  shieldUpgradeCost
+} from "@/game/data";
 import type { WeaponDefinition } from "@/types";
 import type { AugmentDefinition } from "@/game/data";
 import { WeaponDetailsModal } from "@/components/loadout/WeaponDetailsModal";

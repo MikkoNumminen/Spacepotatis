@@ -15,17 +15,10 @@ import {
   getAllWeapons,
   getWavesForMission,
   MAX_AUGMENTS_PER_WEAPON,
-  SYSTEM_UNLOCK_GATES
+  SYSTEM_UNLOCK_GATES,
+  weaponUpgradeCost
 } from "@/game/data";
 import { MAX_LEVEL } from "@/types";
-// AI-NOTE: `weaponUpgradeCost` remains imported from `state` — it's a runtime
-// cost-curve function tied to the ship-upgrade ladder. Re-homing it would
-// require lifting credit-cap derivation into state. ACCEPTED architectural
-// back-edge for this single function — see docs/audit/04-found-bugs.md
-// 2026-05-29. The pure constant `MAX_LEVEL` moved to `@/types` and
-// `SYSTEM_UNLOCK_GATES` moved to `@/game/data` to close two-thirds of the
-// original back-edge.
-import { weaponUpgradeCost } from "@/game/state/ShipConfig";
 import type { MissionId, SolarSystemId } from "@/types";
 
 // ---------------------------------------------------------------------------

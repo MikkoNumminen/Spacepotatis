@@ -46,12 +46,13 @@ Route here on: action verb (`add / remove / change / tweak / rebalance / buff / 
 - **Cap**: `MAX_AUGMENTS_PER_WEAPON = 2`.
 
 ## Reactor / Shield / Armor
-NOT catalog entries — constants in [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts):
-- `BASE_SHIELD = 40`, `BASE_ARMOR = 60`
-- `BASE_REACTOR_CAPACITY = 100`, `REACTOR_CAPACITY_PER_LEVEL = 30`
-- `BASE_REACTOR_RECHARGE = 25`, `REACTOR_RECHARGE_PER_LEVEL = 8`
-- `MAX_LEVEL = 5` (lives in `types/game.ts`, re-exported here)
-- Cost curves: `shieldUpgradeCost`, `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost` (default: double per level).
+Split across two files (both are constants/curves, NOT JSON catalog entries):
+- Base stats + getters in [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts):
+  - `BASE_SHIELD = 40`, `BASE_ARMOR = 60`
+  - `BASE_REACTOR_CAPACITY = 100`, `REACTOR_CAPACITY_PER_LEVEL = 30`
+  - `BASE_REACTOR_RECHARGE = 25`, `REACTOR_RECHARGE_PER_LEVEL = 8`
+  - `MAX_LEVEL = 5` (lives in `types/game.ts`, re-exported here)
+- Cost curves in [src/game/data/upgradeCurves.ts](src/game/data/upgradeCurves.ts) — `shieldUpgradeCost`, `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost` (default: double per level). Moved here 2026-06-12 (they're balance data; CLAUDE.md §5/§9). Consume via the `@/game/data` barrel.
 
 ## Visuals — what to edit per surface
 
@@ -148,7 +149,7 @@ When in doubt, copy the structurally closest existing entry. Run `/balance-revie
 | Weapon stats | `weapons.json` |
 | Augment multipliers | `augments.ts` `AUGMENTS_RECORD` |
 | Reactor/shield/armor base + per-level | [ShipConfig.ts](src/game/state/ShipConfig.ts) |
-| Reactor/shield/armor cost curves | Same — `*UpgradeCost` functions |
+| Reactor/shield/armor cost curves | [upgradeCurves.ts](src/game/data/upgradeCurves.ts) — `*UpgradeCost` functions |
 
 After: `npm run typecheck && npm run lint && npm test`. For balance-significant changes, run `/balance-review`. [data.test.ts](src/game/data/data.test.ts) asserts `damage > 0`, `fireRateMs > 0`, `bulletSpeed > 0`, `cost ≥ 0`, `energyCost > 0` — pushing to 0/negative fails the data, not the test.
 

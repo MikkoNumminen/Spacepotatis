@@ -8,8 +8,7 @@
 // Game-fire logic still goes through `foldAugmentEffects` directly at
 // fire time (PlayerFireController) — these helpers are UI-only.
 
-import { foldAugmentEffects } from "@/game/data";
-import { weaponDamageMultiplier } from "@/game/state";
+import { foldAugmentEffects, weaponDamageMultiplier } from "@/game/data";
 import type { AugmentId, WeaponDefinition } from "@/types";
 
 const DEFAULT_TURN_RATE = 3.5;

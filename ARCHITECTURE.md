@@ -112,7 +112,7 @@ score / credits / first-clear loot rewards.
 - [src/game/state/shipMutators.ts](src/game/state/shipMutators.ts) — every ship-shape mutator: `equipWeapon`, `grantWeapon`, `sellWeapon`, `buyWeapon`, `buyShieldUpgrade`, `buyArmorUpgrade`, `buyReactorCapacityUpgrade`, `buyReactorRechargeUpgrade`, `buyWeaponUpgrade`, `buyAugment`, `grantAugment`, `installAugment`. Imports `commit` and `getState` from `stateCore`.
 - [src/game/state/persistence.ts](src/game/state/persistence.ts) — `StateSnapshot`, `toSnapshot`, `hydrate`, `migrateShip`, `cloneWeaponAugments`. Per-shape migrators were extracted into [src/game/state/persistence/](src/game/state/persistence/) post-PR #76 (`migrateNewShape`, `migrateLegacyIdArray`, `migrateNamedSlots`, `migratePrimaryWeapon`, `safetyNet`, `helpers`, `legacyShared`, `types`). The orchestrator dispatches by detected shape; each migrator owns a single legacy format and has its own `*.test.ts`.
 - [src/game/state/pricing.ts](src/game/state/pricing.ts) — `SELL_RATE` constant + `getSellPrice(weapon)`. Pure.
-- [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — Tyrian-style modular loadout: `slots: { front, rear, sidekickLeft, sidekickRight }` (each `WeaponId | null`), `unlockedWeapons`, `shieldLevel`, `armorLevel`, `reactor: { capacityLevel, rechargeLevel }`, plus pure helpers for shield/armor/reactor max and upgrade pricing. Runtime energy value is NOT here — it's mutable per-mission state on `Player`.
+- [src/game/state/ShipConfig.ts](src/game/state/ShipConfig.ts) — Tyrian-style modular loadout: `slots` (variable-length array of `WeaponInstance | null`, each instance carrying its own `level` + `augments`), `inventory` (unequipped instances), `augmentInventory`, `shieldLevel`, `armorLevel`, `reactor: { capacityLevel, rechargeLevel }`, plus the ShipConfig-reading stat getters (`getMaxShield`, `getReactorCapacity`, …). The pure cost/damage curves (`weaponUpgradeCost`, `slotPurchaseCost`, …) live in [src/game/data/upgradeCurves.ts](src/game/data/upgradeCurves.ts) — they're balance data. Runtime energy value is NOT here — it's mutable per-mission state on `Player`.
 - [src/game/state/useGameState.ts](src/game/state/useGameState.ts) — `useSyncExternalStore` hook for React selectors.
 - [src/game/state/sync.ts](src/game/state/sync.ts) — `loadSave`, `saveNow`, `submitScore`. Best-effort fetches; failures and missing auth degrade silently so anonymous play keeps working. **All wire payloads validated by Zod schemas** in [src/lib/schemas/save.ts](src/lib/schemas/save.ts) — a malformed remote save is rejected with `loadSave()` returning `false`, not silently hydrated.
 
@@ -537,7 +537,12 @@ The architectural choices behind the shape are recorded as ADRs under
 
 ### 11.1. The graph
 
-Every arrow points "up" (toward a module loaded first). No back-edges.
+Every arrow points "up" (toward a module loaded first). No runtime
+back-edges since 2026-06-12 (the last one — `saveValidation.ts` pulling
+`weaponUpgradeCost` from `state` — closed when the cost curves moved to
+`content`). One accepted type-only exception remains: `schemas/save.ts`
+imports the ship-shape TYPES from `state/ShipConfig.ts` (see
+docs/audit/04-found-bugs.md 2026-05-29).
 Longest chain is 5 hops: `ui → app → state → content → schemas → types`.
 
 ```

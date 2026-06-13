@@ -1,6 +1,7 @@
 import type { AugmentId, WeaponDefinition } from "@/types";
 import { getAugment } from "../data/augments";
-import { weaponUpgradeCost, type WeaponInstance } from "./ShipConfig";
+import { weaponUpgradeCost } from "@/game/data";
+import type { WeaponInstance } from "./ShipConfig";
 
 // 100% refund for both weapons and augments — every credit the player put
 // into a piece of equipment comes back when they sell it. Lower this to a
