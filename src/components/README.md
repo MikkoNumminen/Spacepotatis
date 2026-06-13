@@ -27,7 +27,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
 ## Subfolders
 
 - **[`galaxy/`](./galaxy/)** — galaxy-view chrome. `HudFrame.tsx`, `WarpPicker.tsx`, `LoadoutModal.tsx`, `QuestPanel.tsx` (197 LOC — down from 387 after the 2026-05-29 row-component split), `QuestPanelRows.tsx` (sub-components: `Section`, `SuggestedRow`, `CollapsibleRow`, `ShopRow`, `SystemClearCta`), `VictoryModal.tsx`, the `questBuckets.ts` helper. Mounted by `GameCanvas`.
-- **[`loadout/`](./loadout/)** — LoadoutMenu sub-components. `SlotGrid.tsx`, `WeaponCard.tsx` (248 LOC, down from 306 after 2026-05-29 split), `WeaponCardAugmentSection.tsx` (per-weapon augment chip row + AugmentDetailsModal owner — extracted from WeaponCard), `WeaponDetailsModal.tsx`, `AugmentDetailsModal.tsx`, picker modals, `dots.tsx`. Used in galaxy + shop.
+- **[`loadout/`](./loadout/)** — LoadoutMenu sub-components. `SlotGrid.tsx`, `WeaponCard.tsx` (248 LOC, down from 306 after 2026-05-29 split), `WeaponCardAugmentSection.tsx` (per-weapon augment chip row + AugmentDetailsModal owner — extracted from WeaponCard), the four DETAILS modals — `WeaponDetailsModal.tsx` (per-weapon stats), `AugmentDetailsModal.tsx`, `UpgradeDetailsModal.tsx` (hull/shield/reactor stats), `StatDetailsModal.tsx` (aggregate ship stats) — picker modals, `dots.tsx`. Used in galaxy + shop.
 - **[`shop/`](./shop/)** — ShopUI catalog sections: `ShopUpgradesSection.tsx` (HULL & SHIELD + REACTOR), `ShopWeaponsSection.tsx` (BUY WEAPONS), `ShopAugmentsSection.tsx` (AUGMENTS). Pure render given props; state + mutator wirings + audio effects live in the `ShopUI` orchestrator.
 - **[`story/`](./story/)** — `StoryModal.tsx` (cinematic popup), `StoryListModal.tsx` (the Story log).
 - **[`hooks/`](./hooks/)** — client-side React hooks: `useGalaxyScene.ts`, `usePhaserGame.ts`, `useCloudSaveSync.ts`, `useCloudSaveSyncLogic.ts` (pure decision helpers tested separately), `useStoryTriggers.ts` (281 LOC, borderline god-file), `useNextMissionAutoSelect.ts`, `useGameMode.ts` (mode state + audio-bed contract), `useTransitionOverlay.ts` (black fade + dynamic three.js import), `useVictoryFlow.ts` (post-combat state machine + save/score queue drain triggers). Also `retryWithBackoff.ts` — a pure helper (not a hook) co-located here because its only consumers are `useGalaxyScene` + `usePhaserGame`; provides the 3-attempt × 300ms-backoff policy that masks transient renderer init failures (WebGL context blip on warp, dynamic-import flake). The single concern per file rule (CLAUDE.md §5) lives here — these exist exactly so `GameCanvas` doesn't have to.
@@ -40,7 +40,7 @@ The components directly under `src/components/` (not in a subfolder) are the ent
   ```ts
   import { WeaponStats } from "./WeaponStatsView";
   ```
-  Not `./WeaponStats` — on Windows/macOS-default filesystems that lowercase path resolves to the unrelated math helper and TypeScript errors with "no exported member 'WeaponStats'". Outside `loadout/`, prefer passing a `WeaponStats` instance via prop rather than re-importing the component across the folder boundary.
+  Not `./WeaponStats` — on Windows/macOS-default filesystems that lowercase path resolves to the unrelated math helper and TypeScript errors with "no exported member 'WeaponStats'". Outside `loadout/`, prefer passing a `WeaponStats` instance via prop rather than re-importing the component across the folder boundary. `loadout/weaponStats.ts` is the pure stat-computation helper; `loadout/WeaponStatsView.tsx` is its presentational view. Compute new derived stats in `weaponStats.ts`, render them in `WeaponStatsView.tsx`.
 - Test fixtures and per-component test setups (`*.test.tsx`).
 
 ## Dependencies
@@ -78,6 +78,7 @@ NEVER reaches the database directly. NEVER reaches schemas directly. All server-
 - **Re-implementing audio playback.** Use the existing engines from `audio/`. The mute fan-out + iOS-budget handling are non-trivial.
 - **Adding raw `fetch("/api/...")` calls** anywhere in this module. Go through `state/sync.ts` (which uses `ROUTES` constants) so the cheat-guard / regression / queue paths can wrap the call.
 - **Adding a build-phase loading state inside `Leaderboard.tsx` / `TopPilots.tsx`.** Don't — the page (`src/app/leaderboard/page.tsx`) is `force-dynamic` so it renders at request time, never at build. `isBuildPhase()` in `lib/leaderboard.ts` is a defense-in-depth safety net; it never fires under normal flow. A skeleton in these components would only fragment the live board into half-empty tiles. The empty branches ("be the first") are for the runtime-empty case only.
+- **Adding a NEW stat row is usually a two-module change.** The render row lives in `loadout/WeaponStatsView.tsx`, but the VALUE must already exist in `content` — static fields in `src/game/data/*.json`, or a derived curve in [`src/game/data/upgradeCurves.ts`](../game/data/upgradeCurves.ts). If the stat doesn't exist in content yet, add it there first (and to the matching `lib/schemas` validator) — do not hard-code a number in the component (CLAUDE.md §9).
 
 ## How to test changes
 

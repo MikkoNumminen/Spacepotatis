@@ -41,6 +41,25 @@ Per-catalog accessors (one row per JSON catalog):
 - **Mission-weapon rewards** — [`missionWeaponRewards.ts`](missionWeaponRewards.ts):
   `MISSION_WEAPON_REWARDS`, `getBuyableWeaponIds(completed)`,
   `getMissionForWeapon(weaponId)`.
+- **Stats (presentation)** — [`stats.ts`](stats.ts): `getStat(id)`, `STATS`,
+  `StatDefinition`. Thin presentation registry — inline weapon-card stat id →
+  display label + icon + DETAILS body copy. The `StatId` union lives in
+  [`src/types/game.ts`](../../types/game.ts). Voice convention:
+  `/audio/stats/<id>-voice.mp3` (404s fail silently).
+- **Upgrades (presentation)** — [`upgrades.ts`](upgrades.ts): `getUpgrade(id)`,
+  `UPGRADES`, `UpgradeDefinition`. Thin presentation registry — upgrade id →
+  display name + DETAILS body copy. The COST lives next door in
+  [`upgradeCurves.ts`](upgradeCurves.ts); the `UpgradeId` union lives in
+  [`src/types/game.ts`](../../types/game.ts). Voice convention:
+  `/audio/upgrades/<id>-voice.mp3` (404s fail silently).
+- **Cleared-state evaluation** — [`clearedState.ts`](clearedState.ts):
+  `evaluateClearedBoundaries(input)` — pure progress check against the mission
+  roster returning `{ systemNowCleared, everythingNowCleared }`, the
+  cleared-system / everything-cleared verdict the idle audio cue consumes.
+- **System-unlock gates** — [`systemUnlocks.ts`](systemUnlocks.ts):
+  `SYSTEM_UNLOCK_GATES` — the `MissionId → SolarSystemId` map that unlocks a
+  solar system on the matching mission completion. Read by both `state` and
+  `saveValidation.ts`'s SEC-027 unlock derivation.
 - **Upgrade curves** — [`upgradeCurves.ts`](upgradeCurves.ts): the pure
   `number → number` balance curves — `weaponUpgradeCost`, `shieldUpgradeCost`,
   `armorUpgradeCost`, `reactorCapacityCost`, `reactorRechargeCost`,
@@ -90,6 +109,16 @@ exception, not a permanent placement.
   [`augments.ts`](augments.ts) use `as const satisfies readonly XId[]` to
   guarantee the runtime ID array stays in lockstep with the compile-time `XId`
   union. Drift (rename one, forget the other) fails `tsc`.
+- **Presentation registries keyed by a `*Id` union use `Record<XId, XDefinition>`.**
+  [`upgrades.ts`](upgrades.ts) (→ `UpgradeId`) and [`stats.ts`](stats.ts)
+  (→ `StatId`) build their registry as `Record<XId, XDefinition>`; the union
+  lives in [`src/types/game.ts`](../../types/game.ts). Adding a new
+  upgrade/stat kind = (1) extend the union in `types/game.ts`, (2) add the
+  registry row, (3) add it to the `UPGRADES` / `STATS` export array. `tsc`
+  fails on any one missing — the `Record` makes a missing row a hard error,
+  not a silent gap. Use [`/equipment`](../../../.claude/skills/equipment/SKILL.md)
+  (new upgrade kind) and [`/voice-asset`](../../../.claude/skills/voice-asset/SKILL.md)
+  (the matching `<id>-voice.mp3`) so the audio convention lands too.
 - **The integrity check fires at module load via `missions.ts`.** The bottom
   of [`missions.ts`](missions.ts) calls
   `runDataIntegrityCheck(buildLiveIntegrityData(ALL_MISSIONS))` once at import
@@ -119,6 +148,14 @@ exception, not a permanent placement.
   `autoTrigger.kind` requires updating the integrity check switch
   ([`integrityCheck.ts:298`](integrityCheck.ts)) — the `_exhaustive: never`
   guard fails `tsc` if you forget.
+- **Cost curves feed the server-side credit-cap derivation.** The curves in
+  [`upgradeCurves.ts`](upgradeCurves.ts) are summed by
+  [`src/lib/saveValidation.ts`](../../lib/saveValidation.ts) (it walks
+  `weaponUpgradeCost` over the Mk ladder for the worst-case refund that sets
+  `CREDITS_DELTA_SLACK`). A new curve that lets the player GAIN or REFUND
+  credits must be reflected in that derivation or the cheat guard rejects
+  legitimate saves; a pure credit SINK does not. When in doubt run
+  [`/save-roundtrip-audit`](../../../.claude/skills/save-roundtrip-audit/SKILL.md).
 
 ## Common pitfalls
 

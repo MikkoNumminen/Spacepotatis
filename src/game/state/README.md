@@ -45,6 +45,15 @@ Every state change goes through one of these:
 - `enqueueScore(score)` / `drainScoreQueue()` — leaderboard durability. Same shape as the save queue; the leaderboard is required to be eventually-consistent. **Never bypass — `enqueueScore` first, then drain.** Fire-and-forget POSTs lose scores.
 - `LoadResult` + `LoadResultKind` types — re-exported for components that switch on the result kind.
 
+### Guest/anon snapshot cache ([guestCache.ts](./guestCache.ts))
+
+A SECOND, orthogonal localStorage channel (distinct key + version from `saveQueue`) that persists anonymous progress across the OAuth page reload so a guest who signs in doesn't lose what they just earned.
+
+- `readGuestSnapshot()` / `writeGuestSnapshot(snapshot)` — synchronous, no-throw read/write of the whole `StateSnapshot` wrapped in a `{ v, savedAtMs, snapshot }` envelope under `SCHEMA_VERSION`. `readGuestSnapshot` returns null on absent / unparseable / version-mismatch.
+- `clearGuestSnapshot()` — drop the blob (cleared after claim, on sign-out, and on a successful `server-loaded` result).
+- `bindGuestPersistenceOnce()` — ref-counted boot wiring; subscribes the writer (anon-only) and the cross-tab `storage` listener, returns its own cleanup.
+- Claim-on-sign-in fires exactly once, in `sync.ts`'s `no-save` branch — the only path that knows the cloud has no row to overwrite. The trust boundary is `/api/save`, NOT this module.
+
 ### ShipConfig values ([ShipConfig.ts](./ShipConfig.ts))
 
 - Defaults + caps: `DEFAULT_SHIP`, `MAX_LEVEL`, `MAX_AUGMENTS_PER_WEAPON`, `MAX_WEAPON_SLOTS`
@@ -97,7 +106,16 @@ When you touch `ShipConfig.ts`, run `npm run typecheck` before assuming the chan
 
 ## Invariants
 
-The save round-trip has **8 layers** end-to-end. Adding a `StateSnapshot` field that doesn't thread through ALL 8 causes silent drops. Use `/save-roundtrip-audit` to verify before committing any save-shape change. See ADR 0004.
+The save round-trip has **8 layers** end-to-end. Adding a `StateSnapshot` field that doesn't thread through ALL 8 causes silent drops. Use `/save-roundtrip-audit` to verify before committing any save-shape change. See ADR 0004. The layers, with the file that owns each:
+
+1. **`StateSnapshot` interface** — [persistence.ts](./persistence.ts). The in-memory shape of "what gets persisted".
+2. **`toSnapshot()`** — [persistence.ts](./persistence.ts). Serializes live state into the snapshot.
+3. **`SavePayloadSchema`** — [src/lib/schemas/save.ts](../../lib/schemas/save.ts). Zod gate for the POST body; a field not listed here is silently stripped.
+4. **`/api/save` POST handler** — [src/app/api/save/route.ts](../../app/api/save/route.ts). Writes the validated payload.
+5. **DB column** — the matching `save_games` column.
+6. **Migration** — [db/migrations/*.sql](../../../db/migrations/) — the SQL that created the column.
+7. **`/api/save` GET handler + `RemoteSaveSchema`** — [src/app/api/save/route.ts](../../app/api/save/route.ts) + [src/lib/schemas/save.ts](../../lib/schemas/save.ts). What the server returns and the Zod gate on the read side.
+8. **`sync.loadSave` → `hydrate`** — [sync.ts](./sync.ts) + [persistence.ts](./persistence.ts). Turns a remote save back into live state.
 
 - **`INITIAL_STATE.unlockedSolarSystems` is the FALLBACK only.** `hydrate()` re-derives the real set from `completedMissions` ∩ `SYSTEM_UNLOCK_GATES`. Persisting the array directly creates a truth-duplication bug where the gate map and the persisted array could disagree. Documented in [persistence.ts](./persistence.ts).
 - **`migrateShip` silently DROPS unknown weapon and augment ids.** This is by design (legacy id reaping), but the salvage step in `salvageRemovedWeapons.ts` MUST run BEFORE the per-shape migrators so removed-from-catalog ids get refunded as credits. The refund map `REMOVED_WEAPON_BASE_COSTS` is load-bearing — never delete entries even after a re-introduction (entry stays harmless because live ids are checked against the catalog first).
@@ -106,10 +124,12 @@ The save round-trip has **8 layers** end-to-end. Adding a `StateSnapshot` field 
 - **`saveQueue` flush refuses to POST if the stamped email doesn't match the currently signed-in account.** Sign-out clears the queue.
 - **`completeMission` is the ONLY path that updates `unlockedPlanets` + triggers the system-gate unlock.** Don't write to `unlockedPlanets` from anywhere else.
 - **422 `save_regression` is TRANSIENT, not permanent.** The saveQueue holds the snapshot and retries after the next successful loadSave hydrates real state. Never treat 422 as account-fatal — that's the cheat-guard convention from ADR 0003.
+- **`guestCache` serializes the whole `StateSnapshot` to localStorage for anon players** — a new `StateSnapshot` field rides along automatically, but bumping the envelope shape requires a `SCHEMA_VERSION` bump or `readGuestSnapshot` drops the blob (`parsed.v !== SCHEMA_VERSION` → null).
 
 ## Common pitfalls
 
-- **Adding a `StateSnapshot` field without threading it through all 8 layers.** Run `/save-roundtrip-audit` before committing.
+- **Adding a `StateSnapshot` field without threading it through all 8 layers.** Run `/save-roundtrip-audit` before committing. `StateSnapshot` is declared in [persistence.ts](./persistence.ts); adding a field means editing the interface, the `toSnapshot()` object literal (layer 1), the `hydrate()` reader (layer 8), AND the per-field Zod schema in [src/lib/schemas/save.ts](../../lib/schemas/save.ts) (the network-edge layer where an unlisted field is silently stripped).
+- **The dead-field trap.** Adding a `StateSnapshot` field is only half the work — also add it to the live state shape (`GameStateShape`) in [stateCore.ts](./stateCore.ts), give it a default in `INITIAL_STATE`, and add a mutator that actually sets it. Otherwise `toSnapshot()` always reads the default and the field is dead on arrival (ships type-clean but never leaves `INITIAL_STATE`).
 - **Reading `INITIAL_STATE.unlockedSolarSystems`** thinking it's the player's actual unlocked set. It's the fresh-account fallback only; `hydrate()` re-derives the real set.
 - **Editing a persistence migrator without testing legacy save fixtures.** `migrateLegacyIdArray.test.ts`, `migrateNamedSlots.test.ts`, `migratePrimaryWeapon.test.ts`, `migrateNewShape.test.ts`, `safetyNet.test.ts`, `salvageRemovedWeapons.test.ts` exist for exactly this. They cover the four legacy shapes the migrator must handle.
 - **Removing a weapon from `weapons.json` without adding a refund entry to `REMOVED_WEAPON_BASE_COSTS`.** Players lose credits silently. The `salvageInvariants.test.ts` cross-checks TODO.md's "Phase Vegetable-Catalog" backlog against the refund map.
@@ -131,6 +151,7 @@ npm test src/game/state/persistence
 npm test src/game/state/saveQueue.test.ts
 npm test src/game/state/scoreQueue.test.ts
 npm test src/game/state/syncCache.test.ts
+npm test src/game/state/guestCache.test.ts
 npm test src/game/state/ShipConfig.test.ts
 npm test src/game/state/pricing.test.ts
 npm test src/game/state/rewards.test.ts
@@ -146,6 +167,7 @@ What each test covers:
 - `persistence/*.test.ts` — per-shape migrators against the four legacy save shapes + the salvage step ordering.
 - `saveQueue.test.ts`, `scoreQueue.test.ts` — localStorage durability, account stamp invariants, drain semantics.
 - `syncCache.test.ts` — `currentPlayerEmail` swap detection, hydration-flag lifecycle, `lastLoadResult` mirror.
+- `guestCache.test.ts` — anon-snapshot envelope round-trip, version-mismatch drop, claim-on-sign-in / never-overwrite-cloud, ref-counted bind + cross-tab `storage` sync.
 - `ShipConfig.test.ts` — DEFAULT_SHIP shape + cost-curve sanity.
 - `pricing.test.ts` — sell-back math, including augment-bound-to-weapon destruction semantics.
 - `rewards.test.ts` — first-clear loot pool selection.
