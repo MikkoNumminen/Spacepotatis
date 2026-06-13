@@ -27,23 +27,30 @@ import nextTypescript from "eslint-config-next/typescript";
 // intentional code-split deep imports (ui → @/game/three/GalaxyScene, etc.)
 // are unaffected by design.
 // ---------------------------------------------------------------------------
+// Each module's import-target globs cover BOTH spellings of a cross-module
+// import:
+//   - `@/<path>` + `@/<path>/**`  — the `@/` alias (the repo convention).
+//   - `**/*/<dir>` + `**/*/<dir>/**` — any RELATIVE path that resolves into the
+//     module (`../state`, `../../game/state`, `../../../three`, …). The leading
+//     `**/*/` requires at least one path segment before `<dir>`, so a BARE npm
+//     package name (`three`, `phaser`) can never match — only a relative
+//     traversal that contains the segment does. This closes the relative-path
+//     escape that pure-alias globs miss (no-restricted-imports matches the
+//     literal specifier string, not a resolved path).
 const MODULE_GLOBS = {
-  types: ["@/types", "@/types/**"],
-  schemas: ["@/lib/schemas", "@/lib/schemas/**"],
-  audio: ["@/game/audio", "@/game/audio/**"],
-  content: ["@/game/data", "@/game/data/**"],
-  state: ["@/game/state", "@/game/state/**"],
-  three: ["@/game/three", "@/game/three/**"],
-  phaser: ["@/game/phaser", "@/game/phaser/**"],
-  app: ["@/app", "@/app/**"],
-  ui: ["@/components", "@/components/**"],
+  types: ["@/types", "@/types/**", "**/*/types", "**/*/types/**"],
+  schemas: ["@/lib/schemas", "@/lib/schemas/**", "**/*/schemas", "**/*/schemas/**"],
+  audio: ["@/game/audio", "@/game/audio/**", "**/*/audio", "**/*/audio/**"],
+  content: ["@/game/data", "@/game/data/**", "**/*/data", "**/*/data/**"],
+  state: ["@/game/state", "@/game/state/**", "**/*/state", "**/*/state/**"],
+  three: ["@/game/three", "@/game/three/**", "**/*/three", "**/*/three/**"],
+  phaser: ["@/game/phaser", "@/game/phaser/**", "**/*/phaser", "**/*/phaser/**"],
+  app: ["@/app", "@/app/**", "**/*/app", "**/*/app/**"],
+  ui: ["@/components", "@/components/**", "**/*/components", "**/*/components/**"],
   // infra = the whole src/lib tree (includes schemas). Zones that may depend
   // on `schemas` but not the rest of infra (only `state` today) simply don't
   // list `infra` in their deny set and rely on the more specific entries.
-  // NOTE: no-restricted-imports `group` matching is gitignore-style and cannot
-  // re-include a child once its parent dir is excluded, so a "lib-except-
-  // schemas" glob is not expressible here — we don't need it (see below).
-  infra: ["@/lib", "@/lib/**"],
+  infra: ["@/lib", "@/lib/**", "**/*/lib", "**/*/lib/**"],
 };
 
 const BOUNDARY_TEST_IGNORES = ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"];
@@ -87,6 +94,8 @@ const moduleBoundaryConfigs = [
     files: ["src/lib/schemas/**/*.{ts,tsx}"],
     ignores: BOUNDARY_TEST_IGNORES,
     rules: denyModules([
+      // state is type-only-allowed (ship-shape types in save.ts); the MODULE_GLOBS
+      // relative globs cover both alias and `../../game/state` spellings.
       { mod: "state", typeOnlyOk: true },
       { mod: "audio" }, { mod: "three" }, { mod: "phaser" }, { mod: "app" }, { mod: "ui" },
     ]),
@@ -98,6 +107,9 @@ const moduleBoundaryConfigs = [
     files: ["src/game/audio/**/*.{ts,tsx}"],
     ignores: BOUNDARY_TEST_IGNORES,
     rules: denyModules([
+      // content is type-only-allowed (itemSfx `import type PerkId`); the
+      // MODULE_GLOBS relative globs cover the `../data` / `../../game/data`
+      // spellings as well as the alias.
       { mod: "content", typeOnlyOk: true },
       { mod: "state" }, { mod: "three" }, { mod: "phaser" },
       { mod: "app" }, { mod: "ui" }, { mod: "infra" },
