@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { CombatSummary } from "@/game/phaser";
-import type { MissionDefinition, MissionId } from "@/types";
-import { combatMusic, resolveCombatTrack } from "@/game/audio";
+import type { MissionDefinition } from "@/types";
 import HudFrame from "@/components/galaxy/HudFrame";
 import QuestPanel from "@/components/galaxy/QuestPanel";
 import VictoryModal from "@/components/galaxy/VictoryModal";
@@ -18,19 +17,18 @@ import SplashGate from "@/components/SplashGate";
 import SaveLoadErrorOverlay from "@/components/SaveLoadErrorOverlay";
 import { useCloudSaveSync } from "@/components/hooks/useCloudSaveSync";
 import { useGalaxyTransition } from "@/components/hooks/useGalaxyTransition";
-import {
-  clearLoadSaveCache,
-  useGameState,
-  setSolarSystem,
-  useOptimisticAuth
-} from "@/game/state";
+import { useGameState, useOptimisticAuth } from "@/game/state";
 import { useGalaxyScene } from "@/components/hooks/useGalaxyScene";
 import { usePhaserGame } from "@/components/hooks/usePhaserGame";
 import { useStoryTriggers } from "@/components/hooks/useStoryTriggers";
 import { useGameMode } from "@/components/hooks/useGameMode";
 import { useTransitionOverlay } from "@/components/hooks/useTransitionOverlay";
 import { useVictoryFlow } from "@/components/hooks/useVictoryFlow";
-import { getAllMissions, getAllSolarSystems, getMission, getStoryEntry } from "@/game/data";
+import { useCombatLaunch } from "@/components/hooks/useCombatLaunch";
+import { useSaveLoadErrorGate } from "@/components/hooks/useSaveLoadErrorGate";
+import { useWarpControls } from "@/components/hooks/useWarpControls";
+import { usePlanetFocus } from "@/components/hooks/usePlanetFocus";
+import { getMission, getStoryEntry } from "@/game/data";
 import { ROUTES } from "@/lib/routes";
 
 export default function GameCanvas() {
@@ -42,59 +40,27 @@ export default function GameCanvas() {
   const sessionEmail = session?.user?.email ?? null;
   const { isVerified } = useOptimisticAuth();
   const [hovered, setHovered] = useState<MissionDefinition | null>(null);
-  const [focusedPlanetId, setFocusedPlanetId] = useState<MissionId | null>(null);
-  const [warpOpen, setWarpOpen] = useState(false);
+  const { focusedPlanetId, handleSceneSelect, clearFocus } = usePlanetFocus();
   const currentSolarSystemId = useGameState((s) => s.currentSolarSystemId);
   const unlockedSolarSystems = useGameState((s) => s.unlockedSolarSystems);
   const completedMissions = useGameState((s) => s.completedMissions);
   const unlockedPlanets = useGameState((s) => s.unlockedPlanets);
   const seenStoryEntries = useGameState((s) => s.seenStoryEntries);
 
-  const handleWarpToNextSystem = useCallback(() => {
-    const completed = new Set(completedMissions);
-    const systemIds = getAllSolarSystems().map((s) => s.id);
-    const currentIdx = systemIds.indexOf(currentSolarSystemId);
-    for (let step = 1; step <= systemIds.length; step++) {
-      const candidateId = systemIds[(currentIdx + step) % systemIds.length];
-      if (!candidateId || candidateId === currentSolarSystemId) continue;
-      if (!unlockedSolarSystems.includes(candidateId)) continue;
-      const hasUnfinished = getAllMissions().some(
-        (m) => m.solarSystemId === candidateId && m.kind === "mission" && !completed.has(m.id)
-      );
-      if (hasUnfinished) {
-        setSolarSystem(candidateId);
-        return;
-      }
-    }
-    setWarpOpen(true);
-  }, [completedMissions, currentSolarSystemId, unlockedSolarSystems]);
+  const { warpOpen, openWarp, closeWarp, warpToNext, warpToSystem } = useWarpControls({
+    completedMissions,
+    currentSolarSystemId,
+    unlockedSolarSystems
+  });
 
   const saveSync = useCloudSaveSync();
   const saveLoaded = saveSync.status === "loaded";
-  // The overlay starts visible whenever the load fails. Dismissing it
-  // doesn't clear the underlying status — saveNow stays gated by the
-  // hydration flag in syncCache, so even an "I understand the risk"
-  // dismissal can't trigger an INITIAL_STATE POST that would wipe the
-  // server save. This bool just removes the visual blocker.
-  const [errorDismissed, setErrorDismissed] = useState(false);
-  const showLoadError = saveSync.status === "load-failed" && !errorDismissed;
-  // Reset the dismissal whenever a successful load happens (e.g. retry
-  // succeeds after an earlier failure), so a future failure cycle re-blocks
-  // instead of being silently dismissed from the previous one.
-  useEffect(() => {
-    if (saveSync.status === "loaded") setErrorDismissed(false);
-  }, [saveSync.status]);
-
-  const handleRetryLoad = useCallback(() => {
-    // clearLoadSaveCache wipes the cache + lastLoadResult + hydration flag.
-    // The simplest reliable retry is a full reload: it re-runs the splash
-    // gate's loadSave with a clean slate, and avoids needing to thread a
-    // re-fetch trigger through useReliableSession (which is what otherwise
-    // gates the useCloudSaveSync effect).
-    clearLoadSaveCache();
-    setErrorDismissed(false);
-    window.location.reload();
-  }, []);
+  const {
+    showLoadError,
+    reason: loadErrorReason,
+    onRetry: handleRetryLoad,
+    onDismiss: handleDismissLoadError
+  } = useSaveLoadErrorGate(saveSync);
 
   const { overlayRef, fadeOverlay } = useTransitionOverlay();
 
@@ -130,13 +96,6 @@ export default function GameCanvas() {
   });
   cancelBriefingRef.current = cancelPendingBriefing;
 
-  // Planet click in the 3D scene flows into QuestPanel as a focus signal so
-  // the matching entry expands inline. Clearing on null lets a click on
-  // empty space collapse-back through the panel's own toggle.
-  const handleSceneSelect = useCallback((mission: MissionDefinition | null) => {
-    setFocusedPlanetId(mission?.id ?? null);
-  }, []);
-
   const { ready: sceneReady, error: galaxyError } = useGalaxyScene({
     enabled: mode === "galaxy",
     canvasRef: galaxyCanvasRef,
@@ -159,36 +118,13 @@ export default function GameCanvas() {
     router
   });
 
-  const handleLaunch = useCallback(
-    async (mission: MissionDefinition) => {
-      // Defensive: scenery bodies have no action and shouldn't reach here
-      // (QuestPanel and the raycaster filter them out), but if a click
-      // sneaks through, do nothing rather than launching a no-op combat.
-      if (mission.kind === "scenery") return;
-      if (mission.kind === "shop") {
-        // Client-side nav preserves in-memory GameState (credits etc.).
-        leaveGalaxy(ROUTES.page.shop);
-        return;
-      }
-      setFocusedPlanetId(null);
-      // Start fetching + playing the mission bed BEFORE the fade-to-black so
-      // the audio is up by the time the combat scene appears. CombatScene's
-      // own loadTrack call later is a no-op when the src already matches —
-      // resolveCombatTrack guarantees both sites pick the same src (incl.
-      // the fallback for missions with no dedicated track).
-      combatMusic.loadTrack(resolveCombatTrack(mission.musicTrack));
-      await fadeOverlay(1);
-      setLaunching(mission);
-      setMode("combat");
-      requestAnimationFrame(() => void fadeOverlay(0));
-    },
-    [fadeOverlay, leaveGalaxy, setLaunching, setMode]
-  );
-
-  const onCombatExit = useCallback(() => {
-    setLaunching(null);
-    setMode("galaxy");
-  }, [setLaunching, setMode]);
+  const { handleLaunch, onCombatExit } = useCombatLaunch({
+    fadeOverlay,
+    leaveGalaxy,
+    setMode,
+    setLaunching,
+    clearFocus
+  });
 
   const { lastSummary, setLastSummary, syncStatus, handleMissionComplete } = useVictoryFlow({
     authStatus,
@@ -264,7 +200,7 @@ export default function GameCanvas() {
           <HudFrame
             hovered={hovered}
             onBackToMenu={() => leaveGalaxy(ROUTES.page.home)}
-            onOpenWarp={() => setWarpOpen(true)}
+            onOpenWarp={openWarp}
             warpAvailable={unlockedSolarSystems.length > 1}
             onOpenStoryList={() => setStoryListOpen(true)}
           />
@@ -272,18 +208,15 @@ export default function GameCanvas() {
             currentSolarSystemId={currentSolarSystemId}
             focusedPlanetId={focusedPlanetId}
             onLaunch={handleLaunch}
-            onWarpToNext={handleWarpToNextSystem}
+            onWarpToNext={warpToNext}
             onMissionSelect={handleMissionSelect}
           />
           {warpOpen && (
             <WarpPicker
               currentSystemId={currentSolarSystemId}
               unlockedSystemIds={unlockedSolarSystems}
-              onClose={() => setWarpOpen(false)}
-              onSelect={(id) => {
-                setSolarSystem(id);
-                setWarpOpen(false);
-              }}
+              onClose={closeWarp}
+              onSelect={warpToSystem}
             />
           )}
           {lastSummary && (
@@ -338,9 +271,9 @@ export default function GameCanvas() {
     */}
     {showLoadError && (
       <SaveLoadErrorOverlay
-        reason={saveSync.status === "load-failed" ? saveSync.reason : undefined}
+        reason={loadErrorReason}
         onRetry={handleRetryLoad}
-        onDismiss={() => setErrorDismissed(true)}
+        onDismiss={handleDismissLoadError}
       />
     )}
     <GalaxyStatusOverlays

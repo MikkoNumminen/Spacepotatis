@@ -19,15 +19,16 @@ deterministic measurement so two auditors get the same number.
 | 1 | Module boundary integrity | 10 | 0 runtime back-edges (audio→content closed 2026-06-13) AND now lint-enforced; 2 accepted type-only edges |
 | 2 | Documentation coverage & freshness | 9 | 10/10 module READMEs, drift found this pass fixed; dated phase artifacts can mislead |
 | 3 | Automated guardrails | 9 | 4 blocking CI gates + 1416 tests + security suite + per-zone module-boundary lint; no mutation/coverage gate |
-| 4 | File-size discipline | 7 | 18 files >300 LOC; most justified, GameCanvas (353) still over from the audit's named four |
+| 4 | File-size discipline | 8 | 17 files >300 LOC; all four audit-named ui god-files now under cap (GameCanvas 286); the rest are BootScene placeholder + justified save-pipeline files |
 | 5 | Skills coverage | 10 | 16 skill dirs (15 active + new-weapon redirect stub) cover every content task + audits; freshness-audited 2026-06 |
 | 6 | Fresh-agent navigability | 9 | All Phase 5 PARTIAL causes fixed; needs a fresh spot-check run to confirm PASS×3 |
-| | **Overall (mean)** | **9.0** | |
+| | **Overall (mean)** | **9.2** | |
 
-> **Update 2026-06-13:** boundary integrity 9→10 and guardrails 8→9 — the
-> §17 graph is now mechanically enforced by ESLint (`no-restricted-imports`
-> per zone) and the last value back-edge (`audio→content`) was closed. See
-> "What changed in the 2026-06-13 pass" below.
+> **Update 2026-06-13:** boundary integrity 9→10, guardrails 8→9, file-size
+> discipline 7→8. The §17 graph is now mechanically ESLint-enforced, the
+> `audio→content` back-edge was closed, and GameCanvas (the last over-cap
+> ui god-file) was split 353→286 via four cohesive hooks. See "What changed
+> in the 2026-06-13 pass" below.
 
 ## 1. Module boundary integrity — 10/10
 
@@ -116,7 +117,7 @@ Measure: `.github/workflows/ci.yml` gates; `npm test` count;
   invariants are all executable now, which is the load-bearing part; a
   coverage gate is the remaining nice-to-have.
 
-## 4. File-size discipline — 7/10
+## 4. File-size discipline — 8/10
 
 Measure:
 
@@ -125,17 +126,21 @@ find src -name "*.ts" -o -name "*.tsx" | grep -v "\.test\." \
   | grep -v __tests__ | xargs wc -l | awk '$1 > 300 && $2 != "total"'
 ```
 
-- 18 files over the ~300-LOC soft cap. Most carry documented
+- 17 files over the ~300-LOC soft cap (was 18). Most carry documented
   justifications (BootScene 1829 = placeholder sprite generators pending
   real art; `api/save/route.ts` 831 = the transaction + audit-trail
   handler whose linearity is a security property; `sync.ts`,
   `saveValidation.ts`, `schemas/save.ts` = save-pipeline surfaces where
   splitting increases round-trip risk).
-- Of the modular audit's four named ui god-files, three are now under cap
-  (ShopUI 223, QuestPanel 197, WeaponCard 247); **GameCanvas at 353**
-  remains over despite the PR-split to hooks (was 452).
-- **Gap (−3):** GameCanvas still over cap; a handful of the 18 lack an
-  explicit in-file justification comment.
+- **All four** of the modular audit's named ui god-files are now under cap:
+  ShopUI 223, QuestPanel 197, WeaponCard 247, and **GameCanvas 286**
+  (split 2026-06-13 from 353 — was 452 at audit time — by extracting
+  `usePlanetFocus`, `useWarpControls`, `useSaveLoadErrorGate`, and
+  `useCombatLaunch`, each a cohesive concern; behavior preserved verbatim).
+- **Gap (−2):** the remaining 17 are mostly justified, but a handful lack an
+  explicit in-file justification comment, and BootScene's 1829 LOC (placeholder
+  art generators) skews the metric until real assets land and it splits into
+  per-family `boot/` files.
 
 ## 5. Skills coverage — 10/10
 
@@ -200,6 +205,12 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
 4. **Docs synced** — CLAUDE.md §17 + ARCHITECTURE.md §11 now state the
    graph is lint-enforced; the §17 `audio` rule updated for the type-only
    nuance.
+5. **Split GameCanvas 353→286** (was the prior pass's #1 file-discipline
+   Next +point). Extracted four cohesive hooks — `usePlanetFocus` (3D-click→
+   QuestPanel focus bridge), `useWarpControls` (warp state + next-system jump),
+   `useSaveLoadErrorGate` (load-error overlay state machine), and
+   `useCombatLaunch` (galaxy↔combat entry/exit). All four audit-named ui
+   god-files are now under cap. → file-size discipline 7→8.
 
 ## Score history
 
@@ -207,13 +218,14 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
 |---|---|---|
 | 2026-06-12 | 8.7 | First measured rating (this doc). Baseline ~7.8 reconstructed from the same rubric applied to the pre-pass state (open runtime back-edge, 3 doc-drift instances, types barrel 99%). |
 | 2026-06-13 | 9.0 | Boundary integrity 9→10 (audio→content closed + graph lint-enforced); guardrails 8→9 (per-zone no-restricted-imports CI gate). |
+| 2026-06-13 | 9.2 | File-size discipline 7→8 — GameCanvas split 353→286; all four audit-named ui god-files now under the 300 cap. |
 
 ## Next +points, in leverage order
 
-1. **GameCanvas under 300** (+1–2 to file discipline): one more hook
-   extraction (story-trigger wiring or the planet-click bridge).
-2. **Re-run the fresh-agent spot-check** (+1 to navigability if PASS×3).
-3. **Mark superseded phase artifacts**: one-line "superseded by
+1. **Re-run the fresh-agent spot-check** (+1 to navigability if PASS×3).
+2. **Mark superseded phase artifacts**: one-line "superseded by
    04-found-bugs.md ledger + ai-first-rating" header on 05-final-report.md.
-4. **Coverage / mutation gate** (+1 to guardrails): the last guardrails
+3. **Coverage / mutation gate** (+1 to guardrails): the last guardrails
    point — a coverage threshold so weak assertions can't slip through.
+4. **BootScene `boot/` split** (file discipline → 9): when real art lands,
+   split the 1829-LOC placeholder generator into per-family files.
