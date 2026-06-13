@@ -1,5 +1,13 @@
 # Phase 5 — Final verification report
 
+> **HISTORICAL ARTIFACT (dated 2026-05 snapshot).** Several of the "outstanding
+> follow-ups" below were resolved afterward (the `infra → state` and
+> `audio → content` back-edges closed; the §17 graph is now lint-enforced; the
+> four ui god-files are under cap). For the current state see the
+> [04-found-bugs.md](04-found-bugs.md) ledger +
+> [ai-first-rating-2026-06-12.md](ai-first-rating-2026-06-12.md); don't chase a
+> follow-up from this report without checking those first.
+
 > Audit verdict, top-line: **PARTIALLY COMPLETE.** Phase 3 landed all ten
 > modules with green CI (1380/1380 tests, typecheck, lint, build). The
 > proposed dependency graph holds for 8 of 10 modules; two real
