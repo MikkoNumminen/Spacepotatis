@@ -385,6 +385,17 @@ src/app/api/save/route.ts, db/migrations/.
 
 **Boundary rules:**
 
+- **These rules are lint-enforced (CI gate), not just prose.**
+  [eslint.config.mjs](eslint.config.mjs) has per-zone
+  `@typescript-eslint/no-restricted-imports` overrides
+  (`MODULE_GLOBS` / `denyModules` / `moduleBoundaryConfigs`) that fail the
+  build on any illegal cross-module import. A new `infra → state` /
+  `audio → content` value edge is caught at `npm run lint`, not at review.
+  Test files are exempt; dynamic `import()` (the intentional code-split
+  deep imports) is not matched. The two accepted type-only edges
+  (`audio → content` `PerkId`, `schemas → state` ship-shape types) ride on
+  `allowTypeImports`. When you add a genuinely new allowed edge, update the
+  matching zone's deny set in the same PR.
 - Imports cross module boundaries via the module's public surface only. No
   reach into a sibling's internals (e.g. `loadout/WeaponDetailsModal.tsx`
   pulling `components/WeaponStats.tsx` is out — fix during Phase 3).
@@ -398,9 +409,14 @@ src/app/api/save/route.ts, db/migrations/.
   `saveValidation.ts` walks `getAllLootPools()` at module load. Phase 3
   may resolve this with lazy-init; until then, `infra → content` IS an
   edge in the graph.
-- `audio` depends on `types` only. It does NOT reach `state`, `content`,
-  `infra`, `phaser`, `three`, or `ui`. Engines self-register with
-  `audioBus`; UI and Phaser fire engines via the mute-bus-aware methods.
+- `audio` depends on `types` only (plus one type-only `import type
+  { PerkId }` from `content`, erased at compile time — no runtime edge).
+  It does NOT reach `state`, `infra`, `phaser`, `three`, or `ui`, and does
+  not VALUE-import `content` — the cleared-state roster math lives in
+  `content` (`evaluateClearedBoundaries`) and the engine consumes its
+  booleans (2026-06-13; see ARCHITECTURE.md §11 + 04-found-bugs.md).
+  Engines self-register with `audioBus`; UI and Phaser fire engines via the
+  mute-bus-aware methods.
 - The save round-trip surface is the highest-risk perimeter and lives
   inside `state`. Touching it requires running `/save-roundtrip-audit`.
 

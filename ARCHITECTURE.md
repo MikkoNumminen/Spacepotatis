@@ -540,10 +540,16 @@ The architectural choices behind the shape are recorded as ADRs under
 Every arrow points "up" (toward a module loaded first). No runtime
 back-edges since 2026-06-12 (the last one — `saveValidation.ts` pulling
 `weaponUpgradeCost` from `state` — closed when the cost curves moved to
-`content`). One accepted type-only exception remains: `schemas/save.ts`
-imports the ship-shape TYPES from `state/ShipConfig.ts` (see
-docs/audit/04-found-bugs.md 2026-05-29).
+`content`; the `audio → content` value edge in `clearedStateCue.ts`
+followed on 2026-06-13). Accepted type-only exceptions remain:
+`schemas/save.ts` imports the ship-shape TYPES from `state/ShipConfig.ts`,
+and `audio/itemSfx.ts` imports `type PerkId` from `content` (both erased at
+compile time — see docs/audit/04-found-bugs.md).
 Longest chain is 5 hops: `ui → app → state → content → schemas → types`.
+
+**This graph is enforced by ESLint** ([eslint.config.mjs](eslint.config.mjs),
+per-zone `no-restricted-imports`), so an illegal cross-module import fails
+`npm run lint` rather than waiting for review. See CLAUDE.md §17.
 
 ```
                ┌──────────────────────────┐
