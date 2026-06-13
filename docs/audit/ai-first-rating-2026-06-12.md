@@ -21,15 +21,16 @@ deterministic measurement so two auditors get the same number.
 | 3 | Automated guardrails | 10 | 4 blocking CI gates + 1416 tests + security suite + per-zone module-boundary lint + a coverage ratchet gate (vitest thresholds ~5 pts below baseline) |
 | 4 | File-size discipline | 8 | 17 files >300 LOC; all four audit-named ui god-files now under cap (GameCanvas 286); the rest are BootScene placeholder + justified save-pipeline files |
 | 5 | Skills coverage | 10 | 16 skill dirs (15 active + new-weapon redirect stub) cover every content task + audits; freshness-audited 2026-06 |
-| 6 | Fresh-agent navigability | 9 | MEASURED 2026-06-13: 3 PASS / 2 PARTIAL / 0 FAIL, 0 blockers across 5 modules (was 0 PASS / 1 FAIL / 5 blockers before the README fixes); remaining gaps are minor cross-module-wiring notes |
-| | **Overall (mean)** | **9.3** | |
+| 6 | Fresh-agent navigability | 10 | MEASURED 2026-06-13: **5 PASS / 0 PARTIAL / 0 FAIL** across 5 modules (0 PASS / 1 FAIL / 5 blockers → 3 PASS after the README fixes → 5 PASS after `/equipment` gained the new-upgrade-kind + new-ship-stat procedures) |
+| | **Overall (mean)** | **9.5** | |
 
 > **Update 2026-06-13:** boundary integrity 9→10, guardrails 8→**10**, file-size
-> discipline 7→8. The §17 graph is now mechanically ESLint-enforced, the
-> `audio→content` back-edge was closed, GameCanvas (the last over-cap ui
-> god-file) was split 353→286 via four cohesive hooks, and a coverage ratchet
-> gate now fails CI on a coverage drop. See "What changed in the 2026-06-13
-> pass" below.
+> discipline 7→8, navigability 9→**10**. The §17 graph is mechanically
+> ESLint-enforced; the `audio→content` back-edge closed; GameCanvas split
+> 353→286; a coverage ratchet gate fails CI on a drop; and the `/equipment`
+> skill was extended to own the new-purchasable-upgrade + new-ship-stat flows,
+> flipping the last 2 navigability PARTIALs to PASS. See "What changed in the
+> 2026-06-13 pass" below.
 
 ## 1. Module boundary integrity — 10/10
 
@@ -157,7 +158,7 @@ Measure: `ls .claude/skills/` vs the content-task table in CLAUDE.md §10.
 - Skills were drift-audited and finetuned 2026-06 (PRs #286, #288 — #288
   added `deps-triage` and `voice-asset`, taking the count 14 → 16).
 
-## 6. Fresh-agent navigability — 9/10
+## 6. Fresh-agent navigability — 10/10
 
 Measure: the Phase 5 "fresh-agent test" protocol
 ([05-final-report.md §3](05-final-report.md)) — README + barrel +
@@ -175,15 +176,25 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
     documented `uiCues.ts` (`playUiCue`) — the exact file a UI-cue change
     needs; the infra README contradicted `index.ts` on the barrel/auth
     carve-out. This honestly showed the dimension had been OVER-rated at 9.
-  - SECOND run (after the fixes): **3 PASS / 2 PARTIAL / 0 FAIL, 0
-    blockers.** state/infra/audio now PASS; ui and content remain PARTIAL
-    with only minor cross-module-wiring notes (e.g. "a new stat row /
-    purchasable is a multi-module change").
-- **Gap (−1):** the 2 residual PARTIALs are cross-module-wiring guidance
-  that arguably belongs in a skill (`/equipment`, `/new-*`) rather than a
-  single-module README; documenting full cross-module flows inside one
-  module's README cuts against the modular-doc philosophy, so they're left
-  as minor.
+  - SECOND run (after the README fixes): **3 PASS / 2 PARTIAL / 0 FAIL, 0
+    blockers.** state/infra/audio now PASS; ui and content remained PARTIAL
+    on cross-module-wiring guidance (a new stat row / purchasable is a
+    multi-module change with no single-module home).
+  - THIRD run (after the `/equipment` skill extension): **5 PASS / 0 PARTIAL
+    / 0 FAIL.** Rather than bloat single-module READMEs with cross-module
+    flows, the `/equipment` skill gained two procedures — "a new hull/reactor
+    upgrade kind" (the full id-union → registry → curve → ShipConfig field →
+    mutator → ShopUI → SAVE round-trip sequence, incl. the `migrateShip`
+    read-from-`raw` trap) and "a new displayed ship stat" (the StatId +
+    presentation + value-source + render-site + which-modal routing) — and
+    the ui/content READMEs now route these tasks to it per CLAUDE.md §10.
+    Verified via the §10 skill-first path; both flipped to PASS.
+- The skill extension itself was verify-don't-assert: the mapping pass
+  over-claimed "two compile-invisible silent drops (schema + cloneShip)";
+  reading the source showed both are actually tsc-FORCED for a required
+  field (the `_shipCheck` guard + the `: ShipConfig`-typed return literals),
+  and the ONE genuine silent trap is the `migrateShip` read-from-`raw`. The
+  skill was corrected before commit.
 
 ## What changed in the 2026-06-12 pass
 
@@ -260,14 +271,21 @@ CLAUDE.md §17 only; can the agent make a typical change safely?
 | 2026-06-13 | 9.2 | File-size discipline 7→8 — GameCanvas split 353→286; all four audit-named ui god-files now under the 300 cap. |
 | 2026-06-13 | 9.2 | Navigability spot-check run + acted on (0 PASS/5 blockers → 3 PASS/0 blockers via README fixes). Dimension 6's 9 is now measured, not asserted; overall unchanged but better-evidenced. |
 | 2026-06-13 | 9.3 | Guardrails 9→10 — coverage ratchet gate (vitest thresholds ~5 pts below baseline, enforced in the consolidated CI test step; @vitest/coverage-v8 was already installed). Gate-fires verified. |
+| 2026-06-13 | 9.5 | Navigability 9→10 — `/equipment` skill extended with the new-hull/reactor-upgrade-kind + new-ship-stat procedures (+ ui/content README routing); the last 2 spot-check PARTIALs flipped to PASS (5 PASS / 0 PARTIAL, verified via the §10 skill-first path). |
 
 ## Next +points, in leverage order
 
-1. **Push the last 2 navigability PARTIALs to PASS** — likely via a
-   skill (`/equipment` extended to cover "new purchasable upgrade kind"),
-   not more single-module README prose.
-3. **BootScene `boot/` split** (file discipline → 9): when real art lands,
-   split the 1829-LOC placeholder generator into per-family files.
+The high-value levers are done (overall 9.5; only dimension 4 is below 9, and
+that's the documented BootScene placeholder). What remains is genuinely
+low-priority or blocked:
+
+1. **BootScene `boot/` split** (file discipline 8→9): blocked on real sprite
+   art landing — the 1829-LOC file is a documented placeholder generator.
+2. **Dimension 2 → 10** (doc freshness): would need the dated phase artifacts
+   either archived or rewritten, not just banner-marked. Marginal.
+3. **Mutation testing** (beyond the coverage gate): catches assertions that
+   execute lines without checking behavior. A larger CI-time investment;
+   weigh against the §13 budget.
 
 > **Done 2026-06-13:** "mark superseded phase artifacts" — added a HISTORICAL
 > banner to 01-inventory.md, 01-inventory-drift-2026-05-31.md,
