@@ -75,8 +75,8 @@ The voice does double duty: audiobook-style narrative *and* gameplay feedback. *
 
 A web stack stitched with TypeScript:
 
-- **Next.js 15 + React 19** — pages, layout, the shell around the game canvas.
-- **Phaser 3** — 2D combat scenes (ship, bullets, collisions).
+- **Next.js 16 + React 19** — pages, layout, the shell around the game canvas.
+- **Phaser 4** — 2D combat scenes (ship, bullets, collisions).
 - **Three.js + GSAP** — the 3D galaxy view and the camera transition into combat.
 - **Tailwind CSS** — styling.
 - **PostgreSQL on Neon, talked to via Kysely** — saves and leaderboard. No ORM; we write SQL through a typed builder. Schema migrations are plain `.sql` files in `db/migrations/`.
@@ -107,7 +107,7 @@ CI runs all of these on every push. You can run them locally too:
 ```bash
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint flat config
-npm test             # vitest, ~1170 tests
+npm test             # vitest, ~1300 tests
 npm run build        # full production build
 ```
 
