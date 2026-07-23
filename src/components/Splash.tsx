@@ -7,7 +7,7 @@ export interface SplashStep {
 
 export default function Splash({ steps }: { steps: ReadonlyArray<SplashStep> }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-space-bg/70 p-4 backdrop-blur-sm">
+    <div className="absolute inset-0 flex items-center justify-center bg-space-bg/70 p-4 backdrop-blur-xs">
       <div className="select-none rounded border border-hud-green/40 bg-space-bg/80 p-5 shadow-[0_0_30px_rgba(94,255,167,0.15)] sm:p-6">
         <div className="font-display text-2xl tracking-widest text-hud-green animate-pulse sm:text-3xl">
           SPACEPOTATIS

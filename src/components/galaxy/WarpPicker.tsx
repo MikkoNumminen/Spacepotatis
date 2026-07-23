@@ -20,7 +20,7 @@ export default function WarpPicker({
   );
 
   return (
-    <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-6">
+    <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/60 p-3 backdrop-blur-xs sm:p-6">
       <div className="relative w-[min(28rem,100%)] rounded border border-space-border bg-space-panel/95 p-5">
         <button
           type="button"

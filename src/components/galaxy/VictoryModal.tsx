@@ -92,7 +92,7 @@ export default function VictoryModal({
     : "border-hud-red/60 text-hud-red hover:bg-hud-red/10 active:bg-hud-red/20";
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/70 p-3 backdrop-blur-sm sm:p-6">
+    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/70 p-3 backdrop-blur-xs sm:p-6">
       <div
         role="dialog"
         aria-modal="true"

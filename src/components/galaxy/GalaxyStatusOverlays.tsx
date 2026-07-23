@@ -28,7 +28,7 @@ export default function GalaxyStatusOverlays({
         <div
           role="status"
           aria-live="polite"
-          className="pointer-events-none fixed inset-0 z-[55] flex items-center justify-center bg-space-bg/80 backdrop-blur-sm"
+          className="pointer-events-none fixed inset-0 z-[55] flex items-center justify-center bg-space-bg/80 backdrop-blur-xs"
         >
           <div className="select-none rounded border border-hud-green/40 bg-space-bg/80 p-5 shadow-[0_0_30px_rgba(94,255,167,0.15)] sm:p-6">
             <div className="font-display text-xl tracking-widest text-hud-green animate-pulse sm:text-2xl">
@@ -45,7 +45,7 @@ export default function GalaxyStatusOverlays({
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="renderer-error-title"
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-space-bg/90 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-space-bg/90 p-4 backdrop-blur-xs"
         >
           <div className="select-none rounded border border-hud-red/40 bg-space-bg/90 p-5 shadow-[0_0_30px_rgba(255,94,94,0.25)] sm:p-6">
             <div

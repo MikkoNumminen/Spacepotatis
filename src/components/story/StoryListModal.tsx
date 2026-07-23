@@ -28,7 +28,7 @@ export default function StoryListModal({
   const visible = STORY_ENTRIES.filter((e) => seen.has(e.id));
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-sm sm:p-6">
+    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-xs sm:p-6">
       <div
         role="dialog"
         aria-modal="true"
@@ -62,7 +62,7 @@ export default function StoryListModal({
                     type="button"
                     onClick={() => onReplay(entry.id)}
                     aria-label={`Replay: ${entry.title}`}
-                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hud-amber/60 active:bg-hud-amber/20"
+                    className="touch-manipulation select-none rounded border border-hud-amber/60 px-3 py-1 text-xs font-display tracking-widest text-hud-amber hover:bg-hud-amber/10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-hud-amber/60 active:bg-hud-amber/20"
                   >
                     REPLAY
                   </button>

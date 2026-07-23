@@ -73,7 +73,7 @@ export default function StoryModal({
   }, [onClose]);
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-sm sm:p-6">
+    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-space-bg/80 p-3 backdrop-blur-xs sm:p-6">
       <div
         role="dialog"
         aria-modal="true"

@@ -26,7 +26,7 @@ export default function Home() {
               over the busy 3D galaxy on small screens. Desktop has plenty of
               negative space and the panels read as ugly frames there — strip
               them at sm+ via sm:bg-transparent + sm:p-0. */}
-          <div className="rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <div className="rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-xs sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <h1 className="font-display text-4xl tracking-widest text-hud-green drop-shadow-[0_0_20px_rgba(94,255,167,0.45)] sm:text-5xl">
               SPACEPOTATIS
             </h1>
@@ -35,7 +35,7 @@ export default function Home() {
             </p>
           </div>
 
-          <nav className="flex w-full max-w-xs flex-col items-stretch gap-3 rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-sm sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <nav className="flex w-full max-w-xs flex-col items-stretch gap-3 rounded-2xl bg-black/35 px-5 py-5 backdrop-blur-xs sm:rounded-none sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <PlayButton />
             <Link
               href={ROUTES.page.leaderboard}
