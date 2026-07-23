@@ -192,6 +192,16 @@ const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
+    // eslint-config-next defaults eslint-plugin-react to `version: "detect"`,
+    // whose detection path calls the `context.getFilename()` method that
+    // ESLint 10 removed — it throws `getFilename is not a function` and aborts
+    // the whole lint run. Pinning a concrete React version skips detection
+    // entirely (also the plugin's own recommended config, and it silences the
+    // "React version not specified" warning). Keep in sync with the `react`
+    // dependency major.
+    settings: { react: { version: "19.2" } },
+  },
+  {
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],

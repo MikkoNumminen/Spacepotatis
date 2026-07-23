@@ -41,7 +41,7 @@
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.185.1",
     "@vitest/coverage-v8": "^4.1.10",
-    "eslint": "^9.39.4",
+    "eslint": "^10.5.0",
     "eslint-config-next": "^16.2.10",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
@@ -51,7 +51,7 @@
     "vitest": "^4.1.5"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "lint-staged": {
     "*.{ts,tsx,mjs,js,cjs}": "eslint --fix"
