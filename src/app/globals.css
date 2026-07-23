@@ -1,6 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Load the existing v3-style JS config (custom colors, fonts, animation) in
+   v4's backward-compatible mode instead of porting it to a CSS @theme block. */
+@config "../../tailwind.config.ts";
 
 @layer base {
   :root {

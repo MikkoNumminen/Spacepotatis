@@ -43,7 +43,7 @@ export default function StickyHeader({
         {right ? <div className="ml-auto">{right}</div> : null}
       </div>
       <div
-        className="pointer-events-none h-4 bg-gradient-to-b from-space-bg to-transparent"
+        className="pointer-events-none h-4 bg-linear-to-b from-space-bg to-transparent"
         aria-hidden="true"
       />
     </div>

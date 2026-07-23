@@ -89,7 +89,7 @@ export default function HudFrame({
       </div>
       <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 select-none flex-col items-center gap-2 px-3 text-center sm:bottom-6">
         {hovered && (
-          <div className="rounded border border-space-border bg-space-panel/80 px-4 py-2 backdrop-blur-sm">
+          <div className="rounded border border-space-border bg-space-panel/80 px-4 py-2 backdrop-blur-xs">
             <div className="font-display tracking-widest text-hud-green">{hovered.name}</div>
             <div className="text-xs text-hud-amber">
               {hovered.kind === "shop"
