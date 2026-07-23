@@ -122,7 +122,7 @@ export default function HandlePrompt({ onSubmit, onCancel }: HandlePromptProps) 
           autoComplete="off"
           spellCheck={false}
           placeholder="potato_pilot"
-          className="mt-4 w-full rounded border border-hud-green/30 bg-black/40 px-3 py-2 font-mono text-base text-hud-green outline-none focus:border-hud-green/70"
+          className="mt-4 w-full rounded border border-hud-green/30 bg-black/40 px-3 py-2 font-mono text-base text-hud-green placeholder:text-gray-400 outline-hidden focus:border-hud-green/70"
         />
 
         <p className="mt-2 text-xs text-hud-amber/70">
