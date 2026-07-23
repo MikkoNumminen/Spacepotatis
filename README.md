@@ -107,7 +107,7 @@ CI runs all of these on every push. You can run them locally too:
 ```bash
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint flat config
-npm test             # vitest, ~1300 tests
+npm test             # vitest, ~1400 tests
 npm run build        # full production build
 ```
 
