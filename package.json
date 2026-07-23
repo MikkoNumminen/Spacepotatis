@@ -2,6 +2,7 @@
   "name": "spacepotatis",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Tyrian 2000-inspired vertical scrolling space shooter with a Three.js galaxy overworld",
   "scripts": {
     "dev": "next dev",
