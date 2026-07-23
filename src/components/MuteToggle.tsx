@@ -34,7 +34,7 @@ export default function MuteToggle() {
       aria-pressed={muted}
       aria-label={muted ? "Unmute audio" : "Mute audio"}
       title={muted ? "Sound off" : "Sound on"}
-      className="inline-flex min-h-[44px] min-w-[44px] touch-manipulation select-none items-center justify-center rounded border border-space-border px-2 py-1 text-xs text-hud-green/80 hover:bg-space-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hud-green/60 active:bg-space-panel/80 sm:min-h-0 sm:min-w-0"
+      className="inline-flex min-h-[44px] min-w-[44px] touch-manipulation select-none items-center justify-center rounded border border-space-border px-2 py-1 text-xs text-hud-green/80 hover:bg-space-panel focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-hud-green/60 active:bg-space-panel/80 sm:min-h-0 sm:min-w-0"
     >
       <span aria-hidden="true">{muted ? "♪ off" : "♪ on"}</span>
     </button>
