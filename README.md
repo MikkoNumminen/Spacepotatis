@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MikkoNumminen/Spacepotatis/actions/workflows/ci.yml/badge.svg)](https://github.com/MikkoNumminen/Spacepotatis/actions/workflows/ci.yml)
 
-> ## ▶ Play it now: **<https://spacepotatis.vercel.app/>**
+> ## ▶ Play it now: **<https://mikkonumminen.dev/spacepotatis>**
 >
 > Runs in your browser. No install. Sign in with Google only if you want a cloud save and a slot on the leaderboard.
 
